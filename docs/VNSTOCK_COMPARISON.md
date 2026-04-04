@@ -103,6 +103,8 @@ thì repo hiện tại là một bước tiến rõ rệt theo hướng engineer
 
 Nếu cần nhìn theo đúng use case ứng dụng, xem thêm `docs/PORTFOLIO_ROBOADVISOR_GUIDE.md`.
 
+Nếu mục tiêu là thay bản chuẩn bằng bản fork trong môi trường dev/prod/CI, xem `docs/FORK_MIGRATION_GUIDE.md`.
+
 ## Mốc code nên xem tiếp
 
 - `vnstock/base.py`

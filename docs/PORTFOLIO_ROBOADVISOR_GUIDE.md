@@ -6,6 +6,8 @@ Tài liệu này trả lời câu hỏi thực dụng hơn sau khi so sánh vớ
 - Những phần nào đã đủ tốt để tận dụng ngay?
 - Những phần nào vẫn cần tự bọc thêm ở tầng ứng dụng?
 
+Nếu bạn đang chuyển hẳn môi trường từ bản chuẩn sang bản fork, đọc thêm `docs/FORK_MIGRATION_GUIDE.md`.
+
 ## Kết luận nhanh
 
 Nếu mục tiêu là xây một hệ thống gồm:
