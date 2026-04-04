@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import random
+import threading
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
@@ -23,6 +25,102 @@ DEFAULT_MAX_RETRIES = 3
 DEFAULT_BACKOFF_SECONDS = 0.3
 
 RATE_LIMITER = Throttler(rate_limit=REQUESTS_PER_MINUTE, period=60.0)
+
+
+@dataclass
+class AsyncRequestStats:
+    """Lightweight counters for async request diagnostics."""
+
+    total_requests: int = 0
+    successful_requests: int = 0
+    failed_requests: int = 0
+    total_attempts: int = 0
+    retry_attempts: int = 0
+    throttled_responses: int = 0
+    server_error_responses: int = 0
+    timeout_errors: int = 0
+    transport_errors: int = 0
+    other_errors: int = 0
+    direct_requests: int = 0
+    proxied_requests: int = 0
+    status_counts: Dict[int, int] = field(default_factory=dict)
+    last_error: str = ""
+
+
+_stats_lock = threading.Lock()
+_request_stats = AsyncRequestStats()
+
+
+def reset_async_request_stats() -> None:
+    """Reset collected async request counters."""
+    global _request_stats
+    with _stats_lock:
+        _request_stats = AsyncRequestStats()
+
+
+def get_async_request_stats() -> Dict[str, Any]:
+    """Return a snapshot of collected async request counters."""
+    with _stats_lock:
+        return {
+            "total_requests": _request_stats.total_requests,
+            "successful_requests": _request_stats.successful_requests,
+            "failed_requests": _request_stats.failed_requests,
+            "total_attempts": _request_stats.total_attempts,
+            "retry_attempts": _request_stats.retry_attempts,
+            "throttled_responses": _request_stats.throttled_responses,
+            "server_error_responses": _request_stats.server_error_responses,
+            "timeout_errors": _request_stats.timeout_errors,
+            "transport_errors": _request_stats.transport_errors,
+            "other_errors": _request_stats.other_errors,
+            "direct_requests": _request_stats.direct_requests,
+            "proxied_requests": _request_stats.proxied_requests,
+            "status_counts": dict(_request_stats.status_counts),
+            "last_error": _request_stats.last_error,
+        }
+
+
+def _record_request_started(selected_proxy: Optional[str]) -> None:
+    with _stats_lock:
+        _request_stats.total_requests += 1
+        if selected_proxy:
+            _request_stats.proxied_requests += 1
+        else:
+            _request_stats.direct_requests += 1
+
+
+def _record_attempt(attempt: int) -> None:
+    with _stats_lock:
+        _request_stats.total_attempts += 1
+        if attempt > 0:
+            _request_stats.retry_attempts += 1
+
+
+def _record_response_status(status_code: int) -> None:
+    with _stats_lock:
+        _request_stats.status_counts[status_code] = (
+            _request_stats.status_counts.get(status_code, 0) + 1
+        )
+        if status_code == 429:
+            _request_stats.throttled_responses += 1
+        elif status_code >= 500:
+            _request_stats.server_error_responses += 1
+
+
+def _record_success() -> None:
+    with _stats_lock:
+        _request_stats.successful_requests += 1
+
+
+def _record_failure(exc: Exception) -> None:
+    with _stats_lock:
+        _request_stats.failed_requests += 1
+        _request_stats.last_error = str(exc)
+        if isinstance(exc, httpx.TimeoutException):
+            _request_stats.timeout_errors += 1
+        elif isinstance(exc, httpx.RequestError):
+            _request_stats.transport_errors += 1
+        else:
+            _request_stats.other_errors += 1
 
 
 class AsyncClientManager:
@@ -103,6 +201,7 @@ async def _send_with_retry(
     last_error: Optional[Exception] = None
 
     for attempt in range(max_retries + 1):
+        _record_attempt(attempt)
         try:
             request_kwargs: Dict[str, Any] = {
                 "headers": headers,
@@ -117,12 +216,14 @@ async def _send_with_retry(
                     request_kwargs["content"] = payload
 
             response = await client.request(method, url, **request_kwargs)
+            _record_response_status(response.status_code)
 
             # Retry transient responses (429 and 5xx) before raising.
             if response.status_code == 429 or response.status_code >= 500:
                 response.raise_for_status()
 
             response.raise_for_status()
+            _record_success()
             return response.json()
         except Exception as exc:
             last_error = exc
@@ -130,6 +231,8 @@ async def _send_with_retry(
                 break
             await asyncio.sleep(retry_backoff_seconds * (2 ** attempt))
 
+    if last_error is not None:
+        _record_failure(last_error)
     raise ConnectionError(f"Async API request failed after retries: {last_error}")
 
 
@@ -159,6 +262,8 @@ async def async_send_request(
             selected_proxy or "direct",
             proxy_idx,
         )
+
+    _record_request_started(selected_proxy)
 
     # Keep a call budget of <= 600 requests/min for backend stability.
     async with RATE_LIMITER:
@@ -207,5 +312,7 @@ __all__ = [
     "AsyncClientManager",
     "RATE_LIMITER",
     "REQUESTS_PER_MINUTE",
+    "get_async_request_stats",
+    "reset_async_request_stats",
     "shutdown_async_clients",
 ]

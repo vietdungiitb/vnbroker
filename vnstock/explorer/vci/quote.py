@@ -266,7 +266,9 @@ class Quote:
             count_back=count_back,
         )
 
-        proxy_pool = proxy_manager.get_proxy_pool(size=16)
+        proxy_pool = self.proxy_config.proxy_list
+        if proxy_pool is None:
+            proxy_pool = proxy_manager.get_proxy_pool(size=16)
         response = await async_send_request(
             url=url,
             headers=self.headers,
@@ -313,10 +315,17 @@ class Quote:
         max_concurrency: int = 24,
     ) -> List[pd.DataFrame]:
         semaphore = asyncio.Semaphore(max_concurrency)
+        shared_proxy_pool = proxy_manager.get_proxy_pool(
+            size=max(8, min(max_concurrency, 32))
+        )
 
         async def _run_one(symbol: str) -> Optional[pd.DataFrame]:
             async with semaphore:
-                quote = cls(symbol=symbol, show_log=show_log)
+                quote = cls(
+                    symbol=symbol,
+                    show_log=show_log,
+                    proxy_list=shared_proxy_pool or None,
+                )
                 try:
                     return await quote.history_async(
                         start=start,
