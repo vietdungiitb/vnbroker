@@ -15,7 +15,7 @@ For reproducible deployments, pin a version or commit.
 Stable from PyPI:
 
 ```bash
-pip install "vnstock==1.0.0"
+pip install "vnstock==1.0.1"
 ```
 
 From GitHub branch/commit:
