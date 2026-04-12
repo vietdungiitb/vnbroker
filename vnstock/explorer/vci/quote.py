@@ -23,7 +23,7 @@ from vnstock.core.utils.lookback import (
 )
 from vnstock.core.utils.market import trading_hours
 from vnstock.core.utils.parser import convert_time_flexible, get_asset_type
-from vnstock.core.utils.transform import intraday_to_df, ohlc_to_df
+from vnstock.core.utils.transform import intraday_to_df, normalize_price_columns, ohlc_to_df
 from vnstock.core.utils.user_agent import get_headers
 from vnstock.core.utils.validation import validate_symbol
 from vnstock.core.utils.proxy_manager import proxy_manager
@@ -645,7 +645,12 @@ class Quote:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
         if "price" in df.columns and self.asset_type not in {"index", "derivative"}:
-            df["price"] = (df["price"] / 1000).round(2)
+            df = normalize_price_columns(
+                df,
+                columns=["price"],
+                source_unit="VND",
+                floating=2,
+            )
 
         return df
 

@@ -1,5 +1,6 @@
 """Data transformation utilities for vnstock data sources."""
 
+import os
 import re
 import pytz
 import numpy as np
@@ -11,6 +12,74 @@ from vnstock.core.utils.parser import localize_timestamp
 from vnstock.core.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+_PRICE_UNIT_ENV = "VNSTOCK_PRICE_UNIT"
+_PRICE_UNIT_VND = "VND"
+_PRICE_UNIT_THOUSAND_VND = "THOUSAND_VND"
+
+
+def _resolve_target_price_unit() -> str:
+    """
+    Resolve target price unit for normalized outputs.
+
+    Accepted values (case-insensitive):
+    - VND: prices are returned in absolute VND (default)
+    - THOUSAND_VND, THOUSAND, K: prices are returned in thousand VND
+    """
+    raw = os.getenv(_PRICE_UNIT_ENV, _PRICE_UNIT_VND).strip().upper()
+    if raw in {"THOUSAND", "K", _PRICE_UNIT_THOUSAND_VND}:
+        return _PRICE_UNIT_THOUSAND_VND
+    return _PRICE_UNIT_VND
+
+
+def _convert_price_series(
+    series: pd.Series,
+    source_unit: str,
+    target_unit: str,
+) -> pd.Series:
+    """Convert price series between VND and THOUSAND_VND units."""
+    src = source_unit.upper()
+    dst = target_unit.upper()
+    if src == dst:
+        return series
+    if src == _PRICE_UNIT_VND and dst == _PRICE_UNIT_THOUSAND_VND:
+        return series / 1000
+    if src == _PRICE_UNIT_THOUSAND_VND and dst == _PRICE_UNIT_VND:
+        return series * 1000
+    # Unknown unit pair: return as-is to avoid destructive transforms.
+    return series
+
+
+def normalize_price_columns(
+    df: pd.DataFrame,
+    columns: List[str],
+    source_unit: str,
+    floating: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Normalize selected price columns into configured target unit.
+
+    The target unit is controlled by VNSTOCK_PRICE_UNIT and defaults to VND.
+    """
+    target_unit = _resolve_target_price_unit()
+    available = [c for c in columns if c in df.columns]
+    if not available:
+        df.attrs['price_unit'] = target_unit
+        return df
+
+    for col in available:
+        values = pd.to_numeric(df[col], errors='coerce')
+        values = _convert_price_series(
+            series=values,
+            source_unit=source_unit,
+            target_unit=target_unit,
+        )
+        if floating is not None:
+            values = values.round(floating)
+        df[col] = values
+
+    df.attrs['price_unit'] = target_unit
+    return df
 
 # Vietnam timezone
 vietnam_tz = pytz.timezone('Asia/Ho_Chi_Minh')
@@ -201,13 +270,15 @@ def ohlc_to_df(
             # TCBS and others might use string formats
             df['time'] = pd.to_datetime(df['time'], errors='coerce')
     
-    # Price scaling for non-index/derivative assets
-    if asset_type not in ["index", "derivative"]:
-        df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].div(1000)
-    
-    # Round price columns
-    df[["open", "high", "low", "close"]] = (
-        df[["open", "high", "low", "close"]].round(floating)
+    # Normalize price columns into configured target unit.
+    source_price_unit = _PRICE_UNIT_VND
+    if asset_type in ["index", "derivative"]:
+        source_price_unit = _resolve_target_price_unit()
+    df = normalize_price_columns(
+        df,
+        columns=["open", "high", "low", "close"],
+        source_unit=source_price_unit,
+        floating=floating,
     )
 
     # Resample if needed - use shared utility for consistency
@@ -288,11 +359,16 @@ def intraday_to_df(
                 )
                 print(msg)
 
-    # --- Scale price by source ---
-    scale_map = {'VCI': 1000, 'MAS': 1000}
-    scale = scale_map.get(source, 1)
-    if 'price' in df.columns:
-        df['price'] = df['price'] / scale
+    # --- Normalize price by configured unit ---
+    source_price_unit = _PRICE_UNIT_VND
+    if source.upper() in {'MAS'}:
+        source_price_unit = _PRICE_UNIT_VND
+    df = normalize_price_columns(
+        df,
+        columns=['price'],
+        source_unit=source_price_unit,
+        floating=2,
+    )
 
     # --- Volume: round and cast to int ---
     if 'volume' in df.columns:

@@ -212,6 +212,8 @@ Trước khi bắt đầu, hãy đánh dấu yêu thích để giúp dự án c�
 
 👉 Tai lieu su dung Stock News da trien khai trong thu vien: [docs/STOCK_NEWS_USAGE_GUIDE.md](docs/STOCK_NEWS_USAGE_GUIDE.md)
 
+👉 Huong dan chuan hoa don vi gia da provider (KBS/VCI/TCBS): [docs/PRICE_UNIT_STANDARDIZATION.md](docs/PRICE_UNIT_STANDARDIZATION.md)
+
 👉 Cac cau hoi thuong gap ve Stock News: [docs/STOCK_NEWS_FAQ.md](docs/STOCK_NEWS_FAQ.md)
 
 👉 Diem vao tong hop tai lieu Stock News: [docs/STOCK_NEWS_INDEX.md](docs/STOCK_NEWS_INDEX.md)

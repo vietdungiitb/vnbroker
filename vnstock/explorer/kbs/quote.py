@@ -14,7 +14,7 @@ from vnstock.core.utils.logger import get_logger
 from vnstock.core.utils.parser import get_asset_type, convert_derivative_symbol
 from vnstock.core.utils.lookback import get_start_date_from_lookback, interpret_lookback_length
 from vnstock.core.utils.client import send_request, ProxyConfig
-from vnstock.core.utils.transform import process_match_types
+from vnstock.core.utils.transform import process_match_types, normalize_price_columns
 from vnstock.core.utils.user_agent import get_headers
 from vnstock.core.adaptive_controller import (
     AdaptiveController,
@@ -488,13 +488,13 @@ class Quote:
         if 'value' in df.columns:
             df['value'] = df['value'].astype('float64')
 
-        # Apply floating point precision to OHLC columns
-        ohlc_cols = ['open', 'high', 'low', 'close']
-        for col in ohlc_cols:
-            if col in df.columns:
-                df[col] = df[col] / 1000
-                if floating is not None:
-                    df[col] = df[col].round(floating)
+        # Normalize OHLC into configured output unit.
+        df = normalize_price_columns(
+            df,
+            columns=['open', 'high', 'low', 'close'],
+            source_unit='VND',
+            floating=floating,
+        )
 
         # Trim data to start time if needed
         df = df[df['time'] >= pd.to_datetime(start)].reset_index(drop=True)
@@ -648,9 +648,7 @@ class Quote:
         
         # price: Match price
         if 'price' in df.columns:
-            standardized_df['price'] = df['price'] / 1000
-            if floating is not None:
-                standardized_df['price'] = standardized_df['price'].round(floating)
+            standardized_df['price'] = df['price']
         
         # volume: Match volume (KBS uses 'match_volume')
         if 'match_volume' in df.columns:
@@ -697,6 +695,13 @@ class Quote:
         else:
             # Return only core standardized columns
             result_df = standardized_df[['time', 'price', 'volume', 'match_type', 'id']]
+
+        result_df = normalize_price_columns(
+            result_df,
+            columns=['price'],
+            source_unit='VND',
+            floating=floating,
+        )
 
         # Add metadata
         result_df.attrs['symbol'] = self.symbol

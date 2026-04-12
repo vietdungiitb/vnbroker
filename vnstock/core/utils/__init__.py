@@ -30,6 +30,7 @@ from .parser import (
 from .transform import (
     clean_numeric_string,
     get_trading_date,
+    normalize_price_columns,
     ohlc_to_df,
     intraday_to_df,
     replace_in_column_names,
@@ -111,6 +112,7 @@ __all__ = [
     # Transform
     'clean_numeric_string',
     'get_trading_date',
+    'normalize_price_columns',
     'ohlc_to_df',
     'intraday_to_df',
     'replace_in_column_names',
