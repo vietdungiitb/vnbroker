@@ -2,6 +2,7 @@ import pytest
 
 from vnstock.api.listing import Listing
 from vnstock.api.quote import Quote
+from vnstock.api.trading import Trading
 from vnstock.core import source_router
 from vnstock.core.registry import ProviderRegistry
 
@@ -29,6 +30,25 @@ class _HealthyQuoteProvider:
 
     def history(self, **kwargs):
         return {"symbol": self.symbol, "kwargs": kwargs}
+
+
+class _RateLimitedTradingProvider:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def price_board(self, symbols_list, **kwargs):
+        raise ConnectionError("429 too many requests")
+
+
+class _HealthyTradingProvider:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def price_board(self, symbols_list, **kwargs):
+        return {
+            "symbols": symbols_list,
+            "count": len(symbols_list),
+        }
 
 
 @pytest.mark.unit
@@ -69,6 +89,31 @@ class TestAutoSourceRouter:
         result = listing.all_symbols()
 
         assert result["source_used"] == "KBS"
+
+    def test_auto_trading_price_board_rate_limit_triggers_cooldown_and_switches_active_source(self, monkeypatch):
+        providers = {
+            ("trading", "vci"): _RateLimitedTradingProvider,
+            ("trading", "kbs"): _HealthyTradingProvider,
+        }
+
+        def fake_get(module_name, source_name):
+            return providers[(module_name, source_name)]
+
+        monkeypatch.setattr(ProviderRegistry, "get", fake_get)
+
+        trading = Trading(source="AUTO", show_log=False)
+        result = trading.price_board(symbols_list=["ACB", "VCB"])
+
+        assert result["source_used"] == "KBS"
+        assert result["count"] == 2
+        assert trading.resolved_source == "kbs"
+
+        health = source_router.get_source_health_snapshot("trading")
+        assert health["VCI"]["failures"] >= 1
+        assert health["VCI"]["in_cooldown"] is True
+
+        next_order = source_router.build_source_order("trading")
+        assert next_order[0] == "kbs"
 
     def test_router_cooldown_deprioritizes_failed_source_for_symbol(self):
         first_order = source_router.build_source_order("quote", symbol="ACB")
