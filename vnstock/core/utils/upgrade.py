@@ -211,6 +211,60 @@ def _get_github_latest_release(repo_owner, repo_name):
         return None
 
 
+def _get_current_github_channel_version():
+    """
+    Resolve the current GitHub-channel version from code metadata.
+
+    GitHub releases in this project use the 3.x line, while package metadata may
+    still be 1.x for distribution compatibility. For update notices that should
+    follow GitHub only, compare against the version declared in the codebase
+    rather than the wheel/sdist metadata.
+    """
+    candidates = set()
+
+    for mapping in (VERSION_REQUIREMENTS, VERSION_NOTICES, PYTHON_VERSION_SUPPORT):
+        if isinstance(mapping, dict):
+            candidates.update(str(key).strip() for key in mapping.keys() if str(key).strip())
+
+    valid_versions = []
+    for candidate in candidates:
+        try:
+            valid_versions.append((version.parse(candidate), candidate))
+        except Exception:
+            continue
+
+    if not valid_versions:
+        return None
+
+    valid_versions.sort(key=lambda item: item[0])
+    return valid_versions[-1][1]
+
+
+def get_github_version_diagnostics():
+    """
+    Return GitHub-version diagnostics for manual inspection.
+    """
+    package = "vnstock"
+    github_repo_owner = "vietdungiitb"
+    github_repo_name = "vnstock"
+
+    try:
+        package_metadata_version = get_version(package).strip()
+    except Exception:
+        package_metadata_version = None
+
+    return {
+        "package": package,
+        "github_repo": f"{github_repo_owner}/{github_repo_name}",
+        "package_metadata_version": package_metadata_version,
+        "current_github_channel_version": _get_current_github_channel_version(),
+        "latest_github_release": _get_github_latest_release(
+            github_repo_owner,
+            github_repo_name,
+        ),
+    }
+
+
 def _check_version_updates():
     """
     Check for newer versions from GitHub repository only.
@@ -233,12 +287,13 @@ def _check_version_updates():
     
     try:
         installed_version = get_version(package).strip()
+        current_version = _get_current_github_channel_version() or installed_version
         
         # Get latest version from GitHub
         latest_version = _get_github_latest_release(github_repo_owner, github_repo_name)
         
         if latest_version:
-            parsed_installed = version.parse(installed_version)
+            parsed_installed = version.parse(current_version)
             parsed_latest = version.parse(latest_version)
             
             if parsed_installed < parsed_latest:
@@ -262,10 +317,12 @@ def _check_version_updates():
                     if venv_type != "system"
                     else f"Python {py_version}"
                 )
+
+                current_info = f"{current_version} ({env_info})"
                 
                 msg = (
                     f"📦 **{package_name} {latest_version} is available**\n"
-                    f"Current: {installed_version} ({env_info})\n"
+                    f"Current: {current_info}\n"
                     f"Update: `{update_cmd}`\n"
                     f"Release: {release_url}"
                 )
@@ -384,6 +441,12 @@ def show_full_notice():
             f"📌 Environment: {venv_info.get('type')} "
             f"(Python {py_version})\n"
             f"📌 Executable: {venv_info.get('python_exe', 'system')}\n"
+        )
+        diagnostics = get_github_version_diagnostics()
+        print(
+            f"📌 GitHub repo: {diagnostics['github_repo']}\n"
+            f"📌 Current GitHub channel version: {diagnostics['current_github_channel_version']}\n"
+            f"📌 Latest GitHub release: {diagnostics['latest_github_release']}\n"
         )
         _check_version_updates()
         
