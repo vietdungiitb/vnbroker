@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-13] — Upgrade Notice: GitHub-only Version Comparison Fix
+
+### Fixed
+- **Perpetual false upgrade notices**: `_check_version_updates()` previously compared package metadata version (`1.0.x`) against GitHub release tags (`3.x`), causing the upgrade notice to fire on every import.
+- **Root cause**: `importlib.metadata.version("vnstock")` returns the editable-install packaging version (`1.0.0`) which is unrelated to the upstream release line (`3.x`).
+- **Solution**: Added `_get_current_github_channel_version()` which reads the highest version key from `VERSION_REQUIREMENTS`, `VERSION_NOTICES`, and `PYTHON_VERSION_SUPPORT` in `vnstock/config.py` (currently `"3.4.0"`) as the source-of-truth for the installed codebase version. GitHub-only comparison is preserved (no PyPI fallback added).
+- **Message cleanup**: Removed noisy `package metadata: 1.0.0` text from notice output. Display now shows `Current: 3.4.0 (Python 3.x (venv))`.
+
+### Added
+- `_get_current_github_channel_version()` — internal helper in `vnstock/core/utils/upgrade.py`.
+- `get_github_version_diagnostics()` — public debug helper returning a dict with `package`, `github_repo`, `package_metadata_version`, `current_github_channel_version`, `latest_github_release`.
+- `tests/unit/core/test_upgrade_notice.py` — 4 regression tests locking the GitHub-only update notice behavior.
+
+### Tagged
+- Branch `core` tagged as `v3.4.0-core`.
+
 ## [2026-04-11] - Stock News API, Filtering, and Health Monitoring
 
 ### Added
