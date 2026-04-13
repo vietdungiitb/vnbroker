@@ -8,6 +8,7 @@ from typing import Dict, Optional
 
 PROFILE_PRESETS: Dict[str, Dict[str, str]] = {
     "benchmark_max_speed": {
+        "VNSTOCK_TRADING_AUTO_PRIMARY": "kbs",
         "VNSTOCK_VCI_ADAPTIVE_CONCURRENCY": "1",
         "VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY": "10",
         "VNSTOCK_VCI_ADAPTIVE_MIN_CONCURRENCY": "2",
@@ -28,6 +29,7 @@ PROFILE_PRESETS: Dict[str, Dict[str, str]] = {
         "VNSTOCK_ASYNC_STATS_ENABLED": "0",
     },
     "production_stable": {
+        "VNSTOCK_TRADING_AUTO_PRIMARY": "kbs",
         "VNSTOCK_VCI_ADAPTIVE_CONCURRENCY": "1",
         "VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY": "6",
         "VNSTOCK_VCI_ADAPTIVE_MIN_CONCURRENCY": "2",
@@ -50,6 +52,7 @@ PROFILE_PRESETS: Dict[str, Dict[str, str]] = {
     # During VN stock-market open hours (09:00-11:30 and 13:00-15:30 ICT, Mon-Fri)
     # servers are under heavy load; use conservative concurrency to avoid 429s.
     "market_hours": {
+        "VNSTOCK_TRADING_AUTO_PRIMARY": "kbs",
         "VNSTOCK_VCI_ADAPTIVE_CONCURRENCY": "1",
         "VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY": "4",
         "VNSTOCK_VCI_ADAPTIVE_MIN_CONCURRENCY": "2",

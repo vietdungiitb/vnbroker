@@ -20,8 +20,8 @@
 
 `source='AUTO'` cho phép vnstock **tự động chọn nguồn dữ liệu tốt nhất** mà không cần chỉ định thủ công. Hệ thống sẽ:
 
-- Ưu tiên **VCI** làm nguồn chính (nhanh nhất, ổn định nhất).
-- Tự động **failover sang KBS** nếu VCI bị rate-limit, timeout, hoặc trả về lỗi.
+- Ưu tiên nguồn chính theo từng nhóm dữ liệu: `quote/company/financial` dùng **VCI-first**, còn `trading.price_board` dùng **KBS-first**.
+- Tự động **failover sang nguồn kế tiếp** nếu nguồn chính bị rate-limit, timeout, hoặc trả về lỗi.
 - Đặt nguồn lỗi vào **cooldown** (tối thiểu 5 giây, tối đa 90 giây theo exponential backoff) rồi thử lại sau.
 
 ```python
@@ -50,7 +50,7 @@ bs = stock.finance.balance_sheet(period='quarter', lang='vi')
 | `quote` | VCI → KBS → MSN |
 | `company` | VCI → KBS |
 | `financial` | VCI → KBS |
-| `trading` | VCI → KBS |
+| `trading` | KBS → VCI |
 | `listing` | KBS → VCI → MSN |
 
 ### Khuyến nghị sử dụng (theo thứ tự ưu tiên)
@@ -63,7 +63,7 @@ bs = stock.finance.balance_sheet(period='quarter', lang='vi')
 | **4** | `'MSN'` | Chỉ dùng cho listing symbols; không hỗ trợ đầy đủ quote. |
 | **5** | `'TCBS'` | Nguồn có xác thực; dùng khi cần dữ liệu độc quyền TCBS. |
 
-> **Ghi chú**: `AUTO` thực chất là VCI-first với failover sang KBS. Trong điều kiện bình thường, kết quả gần bằng `VCI` nhưng có khả năng chịu lỗi cao hơn.
+> **Ghi chú**: `AUTO` không còn là một policy duy nhất cho mọi nhóm dữ liệu. Hiện tại `quote/company/financial` vẫn là VCI-first, nhưng `trading.price_board` đã chuyển sang KBS-first do benchmark online cho thấy KBS ổn định hơn rõ rệt dưới tải duy trì.
 
 ---
 

@@ -55,6 +55,11 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - `PRIMARY_SOURCE_POOLS["quote/company/financial/trading"]` set to `["vci"]` (single-element pool): hash-sharding now always selects VCI first; KBS activates only on confirmed failover, eliminating the previous 50/50 load-split that halved throughput.
 
+### Changed
+- `PRIMARY_SOURCE_POOLS["trading"]` switched to `["kbs"]` and `OPEN_SOURCE_CANDIDATES["trading"]` to `kbs -> vci` after sustained `price_board` benchmarks showed KBS materially outperformed VCI under online rate-limit conditions.
+- `tests/unit/api/test_auto_source_router.py` now covers both KBS-first trading initialization and failover from KBS to VCI when KBS errors.
+- `docs/AUTO_SOURCE_GUIDE.md` updated to document the per-module AUTO priority, including KBS-first routing for trading.
+
 ### Performance (measured 2026-04-04)
 - `source='AUTO'` at concurrency 8: **100% success, 37.2 rps** (vs KBS 86.67% success, 11.1 rps).
 - `source='AUTO'` at concurrency 12, 90 symbols: **100% success, 41.3 rps** (VCI handled 85/90; KBS absorbed 5 failovers).

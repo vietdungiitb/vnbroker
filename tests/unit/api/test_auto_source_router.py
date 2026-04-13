@@ -51,6 +51,14 @@ class _HealthyTradingProvider:
         }
 
 
+class _FailingTradingProvider:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def price_board(self, symbols_list, **kwargs):
+        raise ConnectionError("service unavailable")
+
+
 @pytest.mark.unit
 @pytest.mark.api
 class TestAutoSourceRouter:
@@ -90,6 +98,43 @@ class TestAutoSourceRouter:
 
         assert result["source_used"] == "KBS"
 
+    def test_auto_trading_uses_kbs_as_initial_source(self, monkeypatch):
+        def fake_get(module_name, source_name):
+            assert module_name == "trading"
+            assert source_name == "kbs"
+            return _HealthyTradingProvider
+
+        monkeypatch.setattr(ProviderRegistry, "get", fake_get)
+
+        trading = Trading(source="AUTO", show_log=False)
+
+        assert trading.resolved_source == "kbs"
+
+    def test_auto_trading_price_board_fails_over_to_vci_when_kbs_errors(self, monkeypatch):
+        providers = {
+            ("trading", "kbs"): _FailingTradingProvider,
+            ("trading", "vci"): _HealthyTradingProvider,
+        }
+
+        def fake_get(module_name, source_name):
+            return providers[(module_name, source_name)]
+
+        monkeypatch.setattr(ProviderRegistry, "get", fake_get)
+
+        trading = Trading(source="AUTO", show_log=False)
+        result = trading.price_board(symbols_list=["ACB", "VCB"])
+
+        assert result["source_used"] == "VCI"
+        assert result["count"] == 2
+        assert trading.resolved_source == "vci"
+
+        health = source_router.get_source_health_snapshot("trading")
+        assert health["KBS"]["failures"] >= 1
+        assert health["KBS"]["in_cooldown"] is True
+
+        next_order = source_router.build_source_order("trading")
+        assert next_order[0] == "vci"
+
     def test_auto_trading_price_board_rate_limit_triggers_cooldown_and_switches_active_source(self, monkeypatch):
         providers = {
             ("trading", "vci"): _RateLimitedTradingProvider,
@@ -99,6 +144,7 @@ class TestAutoSourceRouter:
         def fake_get(module_name, source_name):
             return providers[(module_name, source_name)]
 
+        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
         monkeypatch.setattr(ProviderRegistry, "get", fake_get)
 
         trading = Trading(source="AUTO", show_log=False)
@@ -135,6 +181,19 @@ class TestAutoSourceRouter:
             assert order[0] == "vci", (
                 f"Symbol {sym}: expected vci first, got {order}"
             )
+
+    def test_kbs_first_trading_pool_always_starts_with_kbs_when_healthy(self):
+        symbols = ["ACB", "VCB", "TCB", "HPG"]
+        for sym in symbols:
+            order = source_router.build_source_order("trading", symbol=sym)
+            assert order[0] == "kbs", (
+                f"Symbol {sym}: expected kbs first, got {order}"
+            )
+
+    def test_trading_auto_primary_can_be_overridden_by_env(self, monkeypatch):
+        monkeypatch.setenv("VNSTOCK_TRADING_AUTO_PRIMARY", "vci")
+        order = source_router.build_source_order("trading", symbol="ACB")
+        assert order[0] == "vci"
 
     def test_health_snapshot_reports_cooldown_and_counters(self):
         source_router.reset_router_state()

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import os
 import threading
 import time
 from typing import Any, Dict, List, Tuple
@@ -23,19 +24,21 @@ OPEN_SOURCE_CANDIDATES: Dict[str, List[str]] = {
     "company": ["vci", "kbs"],
     "news": ["vci", "kbs", "rss_cafef", "rss_vneconomy"],
     "financial": ["vci", "kbs"],
-    "trading": ["vci", "kbs"],
+    "trading": ["kbs", "vci"],
     "listing": ["kbs", "vci", "msn"],
 }
 
 # Primary pools used for throughput-oriented sharding.
 # quote uses single-item ["vci"] so hash-shard always picks VCI first;
-# KBS/MSN remain as extras that activate only on confirmed failover.
+# trading uses single-item ["kbs"] because current online benchmarks show
+# KBS price_board is materially more stable under sustained load.
+# Remaining providers activate only on confirmed failover.
 PRIMARY_SOURCE_POOLS: Dict[str, List[str]] = {
     "quote": ["vci"],
     "company": ["vci"],
     "news": ["vci", "kbs"],
     "financial": ["vci"],
-    "trading": ["vci"],
+    "trading": ["kbs"],
     "listing": ["kbs", "vci", "msn"],
 }
 
@@ -44,12 +47,24 @@ _health_state: Dict[Tuple[str, str], Dict[str, float]] = {}
 _module_counters: Dict[str, itertools.count] = {}
 
 
+def _get_trading_primary_override() -> str | None:
+    value = str(os.getenv("VNSTOCK_TRADING_AUTO_PRIMARY", "")).strip().lower()
+    if value in {"kbs", "vci"}:
+        return value
+    return None
+
+
 def is_auto_source(source: str | None) -> bool:
     return str(source or "").strip().lower() == AUTO_SOURCE
 
 
 def get_auto_candidates(module_name: str) -> List[str]:
-    return list(OPEN_SOURCE_CANDIDATES.get(module_name, []))
+    candidates = list(OPEN_SOURCE_CANDIDATES.get(module_name, []))
+    if module_name == "trading":
+        override = _get_trading_primary_override()
+        if override in candidates:
+            return [override] + [source for source in candidates if source != override]
+    return candidates
 
 
 def _stable_index(key: str, size: int) -> int:
@@ -82,8 +97,14 @@ def build_source_order(module_name: str, symbol: str | None = None) -> List[str]
         ]
     ordered_pool = healthy or candidates
 
+    primary_candidates = PRIMARY_SOURCE_POOLS.get(module_name, ordered_pool)
+    if module_name == "trading":
+        override = _get_trading_primary_override()
+        if override in ordered_pool:
+            primary_candidates = [override]
+
     primary_pool = [
-        source for source in PRIMARY_SOURCE_POOLS.get(module_name, ordered_pool)
+        source for source in primary_candidates
         if source in ordered_pool
     ]
     extras = [source for source in ordered_pool if source not in primary_pool]

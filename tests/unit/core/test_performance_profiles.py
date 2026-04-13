@@ -21,6 +21,7 @@ def test_list_profiles_contains_defaults():
 def test_get_profile_returns_env_mapping():
     profile = get_profile("production_stable")
     assert isinstance(profile, dict)
+    assert profile["VNSTOCK_TRADING_AUTO_PRIMARY"] == "kbs"
     assert profile["VNSTOCK_VCI_ADAPTIVE_CONCURRENCY"] == "1"
 
 
