@@ -7,6 +7,7 @@ import requests
 from datetime import datetime
 from typing import Optional, Dict
 from vnstock.core.utils.execution import optimize_execution
+from vnstock.core.utils.transform import normalize_price_columns
 from vnstock.core.types import TimeFrame
 from vnstock.core.utils.interval import normalize_interval
 from vnstock.core.utils.logger import get_logger
@@ -57,7 +58,7 @@ class Quote:
         )
         return ticker
     @optimize_execution('MSN')
-    def history(self, start: str, end: Optional[str], interval: Optional[str] = "1D", show_log: bool = False, count_back: Optional[int] = 365, asset_type: Optional[str] = None) -> pd.DataFrame:
+    def history(self, start: str, end: Optional[str], interval: Optional[str] = "1D", show_log: bool = False, count_back: Optional[int] = 365, asset_type: Optional[str] = None, price_unit: Optional[str] = None) -> pd.DataFrame:
         """
         Tham số:
             - start (bắt buộc): thời gian bắt đầu lấy dữ liệu, có thể là ngày dạng string kiểu "YYYY-MM-DD" hoặc "YYYY-MM-DD HH:MM:SS".
@@ -118,7 +119,7 @@ class Quote:
         if show_log:
             logger.info(f'Truy xuất thành công dữ liệu {ticker.symbol} từ {ticker.start} đến {ticker.end}, khung thời gian {ticker.interval}.')
 
-        df = self._as_df(json_data, interval)
+        df = self._as_df(json_data, interval, price_unit=price_unit)
 
         # index df's data by start and end date
         df = df[(df['time'] >= ticker.start) & (df['time'] <= ticker.end)]
@@ -130,7 +131,7 @@ class Quote:
         
         return df
     
-    def _as_df(self, history_data: Dict, interval:str, floating: Optional[int] = 2) -> pd.DataFrame:
+    def _as_df(self, history_data: Dict, interval:str, floating: Optional[int] = 2, price_unit: Optional[str] = None) -> pd.DataFrame:
         """
         Convert fetched historical stock data into a Pandas DataFrame.
         """
@@ -179,6 +180,14 @@ class Quote:
         df = df.replace(-99999901.0, None)
         # drop rows with NaN values in open, high, low
         df = df.dropna(subset=['open', 'high', 'low'])
+
+        df = normalize_price_columns(
+            df,
+            columns=['open', 'high', 'low', 'close'],
+            source_unit='VND',
+            floating=floating,
+            target_unit=price_unit,
+        )
 
         return df
 

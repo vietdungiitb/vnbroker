@@ -320,7 +320,13 @@ class Quote:
 
         data = self._normalize_ohlc_response(response)
         if not data:
-            return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
+            empty_df = pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
+            return normalize_price_columns(
+                empty_df,
+                columns=["open", "high", "low", "close"],
+                source_unit="VND",
+                floating=floating or 2,
+            )
 
         df = ohlc_to_df(
             data=data,
@@ -531,7 +537,13 @@ class Quote:
 
         data = self._normalize_ohlc_response(response)
         if not data:
-            return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
+            empty_df = pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
+            return normalize_price_columns(
+                empty_df,
+                columns=["open", "high", "low", "close"],
+                source_unit="VND",
+                floating=floating or 2,
+            )
 
         df = ohlc_to_df(
             data=data,
@@ -631,12 +643,24 @@ class Quote:
                         break
 
         if not raw_data:
-            return pd.DataFrame(columns=list(_PRICE_DEPTH_MAP.values()))
+            empty_df = pd.DataFrame(columns=list(_PRICE_DEPTH_MAP.values()))
+            return normalize_price_columns(
+                empty_df,
+                columns=["price"],
+                source_unit="VND",
+                floating=2,
+            )
 
         df = pd.DataFrame(raw_data)
         keep_cols = [col for col in _PRICE_DEPTH_MAP.keys() if col in df.columns]
         if not keep_cols:
-            return pd.DataFrame(columns=list(_PRICE_DEPTH_MAP.values()))
+            empty_df = pd.DataFrame(columns=list(_PRICE_DEPTH_MAP.values()))
+            return normalize_price_columns(
+                empty_df,
+                columns=["price"],
+                source_unit="VND",
+                floating=2,
+            )
 
         df = df[keep_cols].rename(columns=_PRICE_DEPTH_MAP)
 

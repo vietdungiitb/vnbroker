@@ -18,6 +18,18 @@ _PRICE_UNIT_VND = "VND"
 _PRICE_UNIT_THOUSAND_VND = "THOUSAND_VND"
 
 
+def _parse_price_unit(raw: str) -> str:
+    """Normalize unit aliases into canonical price unit values."""
+    value = str(raw).strip().upper()
+    if value in {"THOUSAND", "K", _PRICE_UNIT_THOUSAND_VND}:
+        return _PRICE_UNIT_THOUSAND_VND
+    if value == _PRICE_UNIT_VND:
+        return _PRICE_UNIT_VND
+    raise ValueError(
+        "Invalid price unit. Supported: VND, THOUSAND_VND, THOUSAND, K"
+    )
+
+
 def _resolve_target_price_unit() -> str:
     """
     Resolve target price unit for normalized outputs.
@@ -26,10 +38,12 @@ def _resolve_target_price_unit() -> str:
     - VND: prices are returned in absolute VND (default)
     - THOUSAND_VND, THOUSAND, K: prices are returned in thousand VND
     """
-    raw = os.getenv(_PRICE_UNIT_ENV, _PRICE_UNIT_VND).strip().upper()
-    if raw in {"THOUSAND", "K", _PRICE_UNIT_THOUSAND_VND}:
-        return _PRICE_UNIT_THOUSAND_VND
-    return _PRICE_UNIT_VND
+    raw = os.getenv(_PRICE_UNIT_ENV, _PRICE_UNIT_VND)
+    try:
+        return _parse_price_unit(raw)
+    except ValueError:
+        # Preserve backward-compatible fallback behavior for unknown env values.
+        return _PRICE_UNIT_VND
 
 
 def _convert_price_series(
@@ -55,16 +69,20 @@ def normalize_price_columns(
     columns: List[str],
     source_unit: str,
     floating: Optional[int] = None,
+    target_unit: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Normalize selected price columns into configured target unit.
 
     The target unit is controlled by VNSTOCK_PRICE_UNIT and defaults to VND.
     """
-    target_unit = _resolve_target_price_unit()
+    target = _resolve_target_price_unit()
+    if target_unit is not None:
+        target = _parse_price_unit(target_unit)
+
     available = [c for c in columns if c in df.columns]
     if not available:
-        df.attrs['price_unit'] = target_unit
+        df.attrs['price_unit'] = target
         return df
 
     for col in available:
@@ -72,13 +90,13 @@ def normalize_price_columns(
         values = _convert_price_series(
             series=values,
             source_unit=source_unit,
-            target_unit=target_unit,
+            target_unit=target,
         )
         if floating is not None:
             values = values.round(floating)
         df[col] = values
 
-    df.attrs['price_unit'] = target_unit
+    df.attrs['price_unit'] = target
     return df
 
 # Vietnam timezone

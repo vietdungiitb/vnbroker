@@ -9,10 +9,27 @@ from vnstock.core.utils.parser import get_asset_type
 from vnstock.core.utils.validation import validate_symbol
 from vnstock.core.utils.logger import get_logger
 from vnstock.core.utils.execution import optimize_execution
+from vnstock.core.utils.transform import normalize_price_columns
 from .const import _BASE_URL, _STOCKS_URL, _PRICE_BOARD_COLS_MAP, _PRICE_BOARD_STD_COLS, _PRICE_BOARD_EXT_COLS
 from .auth import get_tcbs_headers
 
 logger = get_logger(__name__)
+
+_PRICE_BOARD_PRICE_COLUMNS_RAW = [
+    'cp',
+    'ma20',
+    'ma50',
+    'ma100',
+    'hp1m',
+    'hp3m',
+    'hp1y',
+    'lp1m',
+    'lp3m',
+    'lp1y',
+    'hmp',
+]
+
+
 class Trading:
     """
     Truy xuất dữ liệu giao dịch của mã chứng khoán từ nguồn dữ liệu TCBS.
@@ -43,7 +60,8 @@ class Trading:
         
     @optimize_execution("TCBS")
     def price_board(self, symbol_ls: List[str], std_columns: Optional[bool] = True, 
-                    show_log: bool = False) -> pd.DataFrame:
+                    show_log: bool = False,
+                    price_unit: Optional[str] = None) -> pd.DataFrame:
         """
         Truy xuất thông tin bảng giá của các mã chứng khoán tuỳ chọn từ nguồn dữ liệu TCBS.
         
@@ -81,6 +99,14 @@ class Trading:
             else:
                 df = df[_PRICE_BOARD_EXT_COLS]
 
+            df = normalize_price_columns(
+                df,
+                columns=_PRICE_BOARD_PRICE_COLUMNS_RAW,
+                source_unit='VND',
+                floating=None,
+                target_unit=price_unit,
+            )
+
             # Rename columns according to the mapping
             df = df.rename(columns=_PRICE_BOARD_COLS_MAP)
             
@@ -93,7 +119,14 @@ class Trading:
         except Exception as e:
             # Better error handling with logging
             logger.error(f"Error processing price board data: {e}")
-            return pd.DataFrame()
+            empty_df = pd.DataFrame()
+            return normalize_price_columns(
+                empty_df,
+                columns=_PRICE_BOARD_PRICE_COLUMNS_RAW,
+                source_unit='VND',
+                floating=None,
+                target_unit=price_unit,
+            )
 
 
 # Register provider

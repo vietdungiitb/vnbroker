@@ -10,6 +10,7 @@ from vnstock.core.utils.logger import get_logger
 from vnstock.core.utils.parser import get_asset_type
 from vnstock.core.utils.client import ProxyConfig
 from vnstock.core.utils.user_agent import get_headers
+from vnstock.core.utils.transform import normalize_price_columns
 from vnstock.explorer.kbs.const import (
     _IIS_BASE_URL,
     _STOCK_ISS_URL,
@@ -19,6 +20,25 @@ from vnstock.explorer.kbs.const import (
 )
 
 logger = get_logger(__name__)
+
+_PRICE_BOARD_PRICE_COLUMNS = [
+    'ceiling_price',
+    'floor_price',
+    'reference_price',
+    'open_price',
+    'high_price',
+    'low_price',
+    'close_price',
+    'average_price',
+    'price_change',
+    'bid_price_1',
+    'bid_price_2',
+    'bid_price_3',
+    'ask_price_1',
+    'ask_price_2',
+    'ask_price_3',
+    'previous_match_price',
+]
 
 
 class Trading:
@@ -147,6 +167,7 @@ class Trading:
         exchange: str = 'HOSE',
         show_log: Optional[bool] = False,
         get_all: bool = False,
+        price_unit: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Truy xuất bảng giá realtime cho danh sách mã chứng khoán.
@@ -201,6 +222,23 @@ class Trading:
                 df['exchange'] = df['exchange'].map(
                     lambda x: _EXCHANGE_CODE_MAP.get(x, x) if pd.notna(x) else x
                 )
+
+            df = normalize_price_columns(
+                df,
+                columns=_PRICE_BOARD_PRICE_COLUMNS,
+                source_unit='VND',
+                floating=None,
+                target_unit=price_unit,
+            )
+        else:
+            # Ensure metadata still includes the effective unit even for empty outputs.
+            df = normalize_price_columns(
+                df,
+                columns=_PRICE_BOARD_PRICE_COLUMNS,
+                source_unit='VND',
+                floating=None,
+                target_unit=price_unit,
+            )
 
         # Update metadata
         df.attrs['symbols'] = symbols_list

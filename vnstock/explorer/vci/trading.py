@@ -12,7 +12,7 @@ from vnstock.core.utils.logger import get_logger
 from vnstock.core.utils.user_agent import get_headers
 from vnstock.core.utils import client
 from vnstock.core.utils.client import ProxyConfig
-from vnstock.core.utils.transform import flatten_hierarchical_index
+from vnstock.core.utils.transform import flatten_hierarchical_index, normalize_price_columns
 logger = get_logger(__name__)
 
 
@@ -55,7 +55,8 @@ class Trading:
                      show_log: Optional[bool] = False,
                      flatten_columns: Optional[bool] = False,
                      separator: Optional[str] = '_',
-                     drop_levels: Optional[Union[int, List[int]]] = None) -> pd.DataFrame:
+                     drop_levels: Optional[Union[int, List[int]]] = None,
+                     price_unit: Optional[str] = None) -> pd.DataFrame:
         """
         Truy xuất thông tin bảng giá của các mã chứng khoán tuỳ chọn từ nguồn dữ liệu VCI.
         """
@@ -124,6 +125,18 @@ class Trading:
 
         # rename column for board inside listing to exchange
         combine_df = combine_df.rename(columns={'board': 'exchange'}, level=1)
+
+        price_columns = [
+            col for col in combine_df.columns
+            if isinstance(col, tuple) and len(col) == 2 and 'price' in col[1]
+        ]
+        combine_df = normalize_price_columns(
+            combine_df,
+            columns=price_columns,
+            source_unit='VND',
+            floating=None,
+            target_unit=price_unit,
+        )
 
         if flatten_columns:
             combine_df = flatten_hierarchical_index(

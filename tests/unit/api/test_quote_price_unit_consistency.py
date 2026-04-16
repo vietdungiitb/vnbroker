@@ -35,12 +35,28 @@ def _mock_kbs_history_response(*args, **kwargs):
     }
 
 
+def _mock_tcbs_history_response(*args, **kwargs):
+    return {
+        "data": [
+            {
+                "tradingDate": "2024-04-01",
+                "open": 30343.8,
+                "high": 30500.0,
+                "low": 30010.0,
+                "close": 30400.0,
+                "volume": 123456,
+            }
+        ]
+    }
+
+
 @pytest.mark.unit
 @pytest.mark.api
 def test_quote_history_vci_and_kbs_are_consistent_in_vnd(monkeypatch):
     monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
     monkeypatch.setattr("vnstock.explorer.vci.quote.send_request", _mock_vci_history_response)
     monkeypatch.setattr("vnstock.explorer.kbs.quote.send_request", _mock_kbs_history_response)
+    monkeypatch.setattr("vnstock.explorer.tcbs.quote.client.send_request", _mock_tcbs_history_response)
 
     vci_df = Quote(source="VCI", symbol="ACB", show_log=False).history(
         start="2024-04-01", end="2024-04-01", interval="1D"
@@ -48,11 +64,16 @@ def test_quote_history_vci_and_kbs_are_consistent_in_vnd(monkeypatch):
     kbs_df = Quote(source="KBS", symbol="ACB", show_log=False).history(
         start="2024-04-01", end="2024-04-01", interval="1D"
     )
+    tcbs_df = Quote(source="TCBS", symbol="ACB", show_log=False).history(
+        start="2024-04-01", end="2024-04-01", interval="1D"
+    )
 
     assert vci_df.attrs["price_unit"] == "VND"
     assert kbs_df.attrs["price_unit"] == "VND"
+    assert tcbs_df.attrs["price_unit"] == "VND"
     assert vci_df.iloc[0]["close"] == pytest.approx(30400.0)
     assert kbs_df.iloc[0]["close"] == pytest.approx(30400.0)
+    assert tcbs_df.iloc[0]["close"] == pytest.approx(30400.0)
 
 
 @pytest.mark.unit
@@ -61,6 +82,7 @@ def test_quote_history_vci_and_kbs_are_consistent_in_thousand_vnd(monkeypatch):
     monkeypatch.setenv("VNSTOCK_PRICE_UNIT", "THOUSAND_VND")
     monkeypatch.setattr("vnstock.explorer.vci.quote.send_request", _mock_vci_history_response)
     monkeypatch.setattr("vnstock.explorer.kbs.quote.send_request", _mock_kbs_history_response)
+    monkeypatch.setattr("vnstock.explorer.tcbs.quote.client.send_request", _mock_tcbs_history_response)
 
     vci_df = Quote(source="VCI", symbol="ACB", show_log=False).history(
         start="2024-04-01", end="2024-04-01", interval="1D"
@@ -68,8 +90,13 @@ def test_quote_history_vci_and_kbs_are_consistent_in_thousand_vnd(monkeypatch):
     kbs_df = Quote(source="KBS", symbol="ACB", show_log=False).history(
         start="2024-04-01", end="2024-04-01", interval="1D"
     )
+    tcbs_df = Quote(source="TCBS", symbol="ACB", show_log=False).history(
+        start="2024-04-01", end="2024-04-01", interval="1D"
+    )
 
     assert vci_df.attrs["price_unit"] == "THOUSAND_VND"
     assert kbs_df.attrs["price_unit"] == "THOUSAND_VND"
+    assert tcbs_df.attrs["price_unit"] == "THOUSAND_VND"
     assert vci_df.iloc[0]["close"] == pytest.approx(30.4)
     assert kbs_df.iloc[0]["close"] == pytest.approx(30.4)
+    assert tcbs_df.iloc[0]["close"] == pytest.approx(30.4)
