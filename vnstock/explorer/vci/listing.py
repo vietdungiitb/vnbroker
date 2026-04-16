@@ -110,7 +110,8 @@ class Listing:
         return df
 
     @optimize_execution("VCI")
-    def symbols_by_exchange(self, lang: str = 'vi', show_log: Optional[bool] = False) -> pd.DataFrame:
+    def symbols_by_exchange(self, lang: str = 'vi', show_log: Optional[bool] = False,
+                            get_all: Optional[bool] = False) -> pd.DataFrame:
         """
         Truy xuất thông tin niêm yết theo sàn của các mã cổ phiếu trên thị trường Việt Nam.
 
@@ -147,6 +148,10 @@ class Listing:
         df = df.rename(columns={'board': 'exchange'})
         df = reorder_cols(df, ['symbol', 'exchange', 'type'], position='first')
         df = df.drop(columns=['id'])
+
+        if get_all:
+            df.source = "VCI"
+            return df
 
         if lang == 'vi':
             df = drop_cols_by_pattern(df, ['en_'])
@@ -248,6 +253,41 @@ class Listing:
     @optimize_execution("VCI")
     def all_bonds(self, show_log: Optional[bool] = False) -> pd.Series:
         return self.symbols_by_group(group='BOND', show_log=show_log)
+
+    @optimize_execution("VCI")
+    def all_etf(self, show_log: Optional[bool] = False) -> pd.Series:
+        return self.symbols_by_group(group='ETF', show_log=show_log)
+
+    @optimize_execution("VCI")
+    def get_supported_groups(self) -> pd.DataFrame:
+        category_map = {
+            'HOSE': 'Sàn giao dịch',
+            'HNX': 'Sàn giao dịch',
+            'UPCOM': 'Sàn giao dịch',
+            'VN30': 'Chỉ số VN',
+            'VNMidCap': 'Chỉ số VN',
+            'VNSmallCap': 'Chỉ số VN',
+            'VNAllShare': 'Chỉ số VN',
+            'VN100': 'Chỉ số VN',
+            'HNX30': 'Chỉ số VN',
+            'ETF': 'ETF/Quỹ',
+            'FU_INDEX': 'Phái sinh',
+            'FU_BOND': 'Trái phiếu',
+            'BOND': 'Trái phiếu',
+            'CW': 'Chứng quyền',
+        }
+        data = [
+            {
+                'group_name': name,
+                'group_code': name,
+                'category': category_map.get(name, 'Khác'),
+                'description': f'VCI supported group {name}',
+            }
+            for name in _GROUP_CODE
+        ]
+        df = pd.DataFrame(data)
+        df.attrs['source'] = self.data_source
+        return df
 
     # =========================================================================
     # STANDARDIZED MARKET INDICES (Wrapper functions)

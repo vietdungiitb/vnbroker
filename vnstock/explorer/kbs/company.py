@@ -381,7 +381,7 @@ class Company:
         return df
 
     @agg_execution("KBS")
-    def officers(self, show_log: Optional[bool] = False) -> pd.DataFrame:
+    def officers(self, filter_by: str = 'working', show_log: Optional[bool] = False) -> pd.DataFrame:
         """
         Truy xuất thông tin lãnh đạo công ty (officers).
 
@@ -397,6 +397,12 @@ class Company:
             >>> print(df.columns.tolist())
             ['from_date', 'position_name_vn', 'name', 'position_en', 'position_id']
         """
+        if filter_by not in ['working', 'all', 'resigned']:
+            raise ValueError("filter_by chỉ nhận giá trị 'working' hoặc 'resigned' hoặc 'all'")
+
+        if filter_by == 'resigned':
+            raise NotImplementedError("KBS hiện chưa cung cấp danh sách lãnh đạo đã từ nhiệm.")
+
         profile_data = self._fetch_profile(show_log=show_log)
 
         if not profile_data:
@@ -468,7 +474,7 @@ class Company:
         return df
     
     @agg_execution("KBS")
-    def subsidiaries(self, show_log: Optional[bool] = False) -> pd.DataFrame:
+    def subsidiaries(self, filter_by: str = 'all', show_log: Optional[bool] = False) -> pd.DataFrame:
         """
         Truy xuất thông tin công ty con và công ty liên kết của công ty.
         
@@ -487,6 +493,9 @@ class Company:
             >>> print(df.columns.tolist())
             ['date', 'name', 'charter_capital', 'ownership_ratio', 'currency', 'type']
         """
+        if filter_by not in ['all', 'subsidiary']:
+            raise ValueError("filter_by chỉ nhận giá trị 'all' hoặc 'subsidiary'")
+
         profile_data = self._fetch_profile(show_log=show_log)
 
         if not profile_data:
@@ -499,6 +508,9 @@ class Company:
             df['type'] = df['ownership_percent'].apply(
                 lambda x: 'công ty con' if x > 50 else 'công ty liên kết'
             )
+
+        if filter_by == 'subsidiary' and len(df) > 0:
+            df = df[df['ownership_percent'] > 50].copy()
 
         if show_log or self.show_log:
             logger.info(f'Truy xuất thành công {len(df)} công ty con/liên kết cho {self.symbol}.')

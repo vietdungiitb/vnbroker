@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import statistics
 import time
@@ -482,14 +483,16 @@ class Quote:
         start: Optional[str] = None,
         end: Optional[str] = None,
         interval: Optional[str] = "1D",
+        to_df: Optional[bool] = True,
         show_log: Optional[bool] = False,
         count_back: Optional[int] = None,
         floating: Optional[int] = 2,
         length: Optional[Union[str, int]] = None,
+        get_all: Optional[bool] = False,
         parallel: bool = False,
         symbols: Optional[List[str]] = None,
         max_concurrency: int = 24,
-    ) -> Union[pd.DataFrame, List[pd.DataFrame]]:
+    ) -> Union[pd.DataFrame, List[pd.DataFrame], str]:
         """Fetch historical OHLC data with optional parallel multi-symbol mode."""
         if parallel or symbols:
             target_symbols = symbols or [self.symbol]
@@ -560,17 +563,26 @@ class Quote:
         if count_back is not None:
             df = df.tail(count_back).reset_index(drop=True)
 
+        if not to_df:
+            return json.dumps(df.to_dict(orient="records"), ensure_ascii=False, default=str)
+
         return df
 
     @optimize_execution("VCI")
     def intraday(
         self,
         page_size: Optional[int] = 100,
+        page: Optional[int] = 1,
+        to_df: Optional[bool] = True,
+        get_all: Optional[bool] = False,
         last_time: Optional[Union[str, int, float]] = None,
         last_time_format: Optional[str] = None,
         show_log: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, str]:
         """Fetch intraday matched trade data."""
+        if page not in (None, 1):
+            raise NotImplementedError("VCI intraday không hỗ trợ pagination theo page; hãy dùng last_time để phân trang.")
+
         if self.asset_type == "index":
             raise ValueError(f"Du lieu intraday khong duoc ho tro cho chi so {self.symbol}.")
 
@@ -606,7 +618,7 @@ class Quote:
         if isinstance(data, dict):
             data = data.get("items", [])
 
-        return intraday_to_df(
+        df = intraday_to_df(
             data=data if isinstance(data, list) else [],
             column_map=_INTRADAY_MAP,
             dtype_map=_INTRADAY_DTYPE,
@@ -614,6 +626,11 @@ class Quote:
             asset_type=self.asset_type,
             source=self.data_source,
         )
+
+        if not to_df:
+            return json.dumps(df.to_dict(orient="records"), ensure_ascii=False, default=str)
+
+        return df
 
     @optimize_execution("VCI")
     def price_depth(self, show_log: bool = False) -> pd.DataFrame:

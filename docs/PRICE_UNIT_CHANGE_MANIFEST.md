@@ -4,6 +4,27 @@
 **Feature**: Price Unit Standardization (Feature/Enhancement)  
 **Status**: ✅ Production-Ready
 
+## Supplemental Audit Updates
+
+### 2026-04-16 - KBS Finance endpoint maintenance
+
+Modified files:
+- `vnstock/explorer/kbs/const.py`
+- `vnstock/explorer/kbs/financial.py`
+- `tests/examples/kbs_financial_benchmark.py`
+
+### 2026-04-16 - VCI/KBS API compatibility standardization
+
+Modified files:
+- `vnstock/explorer/vci/financial.py`
+- `vnstock/explorer/kbs/financial.py`
+- `vnstock/explorer/vci/listing.py`
+- `vnstock/explorer/kbs/listing.py`
+- `vnstock/explorer/kbs/company.py`
+- `vnstock/explorer/vci/quote.py`
+- `vnstock/explorer/kbs/quote.py`
+- `tests/unit/explorer/test_provider_api_compatibility.py`
+
 ---
 
 ## 📋 Complete File List

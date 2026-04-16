@@ -11,7 +11,7 @@ from vnstock.core.utils.field import FieldHandler
 from vnstock.core.utils.client import send_request, ProxyConfig
 from vnstock.core.utils.user_agent import get_headers
 from vnstock.explorer.kbs.const import (
-    _SAS_FINANCE_INFO_URL,
+    _IIS_FINANCE_INFO_URL,
     _INCOME_STATEMENT_MAP,
     _BALANCE_SHEET_MAP,
     _CASH_FLOW_MAP,
@@ -115,6 +115,17 @@ class Finance:
             'financial_ratios': _FINANCIAL_RATIOS_MAP,
         }
         return mappings.get(report_type, {})
+
+    @staticmethod
+    def _resolve_display_mode(
+        display_mode: Optional[Union[str, FieldDisplayMode]],
+        lang: Optional[str] = None,
+    ) -> Optional[Union[str, FieldDisplayMode]]:
+        if display_mode is not None:
+            return display_mode
+        if lang in {'vi', 'en'}:
+            return lang
+        return FieldDisplayMode.STD
     
     def _parse_financial_response(self, response: Dict, report_key: str) -> pd.DataFrame:
         """
@@ -335,7 +346,7 @@ class Finance:
             Dictionary chứa dữ liệu tài chính đầy đủ.
         """
         page_size: int = 8
-        url = f'{_SAS_FINANCE_INFO_URL}/{self.symbol}'
+        url = f'{_IIS_FINANCE_INFO_URL}/{self.symbol}'
         
         # Build params based on report type
         # Note: API is case-sensitive and requires specific parameters per report type
@@ -386,6 +397,8 @@ class Finance:
         self,
         period: str = 'year',
         display_mode: Optional[Union[str, FieldDisplayMode]] = FieldDisplayMode.STD,
+        lang: Optional[str] = None,
+        dropna: Optional[bool] = None,
         show_log: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
@@ -414,6 +427,7 @@ class Finance:
             >>> df_vi = finance.income_statement(period='year', display_mode='vi')
             >>> df_en = finance.income_statement(period='year', display_mode='en')
         """
+        display_mode = self._resolve_display_mode(display_mode, lang)
         # Map period to termType (1=year, 2=quarter)
         period_type = 1 if period == 'year' else 2
         
@@ -461,6 +475,8 @@ class Finance:
         self,
         period: str = 'year',
         display_mode: Optional[Union[str, FieldDisplayMode]] = FieldDisplayMode.STD,
+        lang: Optional[str] = None,
+        dropna: Optional[bool] = None,
         show_log: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
@@ -487,6 +503,7 @@ class Finance:
             >>> df_vi = finance.balance_sheet(period='year', display_mode='vi')
             >>> df_en = finance.balance_sheet(period='year', display_mode='en')
         """
+        display_mode = self._resolve_display_mode(display_mode, lang)
         # Map period to termType (1=year, 2=quarter)
         period_type = 1 if period == 'year' else 2
         
@@ -535,6 +552,8 @@ class Finance:
         self,
         period: str = 'year',
         display_mode: Optional[Union[str, FieldDisplayMode]] = FieldDisplayMode.STD,
+        lang: Optional[str] = None,
+        dropna: Optional[bool] = None,
         show_log: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
@@ -561,6 +580,7 @@ class Finance:
             >>> df_vi = finance.cash_flow(period='year', display_mode='vi')
             >>> df_en = finance.cash_flow(period='year', display_mode='en')
         """
+        display_mode = self._resolve_display_mode(display_mode, lang)
         # Map period to termType (1=year, 2=quarter)
         period_type = 1 if period == 'year' else 2
         
@@ -622,6 +642,8 @@ class Finance:
         self,
         period: str = 'year',
         display_mode: Optional[Union[str, FieldDisplayMode]] = FieldDisplayMode.STD,
+        lang: Optional[str] = None,
+        dropna: Optional[bool] = None,
         show_log: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
@@ -648,6 +670,7 @@ class Finance:
             >>> df_vi = finance.ratio(period='year', display_mode='vi')
             >>> df_en = finance.ratio(period='year', display_mode='en')
         """
+        display_mode = self._resolve_display_mode(display_mode, lang)
         # Map period to termType (1=year, 2=quarter)
         period_type = 1 if period == 'year' else 2
         
@@ -797,6 +820,11 @@ class Finance:
             logger.info(f'Truy xuất thành công chỉ số tài chính cho {self.symbol}.')
 
         return df
+
+    @agg_execution("KBS")
+    def financial_ratios(self, *args, **kwargs) -> pd.DataFrame:
+        """Compatibility alias for ratio()."""
+        return self.ratio(*args, **kwargs)
 
 
 # Register KBS Financial provider

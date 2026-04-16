@@ -526,6 +526,8 @@ class Quote:
         page: Optional[int] = 1,
         to_df: Optional[bool] = True,
         get_all: Optional[bool] = False,
+        last_time: Optional[Union[str, int, float]] = None,
+        last_time_format: Optional[str] = None,
         show_log: Optional[bool] = False,
         floating: Optional[int] = 2,
     ) -> Union[pd.DataFrame, str]:
@@ -717,6 +719,18 @@ class Quote:
             )
 
         return result_df
+
+    @agg_execution("KBS")
+    def price_depth(self, show_log: Optional[bool] = False) -> pd.DataFrame:
+        """Compatibility surface for quote price depth.
+
+        KBS currently does not expose a public order-book depth endpoint equivalent to VCI.
+        The method is kept so provider switching does not fail during attribute lookup.
+        """
+        raise NotImplementedError(
+            "KBS hiện chưa có endpoint public tương đương VCI price_depth(). "
+            "Có thể dùng Trading.price_board([symbol]) như phương án thay thế gần đúng cho top-of-book."
+        )
 
 
 # Register KBS Quote provider

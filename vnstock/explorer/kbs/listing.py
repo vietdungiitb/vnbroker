@@ -7,6 +7,7 @@ from vnstock.core.utils.execution import agg_execution
 from vnstock.core.utils.logger import get_logger
 from vnstock.core.utils.client import send_request, ProxyConfig
 from vnstock.core.utils.user_agent import get_headers
+from vnstock.common import indices as market_indices
 from vnstock.explorer.kbs.const import (
     _IIS_BASE_URL, _SEARCH_URL, _SECTOR_ALL_URL, _SECTOR_STOCK_URL, _INDEX_URL, _GROUP_CODE, _INDUSTRY_CODE
 )
@@ -119,6 +120,7 @@ class Listing:
     @agg_execution("KBS")
     def symbols_by_exchange(
         self,
+        lang: str = 'vi',
         get_all: Optional[bool] = False,
         show_log: Optional[bool] = False,
     ) -> pd.DataFrame:
@@ -166,6 +168,16 @@ class Listing:
         else:
             available_cols = ['symbol', 'organ_name', 'en_organ_name', 'exchange', 'type', 'id']
         df = df[available_cols]
+
+        if not get_all:
+            if lang == 'vi':
+                df = df.drop(columns=[col for col in ['en_organ_name'] if col in df.columns])
+            else:
+                if 'organ_name' in df.columns:
+                    df = df.drop(columns=['organ_name'])
+                if 'en_organ_name' in df.columns:
+                    df = df.rename(columns={'en_organ_name': 'organ_name'})
+
         df.attrs['source'] = self.data_source
         
         if show_log:
@@ -452,6 +464,12 @@ class Listing:
             "KBS không cung cấp dữ liệu trái phiếu chính phủ. "
             "Sử dụng all_bonds() để lấy trái phiếu doanh nghiệp."
         )
+
+    def all_indices(self) -> pd.DataFrame:
+        return market_indices.get_all_indices()
+
+    def indices_by_group(self, group: str) -> Optional[pd.DataFrame]:
+        return market_indices.get_indices_by_group(group)
 
     # ===================== Internal methods =====================
 

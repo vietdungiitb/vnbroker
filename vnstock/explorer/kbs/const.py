@@ -28,6 +28,9 @@ _SAS_FINANCE_INFO_URL = f'{_SAS_STOCK_URL}/finance-info'
 _SAS_TRADING_MARGIN_URL = f'{_SAS_STOCK_URL}/trading-margin'
 _SAS_CTKH_INFO_URL = f'{_SAS_STOCK_URL}/ctkh-info'
 
+# IIS Server Endpoints - Financial Data (SAS /sas/ bị 404, dùng iis-server thay thế)
+_IIS_FINANCE_INFO_URL = f'{_IIS_BASE_URL}/stock/finance-info'
+
 # SAS Endpoints - News
 _SAS_NEWS_URL = f'{_SAS_BASE_URL}/kbsv-news/api/v2/news'
 

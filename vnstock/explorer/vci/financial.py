@@ -87,6 +87,14 @@ class Finance:
         self.period = _FINANCIAL_REPORT_PERIOD_MAP.get(period)
         self.get_all = get_all
         self.com_type_code = self._get_company_type()
+
+    @staticmethod
+    def _resolve_lang(lang: Optional[str], display_mode: Optional[str]) -> str:
+        if display_mode == 'vi':
+            return 'vi'
+        if display_mode in {'en', 'std'}:
+            return 'en'
+        return lang or 'en'
     
     def _get_company_type(self) -> str:
         """
@@ -439,7 +447,8 @@ class Finance:
 
     @optimize_execution("VCI")
     def balance_sheet(self, period: Optional[str] = None, lang: Optional[str] = 'en', 
-                    dropna: Optional[bool] = True, show_log: Optional[bool] = False) -> pd.DataFrame:
+                    dropna: Optional[bool] = True, show_log: Optional[bool] = False,
+                    display_mode: Optional[str] = None) -> pd.DataFrame:
         """
         Trích xuất dữ liệu bảng cân đối kế toán cho một công ty từ nguồn VCI.
 
@@ -453,6 +462,7 @@ class Finance:
             pd.DataFrame: DataFrame chứa dữ liệu bảng cân đối kế toán.
         """
         # validate supported lang values
+        lang = self._resolve_lang(lang, display_mode)
         if lang not in SUPPORTED_LANGUAGES:
             raise ValueError(f"Ngôn ngữ không hợp lệ: '{lang}'. Các ngôn ngữ được hỗ trợ: {', '.join(SUPPORTED_LANGUAGES)}.")
 
@@ -465,7 +475,8 @@ class Finance:
 
     @optimize_execution("VCI")
     def income_statement(self, period: Optional[str] = None, lang: Optional[str] = 'en', 
-                        dropna: Optional[bool] = True, show_log: Optional[bool] = False) -> pd.DataFrame:
+                        dropna: Optional[bool] = True, show_log: Optional[bool] = False,
+                        display_mode: Optional[str] = None) -> pd.DataFrame:
         """
         Trích xuất dữ liệu báo cáo kết quả kinh doanh cho một công ty từ nguồn VCI.
         
@@ -478,11 +489,13 @@ class Finance:
         Returns:
             pd.DataFrame: DataFrame chứa dữ liệu báo cáo kết quả kinh doanh.
         """
+        lang = self._resolve_lang(lang, display_mode)
         return self._process_report('Chỉ tiêu kết quả kinh doanh', period=period, lang=lang, dropna=dropna, show_log=show_log)
 
     @optimize_execution("VCI")
     def cash_flow(self, period: Optional[str] = None, lang: Optional[str] = 'en', 
-                 dropna: Optional[bool] = True, show_log: Optional[bool] = False) -> pd.DataFrame:
+                 dropna: Optional[bool] = True, show_log: Optional[bool] = False,
+                 display_mode: Optional[str] = None) -> pd.DataFrame:
         """
         Trích xuất dữ liệu báo cáo lưu chuyển tiền tệ cho một công ty từ nguồn VCI.
         
@@ -495,6 +508,7 @@ class Finance:
         Returns:
             pd.DataFrame: DataFrame chứa dữ liệu báo cáo lưu chuyển tiền tệ.
         """
+        lang = self._resolve_lang(lang, display_mode)
         return self._process_report('Chỉ tiêu lưu chuyển tiền tệ', period=period, lang=lang, dropna=dropna, show_log=show_log)
 
 
@@ -502,7 +516,8 @@ class Finance:
     def ratio(self, period: Optional[str] = None, lang: Optional[str] = 'en', 
             dropna: Optional[bool] = True, show_log: Optional[bool] = False,
             flatten_columns: Optional[bool] = False, separator: Optional[str] = "_",
-            drop_levels: Optional[Union[int, List[int]]] = None) -> pd.DataFrame:
+            drop_levels: Optional[Union[int, List[int]]] = None,
+            display_mode: Optional[str] = None) -> pd.DataFrame:
         """
         Trích xuất dữ liệu tỷ lệ tài chính cho một công ty từ nguồn VCI.
 
@@ -519,6 +534,7 @@ class Finance:
             pd.DataFrame: DataFrame chứa dữ liệu tỷ lệ tài chính.
         """
         
+        lang = self._resolve_lang(lang, display_mode)
         effective_period = _FINANCIAL_REPORT_PERIOD_MAP.get(period, period) if period else self.period
         
         try:
@@ -542,10 +558,14 @@ class Finance:
                 )
 
             return financial_report
-            
         except Exception as e:
             logger.error(f"Error retrieving financial ratios: {e}")
             raise
+
+    @optimize_execution("VCI")
+    def financial_ratios(self, *args, **kwargs) -> pd.DataFrame:
+        """Compatibility alias for ratio()."""
+        return self.ratio(*args, **kwargs)
 
 
 # Register provider
