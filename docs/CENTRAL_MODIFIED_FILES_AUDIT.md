@@ -250,3 +250,29 @@ Kết quả bàn giao:
   - Comprehensive documentation delivered (21 docs + usage guide)
   - Live integration stability improved (gated by VNSTOCK_RUN_LIVE_INTEGRATION=1)
 - **Next step**: Ready for deployment to production environment
+
+---
+
+## 2026-04-18 - Fix: Ngăn KeyError crash cứng trên đường nóng AUTO provider
+
+**Vấn đề ghi nhận:**
+- `KeyError: data` khi khởi tạo `Vnstock(...).stock(..., source='AUTO')` — provider upstream trả payload thiếu key chuẩn.
+- `should_failover()` không nhận diện `KeyError` → lỗi propagate thẳng ra caller thay vì kích hoạt failover chain.
+- Các provider VCI (company, financial, listing) dùng bare `dict['key']` access → crash ngay khi payload biến dạng.
+
+**Quy tắc cứng thiết lập sau fix này:**
+1. `should_failover()` trong `source_router.py` PHẢI nhận diện `KeyError` và `LookupError` là điều kiện failover hợp lệ — không được xử lý riêng lẻ ở từng provider.
+2. Mọi provider khi truy cập key từ response dict PHẢI dùng `.get()` kết hợp guard rõ ràng (raise `ValueError` với message bắt đầu bằng `"failed to fetch data:"`) thay vì bare `dict['key']` — message prefix này được `should_failover()` nhận diện để fallback đúng.
+3. Khi thêm provider mới hoặc sửa response parsing, bắt buộc kiểm tra lại 2 quy tắc trên trước khi merge.
+
+**Danh sách file đã sửa:**
+1. `vnstock/core/source_router.py` (updated) — `should_failover()`: thêm `KeyError`, `LookupError` vào isinstance check
+2. `vnstock/explorer/vci/company.py` (updated) — `_fetch_data()`: `response_data['data']` → `.get('data')` + guard ValueError
+3. `vnstock/explorer/vci/financial.py` (updated) — `_get_ratio_list()`: `response_data['data']['ListFinancialRatio']` → `.get()` chain + guard
+4. `vnstock/explorer/vci/listing.py` (updated) — `all_symbols()`, `industries_icb()`: 2 chỗ `json_data['data'][...]` → `.get()` chain + guard
+5. `tests/unit/api/test_auto_source_router.py` (updated) — +4 test case: `KeyError` failover, `LookupError` failover, missing-key AUTO chain, ValueError-prefix AUTO chain
+
+**Kết quả hậu kiểm:**
+- `pytest tests/unit/api/test_auto_source_router.py`: **14/14 passed**
+- Commit: dcf2202 "fix: prevent KeyError hard-crash on AUTO hot path when provider payload missing keys"
+- Pushed: origin/dev
