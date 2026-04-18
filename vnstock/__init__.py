@@ -24,6 +24,7 @@ from .api.listing import Listing
 from .api.trading import Trading
 from .api.screener import Screener
 from .api.news import News
+from .api.snapshot import MarketSnapshot
 from .explorer.fmarket import Fund
 
 # Market constants
@@ -65,6 +66,7 @@ __all__ = [
     "Trading",
     "Screener",
     "News",
+    "MarketSnapshot",
     "Fund",
     "connector",
     "INDICES_INFO",
