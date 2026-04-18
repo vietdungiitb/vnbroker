@@ -58,6 +58,19 @@ def test_company_common_methods_have_filter_by_when_expected():
     assert 'filter_by' in _param_names(KBSCompany.subsidiaries)
 
 
+def test_company_insider_deals_surface_exists_for_both_providers():
+    assert hasattr(VCICompany, 'insider_deals')
+    assert hasattr(KBSCompany, 'insider_deals')
+
+
+def test_company_insider_deals_common_parameters():
+    for func in (VCICompany.insider_deals, KBSCompany.insider_deals):
+        params = _param_names(func)
+        assert 'page' in params
+        assert 'page_size' in params
+        assert 'show_log' in params
+
+
 def test_quote_history_has_common_compatibility_parameters():
     for func in (VCIQuote.history, KBSQuote.history):
         params = _param_names(func)

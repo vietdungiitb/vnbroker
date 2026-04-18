@@ -12,9 +12,18 @@ import pytest
 import requests
 from datetime import datetime
 from unittest.mock import Mock, patch
+import os
 from vnstock.core.utils.proxy_manager import (
     Proxy, ProxyManager
 )
+
+
+RUN_LIVE_INTEGRATION = os.getenv("VNSTOCK_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 
 @pytest.mark.unit
@@ -306,6 +315,10 @@ class TestProxyManager:
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not RUN_LIVE_INTEGRATION,
+    reason="Live proxy integration tests are disabled by default. Set VNSTOCK_RUN_LIVE_INTEGRATION=1 to run.",
+)
 class TestProxyIntegration:
     """Integration tests with real proxyscrape API."""
 

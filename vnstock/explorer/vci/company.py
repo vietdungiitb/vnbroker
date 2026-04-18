@@ -196,6 +196,23 @@ class Company:
         })
         
         return df
+
+    @optimize_execution("VCI")
+    def insider_deals(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        show_log: Optional[bool] = False,
+    ) -> pd.DataFrame:
+        """
+        Compatibility surface for standardized company API.
+
+        VCI currently does not expose a dedicated insider deals endpoint.
+        Method exists for API compatibility and intentionally raises
+        NotImplementedError so AUTO routing can fail over to other providers.
+        """
+        _ = (page, page_size, show_log)
+        raise NotImplementedError("VCI chưa hỗ trợ endpoint insider_deals.")
     
     @optimize_execution("VCI")
     def officers(self, filter_by: str = 'working') -> pd.DataFrame:

@@ -772,6 +772,26 @@ class Company:
 
         return df
 
+    @agg_execution("KBS")
+    def insider_deals(
+        self,
+        page: int = 1,
+        page_size: int = 10,
+        show_log: Optional[bool] = False,
+    ) -> pd.DataFrame:
+        """
+        Compatibility alias for standardized company API.
+
+        Args:
+            page: Số trang. Mặc định 1.
+            page_size: Số lượng bản ghi mỗi trang. Mặc định 10.
+            show_log: Hiển thị log debug.
+
+        Returns:
+            DataFrame chứa thông tin giao dịch nội bộ.
+        """
+        return self.insider_trading(page=page, page_size=page_size, show_log=show_log)
+
 
 # Register KBS Company provider
 from vnstock.core.registry import ProviderRegistry  # noqa: E402, F401

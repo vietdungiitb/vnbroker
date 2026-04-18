@@ -10,7 +10,9 @@ import importlib
 import inspect
 from typing import Optional, Any, Dict
 from functools import lru_cache
+import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
+from pandas.api.types import is_numeric_dtype
 
 from vnstock.core.utils.logger import get_logger
 
@@ -18,6 +20,142 @@ logger = get_logger(__name__)
 
 
 PUBLIC_VN_SOURCES = {"AUTO", "KBS", "VCI", "MSN", "TCBS"}
+
+
+_INSIDER_STANDARD_COLUMNS = [
+    "symbol",
+    "announce_date",
+    "deal_date",
+    "actor_name",
+    "actor_type",
+    "action",
+    "quantity",
+    "price",
+    "ratio",
+    "note",
+    "source",
+    "source_used",
+]
+
+
+def _pick_first_existing(df: pd.DataFrame, candidates: list[str]) -> pd.Series:
+    for col in candidates:
+        if col in df.columns:
+            return df[col]
+    return pd.Series([None] * len(df), index=df.index, dtype="object")
+
+
+def _normalize_action_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip().upper()
+    if not text:
+        return None
+    if text in {"BUY", "MUA", "0", "B"}:
+        return "BUY"
+    if text in {"SELL", "BAN", "BÁN", "1", "S"}:
+        return "SELL"
+    return text
+
+
+def _normalize_company_insider_deals_df(df: pd.DataFrame, symbol: Optional[str] = None) -> pd.DataFrame:
+    """Normalize insider deals output across providers while preserving original columns."""
+    if df is None:
+        base = pd.DataFrame()
+    else:
+        base = df.copy()
+
+    if base.empty:
+        normalized = pd.DataFrame(columns=_INSIDER_STANDARD_COLUMNS)
+        return normalized
+
+    normalized = base.copy()
+
+    normalized["symbol"] = _pick_first_existing(normalized, ["symbol", "ticker"]).fillna(symbol)
+
+    normalized["announce_date"] = pd.to_datetime(
+        _pick_first_existing(
+            normalized,
+            ["announce_date", "deal_announce_date", "an_date", "public_date", "date"],
+        ),
+        errors="coerce",
+        dayfirst=True,
+    ).dt.strftime("%Y-%m-%d")
+
+    normalized["deal_date"] = pd.to_datetime(
+        _pick_first_existing(
+            normalized,
+            ["deal_date", "trading_date", "transaction_date", "match_date"],
+        ),
+        errors="coerce",
+        dayfirst=True,
+    ).dt.strftime("%Y-%m-%d")
+
+    normalized["actor_name"] = _pick_first_existing(
+        normalized,
+        [
+            "actor_name",
+            "insider_name",
+            "owner_name",
+            "full_name",
+            "person_name",
+            "share_holder",
+        ],
+    )
+
+    normalized["actor_type"] = _pick_first_existing(
+        normalized,
+        ["actor_type", "deal_method", "dealing_method", "method", "holder_type"],
+    )
+
+    normalized["action"] = _pick_first_existing(
+        normalized,
+        ["action", "deal_action", "dealing_action", "transaction_type", "type"],
+    ).map(_normalize_action_value)
+
+    normalized["quantity"] = pd.to_numeric(
+        _pick_first_existing(normalized, ["quantity", "deal_quantity", "volume", "deal_volume"]),
+        errors="coerce",
+    )
+
+    normalized["price"] = pd.to_numeric(
+        _pick_first_existing(normalized, ["price", "deal_price", "avg_price", "match_price"]),
+        errors="coerce",
+    )
+
+    normalized["ratio"] = pd.to_numeric(
+        _pick_first_existing(normalized, ["ratio", "deal_ratio", "ownership_ratio"]),
+        errors="coerce",
+    )
+
+    normalized["note"] = _pick_first_existing(
+        normalized,
+        ["note", "description", "reason", "content"],
+    )
+
+    src = None
+    if isinstance(getattr(df, "attrs", None), dict):
+        src = df.attrs.get("source") or df.attrs.get("source_used")
+    if src is None:
+        src = getattr(df, "source", None)
+    normalized["source"] = str(src).upper() if src is not None else None
+
+    source_used = None
+    if isinstance(getattr(df, "attrs", None), dict):
+        source_used = df.attrs.get("source_used")
+    normalized["source_used"] = str(source_used).upper() if source_used is not None else normalized["source"]
+
+    # Ensure all standard columns exist and are first, while preserving legacy columns.
+    for col in _INSIDER_STANDARD_COLUMNS:
+        if col not in normalized.columns:
+            normalized[col] = None
+    ordered = _INSIDER_STANDARD_COLUMNS + [c for c in normalized.columns if c not in _INSIDER_STANDARD_COLUMNS]
+    normalized = normalized[ordered]
+
+    if isinstance(getattr(df, "attrs", None), dict):
+        normalized.attrs.update(df.attrs)
+    normalized.attrs["insider_schema_version"] = "1.0"
+    return normalized
 
 
 def _instantiate_supported(callable_obj, **kwargs):
@@ -436,8 +574,14 @@ class Company(BaseComponent):
 
     @lru_cache(maxsize=Config.CACHE_SIZE)
     def insider_deals(self, **kwargs):
-        """Get insider trading activity."""
-        return self.data_source.insider_deals(**kwargs)
+        """Get insider trading activity with standardized schema across providers."""
+        standardize = kwargs.pop("standardize", True)
+        result = self.data_source.insider_deals(**kwargs)
+        if not standardize:
+            return result
+        if isinstance(result, pd.DataFrame):
+            return _normalize_company_insider_deals_df(result, symbol=self.symbol)
+        return result
 
     @lru_cache(maxsize=Config.CACHE_SIZE)
     def subsidiaries(self, **kwargs):
@@ -757,6 +901,542 @@ class Finance(BaseComponent):
     def ratio(self, symbol: Optional[str] = None, **kwargs) -> Any:
         """Get financial ratios."""
         return self._get_financial_data('ratio', symbol, **kwargs)
+
+    def fundamental_snapshot(
+        self,
+        symbol: Optional[str] = None,
+        metrics: Optional[list[str]] = None,
+        period: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Build a normalized latest fundamental snapshot from provider data.
+
+        Returns standardized rows with columns:
+        symbol, period, report_date, metric, value, unit, source, source_used
+        """
+        target_symbol = (symbol or self.symbol or "").upper()
+        effective_period = (period or self.period or "quarter").lower()
+
+        frame = self._get_financial_data('ratio', symbol, period=effective_period, **kwargs)
+        if not isinstance(frame, pd.DataFrame) or frame.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "period",
+                    "report_date",
+                    "metric",
+                    "value",
+                    "unit",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        df = frame.copy()
+        report_date = None
+        if "period" in df.columns:
+            report_date = str(df.iloc[0]["period"])
+        elif len(df.index) > 0:
+            report_date = str(df.index[0])
+
+        selected_metrics = metrics
+        if not selected_metrics:
+            selected_metrics = [
+                col for col in df.columns
+                if is_numeric_dtype(df[col])
+            ][:20]
+
+        source = None
+        if isinstance(getattr(df, "attrs", None), dict):
+            source = df.attrs.get("source") or df.attrs.get("source_used")
+        if source is None:
+            source = getattr(df, "source", None)
+        source_text = str(source).upper() if source is not None else self.source.upper()
+
+        source_used = None
+        if isinstance(getattr(df, "attrs", None), dict):
+            source_used = df.attrs.get("source_used")
+        source_used_text = str(source_used).upper() if source_used is not None else source_text
+
+        records: list[dict[str, Any]] = []
+        first_row = df.iloc[0]
+        for metric in selected_metrics:
+            if metric not in df.columns:
+                continue
+            value = first_row.get(metric)
+            if pd.isna(value):
+                value = None
+            records.append(
+                {
+                    "symbol": target_symbol,
+                    "period": "year" if effective_period == "annual" else effective_period,
+                    "report_date": report_date,
+                    "metric": metric,
+                    "value": value,
+                    "unit": None,
+                    "source": source_text,
+                    "source_used": source_used_text,
+                }
+            )
+
+        return pd.DataFrame(records)
+
+    def industry_peers(
+        self,
+        symbol: Optional[str] = None,
+        level: int = 4,
+        include_exchanges: Optional[list[str]] = None,
+        max_peers: int = 100,
+    ) -> pd.DataFrame:
+        """
+        Get peer symbols in the same industry as target symbol.
+
+        Args:
+            symbol: Target stock symbol.
+            level: Reserved for future ICB granularity support.
+            include_exchanges: Optional exchange filter (if exchange column exists).
+            max_peers: Maximum number of peers to return.
+        """
+        _ = level
+        target_symbol = (symbol or self.symbol or "").upper()
+        if not target_symbol:
+            raise ValueError("symbol is required for industry_peers")
+
+        listing = Listing(source='KBS')
+        by_industry = listing.symbols_by_industries()
+        if not isinstance(by_industry, pd.DataFrame) or by_industry.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        df = by_industry.copy()
+        if include_exchanges and "exchange" in df.columns:
+            exchange_set = {e.upper() for e in include_exchanges}
+            df = df[df["exchange"].astype(str).str.upper().isin(exchange_set)]
+
+        target_rows = df[df["symbol"].astype(str).str.upper() == target_symbol]
+        if target_rows.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        industry_code = target_rows.iloc[0].get("industry_code")
+        industry_name = target_rows.iloc[0].get("industry_name")
+
+        peers = df
+        if "industry_code" in df.columns and pd.notna(industry_code):
+            peers = df[df["industry_code"] == industry_code]
+        elif "industry_name" in df.columns:
+            peers = df[df["industry_name"] == industry_name]
+
+        peer_symbols = (
+            peers["symbol"].astype(str).str.upper().drop_duplicates().head(max_peers).tolist()
+        )
+
+        out = pd.DataFrame(
+            {
+                "symbol": [target_symbol] * len(peer_symbols),
+                "industry_code": [industry_code] * len(peer_symbols),
+                "industry_name": [industry_name] * len(peer_symbols),
+                "peer_symbol": peer_symbols,
+                "source": ["KBS"] * len(peer_symbols),
+                "source_used": ["KBS"] * len(peer_symbols),
+            }
+        )
+        return out
+
+    def _extract_latest_metric_values(
+        self,
+        ratio_df: pd.DataFrame,
+        metrics: list[str],
+    ) -> dict[str, Optional[float]]:
+        if not isinstance(ratio_df, pd.DataFrame) or ratio_df.empty:
+            return {m: None for m in metrics}
+        row = ratio_df.iloc[0]
+        values: dict[str, Optional[float]] = {}
+        for m in metrics:
+            if m in ratio_df.columns:
+                v = pd.to_numeric(pd.Series([row.get(m)]), errors="coerce").iloc[0]
+                values[m] = None if pd.isna(v) else float(v)
+            else:
+                values[m] = None
+        return values
+
+    def industry_benchmark(
+        self,
+        symbol: Optional[str] = None,
+        metrics: Optional[list[str]] = None,
+        period: str = "quarter",
+        method: str = "median",
+    ) -> pd.DataFrame:
+        """
+        Compute industry benchmark (median/mean) for requested metrics.
+        """
+        _ = method
+        target_symbol = (symbol or self.symbol or "").upper()
+        if not target_symbol:
+            raise ValueError("symbol is required for industry_benchmark")
+        if not metrics:
+            raise ValueError("metrics is required for industry_benchmark")
+
+        peers_df = self.industry_peers(symbol=target_symbol)
+        if peers_df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "metric",
+                    "peer_value",
+                    "industry_median",
+                    "industry_mean",
+                    "percentile",
+                    "zscore",
+                    "rank",
+                    "total_peers",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        records: list[dict[str, Any]] = []
+        for peer_symbol in peers_df["peer_symbol"].tolist():
+            ratio_df = self._get_financial_data('ratio', peer_symbol, period=period)
+            metric_values = self._extract_latest_metric_values(ratio_df, metrics)
+            for metric, value in metric_values.items():
+                records.append(
+                    {
+                        "peer_symbol": peer_symbol,
+                        "metric": metric,
+                        "peer_value": value,
+                    }
+                )
+
+        values_df = pd.DataFrame(records)
+        if values_df.empty:
+            return values_df
+
+        agg = values_df.groupby("metric", dropna=False)["peer_value"].agg(
+            industry_median="median",
+            industry_mean="mean",
+            total_peers=lambda s: int(s.notna().sum()),
+        )
+        out = values_df.merge(agg, on="metric", how="left")
+
+        base = peers_df.iloc[0]
+        out.insert(0, "symbol", target_symbol)
+        out.insert(1, "industry_code", base.get("industry_code"))
+        out.insert(2, "industry_name", base.get("industry_name"))
+
+        out["percentile"] = None
+        out["zscore"] = None
+        out["rank"] = None
+        out["source"] = self.source.upper()
+        out["source_used"] = self.source.upper()
+
+        out = out[
+            [
+                "symbol",
+                "industry_code",
+                "industry_name",
+                "peer_symbol",
+                "metric",
+                "peer_value",
+                "industry_median",
+                "industry_mean",
+                "percentile",
+                "zscore",
+                "rank",
+                "total_peers",
+                "source",
+                "source_used",
+            ]
+        ]
+        return out
+
+    def industry_rank(
+        self,
+        symbol: Optional[str] = None,
+        metric: str = "roe",
+        period: str = "quarter",
+        method: str = "percentile",
+    ) -> pd.DataFrame:
+        """
+        Compute rank/percentile/z-score for one metric in symbol's industry.
+        """
+        _ = method
+        target_symbol = (symbol or self.symbol or "").upper()
+        bench = self.industry_benchmark(symbol=target_symbol, metrics=[metric], period=period)
+        if bench.empty:
+            return bench
+
+        df = bench.copy()
+        mask = df["metric"] == metric
+        metric_df = df[mask].copy()
+        if metric_df.empty:
+            return bench
+
+        metric_df["rank"] = metric_df["peer_value"].rank(method="min", ascending=False)
+        n = metric_df["peer_value"].notna().sum()
+
+        if n <= 1:
+            metric_df["percentile"] = 100.0
+        else:
+            metric_df["percentile"] = metric_df["rank"].map(lambda r: ((n - r) / (n - 1)) * 100 if pd.notna(r) else None)
+
+        std = metric_df["peer_value"].std(skipna=True)
+        mean = metric_df["peer_value"].mean(skipna=True)
+        if pd.isna(std) or std == 0:
+            metric_df["zscore"] = 0.0
+        else:
+            metric_df["zscore"] = (metric_df["peer_value"] - mean) / std
+
+        bench.loc[mask, ["rank", "percentile", "zscore"]] = metric_df[["rank", "percentile", "zscore"]].values
+        return bench
+
+    def industry_peers(
+        self,
+        symbol: Optional[str] = None,
+        level: int = 4,
+        include_exchanges: Optional[list[str]] = None,
+        max_peers: int = 100,
+    ) -> pd.DataFrame:
+        """
+        Get peer symbols in the same industry as target symbol.
+
+        Args:
+            symbol: Target stock symbol.
+            level: Reserved for future ICB granularity support.
+            include_exchanges: Optional exchange filter (if exchange column exists).
+            max_peers: Maximum number of peers to return.
+        """
+        _ = level
+        target_symbol = (symbol or self.symbol or "").upper()
+        if not target_symbol:
+            raise ValueError("symbol is required for industry_peers")
+
+        listing = Listing(source='KBS')
+        by_industry = listing.symbols_by_industries()
+        if not isinstance(by_industry, pd.DataFrame) or by_industry.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        df = by_industry.copy()
+        if include_exchanges and "exchange" in df.columns:
+            exchange_set = {e.upper() for e in include_exchanges}
+            df = df[df["exchange"].astype(str).str.upper().isin(exchange_set)]
+
+        target_rows = df[df["symbol"].astype(str).str.upper() == target_symbol]
+        if target_rows.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        industry_code = target_rows.iloc[0].get("industry_code")
+        industry_name = target_rows.iloc[0].get("industry_name")
+
+        peers = df
+        if "industry_code" in df.columns and pd.notna(industry_code):
+            peers = df[df["industry_code"] == industry_code]
+        elif "industry_name" in df.columns:
+            peers = df[df["industry_name"] == industry_name]
+
+        peer_symbols = (
+            peers["symbol"].astype(str).str.upper().drop_duplicates().head(max_peers).tolist()
+        )
+
+        out = pd.DataFrame(
+            {
+                "symbol": [target_symbol] * len(peer_symbols),
+                "industry_code": [industry_code] * len(peer_symbols),
+                "industry_name": [industry_name] * len(peer_symbols),
+                "peer_symbol": peer_symbols,
+                "source": ["KBS"] * len(peer_symbols),
+                "source_used": ["KBS"] * len(peer_symbols),
+            }
+        )
+        return out
+
+    def _extract_latest_metric_values(
+        self,
+        ratio_df: pd.DataFrame,
+        metrics: list[str],
+    ) -> dict[str, Optional[float]]:
+        if not isinstance(ratio_df, pd.DataFrame) or ratio_df.empty:
+            return {m: None for m in metrics}
+        row = ratio_df.iloc[0]
+        values: dict[str, Optional[float]] = {}
+        for m in metrics:
+            if m in ratio_df.columns:
+                v = pd.to_numeric(pd.Series([row.get(m)]), errors="coerce").iloc[0]
+                values[m] = None if pd.isna(v) else float(v)
+            else:
+                values[m] = None
+        return values
+
+    def industry_benchmark(
+        self,
+        symbol: Optional[str] = None,
+        metrics: Optional[list[str]] = None,
+        period: str = "quarter",
+        method: str = "median",
+    ) -> pd.DataFrame:
+        """
+        Compute industry benchmark (median/mean) for requested metrics.
+        """
+        _ = method
+        target_symbol = (symbol or self.symbol or "").upper()
+        if not target_symbol:
+            raise ValueError("symbol is required for industry_benchmark")
+        if not metrics:
+            raise ValueError("metrics is required for industry_benchmark")
+
+        peers_df = self.industry_peers(symbol=target_symbol)
+        if peers_df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "metric",
+                    "peer_value",
+                    "industry_median",
+                    "industry_mean",
+                    "percentile",
+                    "zscore",
+                    "rank",
+                    "total_peers",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        records: list[dict[str, Any]] = []
+        for peer_symbol in peers_df["peer_symbol"].tolist():
+            ratio_df = self._get_financial_data('ratio', peer_symbol, period=period)
+            metric_values = self._extract_latest_metric_values(ratio_df, metrics)
+            for metric, value in metric_values.items():
+                records.append(
+                    {
+                        "peer_symbol": peer_symbol,
+                        "metric": metric,
+                        "peer_value": value,
+                    }
+                )
+
+        values_df = pd.DataFrame(records)
+        if values_df.empty:
+            return values_df
+
+        agg = values_df.groupby("metric", dropna=False)["peer_value"].agg(
+            industry_median="median",
+            industry_mean="mean",
+            total_peers=lambda s: int(s.notna().sum()),
+        )
+        out = values_df.merge(agg, on="metric", how="left")
+
+        base = peers_df.iloc[0]
+        out.insert(0, "symbol", target_symbol)
+        out.insert(1, "industry_code", base.get("industry_code"))
+        out.insert(2, "industry_name", base.get("industry_name"))
+
+        out["percentile"] = None
+        out["zscore"] = None
+        out["rank"] = None
+        out["source"] = self.source.upper()
+        out["source_used"] = self.source.upper()
+
+        out = out[
+            [
+                "symbol",
+                "industry_code",
+                "industry_name",
+                "peer_symbol",
+                "metric",
+                "peer_value",
+                "industry_median",
+                "industry_mean",
+                "percentile",
+                "zscore",
+                "rank",
+                "total_peers",
+                "source",
+                "source_used",
+            ]
+        ]
+        return out
+
+    def industry_rank(
+        self,
+        symbol: Optional[str] = None,
+        metric: str = "roe",
+        period: str = "quarter",
+        method: str = "percentile",
+    ) -> pd.DataFrame:
+        """
+        Compute rank/percentile/z-score for one metric in symbol's industry.
+        """
+        _ = method
+        target_symbol = (symbol or self.symbol or "").upper()
+        bench = self.industry_benchmark(symbol=target_symbol, metrics=[metric], period=period)
+        if bench.empty:
+            return bench
+
+        df = bench.copy()
+        mask = df["metric"] == metric
+        metric_df = df[mask].copy()
+        if metric_df.empty:
+            return bench
+
+        metric_df["rank"] = metric_df["peer_value"].rank(method="min", ascending=False)
+        n = metric_df["peer_value"].notna().sum()
+
+        if n <= 1:
+            metric_df["percentile"] = 100.0
+        else:
+            metric_df["percentile"] = metric_df["rank"].map(lambda r: ((n - r) / (n - 1)) * 100 if pd.notna(r) else None)
+
+        std = metric_df["peer_value"].std(skipna=True)
+        mean = metric_df["peer_value"].mean(skipna=True)
+        if pd.isna(std) or std == 0:
+            metric_df["zscore"] = 0.0
+        else:
+            metric_df["zscore"] = (metric_df["peer_value"] - mean) / std
+
+        bench.loc[mask, ["rank", "percentile", "zscore"]] = metric_df[["rank", "percentile", "zscore"]].values
+        return bench
 
 
 

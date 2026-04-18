@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-18] — Release 1.0.2: Core API standardization and production hardening
+
+### Added
+- Standardized insider API surface and normalization path with `insider_deals` compatibility across providers.
+- New financial snapshot API: `fundamental_snapshot` in the finance facade.
+- New industry comparison APIs: `industry_peers`, `industry_benchmark`, `industry_rank`.
+- Onboarding dry-run coverage for mock provider registration without core rewrite.
+- New usage guide for the three core analytics groups:
+  - `docs/FINANCE_INSIDER_INDUSTRY_USAGE_GUIDE.md`
+
+### Changed
+- Stabilized unit test behavior by gating live integration suites behind `VNSTOCK_RUN_LIVE_INTEGRATION=1` to avoid false negatives from upstream rate limits.
+- Updated implementation and signoff documentation for production-ready handoff.
+
+### Validation
+- Full unit regression after release changes: **195 passed, 6 skipped**.
+
 ## [2026-04-13] — Upgrade Notice: GitHub-only Version Comparison Fix
 
 ### Fixed

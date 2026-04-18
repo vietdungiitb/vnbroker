@@ -12,6 +12,7 @@ class Company(BaseAdapter):
     Adapter for company-related data:
       - overview
       - shareholders
+            - insider_deals
       - officers
       - subsidiaries
       - affiliate
@@ -22,6 +23,7 @@ class Company(BaseAdapter):
         c = Company(source="vci", symbol="VCI", random_agent=False, show_log=True)
         df_ov = c.overview()
         df_sh = c.shareholders()
+        df_in = c.insider_deals(page=1, page_size=20)
         df_of = c.officers(filter_by="all")
         df_sub = c.subsidiaries(filter_by="subsidiary")
         df_aff = c.affiliate()
@@ -86,6 +88,19 @@ class Company(BaseAdapter):
     @dynamic_method
     def shareholders(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company shareholders data."""
+        pass
+
+    @retry(
+        stop=stop_after_attempt(Config.RETRIES),
+        wait=wait_exponential(
+            multiplier=Config.BACKOFF_MULTIPLIER,
+            min=Config.BACKOFF_MIN,
+            max=Config.BACKOFF_MAX
+        )
+    )
+    @dynamic_method
+    def insider_deals(self, *args: Any, **kwargs: Any) -> Any:
+        """Retrieve company insider trading deals."""
         pass
 
     @retry(
