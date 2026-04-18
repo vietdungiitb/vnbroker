@@ -211,3 +211,61 @@ class TestAutoSourceRouter:
 
         assert snapshot2["VCI"]["failures"] == 0
         assert snapshot2["VCI"]["in_cooldown"] is False
+
+    def test_should_failover_on_key_error(self):
+        """KeyError (missing payload key) phải kích hoạt failover, không crash cứng."""
+        assert source_router.should_failover(KeyError("data")) is True
+
+    def test_should_failover_on_lookup_error(self):
+        assert source_router.should_failover(LookupError("missing key")) is True
+
+    def test_missing_payload_key_triggers_failover_in_auto_chain(self, monkeypatch):
+        """Provider trả payload thiếu key → AUTO failover sang provider khỏe mạnh."""
+
+        class _BadPayloadProvider:
+            def __init__(self, **kwargs):
+                pass
+
+            def all_symbols(self, **kwargs):
+                # Mô phỏng response thiếu key chuẩn
+                raise KeyError("data")
+
+        providers = {
+            ("listing", "vci"): _BadPayloadProvider,
+            ("listing", "kbs"): _HealthyListingProvider,
+        }
+
+        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
+        monkeypatch.setattr(ProviderRegistry, "get", lambda m, s: providers[(m, s)])
+
+        listing = Listing(source="AUTO", show_log=False)
+        result = listing.all_symbols()
+
+        assert result["source_used"] == "KBS"
+
+        health = source_router.get_source_health_snapshot("listing")
+        assert health["VCI"]["failures"] >= 1
+        assert health["VCI"]["in_cooldown"] is True
+
+    def test_missing_payload_value_error_triggers_failover(self, monkeypatch):
+        """ValueError chứa 'failed to fetch data' → AUTO failover."""
+
+        class _MissingKeyProvider:
+            def __init__(self, **kwargs):
+                pass
+
+            def all_symbols(self, **kwargs):
+                raise ValueError("failed to fetch data: VCI listing response missing 'data.CompaniesListingInfo'")
+
+        providers = {
+            ("listing", "vci"): _MissingKeyProvider,
+            ("listing", "kbs"): _HealthyListingProvider,
+        }
+
+        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
+        monkeypatch.setattr(ProviderRegistry, "get", lambda m, s: providers[(m, s)])
+
+        listing = Listing(source="AUTO", show_log=False)
+        result = listing.all_symbols()
+
+        assert result["source_used"] == "KBS"

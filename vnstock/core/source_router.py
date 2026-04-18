@@ -171,7 +171,8 @@ def get_source_health_snapshot(module_name: str) -> Dict[str, Dict[str, float | 
 
 
 def should_failover(exc: Exception) -> bool:
-    if isinstance(exc, (ConnectionError, TimeoutError, NotImplementedError)):
+    # KeyError / LookupError = provider returned payload missing expected keys
+    if isinstance(exc, (ConnectionError, TimeoutError, NotImplementedError, KeyError, LookupError)):
         return True
 
     message = str(exc).lower()

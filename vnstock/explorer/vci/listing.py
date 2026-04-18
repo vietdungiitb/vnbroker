@@ -94,7 +94,14 @@ class Listing:
         if show_log:
             logger.info(f'Truy xuất thành công dữ liệu danh sách phân ngành icb.')
 
-        df = pd.DataFrame(json_data['data']['CompaniesListingInfo'])
+        _outer = (json_data or {}).get('data') or {}
+        _records = _outer.get('CompaniesListingInfo')
+        if _records is None:
+            raise ValueError(
+                "failed to fetch data: VCI listing response missing 'data.CompaniesListingInfo' "
+                f"(outer keys: {list(_outer.keys()) if _outer else 'empty'})"
+            )
+        df = pd.DataFrame(_records)
         df.columns = [camel_to_snake(col) for col in df.columns]
         df = df.drop(columns=['__typename'])
         df = df.rename(columns={'ticker': 'symbol'})
@@ -193,7 +200,14 @@ class Listing:
         if show_log:
             logger.info('Truy xuất thành công dữ liệu danh sách phân ngành icb.')
 
-        df = pd.DataFrame(json_data['data']['ListIcbCode'])
+        _outer = (json_data or {}).get('data') or {}
+        _records = _outer.get('ListIcbCode')
+        if _records is None:
+            raise ValueError(
+                "failed to fetch data: VCI listing response missing 'data.ListIcbCode' "
+                f"(outer keys: {list(_outer.keys()) if _outer else 'empty'})"
+            )
+        df = pd.DataFrame(_records)
         df.columns = [camel_to_snake(col) for col in df.columns]
         df = df.drop(columns=['__typename'])
         df = df[['icb_name', 'en_icb_name', 'icb_code', 'level']]

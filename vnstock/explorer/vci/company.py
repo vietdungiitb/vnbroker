@@ -97,8 +97,14 @@ class Company:
             proxy_mode=self.proxy_config.proxy_mode,
             request_mode=self.proxy_config.request_mode
         )
-        
-        return response_data['data']
+
+        payload = (response_data or {}).get('data')
+        if payload is None:
+            raise ValueError(
+                f"failed to fetch data: VCI company response missing 'data' key "
+                f"(got keys: {list(response_data.keys()) if isinstance(response_data, dict) else type(response_data).__name__})"
+            )
+        return payload
 
     def _process_data(self, data: Dict, data_key: str, 
                       columns_dict: Optional[Dict] = None) -> pd.DataFrame:

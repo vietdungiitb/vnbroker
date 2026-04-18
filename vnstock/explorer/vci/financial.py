@@ -200,7 +200,13 @@ class Finance:
             request_mode=self.proxy_config.request_mode
         )
         
-        data = response_data['data']['ListFinancialRatio']
+        _outer = (response_data or {}).get('data') or {}
+        data = _outer.get('ListFinancialRatio')
+        if data is None:
+            raise ValueError(
+                "failed to fetch data: VCI financial response missing 'data.ListFinancialRatio' "
+                f"(outer keys: {list(_outer.keys()) if _outer else 'empty'})"
+            )
         df = pd.DataFrame(data)
         df.columns = [camel_to_snake(col).replace('__', '_') for col in df.columns]
         
