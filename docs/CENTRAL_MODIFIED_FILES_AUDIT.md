@@ -189,3 +189,64 @@ Danh sách file đã tạo/chỉnh sửa:
 
 Kết quả bàn giao:
 - Bổ sung tài liệu sử dụng đầy đủ chữ ký hàm, ví dụ code copy-paste, schema đầu ra, luồng tích hợp backend, xử lý lỗi dữ liệu thiếu và checklist production.
+
+---
+
+## 2026-04-18 - Task: Cập nhật phiên bản 1.0.2 và đồng bộ nhánh release
+
+Phạm vi yêu cầu:
+- Bump version 1.0.1 → 1.0.2, tạo release commit, đồng bộ sang 3 nhánh deployment (dev, core, main).
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `pyproject.toml` (updated - version bump 1.0.1 → 1.0.2)
+2. `docs/EXTERNAL_PROJECT_INTEGRATION.md` (updated - version reference)
+3. `CHANGELOG.md` (updated - v1.0.2 release notes)
+4. `docs/CORE_API_STANDARDIZATION_INDEX.md` (created via git commit)
+5. `docs/CORE_API_STANDARDIZATION_RFC.md` (created via git commit)
+6. `docs/CORE_API_STANDARDIZATION_SPRINT_PLAN.md` (created via git commit)
+7. `docs/CORE_API_STANDARDIZATION_TASK_BOARD.md` (created via git commit)
+8. `docs/CORE_API_STANDARDIZATION_PROVIDER_ONBOARDING.md` (created via git commit)
+9. `docs/CORE_API_STANDARDIZATION_TEST_ACCEPTANCE.md` (created via git commit)
+10. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (created via git commit)
+11. `docs/CORE_API_STANDARDIZATION_JSON_SCHEMA.md` (created via git commit)
+12. `docs/CORE_API_STANDARDIZATION_PR_CHECKLIST.md` (created via git commit)
+13. `docs/CORE_API_STANDARDIZATION_IMPLEMENTATION_PLAYBOOK.md` (created via git commit)
+14. `docs/CORE_API_STANDARDIZATION_RISK_REGISTER.md` (created via git commit)
+15. `docs/CORE_API_STANDARDIZATION_EXECUTION_STATUS_TEMPLATE.md` (created via git commit)
+16. `docs/CORE_API_STANDARDIZATION_CODE_READY_CHECKLIST.md` (created via git commit)
+17. `docs/CORE_API_STANDARDIZATION_WORK_ITEMS.md` (created via git commit)
+18. `docs/CORE_API_STANDARDIZATION_BRANCHING_RELEASE.md` (created via git commit)
+19. `docs/CORE_API_STANDARDIZATION_DECISION_LOG.md` (created via git commit)
+20. `docs/CORE_API_STANDARDIZATION_KICKOFF_SIGNOFF.md` (created via git commit)
+21. `docs/CORE_API_STANDARDIZATION_EXECUTION_STATUS_20260418.md` (created via git commit)
+22. `docs/CORE_API_STANDARDIZATION_FINAL_SIGNOFF.md` (created via git commit)
+23. `docs/FINANCE_INSIDER_INDUSTRY_USAGE_GUIDE.md` (created via git commit)
+24. `tests/examples/kbs_financial_benchmark.py` (created via git commit)
+25. `tests/unit/api/test_company_auto_failover_insider.py` (created via git commit)
+26. `tests/unit/core/test_company_insider_normalization.py` (created via git commit)
+27. `tests/unit/core/test_finance_fundamental_snapshot.py` (created via git commit)
+28. `tests/unit/core/test_finance_industry_comparison.py` (created via git commit)
+29. `tests/unit/core/test_provider_onboarding_dry_run.py` (created via git commit)
+30. `tests/unit/core/test_proxy_manager.py` (updated via git commit)
+31. `tests/unit/explorer/test_provider_api_compatibility.py` (updated via git commit)
+32. `tests/unit/explorer/test_vci_company_finance_comprehensive.py` (updated via git commit)
+33. `tests/unit/explorer/test_vci_listing_comprehensive.py` (updated via git commit)
+34. `tests/unit/explorer/test_vci_quote_comprehensive.py` (updated via git commit)
+35. `vnstock/api/company.py` (updated via git commit)
+36. `vnstock/common/data.py` (updated via git commit)
+37. `vnstock/explorer/kbs/company.py` (updated via git commit)
+38. `vnstock/explorer/vci/company.py` (updated via git commit)
+
+Kết quả bàn giao:
+- **Release commit**: 3c14c39 "release: v1.0.2 core api standardization and production hardening"
+- **Files changed**: 38, **Insertions**: +3854
+- **Branch sync status**:
+  - ✓ dev: 3c14c39 (synced, pushed to origin/dev)
+  - ✓ core: ef412ac (merged from dev via --no-ff, pushed to origin/core)
+  - ✓ main: 3c14c39 (force-pushed from dev via --force-with-lease, synced origin/main)
+- **Production-ready gate**: PASSED
+  - Full unit regression: **195 passed, 6 skipped**
+  - All 3 API function groups implemented and tested
+  - Comprehensive documentation delivered (21 docs + usage guide)
+  - Live integration stability improved (gated by VNSTOCK_RUN_LIVE_INTEGRATION=1)
+- **Next step**: Ready for deployment to production environment
