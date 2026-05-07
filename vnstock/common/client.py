@@ -41,7 +41,7 @@ class Vnstock:
         >>> djia = stock.world_index('DJI')  # Dow Jones
     """
     
-    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "DNSE"]
 
     def __init__(self, symbol: Optional[str] = None, source: str = "KBS",
                  show_log: bool = True):
@@ -86,6 +86,7 @@ class Vnstock:
               source: Optional[str] = None,
               auth_token: Optional[str] = None,
               api_key: Optional[str] = None,
+              api_secret: Optional[str] = None,
               otp: Optional[str] = None,
               openapi_base_url: Optional[str] = None) -> StockComponents:
         """
@@ -98,6 +99,7 @@ class Vnstock:
                 Defaults to instance source if not specified.
             auth_token (str, optional): Existing TCBS Bearer token.
             api_key (str, optional): TCBS OpenAPI API key used with otp.
+            api_secret (str, optional): DNSE OpenAPI secret used with api_key.
             otp (str, optional): TCBS OpenAPI OTP used to exchange for JWT.
             openapi_base_url (str, optional): Override TCBS OpenAPI base URL.
         
@@ -132,7 +134,9 @@ class Vnstock:
             self.symbol,
             source,
             show_log=self.show_log,
-            auth_token=auth_token
+            auth_token=auth_token,
+            api_key=api_key,
+            api_secret=api_secret,
         )
 
     def fx(self, symbol: Optional[str] = 'EURUSD',

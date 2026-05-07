@@ -49,7 +49,12 @@ class DNSEClient:
         if isinstance(payload, list):
             return pd.json_normalize(payload)
         if isinstance(payload, dict):
-            for key in ("data", "items", "orders", "accounts", "loanPackages", "positions", "reports"):
+            for key in (
+                "data", "items", "orders", "accounts", "loanPackages",
+                "positions", "reports",
+                # Market data keys
+                "bars", "candles", "ohlc", "trades", "instruments", "securities",
+            ):
                 value = payload.get(key)
                 if isinstance(value, list):
                     return pd.json_normalize(value)

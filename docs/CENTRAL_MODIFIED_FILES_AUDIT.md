@@ -276,3 +276,53 @@ Kết quả bàn giao:
 - `pytest tests/unit/api/test_auto_source_router.py`: **14/14 passed**
 - Commit: dcf2202 "fix: prevent KeyError hard-crash on AUTO hot path when provider payload missing keys"
 - Pushed: origin/dev
+
+---
+
+## 2026-05-07 - Task: DNSE Explorer + Trade integration hardening
+
+Phạm vi yêu cầu:
+- Tích hợp DNSE thành source chuẩn ngang hàng VCI/KBS/TCBS.
+- Nối `Vnstock.stock(..., source='DNSE')` qua `common.data`.
+- Mở public adapter `vnstock.api.quote` và `vnstock.api.listing` cho DNSE.
+- Refactor `trade.py` để bỏ `print()` và thêm bridge helpers.
+- Thêm unit tests DNSE cho explorer, adapter, và trade bridge.
+- Cập nhật tài liệu chốt kế hoạch/spec/test/audit và module tree.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `module_tree_full.md` (new)
+2. `vnstock/api/listing.py` (updated)
+3. `vnstock/api/quote.py` (updated)
+4. `vnstock/common/client.py` (updated)
+5. `vnstock/common/data.py` (updated)
+6. `vnstock/connector/dnse/client.py` (updated)
+7. `vnstock/connector/dnse/trade.py` (updated)
+8. `vnstock/explorer/dnse/__init__.py` (new)
+9. `vnstock/explorer/dnse/listing.py` (new)
+10. `vnstock/explorer/dnse/quote.py` (new)
+11. `tests/unit/explorer/dnse/__init__.py` (new)
+12. `tests/unit/explorer/dnse/test_quote.py` (new)
+13. `tests/unit/explorer/dnse/test_listing.py` (new)
+14. `tests/unit/explorer/dnse/test_adapters.py` (new)
+15. `tests/unit/connector/dnse/test_trade_bridge.py` (new)
+16. `docs/DNSE_INDEX.md` (updated)
+17. `docs/DNSE_INTEGRATION_PLAN_20260507.md` (new)
+18. `docs/DNSE_EXPLORER_SPEC.md` (new)
+19. `docs/DNSE_CODING_GUIDE.md` (new)
+20. `docs/DNSE_TEST_SPEC_V2.md` (new)
+21. `docs/DNSE_AUDIT_CHECKLIST.md` (new)
+
+Kết quả bàn giao:
+- DNSE giờ có explorer provider riêng cho quote/listing, registry registration đầy đủ, và flow `Vnstock().stock(..., source='DNSE')` chạy được.
+- `trade.py` đã sạch `print()` và có `as_openapi_client()` + `login_and_get_trading_session()`.
+- Public adapters `Quote(source='dnse')` và `Listing(source='dnse')` hỗ trợ credentials DNSE.
+- Fallback listing compatibility cho các method legacy được thêm để tránh crash khi dùng wrapper chung.
+
+Kết quả kiểm tra:
+- `pytest tests/unit/explorer/dnse tests/unit/connector/dnse -q`: **18 passed, 2 warnings**
+- Smoke `Vnstock().stock('VNM', source='DNSE', api_key='k', api_secret='s')`: PASS
+- Smoke `vnstock.api.quote.Quote(source='dnse', ...)` và `vnstock.api.listing.Listing(source='dnse', ...)`: PASS
+
+Ghi chú:
+- `module_tree_full.md` đã được tạo lại để phản ánh trạng thái hiện tại của tree.
+- Những task kế tiếp phải append tiếp vào file này, không tạo audit rời rạc.

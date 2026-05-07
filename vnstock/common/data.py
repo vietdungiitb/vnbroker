@@ -260,23 +260,27 @@ class BaseComponent:
 class StockComponents(BaseComponent):
     """Unified access to stock data and related information."""
 
-    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "FMP"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "FMP", "DNSE"]
 
     def __init__(self, symbol: str, source: str = Config.DEFAULT_SOURCE,
                  show_log: bool = True,
-                 auth_token: Optional[str] = None):
+                 auth_token: Optional[str] = None,
+                 api_key: Optional[str] = None,
+                 api_secret: Optional[str] = None):
         """
         Initialize stock components.
 
         Args:
             symbol: Stock symbol (e.g., 'ACB', 'VNM')
-            source: Data source (VCI, TCBS, MSN, FMP)
+            source: Data source (VCI, TCBS, MSN, FMP, DNSE)
             show_log: Whether to display log messages
 
         Raises:
             ValueError: If source not supported
         """
         self.auth_token = auth_token
+        self.api_key = api_key
+        self.api_secret = api_secret
         super().__init__(symbol, source)
         self.show_log = show_log
 
@@ -295,7 +299,11 @@ class StockComponents(BaseComponent):
     def _initialize_components(self):
         """Initialize quote, company, finance, trading components."""
         # Initialize company and finance for stocks
-        if self.source == 'FMP' or self.asset_type == "stock":
+        if self.source == 'DNSE':
+            self.company = None
+            self.finance = None
+            self.news = None
+        elif self.source == 'FMP' or self.asset_type == "stock":
             self.company = Company(self.symbol, source=self.source, auth_token=self.auth_token)
             self.finance = Finance(self.symbol, source=self.source, auth_token=self.auth_token)
             if self.source in ["AUTO", "KBS", "VCI", "TCBS"]:
@@ -333,6 +341,21 @@ class StockComponents(BaseComponent):
             self.listing = Listing(source='FMP')
             self.trading = None
             self.screener = None
+        elif self.source == 'DNSE':
+            self.quote = Quote(
+                self.symbol,
+                'DNSE',
+                auth_token=self.auth_token,
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+            )
+            self.listing = Listing(
+                source='DNSE',
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+            )
+            self.trading = None
+            self.screener = None
 
     def _load_data_source(self):
         """StockComponents manages multiple sources."""
@@ -347,15 +370,27 @@ class StockComponents(BaseComponent):
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
-    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "FMP"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "FMP", "DNSE"]
 
     def __init__(self, symbol: str, source: str = Config.DEFAULT_SOURCE,
-                 auth_token: Optional[str] = None):
+                 auth_token: Optional[str] = None,
+                 api_key: Optional[str] = None,
+                 api_secret: Optional[str] = None):
         self.auth_token = auth_token
+        self.api_key = api_key
+        self.api_secret = api_secret
         super().__init__(symbol, source)
 
     def _load_data_source(self):
         """Load quote data source module."""
+        if self.source == "DNSE":
+            from vnstock.explorer.dnse.quote import DNSEQuote
+            return DNSEQuote(
+                symbol=self.symbol,
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+                show_log=False,
+            )
         if self.source in PUBLIC_VN_SOURCES:
             from vnstock.api.quote import Quote as QuoteAdapter
             return QuoteAdapter(
@@ -420,14 +455,25 @@ class Quote(BaseComponent):
 class Listing(BaseComponent):
     """Symbol listing and grouping data."""
 
-    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "MSN", "FMP"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "MSN", "FMP", "DNSE"]
 
-    def __init__(self, source: str = Config.DEFAULT_SOURCE):
+    def __init__(self, source: str = Config.DEFAULT_SOURCE,
+                 api_key: Optional[str] = None,
+                 api_secret: Optional[str] = None):
+        self.api_key = api_key
+        self.api_secret = api_secret
         # Don't need symbol for listing data
         super().__init__(symbol=None, source=source)
 
     def _load_data_source(self):
         """Load listing data source module."""
+        if self.source == "DNSE":
+            from vnstock.explorer.dnse.listing import DNSEListing
+            return DNSEListing(
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+                show_log=False,
+            )
         if self.source in {"AUTO", "KBS", "VCI", "MSN"}:
             from vnstock.api.listing import Listing as ListingAdapter
             return ListingAdapter(source=self.source, show_log=False)

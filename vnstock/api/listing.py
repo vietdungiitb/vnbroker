@@ -1,6 +1,6 @@
 # vnstock/api/listing.py
 
-from typing import Any
+from typing import Any, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 from vnstock.config import Config
 from vnstock.base import BaseAdapter, dynamic_method
@@ -32,7 +32,9 @@ class Listing(BaseAdapter):
         self,
         source: str = "kbs",
         random_agent: bool = False,
-        show_log: bool = False
+        show_log: bool = False,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
     ):
         # Ensure explorer modules are loaded (lazy load to avoid deadlock)
         from vnstock import _ensure_explorer_modules_loaded
@@ -42,8 +44,10 @@ class Listing(BaseAdapter):
         self.source = source
         self.random_agent = random_agent
         self.show_log = show_log
+        self.api_key = api_key
+        self.api_secret = api_secret
         
-        valid_sources = ["kbs", "vci", "msn", AUTO_SOURCE]
+        valid_sources = ["kbs", "vci", "msn", "dnse", AUTO_SOURCE]
         if source.lower() not in valid_sources:
             raise ValueError("Lớp Listing chỉ nhận giá trị tham số source là 'KBS', 'VCI', 'MSN' hoặc 'AUTO'.")
         
@@ -52,7 +56,9 @@ class Listing(BaseAdapter):
         super().__init__(
             source=source,
             random_agent=random_agent,
-            show_log=show_log
+            show_log=show_log,
+            api_key=api_key,
+            api_secret=api_secret,
         )
 
     @retry(

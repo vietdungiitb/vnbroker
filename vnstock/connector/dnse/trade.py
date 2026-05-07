@@ -5,7 +5,10 @@ import warnings
 from pandas import json_normalize
 from typing import Optional
 
+from vnstock.core.utils.logger import get_logger
 from vnstock.connector.dnse.client import DNSEClient
+
+logger = get_logger(__name__)
 
 class Trade:
     BASE_URL = "https://api.dnse.com.vn"
@@ -36,6 +39,14 @@ class Trade:
             )
         return self._openapi_client
 
+    def as_openapi_client(self, api_key: str, api_secret: str) -> DNSEClient:
+        """Create a DNSE OpenAPI client for authenticated market and order calls."""
+        return DNSEClient(
+            api_key=api_key,
+            api_secret=api_secret,
+            base_url=self._openapi_base_url,
+        )
+
     def login(self, user_name: str, password: str) -> Optional[str]:
         """
         Authenticate the user and obtain a JWT token for API requests.
@@ -52,11 +63,11 @@ class Trade:
         headers = {'Content-Type': 'application/json'}
         response = requests.post(url, headers=headers, data=payload)
         if response.status_code == 200:
-            print('Login successfully')
+            logger.info("Đăng nhập DNSE thành công")
             self.token = response.json().get('token')
             return self.token
         else:
-            print(f'Login failed: {response.text}')
+            logger.error("Đăng nhập DNSE thất bại: %s", response.text)
             return None
 
     def account(self) -> Optional[pd.DataFrame]:
@@ -74,10 +85,10 @@ class Trade:
         }
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            print('Get profile successfully')
+            logger.info("Lấy hồ sơ tài khoản thành công")
             return pd.DataFrame(response.json(), index=[0])
         else:
-            print(f'Get profile failed: {response.text}')
+            logger.error("Lấy hồ sơ tài khoản thất bại: %s", response.text)
             return None
 
     def sub_accounts(self) -> Optional[pd.DataFrame]:
@@ -95,7 +106,7 @@ class Trade:
             result = response.json()
             return json_normalize(result.get('accounts', []))
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy sub-accounts thất bại: %s", response.text)
             return None
 
     def account_balance(self, sub_account: str) -> Optional[pd.DataFrame]:
@@ -116,7 +127,7 @@ class Trade:
             result = response.json()
             return json_normalize(result)
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy account balance thất bại: %s", response.text)
             return None
 
     def email_otp(self) -> None:
@@ -130,9 +141,9 @@ class Trade:
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            print("OTP sent to email")
+            logger.info("OTP đã được gửi tới email")
         else:
-            print(f"Error: {response.text}")
+            logger.error("Gửi OTP thất bại: %s", response.text)
 
     def get_trading_token(
         self,
@@ -157,12 +168,31 @@ class Trade:
         response = requests.post(url, headers=headers)
         if response.status_code == 200:
             trading_token = response.json().get("tradingToken")
-            print("Authenticated! Trading token returned.")
+            logger.info("Đã xác thực và nhận trading token")
             self.trading_token = trading_token
             return trading_token
         else:
-            print(f"Error authenticating: {response.text}")
+            logger.error("Xác thực trading token thất bại: %s", response.text)
             return None
+
+    def login_and_get_trading_session(
+        self,
+        username: str,
+        password: str,
+        otp: str,
+        smart_otp: bool = True,
+    ) -> dict:
+        """Login, then exchange OTP for trading token in a single helper."""
+        token = self.login(username, password)
+        if not token:
+            return {"token": None, "trading_token": None, "success": False}
+
+        trading_token = self.get_trading_token(otp=otp, smart_otp=smart_otp)
+        return {
+            "token": token,
+            "trading_token": trading_token,
+            "success": trading_token is not None,
+        }
 
     def loan_packages(
         self,
@@ -193,7 +223,7 @@ class Trade:
             result = response.json()
             return json_normalize(result.get('loanPackages', []))
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy loan packages thất bại: %s", response.text)
             return None
 
     def trade_capacities(
@@ -256,7 +286,7 @@ class Trade:
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy trade capacities thất bại: %s", response.text)
             return None
 
     def place_order(
@@ -311,7 +341,7 @@ class Trade:
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Đặt lệnh thất bại: %s", response.text)
             return None
 
     def order_list(
@@ -340,10 +370,10 @@ class Trade:
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            print('Order list retrieved')
+            logger.info("Lấy danh sách lệnh thành công")
             return json_normalize(response.json().get('orders', []))
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy danh sách lệnh thất bại: %s", response.text)
             return None
 
     def order_detail(
@@ -376,7 +406,7 @@ class Trade:
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy chi tiết lệnh thất bại: %s", response.text)
             return None
 
     def cancel_order(
@@ -410,10 +440,10 @@ class Trade:
         }
         response = requests.delete(url, headers=headers)
         if response.status_code == 200:
-            print("Order cancelled")
+            logger.info("Huỷ lệnh thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Huỷ lệnh thất bại: %s", response.text)
             return None
 
     def deals_list(
@@ -442,10 +472,10 @@ class Trade:
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            print('Deals list retrieved')
+            logger.info("Lấy danh sách deal thành công")
             return json_normalize(response.json().get('data', []))
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy danh sách deal thất bại: %s", response.text)
             return None
 
     def set_deal_pnl_config(
@@ -483,10 +513,10 @@ class Trade:
         }
         response = requests.post(url, headers=headers, json=config)
         if response.status_code == 200:
-            print("Deal PnL config set successfully")
+            logger.info("Thiết lập PnL config cho deal thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Thiết lập PnL config cho deal thất bại: %s", response.text)
             return None
 
     def set_account_pnl_config(
@@ -522,10 +552,10 @@ class Trade:
         }
         response = requests.patch(url, headers=headers, json=config)
         if response.status_code == 200:
-            print("Account PnL config set successfully")
+            logger.info("Thiết lập PnL config cho tài khoản thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Thiết lập PnL config cho tài khoản thất bại: %s", response.text)
             return None
 
     def close_deal(self, deal_id: int) -> Optional[pd.DataFrame]:
@@ -546,10 +576,10 @@ class Trade:
         }
         response = requests.post(url, headers=headers)
         if response.status_code == 200:
-            print("Deal closed successfully")
+            logger.info("Đóng deal thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Đóng deal thất bại: %s", response.text)
             return None
 
     def deposit_derivative_margin(
@@ -590,10 +620,10 @@ class Trade:
         }
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
-            print("Margin deposited successfully")
+            logger.info("Nạp margin thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Nạp margin thất bại: %s", response.text)
             return None
 
     def withdraw_derivative_margin(
@@ -634,10 +664,10 @@ class Trade:
         }
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
-            print("Margin withdrawn successfully")
+            logger.info("Rút margin thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Rút margin thất bại: %s", response.text)
             return None
 
     def get_derivative_cash_account(
@@ -672,7 +702,7 @@ class Trade:
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy derivative cash account thất bại: %s", response.text)
             return None
 
     def get_derivative_ppse(
@@ -702,7 +732,7 @@ class Trade:
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy derivative ppse thất bại: %s", response.text)
             return None
 
     def place_conditional_order(
@@ -753,10 +783,10 @@ class Trade:
         }
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
-            print("Conditional order placed successfully")
+            logger.info("Đặt conditional order thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Đặt conditional order thất bại: %s", response.text)
             return None
 
     def conditional_order_list(
@@ -814,7 +844,7 @@ class Trade:
             result = response.json()
             return json_normalize(result.get('content', []))
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy danh sách conditional orders thất bại: %s", response.text)
             return None
 
     def conditional_order_detail(
@@ -837,7 +867,7 @@ class Trade:
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Lấy chi tiết conditional order thất bại: %s", response.text)
             return None
 
     def cancel_conditional_order(
@@ -859,10 +889,10 @@ class Trade:
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.patch(url, headers=headers)
         if response.status_code == 200:
-            print("Conditional order cancelled successfully")
+            logger.info("Huỷ conditional order thành công")
             return json_normalize(response.json())
         else:
-            print(f"Error: {response.text}")
+            logger.error("Huỷ conditional order thất bại: %s", response.text)
             return None
 
     # OpenAPI compatibility bridge

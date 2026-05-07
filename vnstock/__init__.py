@@ -51,6 +51,7 @@ def _ensure_explorer_modules_loaded():
         return
     try:
         from .explorer import vci, tcbs, msn, kbs, rss_cafef, rss_vneconomy  # noqa: F401
+        from .explorer import dnse  # noqa: F401  – DNSE provider registration
         _explorer_modules_loaded = True
     except Exception as e:
         _explorer_modules_loaded = True  # Mark as loaded to avoid retry loops

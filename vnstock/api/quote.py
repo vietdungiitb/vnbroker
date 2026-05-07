@@ -40,7 +40,9 @@ class Quote(BaseAdapter):
         symbol: str = "",
         random_agent: bool = False,
         show_log: bool = False,
-        auth_token: Optional[str] = None
+        auth_token: Optional[str] = None,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
     ):
         """
         Initialize a Quote instance.
@@ -62,6 +64,8 @@ class Quote(BaseAdapter):
         self.random_agent = random_agent
         self.show_log = show_log
         self.auth_token = auth_token
+        self.api_key = api_key
+        self.api_secret = api_secret
         
         # Validate the source to only accept vci or msn
         all_sources = DataSources.all_sources()
@@ -78,7 +82,9 @@ class Quote(BaseAdapter):
             symbol=symbol,
             random_agent=random_agent,
             show_log=show_log,
-            auth_token=auth_token
+            auth_token=auth_token,
+            api_key=api_key,
+            api_secret=api_secret,
         )
 
     @retry(
