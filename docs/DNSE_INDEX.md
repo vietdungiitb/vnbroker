@@ -1,7 +1,7 @@
 # DNSE Integration Documentation Index
 
 Bộ tài liệu này được thiết kế để đội code có thể thực hiện và không cần hỏi lại, có audit minh chứng.  
-**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker, thêm ma trận so sánh provider, thêm decision guide, thêm final recommendation)
+**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker, thêm ma trận so sánh provider, thêm decision guide, thêm final recommendation, thêm executive brief)
 
 ---
 
@@ -18,6 +18,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | 3.1 | [DNSE_PROVIDER_COMPARISON_MATRIX.md](DNSE_PROVIDER_COMPARISON_MATRIX.md) | Ma trận so sánh DNSE / VCI / KBS / TCBS theo từng public function |
 | 3.2 | [DNSE_PROVIDER_DECISION_GUIDE.md](DNSE_PROVIDER_DECISION_GUIDE.md) | Hướng dẫn chọn provider theo mục tiêu dự án và mức portable/broker-fit |
 | 3.3 | [DNSE_PROJECT_FINAL_RECOMMENDATION.md](DNSE_PROJECT_FINAL_RECOMMENDATION.md) | Tài liệu chốt cuối cùng cho dự án trước khi quyết định |
+| 3.4 | [DNSE_EXECUTIVE_DECISION_BRIEF.md](DNSE_EXECUTIVE_DECISION_BRIEF.md) | Bản 1 trang để ra quyết định nhanh |
 
 ### Bước 2 — Đọc spec kỹ thuật trước khi code (45 phút)
 
@@ -49,6 +50,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | [DNSE_PROVIDER_COMPARISON_MATRIX.md](DNSE_PROVIDER_COMPARISON_MATRIX.md) | Bảng so sánh 4 provider theo public function và DNSE-only extension |
 | [DNSE_PROVIDER_DECISION_GUIDE.md](DNSE_PROVIDER_DECISION_GUIDE.md) | Khuyến nghị chọn provider theo use case và tiêu chí ra quyết định |
 | [DNSE_PROJECT_FINAL_RECOMMENDATION.md](DNSE_PROJECT_FINAL_RECOMMENDATION.md) | Tài liệu chốt cuối cùng cho dự án trước khi quyết định |
+| [DNSE_EXECUTIVE_DECISION_BRIEF.md](DNSE_EXECUTIVE_DECISION_BRIEF.md) | Bản một trang để chốt quyết định nhanh |
 | [DNSE_TEST_PLAN.md](DNSE_TEST_PLAN.md) | Test plan gốc từ sprint trước |
 | [DNSE_E2E_RUNBOOK.md](DNSE_E2E_RUNBOOK.md) | Runbook E2E cho Trading API, có ghi chú live gap trades |
 | [DNSE_HANDOFF_20260413.md](DNSE_HANDOFF_20260413.md) | Handoff notes từ sprint 2026-04-13 |

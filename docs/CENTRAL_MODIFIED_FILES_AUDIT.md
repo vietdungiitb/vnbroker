@@ -493,3 +493,21 @@ Danh sách file đã tạo/chỉnh sửa:
 - DNSE là broker layer chính; VCI/KBS là public market-data default; TCBS chỉ là compatibility path.
 - Tách rõ public portable layer và DNSE-only broker extension để tránh trộn semantics.
 - Gợi ý bắt đầu bằng Phase 0: inventory capability, lock contract, route từng nhóm hàm.
+
+---
+
+## 2026-05-08 - Task: DNSE executive decision brief
+
+Phạm vi yêu cầu:
+- Làm một bản 1 trang để ra quyết định nhanh.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_EXECUTIVE_DECISION_BRIEF.md` (new)
+2. `docs/DNSE_INDEX.md` (updated)
+3. `module_tree_full.md` (updated)
+4. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Điểm chính của tài liệu mới:
+- Chốt một câu: hybrid, DNSE broker chính, VCI/KBS public data default, TCBS compatibility/fallback.
+- Nén nội dung còn một trang để đọc nhanh trước khi quyết định.
+- Giữ nguyên hành động tiếp theo là Phase 0: inventory capability, lock contract, route từng nhóm hàm.
