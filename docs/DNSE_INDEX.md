@@ -1,7 +1,7 @@
 # DNSE Integration Documentation Index
 
 Bộ tài liệu này được thiết kế để đội code có thể thực hiện và không cần hỏi lại, có audit minh chứng.  
-**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker, thêm ma trận so sánh provider, thêm decision guide, thêm final recommendation, thêm executive brief, thêm implementation playbook và evidence protocol)
+**Cập nhật lần cuối:** 2026-05-08 (thêm bộ tài liệu triển khai cho đội code: sprint task board, slice DoD, audit checklist V2 — bổ sung phần I–L, form sign-off 3 vai trò)
 
 ---
 
@@ -20,6 +20,8 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | 3.3 | [DNSE_PROJECT_FINAL_RECOMMENDATION.md](DNSE_PROJECT_FINAL_RECOMMENDATION.md) | Tài liệu chốt cuối cùng cho dự án trước khi quyết định |
 | 3.4 | [DNSE_EXECUTIVE_DECISION_BRIEF.md](DNSE_EXECUTIVE_DECISION_BRIEF.md) | Bản 1 trang để ra quyết định nhanh |
 | 3.5 | [DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md](DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md) | Quy trình triển khai chuẩn cho đội code, không cần hỏi lại |
+| 3.6 | [DNSE_SPRINT_TASK_BOARD.md](DNSE_SPRINT_TASK_BOARD.md) | Task board S1–S11: trạng thái, người làm, checklist từng slice, bảng tracking |
+| 3.7 | [DNSE_SLICE_DEFINITION_OF_DONE.md](DNSE_SLICE_DEFINITION_OF_DONE.md) | Definition of Done từng slice: validation commands + mẫu ghi evidence |
 
 ### Bước 2 — Đọc spec kỹ thuật trước khi code (45 phút)
 
@@ -39,7 +41,8 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 
 | Thứ tự | File | Mục đích |
 |---|---|---|
-| 7 | [DNSE_AUDIT_CHECKLIST.md](DNSE_AUDIT_CHECKLIST.md) | Checklist 40+ mục, có lệnh kiểm tra cụ thể, form sign-off |
+| 7 | [DNSE_AUDIT_CHECKLIST.md](DNSE_AUDIT_CHECKLIST.md) | Checklist 40+ mục V1, có lệnh kiểm tra cụ thể, form sign-off |
+| 7.1 | [DNSE_AUDIT_CHECKLIST_V2.md](DNSE_AUDIT_CHECKLIST_V2.md) | **Checklist V2 (dùng cho sprint này):** 12 phần A–L, có cột minh chứng thực tế, form sign-off 3 vai trò |
 
 ---
 
@@ -54,6 +57,9 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | [DNSE_PROJECT_FINAL_RECOMMENDATION.md](DNSE_PROJECT_FINAL_RECOMMENDATION.md) | Tài liệu chốt cuối cùng cho dự án trước khi quyết định |
 | [DNSE_EXECUTIVE_DECISION_BRIEF.md](DNSE_EXECUTIVE_DECISION_BRIEF.md) | Bản một trang để chốt quyết định nhanh |
 | [DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md](DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md) | Playbook triển khai cho đội code, khóa quy trình và thứ tự thực hiện |
+| [DNSE_SPRINT_TASK_BOARD.md](DNSE_SPRINT_TASK_BOARD.md) | Task board S1–S11: trạng thái, checklist, bảng tracking, scope in/out, DoD sprint |
+| [DNSE_SLICE_DEFINITION_OF_DONE.md](DNSE_SLICE_DEFINITION_OF_DONE.md) | DoD từng slice với validation commands và mẫu ghi evidence |
+| [DNSE_AUDIT_CHECKLIST_V2.md](DNSE_AUDIT_CHECKLIST_V2.md) | Audit checklist V2: phần A–L, cột bằng chứng thực tế, form sign-off 3 vai trò |
 | [DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md](DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md) | Protocol ghi minh chứng test/audit cho mọi slice |
 | [DNSE_TEST_PLAN.md](DNSE_TEST_PLAN.md) | Test plan gốc từ sprint trước |
 | [DNSE_E2E_RUNBOOK.md](DNSE_E2E_RUNBOOK.md) | Runbook E2E cho Trading API, có ghi chú live gap trades |

@@ -532,3 +532,24 @@ Danh sách file đã tạo/chỉnh sửa:
 - Protocol mới chuẩn hóa cách ghi test evidence, benchmark evidence, và audit evidence cho từng slice.
 - Index và module tree được cập nhật để các tài liệu triển khai nằm trong luồng đọc chính thức.
 - Audit log được append để giữ lịch sử thay đổi và phục vụ sign-off sau này.
+
+---
+
+## 2026-05-08 - Task: DNSE implementation team package — task board, slice DoD, audit checklist V2
+
+Phạm vi yêu cầu:
+- Hoàn thiện bộ tài liệu đầy đủ cho đội code: task board, slice DoD, audit checklist nâng cấp.
+- Bảo đảm đội code không lệch mục tiêu ban đầu, có checklist audit để sign-off trước merge.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_SPRINT_TASK_BOARD.md` (new) — task board S1–S11, scope in/out, bảng tracking, DoD sprint
+2. `docs/DNSE_SLICE_DEFINITION_OF_DONE.md` (new) — DoD từng slice, validation commands, mẫu ghi evidence
+3. `docs/DNSE_AUDIT_CHECKLIST_V2.md` (new) — 12 phần A–L, cột bằng chứng thực tế, form sign-off 3 vai trò
+4. `docs/DNSE_INDEX.md` (updated) — thêm mục 3.6, 3.7, 7.1, cập nhật reference section
+5. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated — file này)
+
+Điểm chính của tài liệu mới:
+- `DNSE_SPRINT_TASK_BOARD.md`: checklist 2 mức — task-level (5 mục/slice) và sprint-level DoD; bảng tracking có cột Commit và Người làm; nguyên tắc làm không hỏi lại; scope in/out rõ ràng.
+- `DNSE_SLICE_DEFINITION_OF_DONE.md`: mỗi slice có validation commands copy-paste ngay, schema contract bắt buộc, mẫu ghi evidence chuẩn; bảng tổng hợp evidence toàn sprint để bàn giao.
+- `DNSE_AUDIT_CHECKLIST_V2.md`: 12 phần A–L (cấu trúc file, import, credential, schema/dtype, print-free, unit tests, backward compat, trade bridge, listing behavior, connector contract, security, git hygiene); form sign-off 3 vai trò (Developer / QA / Tech Lead).
+
