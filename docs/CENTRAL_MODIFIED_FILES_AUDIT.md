@@ -437,3 +437,22 @@ Danh sách file đã tạo/chỉnh sửa:
 - Bảng tương thích cho lớp API chung: `history`, `all_symbols`, `symbols_by_exchange`, `indices`, `intraday`, `price_depth`.
 - Bảng mở rộng DNSE riêng: account, orders, trading, portfolio/reconciliation.
 - Kết luận rõ ràng rằng người dùng có thể chuyển provider an toàn ở lớp API đã chuẩn hóa, nhưng DNSE extension là năng lực riêng theo tài khoản DNSE.
+
+---
+
+## 2026-05-08 - Task: DNSE provider comparison matrix
+
+Phạm vi yêu cầu:
+- Ghi thành tài liệu riêng ma trận so sánh 4 provider DNSE / VCI / KBS / TCBS theo từng public function.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_PROVIDER_COMPARISON_MATRIX.md` (new)
+2. `docs/DNSE_INDEX.md` (updated)
+3. `module_tree_full.md` (updated)
+4. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Điểm chính của tài liệu mới:
+- Xác định rõ lớp public portable cao: `history`, `all_symbols`, `symbols_by_exchange`, `symbols_by_group`.
+- Gắn cờ `intraday` và `price_depth` là portable có caveat, vì semantics/live behavior khác nhau giữa provider.
+- Tách riêng DNSE-only extension: account, order, OTP, trading token, post/put/cancel order.
+- Làm rõ TCBS ở lớp listing public hiện chủ yếu là KBS-backed fallback, không phải listing native.
