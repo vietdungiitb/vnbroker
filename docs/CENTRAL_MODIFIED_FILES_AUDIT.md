@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-05-08 - Task: Viết lại README và LICENSE theo trạng thái hiện tại
+
+Phạm vi yêu cầu:
+- Viết lại tài liệu giới thiệu và giấy phép để phản ánh đúng cây module và phạm vi tính năng hiện tại.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `README.md` (updated)
+2. `LICENSE.md` (updated)
+3. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả bàn giao:
+- README mới tập trung vào các adapter, nguồn dữ liệu, ví dụ chạy nhanh, contract đơn vị giá, bot nhắn tin và tài liệu liên quan.
+- LICENSE mới rút gọn, rõ quyền sử dụng cá nhân/nghiên cứu phi thương mại, hạn chế thương mại, miễn trừ trách nhiệm và liên hệ cấp phép.
+
+Ghi chú:
+- Không có thay đổi mã nguồn; đây là task thuần tài liệu.
+
 ## 2026-04-18 - Task: Bộ tài liệu triển khai Core API Standardization
 
 Phạm vi yêu cầu:
