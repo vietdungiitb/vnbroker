@@ -402,3 +402,22 @@ Kết quả:
 - Cập nhật ngày “last modified” lên `2026-05-08`.
 - Chú thích index đã nhấn mạnh rằng `DNSE_API_CONTRACT.md` và `DNSE_TEST_SPEC_V2.md` hiện phản ánh live smoke mới nhất.
 - `DNSE_E2E_RUNBOOK.md` được mô tả rõ hơn về gap `get_trades` hiện tại.
+
+---
+
+## 2026-05-08 - Task: DNSE broker platform RFC
+
+Phạm vi yêu cầu:
+- Lưu đề xuất chiến lược DNSE thành tài liệu chính thức, có khả năng thuyết phục và đủ chi tiết để chốt hướng làm.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_BROKER_PLATFORM_RFC.md` (new)
+2. `docs/DNSE_INDEX.md` (updated)
+3. `module_tree_full.md` (updated)
+4. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Điểm chính của RFC:
+- DNSE nên được nâng từ provider market-data thành broker platform layer.
+- Kiến trúc đề xuất tách connector, bridge, và app integration để vừa tương thích vnstock vừa phục vụ ứng dụng giao dịch.
+- Lộ trình triển khai theo phase-based rollout, bắt đầu bằng capability inventory và contract lock.
+- RFC đã bổ sung lý do kinh doanh, lợi ích kỹ thuật, rủi ro, và tiêu chí thành công để hỗ trợ quyết định.

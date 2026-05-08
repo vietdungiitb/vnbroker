@@ -1,7 +1,7 @@
 # DNSE Integration Documentation Index
 
 Bộ tài liệu này được thiết kế để đội code có thể thực hiện và không cần hỏi lại, có audit minh chứng.  
-**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật)
+**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker)
 
 ---
 
@@ -11,6 +11,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 
 | Thứ tự | File | Mục đích |
 |---|---|---|
+| 0 | [DNSE_BROKER_PLATFORM_RFC.md](DNSE_BROKER_PLATFORM_RFC.md) | Đề xuất chiến lược: vì sao DNSE nên trở thành broker platform thay vì chỉ provider dữ liệu |
 | 1 | [DNSE_INTEGRATION_PLAN_20260507.md](DNSE_INTEGRATION_PLAN_20260507.md) | Master plan tích hợp DNSE, scope A/B/C, thứ tự slices S1-S11 |
 | 2 | [DNSE_MODULE_STRUCTURE.md](DNSE_MODULE_STRUCTURE.md) | Cấu trúc module connector/dnse đã hoàn chỉnh |
 | 3 | [DNSE_API_CONTRACT.md](DNSE_API_CONTRACT.md) | Hợp đồng API: endpoints, auth, request/response schema, ghi chú live smoke |
@@ -41,6 +42,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | File | Mục đích |
 |---|---|
 | [DNSE_IMPLEMENTATION_WORKFLOW.md](DNSE_IMPLEMENTATION_WORKFLOW.md) | Workflow thực hiện ban đầu (Sprint 2026-04-13) |
+| [DNSE_BROKER_PLATFORM_RFC.md](DNSE_BROKER_PLATFORM_RFC.md) | Đề xuất chiến lược broker platform cho DNSE và ứng dụng |
 | [DNSE_TEST_PLAN.md](DNSE_TEST_PLAN.md) | Test plan gốc từ sprint trước |
 | [DNSE_E2E_RUNBOOK.md](DNSE_E2E_RUNBOOK.md) | Runbook E2E cho Trading API, có ghi chú live gap trades |
 | [DNSE_HANDOFF_20260413.md](DNSE_HANDOFF_20260413.md) | Handoff notes từ sprint 2026-04-13 |
