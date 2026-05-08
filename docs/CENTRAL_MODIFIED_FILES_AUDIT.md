@@ -553,3 +553,26 @@ Danh sách file đã tạo/chỉnh sửa:
 - `DNSE_SLICE_DEFINITION_OF_DONE.md`: mỗi slice có validation commands copy-paste ngay, schema contract bắt buộc, mẫu ghi evidence chuẩn; bảng tổng hợp evidence toàn sprint để bàn giao.
 - `DNSE_AUDIT_CHECKLIST_V2.md`: 12 phần A–L (cấu trúc file, import, credential, schema/dtype, print-free, unit tests, backward compat, trade bridge, listing behavior, connector contract, security, git hygiene); form sign-off 3 vai trò (Developer / QA / Tech Lead).
 
+---
+
+## 2026-05-08 - Task: DNSE S9+S11 — unit test expansion và .env.dnse.example update (commit 090e606)
+
+Phạm vi yêu cầu:
+- Thực hiện code theo bộ tài liệu đã phê duyệt (DNSE_EXPLORER_SPEC.md, DNSE_CODING_GUIDE.md).
+- Xác nhận S1–S8 đã hoàn chỉnh từ session trước; code đã tồn tại trong codebase.
+- Bổ sung unit tests để đạt coverage ≥ 80% (đã đạt 97%) — S9.
+- Cập nhật `.env.dnse.example` thêm hướng dẫn JWT — S11.
+- S10: integration test skip sạch khi thiếu env vars.
+
+Kết quả validation:
+- S1-S8: PASS qua validation commands (xem DNSE_SLICE_DEFINITION_OF_DONE.md)
+- S9: 52 tests passed, 0 failed; coverage explorer/dnse: quote.py 98%, listing.py 95%, __init__.py 100%
+- S10: 4 integration tests SKIPPED sạch với message "Missing DNSE env vars"
+- S11: .env.dnse.example có đủ DNSE_API_KEY + DNSE_USERNAME cho 2 luồng HMAC và JWT
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `tests/unit/explorer/dnse/test_quote.py` (expanded — 35+ test cases từ 6 test cases)
+2. `tests/unit/explorer/dnse/test_listing.py` (expanded — 20 test cases từ 4 test cases)
+3. `.env.dnse.example` (updated — thêm DNSE_USERNAME, DNSE_PASSWORD, hướng dẫn 2 luồng)
+4. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated — file này)
+
