@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from vnstock.common.data import News
+from vnbroker.common.data import News
 
 
 class _StubNews:
@@ -35,7 +35,7 @@ class _StubNews:
 @pytest.mark.unit
 class TestNewsFacadeFilter:
     def test_news_filter_by_query_and_symbol(self, monkeypatch):
-        monkeypatch.setattr("vnstock.api.news.News", _StubNews)
+        monkeypatch.setattr("vnbroker.api.news.News", _StubNews)
 
         news = News(symbol="ACB", source="AUTO")
         out = news.filter(symbol="ACB", query="ket qua", limit=10)
@@ -44,7 +44,7 @@ class TestNewsFacadeFilter:
         assert out.iloc[0]["symbol"] == "ACB"
 
     def test_news_query_alias(self, monkeypatch):
-        monkeypatch.setattr("vnstock.api.news.News", _StubNews)
+        monkeypatch.setattr("vnbroker.api.news.News", _StubNews)
 
         news = News(symbol="ACB", source="AUTO")
         out = news.query("co tuc", symbol="VCB", limit=10)

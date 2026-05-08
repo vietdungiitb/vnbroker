@@ -1,4 +1,4 @@
-# Provider Onboarding Guide - Chuẩn mở rộng không sửa lõi
+﻿# Provider Onboarding Guide - Chuẩn mở rộng không sửa lõi
 
 > Mục tiêu: thêm provider mới cho core modules với thay đổi tối thiểu.
 
@@ -19,7 +19,7 @@ Bắt buộc chỉ thêm:
 
 ## 2) Checklist onboarding bắt buộc
 
-1. Tạo class provider trong `vnstock/explorer/<provider>/` hoặc `vnstock/connector/<provider>/`.
+1. Tạo class provider trong `vnbroker/explorer/<provider>/` hoặc `vnbroker/connector/<provider>/`.
 2. Implement method chuẩn theo nhóm module được hỗ trợ.
 3. Register provider bằng `ProviderRegistry.register(module, source, class)`.
 4. Khai báo capability:
@@ -39,12 +39,12 @@ Bắt buộc chỉ thêm:
 
 ## 3) Cấu trúc file khuyến nghị
 
-- `vnstock/explorer/<provider>/company.py`
-- `vnstock/explorer/<provider>/financial.py`
-- `vnstock/explorer/<provider>/listing.py`
-- `vnstock/explorer/<provider>/mappings/insider_mapping.py`
-- `vnstock/explorer/<provider>/mappings/financial_mapping.py`
-- `vnstock/explorer/<provider>/capabilities.py`
+- `vnbroker/explorer/<provider>/company.py`
+- `vnbroker/explorer/<provider>/financial.py`
+- `vnbroker/explorer/<provider>/listing.py`
+- `vnbroker/explorer/<provider>/mappings/insider_mapping.py`
+- `vnbroker/explorer/<provider>/mappings/financial_mapping.py`
+- `vnbroker/explorer/<provider>/capabilities.py`
 
 ---
 

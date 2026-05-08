@@ -1,15 +1,15 @@
 """
-Comprehensive guide for using ProxyManager with vnstock.
+Comprehensive guide for using ProxyManager with vnbroker.
 
 This guide demonstrates how to fetch proxies, test them,
-and integrate with vnstock's VCI data source.
+and integrate with vnbroker's VCI data source.
 
 Location: tests/examples/proxy_examples.py (Demo code, not core utils)
 Usage: python -m tests.examples.proxy_examples
 """
 
-from vnstock.core.utils.proxy_manager import ProxyManager, Proxy
-from vnstock.explorer.vci.quote import Quote
+from vnbroker.core.utils.proxy_manager import ProxyManager, Proxy
+from vnbroker.explorer.vci.quote import Quote
 
 
 def example_1_basic_proxy_fetch():
@@ -135,7 +135,7 @@ def example_5_proxy_with_vci_quote():
 
         # Note: To actually use the proxy, you would need to
         # pass it to the requests calls in VCI Quote
-        # This depends on vnstock's implementation
+        # This depends on vnbroker's implementation
 
     except Exception as e:
         print(f"✗ Error: {e}")
@@ -231,7 +231,7 @@ def example_8_proxy_error_handling():
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("ProxyManager Examples for vnstock")
+    print("ProxyManager Examples for vnbroker")
     print("="*60)
 
     # Run examples (comment out as needed)

@@ -1,8 +1,8 @@
-# Stock News Documentation Index
+﻿# Stock News Documentation Index
 
 Last updated: 2026-04-11
 
-This page is the single entry point for all implemented Stock News features in vnstock.
+This page is the single entry point for all implemented Stock News features in vnbroker.
 
 ## 1) Start here
 
@@ -24,7 +24,7 @@ This page is the single entry point for all implemented Stock News features in v
 
 ## 3) Quick API map
 
-From `stock = Vnstock().stock("ACB", source="AUTO")`, News capabilities include:
+From `stock = vnbroker().stock("ACB", source="AUTO")`, News capabilities include:
 
 1. Retrieval:
    - `stock.news.latest(...)`

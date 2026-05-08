@@ -1,4 +1,4 @@
-# Proxy Management Guide
+﻿# Proxy Management Guide
 
 Complete guide for using the ProxyManager utility to handle network restrictions, ISP blocks, rate limiting, and IP rotation for web scraping and API access (research/personal usages).
 
@@ -60,7 +60,7 @@ The `ProxyManager` utility provides a comprehensive solution for:
 ### Basic Proxy Fetching
 
 ```python
-from vnstock.core.utils.proxy_manager import ProxyManager
+from vnbroker.core.utils.proxy_manager import ProxyManager
 
 # Initialize manager
 manager = ProxyManager(timeout=10)
@@ -128,7 +128,7 @@ for i, url in enumerate(urls):
 ### Initialization
 
 ```python
-from vnstock.core.utils.proxy_manager import ProxyManager
+from vnbroker.core.utils.proxy_manager import ProxyManager
 
 # Default initialization
 manager = ProxyManager()
@@ -234,7 +234,7 @@ manager.print_proxies(proxies)
 ### Proxy Class
 
 ```python
-from vnstock.core.utils.proxy_manager import Proxy
+from vnbroker.core.utils.proxy_manager import Proxy
 
 # Create proxy
 proxy = Proxy(
@@ -256,7 +256,7 @@ print(str(proxy))         # http://1.2.3.4:8080 (Vietnam)
 ### Pattern 1: Basic Proxy Fetching
 
 ```python
-from vnstock.core.utils.proxy_manager import ProxyManager
+from vnbroker.core.utils.proxy_manager import ProxyManager
 
 # Initialize manager
 manager = ProxyManager(timeout=10)
@@ -323,7 +323,7 @@ else:
 ### Pattern 4: Custom Proxy Creation
 
 ```python
-from vnstock.core.utils.proxy_manager import Proxy
+from vnbroker.core.utils.proxy_manager import Proxy
 
 # Create custom proxies
 custom_proxies = [
@@ -526,7 +526,7 @@ def save_proxies(proxies, filename='proxies.json'):
         json.dump(data, f)
 
 def load_proxies(filename='proxies.json'):
-    from vnstock.core.utils.proxy_manager import Proxy
+    from vnbroker.core.utils.proxy_manager import Proxy
     
     with open(filename) as f:
         data = json.load(f)
@@ -638,7 +638,7 @@ python tests/examples/proxy_examples.py
 ### Example 1: Basic Proxy Fetching
 
 ```python
-from vnstock.core.utils.proxy_manager import ProxyManager
+from vnbroker.core.utils.proxy_manager import ProxyManager
 
 # Initialize manager
 manager = ProxyManager(timeout=10)
@@ -704,7 +704,7 @@ for i, url in enumerate(urls):
 ### Example 5: Custom Proxies
 
 ```python
-from vnstock.core.utils.proxy_manager import Proxy
+from vnbroker.core.utils.proxy_manager import Proxy
 
 # Create custom proxy list
 custom_proxies = [
@@ -812,7 +812,7 @@ for result in results:
 
 ```python
 import requests
-from vnstock.core.utils.proxy_manager import ProxyManager
+from vnbroker.core.utils.proxy_manager import ProxyManager
 
 manager = ProxyManager()
 proxies = manager.fetch_proxies(limit=1)
@@ -833,7 +833,7 @@ if proxies:
 ```python
 import aiohttp
 import asyncio
-from vnstock.core.utils.proxy_manager import ProxyManager
+from vnbroker.core.utils.proxy_manager import ProxyManager
 
 async def fetch_with_proxy(url, proxy):
     connector = aiohttp.TCPConnector()
@@ -856,7 +856,7 @@ if proxies:
 
 ```python
 import urllib.request
-from vnstock.core.utils.proxy_manager import ProxyManager
+from vnbroker.core.utils.proxy_manager import ProxyManager
 
 manager = ProxyManager()
 proxies = manager.fetch_proxies(limit=1)
@@ -957,7 +957,7 @@ proxies = manager.fetch_proxies(limit=5)  # Will show debug logs
 
 ## Related Documentation
 
-- [ProxyManager API Reference](../vnstock/core/utils/proxy_manager.py)
+- [ProxyManager API Reference](../vnbroker/core/utils/proxy_manager.py)
 - [Complete Examples](../tests/examples/proxy_examples.py)
 - [Proxy Unit Tests](../tests/unit/core/test_proxy_manager.py)
 - [Proxyscrape API Documentation](https://www.proxyscrape.com/docs)
@@ -973,4 +973,4 @@ To contribute to the proxy system:
 
 ## License
 
-This proxy management system is part of the vnstock project and follows the same license terms.
+This proxy management system is part of the vnbroker project and follows the same license terms.

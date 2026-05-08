@@ -1,7 +1,7 @@
 import pandas as pd
 
-from vnstock.common.data import _normalize_company_insider_deals_df
-from vnstock.common.data import Company
+from vnbroker.common.data import _normalize_company_insider_deals_df
+from vnbroker.common.data import Company
 
 
 def test_normalize_company_insider_deals_from_tcbs_like_columns():

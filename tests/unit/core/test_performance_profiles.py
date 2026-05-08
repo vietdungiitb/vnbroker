@@ -2,7 +2,7 @@
 
 import datetime
 
-from vnstock.core.performance_profiles import (
+from vnbroker.core.performance_profiles import (
     apply_profile,
     apply_profile_for_current_time,
     get_profile,
@@ -21,14 +21,14 @@ def test_list_profiles_contains_defaults():
 def test_get_profile_returns_env_mapping():
     profile = get_profile("production_stable")
     assert isinstance(profile, dict)
-    assert profile["VNSTOCK_TRADING_AUTO_PRIMARY"] == "kbs"
-    assert profile["VNSTOCK_VCI_ADAPTIVE_CONCURRENCY"] == "1"
+    assert profile["vnbroker_TRADING_AUTO_PRIMARY"] == "kbs"
+    assert profile["vnbroker_VCI_ADAPTIVE_CONCURRENCY"] == "1"
 
 
 def test_apply_profile_sets_environment(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_VCI_ADAPTIVE_STEP_UP", raising=False)
+    monkeypatch.delenv("vnbroker_VCI_ADAPTIVE_STEP_UP", raising=False)
     applied = apply_profile("benchmark_max_speed", overwrite=True)
-    assert applied["VNSTOCK_VCI_ADAPTIVE_STEP_UP"] == "3"
+    assert applied["vnbroker_VCI_ADAPTIVE_STEP_UP"] == "3"
 
 
 # ---- is_market_hours tests ----
@@ -72,7 +72,7 @@ def test_apply_profile_for_current_time_peak(monkeypatch):
         now=peak_time,
     )
     assert result["_applied_profile"] == "market_hours"
-    assert result.get("VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY") == "4"
+    assert result.get("vnbroker_VCI_ADAPTIVE_START_CONCURRENCY") == "4"
 
 
 def test_apply_profile_for_current_time_offpeak(monkeypatch):
@@ -84,4 +84,4 @@ def test_apply_profile_for_current_time_offpeak(monkeypatch):
         now=offpeak_time,
     )
     assert result["_applied_profile"] == "benchmark_max_speed"
-    assert result.get("VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY") == "10"
+    assert result.get("vnbroker_VCI_ADAPTIVE_START_CONCURRENCY") == "10"

@@ -1,5 +1,5 @@
 """
-Unit tests for vnstock API Listing adapter.
+Unit tests for vnbroker API Listing adapter.
 
 Tests the Listing class adapter for fetching symbol listings,
 exchange-specific data, and industry classifications.
@@ -7,7 +7,7 @@ exchange-specific data, and industry classifications.
 
 import pytest
 import pandas as pd
-from vnstock.api.listing import Listing
+from vnbroker.api.listing import Listing
 
 
 @pytest.mark.unit
@@ -57,7 +57,7 @@ class TestListingAdapter:
             return {"data": sample_listing_data}
 
         monkeypatch.setattr(
-            "vnstock.core.utils.client.send_request",
+            "vnbroker.core.utils.client.send_request",
             mock_send
         )
 

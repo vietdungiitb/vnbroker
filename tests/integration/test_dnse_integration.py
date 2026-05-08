@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-from vnstock.connector.dnse.client import DNSEClient
+from vnbroker.connector.dnse.client import DNSEClient
 
 
 _REQUIRED_ENV = ["DNSE_API_KEY", "DNSE_API_SECRET", "DNSE_ACCOUNT_NO"]

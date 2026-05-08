@@ -3,15 +3,15 @@
 import pandas as pd
 import pytest
 
-from vnstock.explorer.kbs.trading import Trading as KBSTrading
-from vnstock.explorer.tcbs.trading import Trading as TCBSTrading
-from vnstock.explorer.vci.trading import Trading as VCITrading
+from vnbroker.explorer.kbs.trading import Trading as KBSTrading
+from vnbroker.explorer.tcbs.trading import Trading as TCBSTrading
+from vnbroker.explorer.vci.trading import Trading as VCITrading
 
 
 @pytest.mark.unit
 @pytest.mark.explorer
 def test_kbs_price_board_defaults_to_vnd(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
+    monkeypatch.delenv("vnbroker_PRICE_UNIT", raising=False)
 
     sample = pd.DataFrame(
         [
@@ -40,7 +40,7 @@ def test_kbs_price_board_defaults_to_vnd(monkeypatch):
 @pytest.mark.unit
 @pytest.mark.explorer
 def test_kbs_price_board_honors_explicit_thousand_unit(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
+    monkeypatch.delenv("vnbroker_PRICE_UNIT", raising=False)
 
     sample = pd.DataFrame(
         [
@@ -68,17 +68,17 @@ def test_kbs_price_board_honors_explicit_thousand_unit(monkeypatch):
 @pytest.mark.unit
 @pytest.mark.explorer
 def test_tcbs_price_board_honors_explicit_thousand_unit(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
+    monkeypatch.delenv("vnbroker_PRICE_UNIT", raising=False)
 
     monkeypatch.setattr(
-        "vnstock.explorer.tcbs.trading._PRICE_BOARD_STD_COLS",
+        "vnbroker.explorer.tcbs.trading._PRICE_BOARD_STD_COLS",
         ["t", "cp"],
     )
 
     def _fake_send_request(*args, **kwargs):
         return {"data": [{"t": "ACB", "cp": 30400.0}]}
 
-    monkeypatch.setattr("vnstock.explorer.tcbs.trading.client.send_request", _fake_send_request)
+    monkeypatch.setattr("vnbroker.explorer.tcbs.trading.client.send_request", _fake_send_request)
 
     trading = TCBSTrading(symbol="ACB", show_log=False)
     out = trading.price_board(["ACB"], std_columns=True, price_unit="THOUSAND_VND")
@@ -90,7 +90,7 @@ def test_tcbs_price_board_honors_explicit_thousand_unit(monkeypatch):
 @pytest.mark.unit
 @pytest.mark.explorer
 def test_vci_price_board_honors_explicit_thousand_unit(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
+    monkeypatch.delenv("vnbroker_PRICE_UNIT", raising=False)
 
     def _fake_send_request(*args, **kwargs):
         return [
@@ -110,7 +110,7 @@ def test_vci_price_board_honors_explicit_thousand_unit(monkeypatch):
             }
         ]
 
-    monkeypatch.setattr("vnstock.explorer.vci.trading.client.send_request", _fake_send_request)
+    monkeypatch.setattr("vnbroker.explorer.vci.trading.client.send_request", _fake_send_request)
 
     trading = VCITrading(symbol="ACB", show_log=False)
     out = trading.price_board(["ACB"], flatten_columns=False, price_unit="THOUSAND_VND")

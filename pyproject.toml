@@ -3,16 +3,16 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vnstock"
+name = "vnbroker"
 version = "1.0.2"
-description = "A beginner-friendly yet powerful Python toolkit for financial analysis and automation — built to make modern investing accessible to everyone"
+description = "A beginner-friendly yet powerful Python toolkit for financial analysis and automation ? built to make modern investing accessible to everyone"
 readme = "README.md"
 authors = [
   { name = "Thinh Vu", email = "support@vnstocks.com" },
 ]
 license = { text = "Custom: Personal, research, non-commercial; contact support@vnstocks.com for other use" }
 requires-python = ">=3.10"
-keywords = ["vnstock", "finance", "vietnam", "stock market", "analysis", "API"]
+keywords = ["vnbroker", "vnstock", "finance", "vietnam", "stock market", "analysis", "API", "DNSE", "broker"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -49,12 +49,12 @@ test = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-timeout"]
 
 [project.urls]
 Documentation = "https://vnstocks.com/docs"
-Source = "https://github.com/vietdungiitb/vnstock"
-IssueTracker = "https://github.com/vietdungiitb/vnstock/issues"
+Source = "https://github.com/vietdungiitb/vnbroker"
+IssueTracker = "https://github.com/vietdungiitb/vnbroker/issues"
 
 [tool.setuptools]
 include-package-data = true
 packages = { find = {} }
 
 [tool.setuptools.package-data]
-vnstock = ["docs/*.txt", "docs/*.csv"]
+vnbroker = ["docs/*.txt", "docs/*.csv"]

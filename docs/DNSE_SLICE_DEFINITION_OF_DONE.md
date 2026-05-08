@@ -1,4 +1,4 @@
-# DNSE Slice Definition of Done
+﻿# DNSE Slice Definition of Done
 
 > Mục tiêu: quy định chính xác "xong" nghĩa là gì cho từng slice S1–S11.
 >
@@ -31,7 +31,7 @@ Không được chuyển sang slice kế tiếp khi slice hiện tại chưa có
 ```powershell
 # V1: Kiểm tra key 'bars' có trong source
 python -c "
-from vnstock.connector.dnse.client import DNSEClient
+from vnbroker.connector.dnse.client import DNSEClient
 import inspect
 src = inspect.getsource(DNSEClient._to_dataframe)
 missing = [k for k in ('bars','candles','ohlc','trades','instruments','securities') if k not in src]
@@ -43,7 +43,7 @@ else: print('S1 V1 PASS')
 git diff --check
 
 # V3: Import sạch
-python -c "from vnstock.connector.dnse.client import DNSEClient; print('S1 V3 PASS')"
+python -c "from vnbroker.connector.dnse.client import DNSEClient; print('S1 V3 PASS')"
 ```
 
 ### Mẫu ghi evidence S1
@@ -68,15 +68,15 @@ Ghi chú: ___________
 
 ```powershell
 # V1: File tồn tại
-python -c "import pathlib; assert pathlib.Path('vnstock/explorer/dnse/quote.py').exists(); print('S2 V1 PASS')"
+python -c "import pathlib; assert pathlib.Path('vnbroker/explorer/dnse/quote.py').exists(); print('S2 V1 PASS')"
 
 # V2: Import class
-python -c "from vnstock.explorer.dnse.quote import DNSEQuote; print('S2 V2 PASS')"
+python -c "from vnbroker.explorer.dnse.quote import DNSEQuote; print('S2 V2 PASS')"
 
 # V3: ValueError khi thiếu credential
 python -c "
 import os; os.environ.pop('DNSE_API_KEY',None); os.environ.pop('DNSE_API_SECRET',None)
-from vnstock.explorer.dnse.quote import DNSEQuote
+from vnbroker.explorer.dnse.quote import DNSEQuote
 try:
     DNSEQuote('VNM')
     print('S2 V3 FAIL - không raise ValueError')
@@ -88,7 +88,7 @@ except ValueError as e:
 pytest tests/unit/explorer/dnse/test_quote.py -q
 
 # V5: Không có print()
-Select-String -Path "vnstock\explorer\dnse\quote.py" -Pattern "print\("
+Select-String -Path "vnbroker\explorer\dnse\quote.py" -Pattern "print\("
 ```
 
 ### Schema contract bắt buộc
@@ -123,16 +123,16 @@ Ghi chú: ___________
 
 ```powershell
 # V1: File tồn tại
-python -c "import pathlib; assert pathlib.Path('vnstock/explorer/dnse/listing.py').exists(); print('S3 V1 PASS')"
+python -c "import pathlib; assert pathlib.Path('vnbroker/explorer/dnse/listing.py').exists(); print('S3 V1 PASS')"
 
 # V2: Import class
-python -c "from vnstock.explorer.dnse.listing import DNSEListing; print('S3 V2 PASS')"
+python -c "from vnbroker.explorer.dnse.listing import DNSEListing; print('S3 V2 PASS')"
 
 # V3: Unit tests
 pytest tests/unit/explorer/dnse/test_listing.py -q
 
 # V4: Không có print()
-Select-String -Path "vnstock\explorer\dnse\listing.py" -Pattern "print\("
+Select-String -Path "vnbroker\explorer\dnse\listing.py" -Pattern "print\("
 ```
 
 ### Column rename contract
@@ -162,12 +162,12 @@ PASS/FAIL/SKIP: ___________
 
 ```powershell
 # V1: File tồn tại
-python -c "import pathlib; assert pathlib.Path('vnstock/explorer/dnse/__init__.py').exists(); print('S4 V1 PASS')"
+python -c "import pathlib; assert pathlib.Path('vnbroker/explorer/dnse/__init__.py').exists(); print('S4 V1 PASS')"
 
 # V2: Registry check
 python -c "
-import importlib; importlib.import_module('vnstock.explorer.dnse')
-from vnstock.core.registry import ProviderRegistry
+import importlib; importlib.import_module('vnbroker.explorer.dnse')
+from vnbroker.core.registry import ProviderRegistry
 assert ProviderRegistry.is_registered('quote','dnse'), 'quote/dnse not registered'
 assert ProviderRegistry.is_registered('listing','dnse'), 'listing/dnse not registered'
 print('S4 V2 PASS - registry OK')
@@ -187,25 +187,25 @@ PASS/FAIL/SKIP: ___________
 
 ---
 
-## S5 — `vnstock/__init__.py` lazy load
+## S5 — `vnbroker/__init__.py` lazy load
 
 ### Validation commands
 
 ```powershell
 # V1: Import chính không lỗi
-python -c "from vnstock import Vnstock; print('S5 V1 PASS')"
+python -c "from vnbroker import vnbroker; print('S5 V1 PASS')"
 
 # V2: DNSE đã được load qua lazy loader
 python -c "
-from vnstock import Vnstock, _ensure_explorer_modules_loaded
+from vnbroker import vnbroker, _ensure_explorer_modules_loaded
 _ensure_explorer_modules_loaded()
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.core.registry import ProviderRegistry
 assert ProviderRegistry.is_registered('quote','dnse')
 print('S5 V2 PASS - dnse loaded via lazy loader')
 "
 
 # V3: Không có circular import
-python -c "import vnstock; print('S5 V3 PASS - no circular')"
+python -c "import vnbroker; print('S5 V3 PASS - no circular')"
 ```
 
 ### Mẫu ghi evidence S5
@@ -227,15 +227,15 @@ PASS/FAIL/SKIP: ___________
 ```powershell
 # V1: DNSE trong SUPPORTED_SOURCES
 python -c "
-from vnstock.common.client import Vnstock
-assert 'DNSE' in Vnstock.SUPPORTED_SOURCES, 'FAIL: DNSE not in SUPPORTED_SOURCES'
+from vnbroker.common.client import vnbroker
+assert 'DNSE' in vnbroker.SUPPORTED_SOURCES, 'FAIL: DNSE not in SUPPORTED_SOURCES'
 print('S6 V1 PASS')
 "
 
 # V2: Khởi tạo StockComponents với DNSE
 python -c "
-from vnstock import Vnstock
-s = Vnstock().stock('VNM', source='DNSE', api_key='fake_k', api_secret='fake_s')
+from vnbroker import vnbroker
+s = vnbroker().stock('VNM', source='DNSE', api_key='fake_k', api_secret='fake_s')
 assert s.quote is not None, 'FAIL: s.quote is None'
 assert s.listing is not None, 'FAIL: s.listing is None'
 assert s.company is None, 'FAIL: s.company phải None'
@@ -243,13 +243,13 @@ print('S6 V2 PASS')
 "
 
 # V3: VCI backward compat
-python -c "from vnstock import Vnstock; s=Vnstock().stock('VNM','VCI'); print('S6 V3 VCI PASS')"
+python -c "from vnbroker import vnbroker; s=vnbroker().stock('VNM','VCI'); print('S6 V3 VCI PASS')"
 
 # V4: TCBS backward compat
-python -c "from vnstock import Vnstock; s=Vnstock().stock('VNM','TCBS'); print('S6 V4 TCBS PASS')"
+python -c "from vnbroker import vnbroker; s=vnbroker().stock('VNM','TCBS'); print('S6 V4 TCBS PASS')"
 
 # V5: KBS backward compat
-python -c "from vnstock import Vnstock; s=Vnstock().stock('VNM','KBS'); print('S6 V5 KBS PASS')"
+python -c "from vnbroker import vnbroker; s=vnbroker().stock('VNM','KBS'); print('S6 V5 KBS PASS')"
 ```
 
 ### Mẫu ghi evidence S6
@@ -275,12 +275,12 @@ Ghi chú backward compat: ___________
 
 ```powershell
 # V1: Không có print() còn sót
-Select-String -Path "vnstock\connector\dnse\trade.py" -Pattern "print\("
+Select-String -Path "vnbroker\connector\dnse\trade.py" -Pattern "print\("
 
 # V2: Logger đã được import
 python -c "
 import inspect, importlib
-m = importlib.import_module('vnstock.connector.dnse.trade')
+m = importlib.import_module('vnbroker.connector.dnse.trade')
 src = inspect.getsource(m)
 assert 'get_logger' in src, 'FAIL: get_logger not found'
 assert 'logger' in src, 'FAIL: logger not found'
@@ -312,7 +312,7 @@ PASS/FAIL/SKIP: ___________
 ```powershell
 # V1: Methods tồn tại
 python -c "
-from vnstock.connector.dnse.trade import Trade
+from vnbroker.connector.dnse.trade import Trade
 assert hasattr(Trade,'as_openapi_client'), 'FAIL: as_openapi_client missing'
 assert hasattr(Trade,'login_and_get_trading_session'), 'FAIL: login_and_get_trading_session missing'
 print('S8 V1 PASS')
@@ -320,7 +320,7 @@ print('S8 V1 PASS')
 
 # V2: Methods có docstring
 python -c "
-from vnstock.connector.dnse.trade import Trade
+from vnbroker.connector.dnse.trade import Trade
 assert Trade.as_openapi_client.__doc__, 'FAIL: as_openapi_client no docstring'
 assert Trade.login_and_get_trading_session.__doc__, 'FAIL: login_and_get_trading_session no docstring'
 print('S8 V2 PASS')
@@ -351,7 +351,7 @@ PASS/FAIL/SKIP: ___________
 pytest tests/unit/explorer/dnse/ tests/unit/connector/dnse/ -v --tb=short
 
 # V2: Coverage (nếu có coverage plugin)
-pytest tests/unit/explorer/dnse/ --cov=vnstock/explorer/dnse --cov-report=term-missing -q
+pytest tests/unit/explorer/dnse/ --cov=vnbroker/explorer/dnse --cov-report=term-missing -q
 ```
 
 ### KPI bắt buộc
@@ -359,7 +359,7 @@ pytest tests/unit/explorer/dnse/ --cov=vnstock/explorer/dnse --cov-report=term-m
 | Chỉ số | Ngưỡng |
 |---|---|
 | Unit test pass rate | 100% |
-| Coverage `vnstock/explorer/dnse/` | ≥ 80% |
+| Coverage `vnbroker/explorer/dnse/` | ≥ 80% |
 | Thời gian chạy unit suite DNSE | ≤ 30 giây |
 
 ### Mẫu ghi evidence S9

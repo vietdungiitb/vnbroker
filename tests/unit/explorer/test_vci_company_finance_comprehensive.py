@@ -18,11 +18,11 @@ import os
 
 import pytest
 import pandas as pd
-from vnstock.explorer.vci.company import Company
-from vnstock.explorer.vci.financial import Finance
+from vnbroker.explorer.vci.company import Company
+from vnbroker.explorer.vci.financial import Finance
 
 
-RUN_LIVE_INTEGRATION = os.getenv("VNSTOCK_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
+RUN_LIVE_INTEGRATION = os.getenv("vnbroker_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
     "1",
     "true",
     "yes",
@@ -32,7 +32,7 @@ RUN_LIVE_INTEGRATION = os.getenv("VNSTOCK_RUN_LIVE_INTEGRATION", "0").strip().lo
 if not RUN_LIVE_INTEGRATION:
     pytest.skip(
         "Live VCI integration tests are disabled by default. "
-        "Set VNSTOCK_RUN_LIVE_INTEGRATION=1 to run this module.",
+        "Set vnbroker_RUN_LIVE_INTEGRATION=1 to run this module.",
         allow_module_level=True,
     )
 

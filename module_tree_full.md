@@ -1,12 +1,12 @@
-# Module Tree Full
+﻿# Module Tree Full
 
 Updated: 2026-05-08
 
-## vnstock/
+## vnbroker/
 - `__init__.py` - lazy-load explorer modules including DNSE
 - `api/quote.py` - public quote adapter, now accepts DNSE credentials
 - `api/listing.py` - public listing adapter, now accepts DNSE credentials and source
-- `common/client.py` - `Vnstock.stock()` now accepts DNSE source and `api_secret`
+- `common/client.py` - `vnbroker.stock()` now accepts DNSE source and `api_secret`
 - `common/data.py` - DNSE-aware `StockComponents`, `Quote`, and `Listing`
 - `connector/dnse/client.py` - `_to_dataframe()` recognizes market-data payload keys
 - `connector/dnse/trade.py` - logger refactor and OpenAPI bridge helpers

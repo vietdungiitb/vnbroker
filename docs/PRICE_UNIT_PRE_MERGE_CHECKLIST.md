@@ -1,4 +1,4 @@
-# Price Unit Standardization - Pre-Merge Checklist
+﻿# Price Unit Standardization - Pre-Merge Checklist
 
 **Date**: 2026-04-16  
 **Status**: ✅ Ready for Review & Merge  
@@ -9,11 +9,11 @@
 ## 📋 Code Quality Checks
 
 ### ✅ Implementation Complete
-- [x] Core normalization in `vnstock/core/utils/transform.py`
+- [x] Core normalization in `vnbroker/core/utils/transform.py`
 - [x] All provider modules updated (VCI, KBS, TCBS, MSN)
 - [x] All trading boards updated (price_board)
 - [x] All quote functions updated (history, intraday, price_depth)
-- [x] Environment variable handling (`VNSTOCK_PRICE_UNIT`)
+- [x] Environment variable handling (`vnbroker_PRICE_UNIT`)
 - [x] Backward compatibility preserved (no breaking changes)
 
 ### ✅ Testing Complete
@@ -76,7 +76,7 @@
 | Scenario | Status | Notes |
 |----------|--------|-------|
 | Existing code without price_unit | ✅ Works | Defaults to VND |
-| Env var VNSTOCK_PRICE_UNIT set | ✅ Works | Global default applied |
+| Env var vnbroker_PRICE_UNIT set | ✅ Works | Global default applied |
 | price_unit override provided | ✅ Works | Per-call override respected |
 | Invalid price_unit value | ✅ Safe | Falls back to VND |
 | Empty DataFrame returns | ✅ Works | Metadata still set |
@@ -88,12 +88,12 @@
 
 ### ✅ Modified Source Files (6)
 ```
-vnstock/core/utils/transform.py
-vnstock/explorer/msn/quote.py
-vnstock/explorer/vci/quote.py
-vnstock/explorer/vci/trading.py
-vnstock/explorer/kbs/trading.py
-vnstock/explorer/tcbs/trading.py
+vnbroker/core/utils/transform.py
+vnbroker/explorer/msn/quote.py
+vnbroker/explorer/vci/quote.py
+vnbroker/explorer/vci/trading.py
+vnbroker/explorer/kbs/trading.py
+vnbroker/explorer/tcbs/trading.py
 ```
 
 ### ✅ Modified Test Files (2)
@@ -177,7 +177,7 @@ TODO.md (audit file list + completion marker)
    - Exact reproduction steps
    - `price_unit` value used
    - Expected vs actual output
-   - vnstock version: `python -c "import vnstock; print(vnstock.__version__)"`
+   - vnbroker version: `python -c "import vnbroker; print(vnbroker.__version__)"`
    - Python version & OS
 
 2. Reference this checklist: `docs/PRICE_UNIT_QUICK_REFERENCE.md`

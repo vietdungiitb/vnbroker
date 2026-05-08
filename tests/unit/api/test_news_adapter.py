@@ -1,8 +1,8 @@
 import pytest
 
-from vnstock.api.news import News
-from vnstock.core import source_router
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.api.news import News
+from vnbroker.core import source_router
+from vnbroker.core.registry import ProviderRegistry
 
 
 class _HealthyNewsProvider:
@@ -51,7 +51,7 @@ class TestNewsAdapter:
         def fake_get(module_name, source_name):
             return providers[(module_name, source_name)]
 
-        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
+        monkeypatch.setattr("vnbroker.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
         monkeypatch.setattr(ProviderRegistry, "get", fake_get)
 
         news = News(source="AUTO", symbol="ACB", show_log=False)

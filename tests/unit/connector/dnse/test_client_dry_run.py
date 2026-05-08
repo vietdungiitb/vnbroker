@@ -1,4 +1,4 @@
-from vnstock.connector.dnse.client import DNSEClient
+from vnbroker.connector.dnse.client import DNSEClient
 
 
 def _make_client() -> DNSEClient:

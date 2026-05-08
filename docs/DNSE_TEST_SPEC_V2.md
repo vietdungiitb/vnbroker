@@ -1,4 +1,4 @@
-# DNSE Explorer — Test Specification v2
+﻿# DNSE Explorer — Test Specification v2
 **Phiên bản:** 2.0 (mở rộng từ DNSE_TEST_PLAN.md)  
 **Ngày duyệt:** 2026-05-07  
 **Áp dụng cho:** Scope A (explorer/dnse) + Scope B (trade.py refactor)
@@ -82,7 +82,7 @@ Test các helper functions độc lập với class.
 
 ```python
 import pytest
-from vnstock.explorer.dnse.quote import _normalize_interval
+from vnbroker.explorer.dnse.quote import _normalize_interval
 
 class TestNormalizeInterval:
     def test_daily_alias(self):
@@ -110,7 +110,7 @@ class TestNormalizeInterval:
 ### 3.2 Tests cho `_to_unix_seconds`
 
 ```python
-from vnstock.explorer.dnse.quote import _to_unix_seconds
+from vnbroker.explorer.dnse.quote import _to_unix_seconds
 
 class TestToUnixSeconds:
     def test_known_date(self):
@@ -129,7 +129,7 @@ class TestToUnixSeconds:
 ### 3.3 Tests cho `_extract_ohlc_list`
 
 ```python
-from vnstock.explorer.dnse.quote import _extract_ohlc_list
+from vnbroker.explorer.dnse.quote import _extract_ohlc_list
 from tests.unit.explorer.dnse.fixtures import (
     SAMPLE_OHLC_BARS, SAMPLE_OHLC_BODY_BARS,
     SAMPLE_OHLC_BODY_DATA, SAMPLE_OHLC_BODY_LIST,
@@ -160,7 +160,7 @@ class TestExtractOhlcList:
 
 ```python
 import pandas as pd
-from vnstock.explorer.dnse.quote import _parse_ohlc
+from vnbroker.explorer.dnse.quote import _parse_ohlc
 from tests.unit.explorer.dnse.fixtures import SAMPLE_OHLC_BARS
 
 class TestParseOhlc:
@@ -210,7 +210,7 @@ class TestParseOhlc:
 ### 3.5 Tests cho `_parse_trades`
 
 ```python
-from vnstock.explorer.dnse.quote import _parse_trades
+from vnbroker.explorer.dnse.quote import _parse_trades
 from tests.unit.explorer.dnse.fixtures import SAMPLE_TRADES
 
 class TestParseTrades:
@@ -255,11 +255,11 @@ from tests.unit.explorer.dnse.fixtures import (
 def make_dnse_quote(symbol="VNM"):
     """Helper tạo DNSEQuote với mock DNSEClient, không cần API key thật."""
     with patch.dict(os.environ, {"DNSE_API_KEY": "fake_key", "DNSE_API_SECRET": "fake_secret"}):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client   = MagicMock()
             MockClient.return_value = mock_client
             
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote(symbol=symbol)
             return q, mock_client
 ```
@@ -271,30 +271,30 @@ class TestDNSEQuoteInit:
     def test_raises_without_key(self, monkeypatch):
         monkeypatch.delenv("DNSE_API_KEY", raising=False)
         monkeypatch.delenv("DNSE_API_SECRET", raising=False)
-        from vnstock.explorer.dnse.quote import DNSEQuote
+        from vnbroker.explorer.dnse.quote import DNSEQuote
         with pytest.raises(ValueError, match="DNSE cần api_key"):
             DNSEQuote("VNM")
 
     def test_raises_without_secret(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "key")
         monkeypatch.delenv("DNSE_API_SECRET", raising=False)
-        from vnstock.explorer.dnse.quote import DNSEQuote
+        from vnbroker.explorer.dnse.quote import DNSEQuote
         with pytest.raises(ValueError):
             DNSEQuote("VNM")
 
     def test_symbol_uppercased(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "k")
         monkeypatch.setenv("DNSE_API_SECRET", "s")
-        with patch("vnstock.connector.dnse.client.DNSEClient"):
-            from vnstock.explorer.dnse.quote import DNSEQuote
+        with patch("vnbroker.connector.dnse.client.DNSEClient"):
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote("vnm")
             assert q.symbol == "VNM"
 
     def test_env_credentials_used(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "env_key")
         monkeypatch.setenv("DNSE_API_SECRET", "env_secret")
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
-            from vnstock.explorer.dnse.quote import DNSEQuote
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             DNSEQuote("VNM")
             MockClient.assert_called_once_with(
                 api_key="env_key", api_secret="env_secret", show_log=False
@@ -315,11 +315,11 @@ class TestDNSEQuoteHistory:
         self.patch_env.stop()
 
     def _make_quote(self, get_ohlc_return):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_ohlc.return_value = (200, get_ohlc_return)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote("VNM")
             return q
 
@@ -340,32 +340,32 @@ class TestDNSEQuoteHistory:
         assert len(df) == len(SAMPLE_OHLC_BARS)
 
     def test_empty_on_api_error(self):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_ohlc.side_effect = Exception("timeout")
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote("VNM")
             df = q.history(start="2024-01-01")
             assert df.empty
 
     def test_interval_daily_sends_D(self):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_ohlc.return_value = (200, SAMPLE_OHLC_BODY_BARS)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote("VNM")
             q.history(start="2024-01-01", interval="1D")
             call_kwargs = mock_client._market.get_ohlc.call_args
             assert call_kwargs[1]["bar_type"] == "STOCK"
 
     def test_symbol_override(self):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_ohlc.return_value = (200, SAMPLE_OHLC_BODY_BARS)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote("VNM")
             q.history(symbol="hpg", start="2024-01-01")
             call_kwargs = mock_client._market.get_ohlc.call_args
@@ -379,11 +379,11 @@ class TestDNSEQuoteIntraday:
     def test_returns_dataframe(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "k")
         monkeypatch.setenv("DNSE_API_SECRET", "s")
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_trades.return_value = (200, SAMPLE_TRADES_BODY)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote("VNM")
             df = q.intraday()
             assert isinstance(df, pd.DataFrame)
@@ -393,11 +393,11 @@ class TestDNSEQuoteIntraday:
     def test_empty_on_none_body(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "k")
         monkeypatch.setenv("DNSE_API_SECRET", "s")
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_trades.return_value = (200, None)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             q = DNSEQuote("VNM")
             df = q.intraday()
             assert df.empty
@@ -420,7 +420,7 @@ class TestDNSEListingInit:
     def test_raises_without_credentials(self, monkeypatch):
         monkeypatch.delenv("DNSE_API_KEY", raising=False)
         monkeypatch.delenv("DNSE_API_SECRET", raising=False)
-        from vnstock.explorer.dnse.listing import DNSEListing
+        from vnbroker.explorer.dnse.listing import DNSEListing
         with pytest.raises(ValueError, match="DNSE cần api_key"):
             DNSEListing()
 
@@ -428,11 +428,11 @@ class TestDNSEListingInit:
 def make_listing(instruments_body):
     """Helper: tạo DNSEListing với mock."""
     with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_instruments.return_value = (200, instruments_body)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.listing import DNSEListing
+            from vnbroker.explorer.dnse.listing import DNSEListing
             lst = DNSEListing()
             return lst
 
@@ -456,11 +456,11 @@ class TestDNSEListingAllSymbols:
     def test_empty_on_api_error(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "k")
         monkeypatch.setenv("DNSE_API_SECRET", "s")
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_instruments.side_effect = Exception("timeout")
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.listing import DNSEListing
+            from vnbroker.explorer.dnse.listing import DNSEListing
             lst = DNSEListing()
             df = lst.all_symbols()
             assert df.empty
@@ -470,11 +470,11 @@ class TestDNSEListingSymbolsByExchange:
     def test_all_exchange_passes_none(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "k")
         monkeypatch.setenv("DNSE_API_SECRET", "s")
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_instruments.return_value = (200, SAMPLE_INSTRUMENTS_BODY)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.listing import DNSEListing
+            from vnbroker.explorer.dnse.listing import DNSEListing
             lst = DNSEListing()
             lst.symbols_by_exchange("ALL")
             call_kwargs = mock_client._market.get_instruments.call_args[1]
@@ -483,11 +483,11 @@ class TestDNSEListingSymbolsByExchange:
     def test_hose_exchange_passes_hose(self, monkeypatch):
         monkeypatch.setenv("DNSE_API_KEY", "k")
         monkeypatch.setenv("DNSE_API_SECRET", "s")
-        with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as MockClient:
             mock_client = MagicMock()
             mock_client._market.get_instruments.return_value = (200, SAMPLE_INSTRUMENTS_BODY)
             MockClient.return_value = mock_client
-            from vnstock.explorer.dnse.listing import DNSEListing
+            from vnbroker.explorer.dnse.listing import DNSEListing
             lst = DNSEListing()
             lst.symbols_by_exchange("hose")   # lowercase test
             call_kwargs = mock_client._market.get_instruments.call_args[1]
@@ -517,13 +517,13 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def dnse_quote():
-    from vnstock.explorer.dnse.quote import DNSEQuote
+    from vnbroker.explorer.dnse.quote import DNSEQuote
     return DNSEQuote("VNM")
 
 
 @pytest.fixture(scope="module")
 def dnse_listing():
-    from vnstock.explorer.dnse.listing import DNSEListing
+    from vnbroker.explorer.dnse.listing import DNSEListing
     return DNSEListing()
 
 
@@ -583,7 +583,7 @@ class TestDNSEListingIntegration:
 
 ```powershell
 # Active venv trước
-cd "C:\Mujoco Projects\vnstock-main"
+cd "C:\Mujoco Projects\vnbroker-main"
 .\.venv\Scripts\Activate.ps1
 
 # Unit tests explorer/dnse (không cần API key)
@@ -603,8 +603,8 @@ pytest tests/integration/test_dnse_explorer.py -v
 # Full suite với coverage
 pytest tests/unit/explorer/dnse/ tests/unit/connector/dnse/ `
        tests/integration/test_dnse_explorer.py `
-       --cov=vnstock/explorer/dnse `
-       --cov=vnstock/connector/dnse `
+       --cov=vnbroker/explorer/dnse `
+       --cov=vnbroker/connector/dnse `
        --cov-report=term-missing -v
 ```
 

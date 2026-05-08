@@ -13,12 +13,12 @@ import requests
 from datetime import datetime
 from unittest.mock import Mock, patch
 import os
-from vnstock.core.utils.proxy_manager import (
+from vnbroker.core.utils.proxy_manager import (
     Proxy, ProxyManager
 )
 
 
-RUN_LIVE_INTEGRATION = os.getenv("VNSTOCK_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
+RUN_LIVE_INTEGRATION = os.getenv("vnbroker_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
     "1",
     "true",
     "yes",
@@ -241,7 +241,7 @@ class TestProxyManager:
 
         assert result is False
 
-    @patch('vnstock.core.utils.proxy_manager.ProxyManager.test_proxy')
+    @patch('vnbroker.core.utils.proxy_manager.ProxyManager.test_proxy')
     def test_test_proxies_batch(self, mock_test):
         """Test batch proxy testing."""
         mock_test.side_effect = [True, False, True]
@@ -275,8 +275,8 @@ class TestProxyManager:
             'http://10.0.0.1:3128',
         ]
 
-    @patch('vnstock.core.utils.proxy_manager.ProxyManager.fetch_proxies')
-    @patch('vnstock.core.utils.proxy_manager.ProxyManager.test_proxies')
+    @patch('vnbroker.core.utils.proxy_manager.ProxyManager.fetch_proxies')
+    @patch('vnbroker.core.utils.proxy_manager.ProxyManager.test_proxies')
     def test_get_proxy_pool_respects_refresh_interval(self, mock_test_proxies, mock_fetch_proxies):
         """Test back-to-back calls reuse refreshed pool instead of retesting immediately."""
         manager = ProxyManager(min_pool_refresh_interval_seconds=60)
@@ -317,7 +317,7 @@ class TestProxyManager:
 @pytest.mark.integration
 @pytest.mark.skipif(
     not RUN_LIVE_INTEGRATION,
-    reason="Live proxy integration tests are disabled by default. Set VNSTOCK_RUN_LIVE_INTEGRATION=1 to run.",
+    reason="Live proxy integration tests are disabled by default. Set vnbroker_RUN_LIVE_INTEGRATION=1 to run.",
 )
 class TestProxyIntegration:
     """Integration tests with real proxyscrape API."""

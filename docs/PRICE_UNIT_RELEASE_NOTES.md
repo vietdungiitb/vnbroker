@@ -1,4 +1,4 @@
-# Price Unit Standardization - Release Notes
+﻿# Price Unit Standardization - Release Notes
 
 **Version**: 2.4.0 (2026-04-16)  
 **Type**: Feature + Enhancement  
@@ -8,7 +8,7 @@
 
 ## Summary
 
-This release standardizes price units across all data-returning functions in vnstock. By default, all prices are now returned in **VND (Vietnamese Đồng)**. Providers previously returning mixed units (thousand VND vs VND) are now consolidated. Optional per-call unit override is available for backward compatibility and flexibility.
+This release standardizes price units across all data-returning functions in vnbroker. By default, all prices are now returned in **VND (Vietnamese Đồng)**. Providers previously returning mixed units (thousand VND vs VND) are now consolidated. Optional per-call unit override is available for backward compatibility and flexibility.
 
 ---
 
@@ -18,7 +18,7 @@ This release standardizes price units across all data-returning functions in vns
 - ✨ **Unified Price Units**: All quote and trading functions now default to VND
 - ✨ **Optional Unit Override**: Add `price_unit` parameter to request alternate units per call
 - ✨ **Metadata Tracking**: Every DataFrame includes `df.attrs['price_unit']` for runtime inspection
-- 🔧 **Environment Control**: `VNSTOCK_PRICE_UNIT` env var enables global defaults
+- 🔧 **Environment Control**: `vnbroker_PRICE_UNIT` env var enables global defaults
 - ✅ **Backward Compat**: Existing code works without changes; env var fallback ensures legacy behavior
 
 ### Functions Updated
@@ -44,7 +44,7 @@ This release standardizes price units across all data-returning functions in vns
 
 ### Get history in VND (default)
 ```python
-from vnstock import Stock
+from vnbroker import Stock
 stock = Stock(source='VCI')
 df = stock.quote.history(symbol='ACB', length='1M')
 print(df.attrs['price_unit'])  # Output: 'VND'
@@ -58,14 +58,14 @@ print(df.attrs['price_unit'])  # Output: 'THOUSAND_VND'
 
 ### Price board with explicit unit
 ```python
-from vnstock.explorer.vci.trading import Trading
+from vnbroker.explorer.vci.trading import Trading
 vci = Trading(symbol='ACB')
 df = vci.price_board(price_unit='THOUSAND_VND')
 ```
 
 ### Set global default
 ```bash
-export VNSTOCK_PRICE_UNIT=THOUSAND_VND
+export vnbroker_PRICE_UNIT=THOUSAND_VND
 # All subsequent calls default to THOUSAND_VND unless overridden
 ```
 
@@ -107,14 +107,14 @@ Test results:
 ## Files Modified
 
 ### Core
-- `vnstock/core/utils/transform.py` - Added `_parse_price_unit()`, enhanced `normalize_price_columns()`
+- `vnbroker/core/utils/transform.py` - Added `_parse_price_unit()`, enhanced `normalize_price_columns()`
 
 ### Providers
-- `vnstock/explorer/msn/quote.py` - Added `price_unit` param to `history()` and `_as_df()`
-- `vnstock/explorer/vci/quote.py` - Metadata fixes on empty return paths
-- `vnstock/explorer/vci/trading.py` - Added `price_unit` support to `price_board()`
-- `vnstock/explorer/kbs/trading.py` - Added `price_unit` support to `price_board()`
-- `vnstock/explorer/tcbs/trading.py` - Added `price_unit` support to `price_board()`
+- `vnbroker/explorer/msn/quote.py` - Added `price_unit` param to `history()` and `_as_df()`
+- `vnbroker/explorer/vci/quote.py` - Metadata fixes on empty return paths
+- `vnbroker/explorer/vci/trading.py` - Added `price_unit` support to `price_board()`
+- `vnbroker/explorer/kbs/trading.py` - Added `price_unit` support to `price_board()`
+- `vnbroker/explorer/tcbs/trading.py` - Added `price_unit` support to `price_board()`
 
 ### Tests
 - `tests/unit/explorer/test_trading_price_unit_standardization.py` (NEW)
@@ -136,7 +136,7 @@ Test results:
 
 - MSN provider: Limited metadata in some edge cases (handled gracefully with defaults)
 - TCBS: Metadata depends on successful API response (error paths return normalized empty DataFrame)
-- Env var validation: Invalid `VNSTOCK_PRICE_UNIT` values silently fallback to VND
+- Env var validation: Invalid `vnbroker_PRICE_UNIT` values silently fallback to VND
 
 ---
 

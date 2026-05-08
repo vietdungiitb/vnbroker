@@ -10,8 +10,8 @@ Tests cover:
 
 import pytest
 from unittest.mock import patch, Mock
-from vnstock.explorer.vci.quote import Quote
-from vnstock.core.utils.proxy_manager import Proxy, ProxyManager
+from vnbroker.explorer.vci.quote import Quote
+from vnbroker.core.utils.proxy_manager import Proxy, ProxyManager
 
 
 @pytest.mark.integration

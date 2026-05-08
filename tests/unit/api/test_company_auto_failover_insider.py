@@ -1,8 +1,8 @@
 import pandas as pd
 
-from vnstock.api.company import Company as CompanyAdapter
-from vnstock.core.registry import ProviderRegistry
-from vnstock.core.source_router import reset_router_state
+from vnbroker.api.company import Company as CompanyAdapter
+from vnbroker.core.registry import ProviderRegistry
+from vnbroker.core.source_router import reset_router_state
 
 
 class _FakeVCICompany:

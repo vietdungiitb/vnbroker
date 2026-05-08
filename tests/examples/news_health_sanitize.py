@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 
-from vnstock.news.health import sanitize_health_jsonl_file
+from vnbroker.news.health import sanitize_health_jsonl_file
 
 
 def parse_args():

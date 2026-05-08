@@ -1,4 +1,4 @@
-# DNSE E2E Runbook (Dev + QA)
+﻿# DNSE E2E Runbook (Dev + QA)
 
 ## 1. Muc tieu
 
@@ -96,7 +96,7 @@ Expected:
 
 ```python
 import os
-from vnstock.connector.dnse.client import DNSEClient
+from vnbroker.connector.dnse.client import DNSEClient
 
 client = DNSEClient(
     api_key=os.getenv("DNSE_API_KEY"),

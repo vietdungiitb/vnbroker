@@ -1,4 +1,4 @@
-# DNSE Implementation Workflow (Dev Playbook)
+﻿# DNSE Implementation Workflow (Dev Playbook)
 
 ## 1. Ke hoach giao viec theo ticket
 
@@ -85,7 +85,7 @@ Checklist:
 ## 4. Review checklist cho reviewer
 
 - [ ] Co tach module dung blueprint.
-- [ ] Public API nhat quan voi vnstock.
+- [ ] Public API nhat quan voi vnbroker.
 - [ ] Error handling ro rang, khong nuot loi.
 - [ ] Test co bao edge cases quan trong.
 - [ ] Tai lieu du de QA chay doc lap.

@@ -1,6 +1,6 @@
-# Performance Profiles and Auto-Tuning
+﻿# Performance Profiles and Auto-Tuning
 
-This document covers five performance layers in vnstock:
+This document covers five performance layers in vnbroker:
 
 1. Preset profiles for benchmark, production, and market-hours.
 2. Time-aware automatic profile selection.
@@ -21,7 +21,7 @@ Three built-in profiles:
 | `market_hours` | Live fetch during VN market open sessions |
 
 ```python
-from vnstock.core.performance_profiles import apply_profile, list_profiles
+from vnbroker.core.performance_profiles import apply_profile, list_profiles
 
 print(list_profiles())          # ['benchmark_max_speed', 'market_hours', 'production_stable']
 apply_profile("production_stable", overwrite=False)
@@ -42,7 +42,7 @@ VN market session (Mon–Fri 09:00–11:30 or 13:00–15:30 ICT) and applies the
 automatically.
 
 ```python
-from vnstock.core.performance_profiles import apply_profile_for_current_time, is_market_hours
+from vnbroker.core.performance_profiles import apply_profile_for_current_time, is_market_hours
 
 # Check once
 if is_market_hours():
@@ -132,7 +132,7 @@ All 8 knobs are identical for VCI and KBS — just swap the prefix:
 
 | Variable | VCI prefix | KBS prefix | Default |
 |---|---|---|---|
-| Enable adaptive | `VNSTOCK_VCI_ADAPTIVE_CONCURRENCY` | `VNSTOCK_KBS_ADAPTIVE_CONCURRENCY` | `0` (off) |
+| Enable adaptive | `vnbroker_VCI_ADAPTIVE_CONCURRENCY` | `vnbroker_KBS_ADAPTIVE_CONCURRENCY` | `0` (off) |
 | Start concurrency | `..._START_CONCURRENCY` | same pattern | `6` / `4` |
 | Min concurrency | `..._MIN_CONCURRENCY` | same pattern | `4` / `2` |
 | Step up | `..._STEP_UP` | same pattern | `2` / `1` |
@@ -145,10 +145,10 @@ Global variables:
 
 | Variable | Default | Effect |
 |---|---|---|
-| `VNSTOCK_MAX_RETRIES` | `3` | HTTP retry count |
-| `VNSTOCK_ASYNC_STATS_ENABLED` | `1` | `0` = disable lock-based counters (~53% throughput gain) |
+| `vnbroker_MAX_RETRIES` | `3` | HTTP retry count |
+| `vnbroker_ASYNC_STATS_ENABLED` | `1` | `0` = disable lock-based counters (~53% throughput gain) |
 
-Set `VNSTOCK_ASYNC_STATS_ENABLED=0` in benchmark runs for maximum throughput. The
+Set `vnbroker_ASYNC_STATS_ENABLED=0` in benchmark runs for maximum throughput. The
 `benchmark_max_speed` profile does this automatically.
 
 ---
@@ -157,11 +157,11 @@ Set `VNSTOCK_ASYNC_STATS_ENABLED=0` in benchmark runs for maximum throughput. Th
 
 ### AdaptiveController
 
-`AdaptiveController` lives in `vnstock.core.adaptive_controller` and is shared by both
+`AdaptiveController` lives in `vnbroker.core.adaptive_controller` and is shared by both
 VCI (async) and KBS (sync) paths:
 
 ```python
-from vnstock.core.adaptive_controller import AdaptiveController
+from vnbroker.core.adaptive_controller import AdaptiveController
 
 # Stateless — one-off calculation
 new_w = AdaptiveController.compute(
@@ -179,7 +179,7 @@ new_w = AdaptiveController.compute(
 )
 
 # Stateful — persists across batch windows
-ctrl = AdaptiveController.from_env("VNSTOCK_VCI_ADAPTIVE_")
+ctrl = AdaptiveController.from_env("vnbroker_VCI_ADAPTIVE_")
 for batch in batches:
     results = await fetch_batch(batch)
     new_w = ctrl.adjust(
@@ -195,7 +195,7 @@ A process-wide singleton that halves the concurrency cap for *all* providers whe
 combined error rate exceeds 30%, and self-heals after 3 consecutive clean windows:
 
 ```python
-from vnstock.core.adaptive_controller import get_global_pressure
+from vnbroker.core.adaptive_controller import get_global_pressure
 
 gp = get_global_pressure()
 gp.record_batch(batch_size=10, error_count=4)   # 40% error → stressed

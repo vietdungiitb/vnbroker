@@ -1,6 +1,6 @@
-# Vnstock Testing Guide
+﻿# vnbroker Testing Guide
 
-Comprehensive guide for running and maintaining the vnstock test suite.
+Comprehensive guide for running and maintaining the vnbroker test suite.
 
 ## Quick Start
 
@@ -26,7 +26,7 @@ pytest -m "unit and vci" -v
 
 ### Generate Coverage Report
 ```bash
-pytest tests/ --cov=vnstock --cov-report=html --cov-report=term-missing
+pytest tests/ --cov=vnbroker --cov-report=html --cov-report=term-missing
 ```
 
 ## Test Structure
@@ -41,7 +41,7 @@ tests/
 │   │   └── test_kbs_*.py         # KBS data source tests
 │   └── core/                      # Core utilities tests
 ├── integration/                   # Integration tests with external services
-│   └── test_vnstock_client.py    # End-to-end client tests
+│   └── test_vnbroker_client.py    # End-to-end client tests
 ├── fixtures/                      # Shared test fixtures
 │   └── symbols.py                # Symbol datasets
 ├── conftest.py                    # Pytest configuration and fixtures
@@ -139,10 +139,10 @@ pytest tests/ --benchmark-only
 ### View Coverage Report
 ```bash
 # Terminal report
-pytest tests/ --cov=vnstock --cov-report=term-missing
+pytest tests/ --cov=vnbroker --cov-report=term-missing
 
 # HTML report
-pytest tests/ --cov=vnstock --cov-report=html
+pytest tests/ --cov=vnbroker --cov-report=html
 # Open htmlcov/index.html in browser
 ```
 
@@ -179,7 +179,7 @@ act push -j code-quality
 ### Basic Unit Test Example
 ```python
 import pytest
-from vnstock.api import Quote
+from vnbroker.api import Quote
 
 @pytest.mark.unit
 @pytest.mark.api
@@ -264,7 +264,7 @@ pytest tests/ --capture=no  # Disable output capture
 
 ### Update Tests After Code Changes
 1. Run affected tests: `pytest tests/unit/explorer/test_vci_quote.py -v`
-2. Check coverage: `pytest tests/ --cov=vnstock --cov-report=term-missing`
+2. Check coverage: `pytest tests/ --cov=vnbroker --cov-report=term-missing`
 3. Update fixtures if needed in `conftest.py`
 4. Add regression tests for bug fixes
 
@@ -280,7 +280,7 @@ pytest tests/ --capture=no  # Disable output capture
 
 **Issue**: Coverage is below threshold
 - **Solution**: Add tests for uncovered code paths
-- **Check**: `pytest --cov=vnstock --cov-report=term-missing`
+- **Check**: `pytest --cov=vnbroker --cov-report=term-missing`
 
 ## Best Practices
 

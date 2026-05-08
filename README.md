@@ -1,22 +1,22 @@
-# Vnstock - Giải pháp phân tích chứng khoán mở cho người Việt
+﻿# vnbroker - Giải pháp phân tích chứng khoán mở cho người Việt
 
-[![Vnstock Homepage](https://raw.githubusercontent.com/vietdungiitb/vnstock/refs/heads/main/assets/images/vnstock-hero-banner.png)](https://vnstocks.com/)
+[![vnbroker Homepage](https://raw.githubusercontent.com/vietdungiitb/vnbroker/refs/heads/main/assets/images/vnbroker-hero-banner.png)](https://vnstocks.com/)
 
 <div id="badges" align="center">
-    <img src="https://img.shields.io/pypi/pyversions/vnstock?logoColor=brown&style=flat" alt="Version"/>
-    <img src="https://img.shields.io/github/last-commit/vietdungiitb/vnstock?style=flat" alt="Commit Badge"/>
+    <img src="https://img.shields.io/pypi/pyversions/vnbroker?logoColor=brown&style=flat" alt="Version"/>
+    <img src="https://img.shields.io/github/last-commit/vietdungiitb/vnbroker?style=flat" alt="Commit Badge"/>
     <img src="https://img.shields.io/badge/license-Custom%20License-red?style=flat" alt="Custom License Badge"/>
 </div>
 
 <div id="badges" align="center">
-    <a href="https://pypi.org/project/vnstock/">
-        <img src="https://img.shields.io/pypi/dm/vnstock?label=vnstock%20download&style=flat" alt="vnstock download badge"/>
+    <a href="https://pypi.org/project/vnbroker/">
+        <img src="https://img.shields.io/pypi/dm/vnbroker?label=vnbroker%20download&style=flat" alt="vnbroker download badge"/>
     </a>
 </div>
 
 <div id="badges" align="center">
     <a href="https://vnstocks.com/insiders-program">
-        <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="vnstock3 download badge"/>
+        <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="vnbroker3 download badge"/>
     </a>
 </div>
 ---
@@ -27,27 +27,27 @@
 
 ---
 
-# 🎤 Giới thiệu về Vnstock
+# 🎤 Giới thiệu về vnbroker
 
-> Chào mừng bạn đến với **Vnstock**, bộ giải pháp mã nguồn mở toàn diện cho phân tích và tự động hóa đầu tư chứng khoán.
+> Chào mừng bạn đến với **vnbroker**, bộ giải pháp mã nguồn mở toàn diện cho phân tích và tự động hóa đầu tư chứng khoán.
 
-Với sứ mệnh **"Mang dữ liệu chứng khoán và công cụ đầu tư đến gần hơn với tất cả mọi người"**, Vnstock liên tục cải tiến, tích hợp những công nghệ hiện đại để không chỉ đáp ứng nhu cầu cơ bản về dữ liệu, mà còn giúp bạn xây dựng các giải pháp phân tích tài chính thông minh và linh hoạt hơn bao giờ hết.
+Với sứ mệnh **"Mang dữ liệu chứng khoán và công cụ đầu tư đến gần hơn với tất cả mọi người"**, vnbroker liên tục cải tiến, tích hợp những công nghệ hiện đại để không chỉ đáp ứng nhu cầu cơ bản về dữ liệu, mà còn giúp bạn xây dựng các giải pháp phân tích tài chính thông minh và linh hoạt hơn bao giờ hết.
 
-### 🚀 Tại sao chọn Vnstock?
+### 🚀 Tại sao chọn vnbroker?
 
 - **Hoàn toàn miễn phí & mã nguồn mở**: Dễ dàng truy cập và sử dụng, phù hợp với nhà đầu tư cá nhân, nhà phân tích, và cộng đồng nghiên cứu.
 - **Giải pháp Python toàn diện**: Các hàm chức năng thân thiện, dễ dàng tích hợp để xây dựng các công cụ phân tích, bot giao dịch tự động.
 - **Dữ liệu đa dạng, cập nhật liên tục**: Bao gồm cổ phiếu, chứng quyền, chỉ số thị trường, hợp đồng tương lai, trái phiếu, ngoại hối, crypto và nhiều hơn thế nữa.
 
-Bạn chính là một phần quan trọng trong hành trình **chuyển đổi số thị trường tài chính Việt Nam**. Hãy cùng Vnstock tạo nên những thay đổi tích cực và hiệu quả!
+Bạn chính là một phần quan trọng trong hành trình **chuyển đổi số thị trường tài chính Việt Nam**. Hãy cùng vnbroker tạo nên những thay đổi tích cực và hiệu quả!
 
 ### 🤝 Tham gia cộng đồng cùng chúng tôi!
 
-Tham gia ngay cộng đồng Vnstock để giao lưu, chia sẻ kinh nghiệm và cập nhật những tính năng mới nhất từ dự án:
+Tham gia ngay cộng đồng vnbroker để giao lưu, chia sẻ kinh nghiệm và cập nhật những tính năng mới nhất từ dự án:
 
 <div id="badges" align="center">
-  <a href="https://www.facebook.com/groups/vnstock.official" target="_blank">
-    <img src="https://img.shields.io/badge/Tham%20gia%20cộng%20đồng-Vnstock-blue?style=for-the-badge&logo=facebook" alt="Tham gia cộng đồng Vnstock"/>
+  <a href="https://www.facebook.com/groups/vnbroker.official" target="_blank">
+    <img src="https://img.shields.io/badge/Tham%20gia%20cộng%20đồng-vnbroker-blue?style=for-the-badge&logo=facebook" alt="Tham gia cộng đồng vnbroker"/>
   </a>
 </div>
 
@@ -55,7 +55,7 @@ Tham gia ngay cộng đồng Vnstock để giao lưu, chia sẻ kinh nghiệm v�
 
 # II. Các nhóm tính năng chính
 
-> `Vnstock` giúp rút ngắn thời gian xử lý dữ liệu, hỗ trợ học tập, nghiên cứu và xây dựng hệ thống phân tích giao dịch tài chính một cách hiệu quả – không chỉ là một công cụ trích xuất dữ liệu, mà là nền tảng để phát triển giải pháp đầu tư cá nhân thông minh. Thư viện được thiết kế dễ dàng sử dụng và tích hợp vào các hệ thống phân tích, nghiên cứu, trang tổng quan, hoặc bot chứng khoán.
+> `vnbroker` giúp rút ngắn thời gian xử lý dữ liệu, hỗ trợ học tập, nghiên cứu và xây dựng hệ thống phân tích giao dịch tài chính một cách hiệu quả – không chỉ là một công cụ trích xuất dữ liệu, mà là nền tảng để phát triển giải pháp đầu tư cá nhân thông minh. Thư viện được thiết kế dễ dàng sử dụng và tích hợp vào các hệ thống phân tích, nghiên cứu, trang tổng quan, hoặc bot chứng khoán.
 
 1. **Truy xuất dữ liệu qua API đơn giản**  
 
@@ -109,19 +109,19 @@ Tham gia ngay cộng đồng Vnstock để giao lưu, chia sẻ kinh nghiệm v�
 
 # III. Tuyên bố miễn trừ trách nhiệm
 
-> Dự án **Vnstock** được phát triển nhằm phục vụ **mục đích nghiên cứu và sử dụng cá nhân**. Dữ liệu cung cấp có thể không đầy đủ, không liên tục hoặc sai lệch so với thực tế, do đó không khuyến nghị **sử dụng cho mục đích giao dịch thực tế, thuật toán đầu tư, hoặc ra quyết định tài chính** khi bạn không hiểu rõ.
+> Dự án **vnbroker** được phát triển nhằm phục vụ **mục đích nghiên cứu và sử dụng cá nhân**. Dữ liệu cung cấp có thể không đầy đủ, không liên tục hoặc sai lệch so với thực tế, do đó không khuyến nghị **sử dụng cho mục đích giao dịch thực tế, thuật toán đầu tư, hoặc ra quyết định tài chính** khi bạn không hiểu rõ.
 
 Các tác giả **không chịu trách nhiệm đối với bất kỳ tổn thất hay thiệt hại nào** phát sinh từ việc sử dụng dữ liệu hoặc mã nguồn này, bao gồm nhưng không giới hạn: sai lệch dữ liệu, mất mát tài chính, hoặc sử dụng sai mục đích.
 
-**Vnstock không cung cấp tư vấn đầu tư hay tín hiệu giao dịch**. Người dùng hoàn toàn tự chịu trách nhiệm khi sử dụng dự án.
+**vnbroker không cung cấp tư vấn đầu tư hay tín hiệu giao dịch**. Người dùng hoàn toàn tự chịu trách nhiệm khi sử dụng dự án.
 
 ---
 
 # IV. 🔑 Giấy phép sử dụng (License)
 
-`Vnstock` được phát hành theo giấy phép tuỳ chỉnh hướng đến cá nhân, không dành cho mục đích thương mại. Quyền sử dụng được quy định cụ thể trong [giấy phép](LICENSE.md) kèm theo. Nếu bạn hoặc tổ chức bạn đang làm việc muốn sử dụng Vnstock có thể liên hệ tác giả để hiểu rõ phạm vi sử dụng và được cấp phép chính thức.
+`vnbroker` được phát hành theo giấy phép tuỳ chỉnh hướng đến cá nhân, không dành cho mục đích thương mại. Quyền sử dụng được quy định cụ thể trong [giấy phép](LICENSE.md) kèm theo. Nếu bạn hoặc tổ chức bạn đang làm việc muốn sử dụng vnbroker có thể liên hệ tác giả để hiểu rõ phạm vi sử dụng và được cấp phép chính thức.
 
-Khi sử dụng Vnstock trong dự án của mình, bạn cần trích dẫn thông tin về tác giả và dự án theo hướng dẫn của Vnstock.
+Khi sử dụng vnbroker trong dự án của mình, bạn cần trích dẫn thông tin về tác giả và dự án theo hướng dẫn của vnbroker.
 
 ---
 
@@ -129,15 +129,15 @@ Khi sử dụng Vnstock trong dự án của mình, bạn cần trích dẫn th�
 
 ## Bạn đồng hành
 
-Vnstock phát triển nhờ sự chung tay của cộng đồng những người yêu thích công nghệ và tài chính. Mỗi dòng code, mỗi bản sửa lỗi đều là minh chứng cho sự đóng góp quý giá của các bạn. Cảm ơn vì đã biến vnstock thành công cụ mạnh mẽ cho cộng đồng đầu tư Việt Nam!
+vnbroker phát triển nhờ sự chung tay của cộng đồng những người yêu thích công nghệ và tài chính. Mỗi dòng code, mỗi bản sửa lỗi đều là minh chứng cho sự đóng góp quý giá của các bạn. Cảm ơn vì đã biến vnbroker thành công cụ mạnh mẽ cho cộng đồng đầu tư Việt Nam!
 
-<a href="https://github.com/vietdungiitb/vnstock/graphs/contributors">
-   <img src="https://contributors-img.web.app/image?repo=vietdungiitb/vnstock" width="800"/>
+<a href="https://github.com/vietdungiitb/vnbroker/graphs/contributors">
+   <img src="https://contributors-img.web.app/image?repo=vietdungiitb/vnbroker" width="800"/>
 </a>
 
 ## ❤️ Nhà tài trợ nổi bật
 
-Từ tận đáy lòng, Vnstock gửi lời tri ân sâu sắc đến những người đã tin tưởng và ủng hộ vnstock. Sự đóng góp của các bạn không chỉ là nguồn lực tài chính – mà còn là niềm tin, sự khích lệ và là động lực mạnh mẽ để chúng tôi tiếp tục phát triển, tối ưu hóa và lan tỏa công cụ này đến cộng đồng đầu tư Việt Nam. 
+Từ tận đáy lòng, vnbroker gửi lời tri ân sâu sắc đến những người đã tin tưởng và ủng hộ vnbroker. Sự đóng góp của các bạn không chỉ là nguồn lực tài chính – mà còn là niềm tin, sự khích lệ và là động lực mạnh mẽ để chúng tôi tiếp tục phát triển, tối ưu hóa và lan tỏa công cụ này đến cộng đồng đầu tư Việt Nam. 
 
 Dù lớn hay nhỏ, mỗi sự hỗ trợ đều là một lời nhắc nhở rằng chúng tôi không đi một mình. Các bạn là những đối tác đồng hành, những người tiên phong chung tay kiến tạo một hệ sinh thái dữ liệu tài chính dễ tiếp cận và minh bạch hơn cho mọi nhà đầu tư. 
 
@@ -174,11 +174,11 @@ Dù lớn hay nhỏ, mỗi sự hỗ trợ đều là một lời nhắc nhở r
 
 ## Hỗ trợ dự án
 
-Nếu vnstock đã mang lại giá trị cho bạn và bạn muốn trở thành một phần của cộng đồng những người ủng hộ, sự đóng góp của bạn sẽ là nguồn động lực vô cùng to lớn đối với chúng tôi. Mỗi nhà tài trợ giúp chúng tôi có thêm thời gian cải thiện tài liệu, phát triển tính năng mới và duy trì sự bền vững lâu dài cho dự án này.
+Nếu vnbroker đã mang lại giá trị cho bạn và bạn muốn trở thành một phần của cộng đồng những người ủng hộ, sự đóng góp của bạn sẽ là nguồn động lực vô cùng to lớn đối với chúng tôi. Mỗi nhà tài trợ giúp chúng tôi có thêm thời gian cải thiện tài liệu, phát triển tính năng mới và duy trì sự bền vững lâu dài cho dự án này.
 
 <div id="badges" align="center">
     <a href="https://vnstocks.com/insiders-program#tiers">
-        <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="vnstock3 download badge"/>
+        <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="vnbroker3 download badge"/>
     </a>
 </div>
 
@@ -188,15 +188,15 @@ Nếu vnstock đã mang lại giá trị cho bạn và bạn muốn trở thành
 
 Bạn có thể hỗ trợ dự án bằng cách cực kỳ đơn giản là đánh dấu yêu thích để giúp dự án có thể tiếp cận tới nhiều người hơn. Dưới đây là lịch sử lượt yêu thích của dự án.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=vietdungiitb/vnstock&type=Date)](https://www.star-history.com/#vietdungiitb/vnstock&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=vietdungiitb/vnbroker&type=Date)](https://www.star-history.com/#vietdungiitb/vnbroker&Date)
 
 # VII. ⏱️ Cập nhật đáng chú ý
 
 - 16-01-2026: Cập nhật phiên bản trải nghiệm `3.4.0` tại Github (chưa phát hành chính thức qua PyPI)
-- 20-03-2025: Ra mắt phiên bản Vnstock `3.2.0` bổ sung thêm tính năng truy xuất dữ liệu Bộ lọc cổ phiếu.
-- 02-01-2025: Vnstock3 chính thức sử dụng tên nhận diện gói thư viện là vnstock tại trang phân phối chính thức pypi.org. Chi tiết [tại đây](https://vnstocks.com/blog/chuyen-doi-sang-vnstock3-truoc-2025)
-- 02-11-2024: Ra mắt Vnstock3 phiên bản 3.0.9. Chi tiết: [tại đây](https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban#02-11-2024)
-- 10-05-2024: Ra mắt phiên bản Vnstock `3.0.1` với tên gói cài đặt `vnstock3`
+- 20-03-2025: Ra mắt phiên bản vnbroker `3.2.0` bổ sung thêm tính năng truy xuất dữ liệu Bộ lọc cổ phiếu.
+- 02-01-2025: vnbroker3 chính thức sử dụng tên nhận diện gói thư viện là vnbroker tại trang phân phối chính thức pypi.org. Chi tiết [tại đây](https://vnstocks.com/blog/chuyen-doi-sang-vnbroker3-truoc-2025)
+- 02-11-2024: Ra mắt vnbroker3 phiên bản 3.0.9. Chi tiết: [tại đây](https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban#02-11-2024)
+- 10-05-2024: Ra mắt phiên bản vnbroker `3.0.1` với tên gói cài đặt `vnbroker3`
 
 > Chi tiết cập nhật phần mềm và phiên bản [tại đây](https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban)
 
@@ -206,9 +206,9 @@ Bạn có thể hỗ trợ dự án bằng cách cực kỳ đơn giản là đ�
 
 Trước khi bắt đầu, hãy đánh dấu yêu thích để giúp dự án có thể tiếp cận tới nhiều người hơn. Cám ơn bạn!
 
-![star_project](https://raw.githubusercontent.com/vietdungiitb/vnstock/beta/docs/docs/assets/images/github_star_guide.png)star_star_star_star_
+![star_project](https://raw.githubusercontent.com/vietdungiitb/vnbroker/beta/docs/docs/assets/images/github_star_guide.png)star_star_star_star_
 
-👉 Để hiểu rõ hơn về vnstock và hướng dẫn sử dụng toàn diện, bạn có thể truy cập [vnstocks.com/docs](https://vnstocks.com/docs). 
+👉 Để hiểu rõ hơn về vnbroker và hướng dẫn sử dụng toàn diện, bạn có thể truy cập [vnstocks.com/docs](https://vnstocks.com/docs). 
 
 👉 Tai lieu su dung Stock News da trien khai trong thu vien: [docs/STOCK_NEWS_USAGE_GUIDE.md](docs/STOCK_NEWS_USAGE_GUIDE.md)
 
@@ -218,13 +218,13 @@ Trước khi bắt đầu, hãy đánh dấu yêu thích để giúp dự án c�
 
 👉 Diem vao tong hop tai lieu Stock News: [docs/STOCK_NEWS_INDEX.md](docs/STOCK_NEWS_INDEX.md)
 
-👉 Để hiểu sử dụng tính năng MCP cho các trình soạn thảo lệnh chuyên nghiệp (IDE), thêm [cấu hình MCP Context7](https://github.com/upstash/context7) cho [Vnstock](https://context7.com/vietdungiitb/vnstock) để AI tạo code chính xác hơn. 
+👉 Để hiểu sử dụng tính năng MCP cho các trình soạn thảo lệnh chuyên nghiệp (IDE), thêm [cấu hình MCP Context7](https://github.com/upstash/context7) cho [vnbroker](https://context7.com/vietdungiitb/vnbroker) để AI tạo code chính xác hơn. 
 
 Xem minh hoạ các tính năng thông qua Colab Notebook sau:
 
 <div id="badges" align="center">
   <a href="https://vnstocks.com/docs/tai-lieu/huong-dan-nhanh" target="_blank">
-    <img src="https://img.shields.io/badge/Tài%20liệu%20hướng%20dẫn-Vnstock-blue?style=for-the-badge&logo=book" alt="Tài liệu hướng dẫn Vnstock Badge"/>
+    <img src="https://img.shields.io/badge/Tài%20liệu%20hướng%20dẫn-vnbroker-blue?style=for-the-badge&logo=book" alt="Tài liệu hướng dẫn vnbroker Badge"/>
   </a>
 </div>
 
@@ -233,22 +233,22 @@ Xem minh hoạ các tính năng thông qua Colab Notebook sau:
 Bạn có thể cài đặt thư viện bản phát hành ổn định qua PyPI với câu lệnh sau:
 
 ```bash
-pip install -U vnstock
+pip install -U vnbroker
 ```
 
 Bạn cũng có thể cài đặt bản phát hành thử nghiệm trên Github với câu lệnh:
 
 ```bash
-pip install git+https://github.com/vietdungiitb/vnstock
+pip install git+https://github.com/vietdungiitb/vnbroker
 ```
 
-### Dùng repo này thay cho bản `vnstock` chuẩn
+### Dùng repo này thay cho bản `vnbroker` chuẩn
 
 Nếu bạn muốn dùng đúng bản đã tối ưu trong repo hiện tại thay vì bản chuẩn trên PyPI, làm theo 3 bước:
 
 ```bash
 # 1) Gỡ bản đang cài (nếu có)
-pip uninstall -y vnstock
+pip uninstall -y vnbroker
 
 # 2) Cài trực tiếp từ repo fork của bạn
 pip install git+https://github.com/<your-user>/<your-repo>.git@main
@@ -257,16 +257,16 @@ pip install git+https://github.com/<your-user>/<your-repo>.git@main
 Xác nhận môi trường đã nạp đúng bản fork:
 
 ```bash
-python -c "import vnstock, importlib.metadata as m; print(m.version('vnstock')); print(vnstock.__file__)"
+python -c "import vnbroker, importlib.metadata as m; print(m.version('vnbroker')); print(vnbroker.__file__)"
 ```
 
-Nếu đường dẫn `vnstock.__file__` trỏ tới source từ repo của bạn thì đã thay thành công.
+Nếu đường dẫn `vnbroker.__file__` trỏ tới source từ repo của bạn thì đã thay thành công.
 
 Tài liệu migration đầy đủ: `docs/FORK_MIGRATION_GUIDE.md`.
 
-### Tối ưu hiệu năng cho dự án khác dùng `vnstock`
+### Tối ưu hiệu năng cho dự án khác dùng `vnbroker`
 
-Nếu bạn tích hợp `vnstock` vào một dự án backend/data pipeline khác, bắt đầu từ 2 tài liệu sau:
+Nếu bạn tích hợp `vnbroker` vào một dự án backend/data pipeline khác, bắt đầu từ 2 tài liệu sau:
 
 - [Performance Profiles and Auto-Tuning](docs/PERFORMANCE_PROFILES.md)
 - [External Project Integration Guide](docs/EXTERNAL_PROJECT_INTEGRATION.md)
@@ -283,15 +283,15 @@ Bạn có thể sử dụng trực tiếp các tính năng dữ liệu cốt lõ
 
 ---
 
-## 🤖 Vibe Coding với AI để viết code Vnstock (nên thử ngay)
+## 🤖 Vibe Coding với AI để viết code vnbroker (nên thử ngay)
 
 **Đừng học code thủ công! Hãy để AI viết code chính xác cho bạn.**
 
 ### Bước 1: Clone Repository
 
 ```bash
-git clone https://github.com/vnstock-hq/vnstock-agent-guide.git
-cd vnstock-agent-guide
+git clone https://github.com/vnbroker-hq/vnbroker-agent-guide.git
+cd vnbroker-agent-guide
 ```
 
 - Nếu máy tính của bạn chưa có git, hãy tải về cài đặt [Git](https://git-scm.com/install/)
@@ -323,7 +323,7 @@ cp GEMINI.md ./
 
 ### Bước 4: Bắt đầu viết code với AI
 
-Sau khi thiết lập xong, bạn có thể yêu cầu AI viết code vnstock chính xác:
+Sau khi thiết lập xong, bạn có thể yêu cầu AI viết code vnbroker chính xác:
 
 **Ví dụ prompts cho AI:**
 
@@ -331,7 +331,7 @@ Sau khi thiết lập xong, bạn có thể yêu cầu AI viết code vnstock ch
 - "Phân tích báo cáo tài chính quý gần nhất của FPT"
 - "So sánh hiệu suất 5 cổ phiếu ngân hàng lớn nhất"
 
-> 🎯 **Điều kỳ diệu:** AI sẽ tự động viết code chính xác với đúng cú pháp, tham số và cấu trúc dữ liệu vnstock mới nhất, tự động chạy chương trình và trả về kết quả mà không cần sự tham gia của bạn.
+> 🎯 **Điều kỳ diệu:** AI sẽ tự động viết code chính xác với đúng cú pháp, tham số và cấu trúc dữ liệu vnbroker mới nhất, tự động chạy chương trình và trả về kết quả mà không cần sự tham gia của bạn.
 
 ---
 
@@ -344,17 +344,17 @@ Nếu bạn muốn học và viết code thủ công, có 4 cách nạp thư vi�
 Giao diện làm việc chính cho phép chuyển đổi nguồn và chỉ cần khai báo tên mã khi khởi động. Cấu trúc này phù hợp khi phân tích xuyên suốt 1 mã chứng khoán và nguồn dữ liệu đồng thời giúp tăng độ ổn định của mã nguồn trong tương lai khi các nguồn dữ mới được bổ sung hoặc nguồn cũ hết hiệu lực, bạn chỉ cần đổi tên nguồn để tiếp tục sử dụng.
 
 ```
-from vnstock import Vnstock
-stock = Vnstock().stock(symbol='VCI', source='KBS')
+from vnbroker import vnbroker
+stock = vnbroker().stock(symbol='VCI', source='KBS')
 stock.quote.history(start='2020-01-01', end='2024-05-25')
 ```
 
-Với nguồn `TCBS`, các endpoint hiện tại yêu cầu Bearer token hợp lệ. Bạn có thể truyền trực tiếp qua `auth_token` hoặc đặt biến môi trường `VNSTOCK_TCBS_AUTH_TOKEN` hay `TCBS_AUTH_TOKEN`.
+Với nguồn `TCBS`, các endpoint hiện tại yêu cầu Bearer token hợp lệ. Bạn có thể truyền trực tiếp qua `auth_token` hoặc đặt biến môi trường `vnbroker_TCBS_AUTH_TOKEN` hay `TCBS_AUTH_TOKEN`.
 
 Nếu bạn dùng iFlash Open API chính thức của TCBS, JWT có thể được đổi từ `apiKey + otp` qua helper:
 
 ```python
-from vnstock.explorer.tcbs.auth import request_openapi_token
+from vnbroker.explorer.tcbs.auth import request_openapi_token
 
 token = request_openapi_token(
   otp='111111',
@@ -365,9 +365,9 @@ token = request_openapi_token(
 Hoặc gọi trực tiếp từ public API mà không cần tự đổi token trước:
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='TCBS', show_log=False).stock(
+stock = vnbroker(source='TCBS', show_log=False).stock(
   symbol='VCB',
   api_key='YOUR_TCBS_OPENAPI_API_KEY',
   otp='111111'
@@ -375,9 +375,9 @@ stock = Vnstock(source='TCBS', show_log=False).stock(
 ```
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='TCBS', show_log=False).stock(
+stock = vnbroker(source='TCBS', show_log=False).stock(
   symbol='VCB',
   auth_token='YOUR_TCBS_BEARER_TOKEN'
 )
@@ -386,10 +386,10 @@ stock.quote.history(start='2024-01-01', end='2024-03-31', interval='1D')
 
 ```python
 import os
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-os.environ['VNSTOCK_TCBS_AUTH_TOKEN'] = 'YOUR_TCBS_BEARER_TOKEN'
-stock = Vnstock(source='TCBS', show_log=False).stock(symbol='VCB')
+os.environ['vnbroker_TCBS_AUTH_TOKEN'] = 'YOUR_TCBS_BEARER_TOKEN'
+stock = vnbroker(source='TCBS', show_log=False).stock(symbol='VCB')
 ```
 
 ### 8.2.2. Nạp thông qua các class tổng hợp
@@ -397,21 +397,21 @@ stock = Vnstock(source='TCBS', show_log=False).stock(symbol='VCB')
 Bạn chọn nạp một trong các lớp chức năng chính. Các lớp chức năng này cho phép chuyển đổi dễ dàng nguồn dữ liệu được hỗ trợ trong khi giữ nguyên cấu trúc hàm. Cấu trúc này giúp tăng độ ổn định của mã nguồn trong tương lai khi các nguồn dữ mới được bổ sung hoặc nguồn cũ hết hiệu lực, bạn chỉ cần đổi tên nguồn để tiếp tục sử dụng.
 
 ```python
-from vnstock import Listing, Quote, Company, Finance, Trading 
+from vnbroker import Listing, Quote, Company, Finance, Trading 
 ```
 
 ### 8.2.3. Nạp các lớp tính năng riêng lẻ theo nguồn dữ liệu cố định
 
-> Bạn cần tham khảo [mã nguồn](https://github.com/vietdungiitb/vnstock/tree/main/vnstock/explorer) để sử dụng đúng các chức năng có sẵn trong thư viện.
+> Bạn cần tham khảo [mã nguồn](https://github.com/vietdungiitb/vnbroker/tree/main/vnbroker/explorer) để sử dụng đúng các chức năng có sẵn trong thư viện.
 
 ```python
-from vnstock.explorer.vci import Listing, Quote, Company, Finance, Trading
+from vnbroker.explorer.vci import Listing, Quote, Company, Finance, Trading
 ```
 
 hoặc 
 
 ```python
-from vnstock.explorer.kbs import Quote, Company, Finance, Trading
+from vnbroker.explorer.kbs import Quote, Company, Finance, Trading
 ```
 
 ## 8.3. Danh sách niêm yết
@@ -419,7 +419,7 @@ from vnstock.explorer.kbs import Quote, Company, Finance, Trading
 > Danh sách các mã chứng khoán sử dụng trong việc thiết lập vòng lặp truy xuất dữ liệu từ các chức năng khác như Giá lịch sử, Thông tin công ty, Báo cáo tài chính, vv
 
 ```python
-from vnstock import Listing
+from vnbroker import Listing
 listing = Listing(source='KBS')
 listing.all_symbols()
 ```
@@ -429,7 +429,7 @@ listing.all_symbols()
 ### Giá lịch sử
 
 ```python
-from vnstock import Quote
+from vnbroker import Quote
 quote = Quote(symbol='ACB', source='KBS')
 quote.history(length='90', interval='d')
 ```
@@ -437,7 +437,7 @@ quote.history(length='90', interval='d')
 hoặc
 
 ```python
-from vnstock import Quote
+from vnbroker import Quote
 quote = Quote(symbol='ACB', source='KBS')
 quote.history(start='2024-01-01', end='2025-03-19', interval='d')
 ```
@@ -457,14 +457,14 @@ Chi tiết vui lòng tham khảo tài liệu và Demo Notebook.
 Thông tin sổ lệnh bid/ask hiển thị trên bảng giá.
 
 ```python
-from vnstock import Trading
+from vnbroker import Trading
 Trading(source='KBS').price_board(['VCB','ACB','TCB','BID'])
 ```
 
 ## 8.7. Truy xuất thông tin công ty
 
 ```python
-from vnstock import Company
+from vnbroker import Company
 company = Company(symbol='ACB', source='KBS')
 company.overview()
 ```
@@ -472,7 +472,7 @@ company.overview()
 ## 8.8. Truy xuất báo cáo tài chính
 
 ```python
-from vnstock import Finance
+from vnbroker import Finance
 finance = Finance(symbol='VCI', source='KBS')
 # Bảng cân đối kế toán - năm
 finance.balance_sheet(period='year')
@@ -491,7 +491,7 @@ finance.ratio(period='year', lang='vi')
 Tính năng này hiện chỉ dùng được với nguồn `TCBS` khi có Bearer token hợp lệ.
 
 ```python
-from vnstock import Screener
+from vnbroker import Screener
 
 screener = Screener(source='TCBS', auth_token='YOUR_TCBS_BEARER_TOKEN')
 df = screener.stock(params={'exchangeName': 'HOSE,HNX,UPCOM'}, limit=50)
@@ -501,7 +501,7 @@ df.head()
 ## 8.10. Dữ liệu quỹ mở
 
 ```python
-from vnstock.explorer.fmarket.fund import Fund
+from vnbroker.explorer.fmarket.fund import Fund
 fund = Fund()
 fund.listing()
 ```
@@ -509,8 +509,8 @@ fund.listing()
 ## 8.11. Dữ liệu thị trường quốc tế: Cổ phiếu, FX, Index
 
 ```python
-from vnstock import Vnstock
-fx = Vnstock().fx(symbol='JPYVND', source='MSN')
+from vnbroker import vnbroker
+fx = vnbroker().fx(symbol='JPYVND', source='MSN')
 df = fx.quote.history(start='2025-01-02', end='2025-03-20', interval='1D')
 df
 ```
@@ -518,7 +518,7 @@ df
 ## 8.12. Tỷ giá & giá vàng
 
 ```python
-from vnstock.explorer.misc import *
+from vnbroker.explorer.misc import *
 
 # Tỷ giá ngoại tệ VCB
 vcb_exchange_rate(date='2024-03-21')
@@ -529,7 +529,7 @@ sjc_gold_price()
 
 ## 8.13. Xuất dữ liệu
 
-> Tất cả dữ liệu trả về từ Vnstock đều là Pandas DataFrame hoặc Series, do đó, bạn có thể mô hình hoá các thao tác phân tích của mình với lệnh Python dễ dàng nhờ hỗ trợ của AI. Nếu cần xuất dữ liệu sang các định dạng truyền thống, bạn chỉ cần gán các hàm mô tả ở trên với 1 tên biến và thực hiện xuất dữ liệu như dưới đây:
+> Tất cả dữ liệu trả về từ vnbroker đều là Pandas DataFrame hoặc Series, do đó, bạn có thể mô hình hoá các thao tác phân tích của mình với lệnh Python dễ dàng nhờ hỗ trợ của AI. Nếu cần xuất dữ liệu sang các định dạng truyền thống, bạn chỉ cần gán các hàm mô tả ở trên với 1 tên biến và thực hiện xuất dữ liệu như dưới đây:
 
 ```python
 # Biến ratio_df lưu giá trị của phép tính vào bộ nhớ
@@ -543,48 +543,48 @@ ratio_df.to_csv('/nơi_lưu_file_của_bạn/tên_file-ratio_df.csv`, index=Fals
 
 ---
 
-# Vnstock - The Open-Source Stock Analysis Toolkit for Investors in Vietnam
+# vnbroker - The Open-Source Stock Analysis Toolkit for Investors in Vietnam
 
-[![Vnstock Homepage](https://raw.githubusercontent.com/vietdungiitb/vnstock/refs/heads/main/assets/images/vnstock-hero-banner.png)](https://vnstocks.com/)
+[![vnbroker Homepage](https://raw.githubusercontent.com/vietdungiitb/vnbroker/refs/heads/main/assets/images/vnbroker-hero-banner.png)](https://vnstocks.com/)
 
 <div id="badges" align="center">
-    <img src="https://img.shields.io/pypi/pyversions/vnstock?logoColor=brown&style=flat" alt="Version"/>
-    <img src="https://img.shields.io/github/last-commit/vietdungiitb/vnstock?style=flat" alt="Commit Badge"/>
+    <img src="https://img.shields.io/pypi/pyversions/vnbroker?logoColor=brown&style=flat" alt="Version"/>
+    <img src="https://img.shields.io/github/last-commit/vietdungiitb/vnbroker?style=flat" alt="Commit Badge"/>
     <img src="https://img.shields.io/badge/license-Custom%20License-red?style=flat" alt="Custom License Badge"/>
 </div>
 
 <div id="badges" align="center">
-    <a href="https://pypi.org/project/vnstock/">
-        <img src="https://img.shields.io/pypi/dm/vnstock?label=vnstock%20download&style=flat" alt="vnstock download badge"/>
+    <a href="https://pypi.org/project/vnbroker/">
+        <img src="https://img.shields.io/pypi/dm/vnbroker?label=vnbroker%20download&style=flat" alt="vnbroker download badge"/>
     </a>
-    <a href="https://pypi.org/project/vnstock3/">
-        <img src="https://img.shields.io/pypi/dm/vnstock3?label=vnstock3%20download&style=flat" alt="vnstock3 download badge"/>
+    <a href="https://pypi.org/project/vnbroker3/">
+        <img src="https://img.shields.io/pypi/dm/vnbroker3?label=vnbroker3%20download&style=flat" alt="vnbroker3 download badge"/>
     </a>
 </div>
 
 ---
 
-# 🎤 Introduction to Vnstock
+# 🎤 Introduction to vnbroker
 
-> Welcome to **Vnstock**, a comprehensive open-source solution for stock analysis and investment automation in Vietnam.
+> Welcome to **vnbroker**, a comprehensive open-source solution for stock analysis and investment automation in Vietnam.
 
-Driven by the mission **"To bring financial data and investment tools closer to everyone"**, Vnstock continuously evolves by integrating modern technologies—not only meeting basic data needs but also empowering you to build flexible, intelligent financial analysis solutions.
+Driven by the mission **"To bring financial data and investment tools closer to everyone"**, vnbroker continuously evolves by integrating modern technologies—not only meeting basic data needs but also empowering you to build flexible, intelligent financial analysis solutions.
 
-### 🚀 Why Vnstock?
+### 🚀 Why vnbroker?
 
 - **Free & Open-Source**: Accessible for all—investors, analysts, researchers, and educators.
 - **Full-Stack Python Support**: Easy-to-use functions for building analysis tools or automated trading bots.
 - **Diverse, Continuously Updated Data**: Covers stocks, warrants, indices, futures, bonds, forex, crypto, and more.
 
-You are an important part of the **digital transformation of Vietnam’s financial market**. Let’s create impact together with Vnstock!
+You are an important part of the **digital transformation of Vietnam’s financial market**. Let’s create impact together with vnbroker!
 
 ### 🤝 Join the Community
 
-Join the Vnstock community to share knowledge, collaborate, and stay updated with the latest features:
+Join the vnbroker community to share knowledge, collaborate, and stay updated with the latest features:
 
 <div id="badges" align="center">
-  <a href="https://www.facebook.com/groups/vnstock.official" target="_blank">
-    <img src="https://img.shields.io/badge/Join%20the%20Community-Vnstock-blue?style=for-the-badge&logo=facebook" alt="Join Vnstock Community"/>
+  <a href="https://www.facebook.com/groups/vnbroker.official" target="_blank">
+    <img src="https://img.shields.io/badge/Join%20the%20Community-vnbroker-blue?style=for-the-badge&logo=facebook" alt="Join vnbroker Community"/>
   </a>
 </div>
 
@@ -592,7 +592,7 @@ Join the Vnstock community to share knowledge, collaborate, and stay updated wit
 
 # II. Key Feature Groups
 
-> `Vnstock` reduces time-to-insight by streamlining data processing, enabling learners, researchers, and financial analysts to build their own smart investment solutions. It is more than a data extraction tool—it’s a flexible foundation for personal investing systems.
+> `vnbroker` reduces time-to-insight by streamlining data processing, enabling learners, researchers, and financial analysts to build their own smart investment solutions. It is more than a data extraction tool—it’s a flexible foundation for personal investing systems.
 
 1. **Easy API Access**  
 
@@ -635,19 +635,19 @@ Join the Vnstock community to share knowledge, collaborate, and stay updated wit
 
 # III. Disclaimer
 
-> **Vnstock** is developed for **personal and research use only**. The provided data may be incomplete, inconsistent, or inaccurate, and should not be used for **live trading, algorithmic strategies, or financial decisions** without proper due diligence.
+> **vnbroker** is developed for **personal and research use only**. The provided data may be incomplete, inconsistent, or inaccurate, and should not be used for **live trading, algorithmic strategies, or financial decisions** without proper due diligence.
 
 The authors **disclaim all responsibility** for any loss, damage, or financial risk arising from the use of this library, including but not limited to: data errors, misinterpretation, or misuse.
 
-**Vnstock does not offer investment advice or trading signals**. Users bear full responsibility for how they use this project.
+**vnbroker does not offer investment advice or trading signals**. Users bear full responsibility for how they use this project.
 
 ---
 
 # IV. 🔑 License
 
-`Vnstock` is distributed under a custom license focused on **personal, non-commercial use**. Usage terms are detailed in the [LICENSE](LICENSE.md). For commercial or institutional use, please contact the author for official licensing.
+`vnbroker` is distributed under a custom license focused on **personal, non-commercial use**. Usage terms are detailed in the [LICENSE](LICENSE.md). For commercial or institutional use, please contact the author for official licensing.
 
-When using Vnstock in your project, you are required to cite the author and project as per the citation guide provided.
+When using vnbroker in your project, you are required to cite the author and project as per the citation guide provided.
 
 ---
 
@@ -655,15 +655,15 @@ When using Vnstock in your project, you are required to cite the author and proj
 
 ## Contributors 
 
-Vnstock thrives thanks to the collective efforts of tech and finance enthusiasts. Every line of code and every bug fix reflects your valuable contributions. Thank you for making vnstock a powerful tool for the investment community!
+vnbroker thrives thanks to the collective efforts of tech and finance enthusiasts. Every line of code and every bug fix reflects your valuable contributions. Thank you for making vnbroker a powerful tool for the investment community!
 
-<a href="https://github.com/vietdungiitb/vnstock/graphs/contributors">
-   <img src="https://contributors-img.web.app/image?repo=vietdungiitb/vnstock" width="800"/>
+<a href="https://github.com/vietdungiitb/vnbroker/graphs/contributors">
+   <img src="https://contributors-img.web.app/image?repo=vietdungiitb/vnbroker" width="800"/>
 </a>
 
 ## ❤️ Featured Sponsors
 
-From the bottom of our hearts, we want to express our deepest gratitude to all our incredible sponsors. Your generous support has been the backbone of this project, allowing us to dedicate more time and resources to improving vnstock. Each contribution, regardless of size, fuels our passion and helps us maintain and enhance this open-source tool for the entire investment community. You are not just sponsors – you are essential partners in our journey to democratize financial data access for all investors.
+From the bottom of our hearts, we want to express our deepest gratitude to all our incredible sponsors. Your generous support has been the backbone of this project, allowing us to dedicate more time and resources to improving vnbroker. Each contribution, regardless of size, fuels our passion and helps us maintain and enhance this open-source tool for the entire investment community. You are not just sponsors – you are essential partners in our journey to democratize financial data access for all investors.
 
 <div style="display: flex; flex-wrap: wrap; gap: 10px;">
   <!-- Present & Past sponsors -->
@@ -698,11 +698,11 @@ From the bottom of our hearts, we want to express our deepest gratitude to all o
 
 ### Support the Project
 
-If you've found value in vnstock and would like to join our community of supporters, your contribution would mean the world to us. Every sponsor enables us to dedicate more time to improving documentation, adding new features, and ensuring the long-term sustainability of this project.
+If you've found value in vnbroker and would like to join our community of supporters, your contribution would mean the world to us. Every sponsor enables us to dedicate more time to improving documentation, adding new features, and ensuring the long-term sustainability of this project.
 
 <div id="badges" align="center">
     <a href="https://github.com/sponsors/vietdungiitb">
-        <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="vnstock3 download badge"/>
+        <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="vnbroker3 download badge"/>
     </a>
 </div>
 
@@ -712,16 +712,16 @@ If you've found value in vnstock and would like to join our community of support
 
 You can support the project by simply starring it on GitHub—this helps the project reach more people. Here's the star history:
 
-[![Star History Chart](https://api.star-history.com/svg?repos=vietdungiitb/vnstock&type=Date)](https://www.star-history.com/#vietdungiitb/vnstock&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=vietdungiitb/vnbroker&type=Date)](https://www.star-history.com/#vietdungiitb/vnbroker&Date)
 
 ---
 
 # VII. ⏱️ Notable Updates
 
 - **20-Mar-2025**: Version `3.2.0` released with Stock Screener data access.
-- **02-Jan-2025**: Official package name for Vnstock3 updated to `vnstock` on PyPI. [Read more](https://vnstocks.com/blog/chuyen-doi-sang-vnstock3-truoc-2025)
-- **02-Nov-2024**: Vnstock3 version `3.0.9` released. [Details](https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban#02-11-2024)
-- **10-May-2024**: Initial release of Vnstock `3.0.1` under package name `vnstock3`
+- **02-Jan-2025**: Official package name for vnbroker3 updated to `vnbroker` on PyPI. [Read more](https://vnstocks.com/blog/chuyen-doi-sang-vnbroker3-truoc-2025)
+- **02-Nov-2024**: vnbroker3 version `3.0.9` released. [Details](https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban#02-11-2024)
+- **10-May-2024**: Initial release of vnbroker `3.0.1` under package name `vnbroker3`
 
 > Full changelog available [here](https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban)
 
@@ -731,7 +731,7 @@ You can support the project by simply starring it on GitHub—this helps the pro
 
 Before getting started, consider starring the project to support us—thank you!
 
-![star_project](https://raw.githubusercontent.com/vietdungiitb/vnstock/beta/docs/docs/assets/images/github_star_guide.png)
+![star_project](https://raw.githubusercontent.com/vietdungiitb/vnbroker/beta/docs/docs/assets/images/github_star_guide.png)
 
 👉 Full documentation and usage guide: [vnstocks.com/docs](https://vnstocks.com/docs)
 
@@ -741,27 +741,27 @@ Before getting started, consider starring the project to support us—thank you!
 
 👉 Stock News documentation index: [docs/STOCK_NEWS_INDEX.md](docs/STOCK_NEWS_INDEX.md)
 
-👉 To understand how to use the MCP feature with professional code editors (IDEs), add the [Context7 MCP Configuration](https://github.com/upstash/context7) for [Vnstock](https://context7.com/vietdungiitb/vnstock) to help the AI generate more accurate code.
+👉 To understand how to use the MCP feature with professional code editors (IDEs), add the [Context7 MCP Configuration](https://github.com/upstash/context7) for [vnbroker](https://context7.com/vietdungiitb/vnbroker) to help the AI generate more accurate code.
 
 Example use cases in Colab Notebook:
 
 <div id="badges" align="center">
   <a href="https://vnstocks.com/docs/tai-lieu/huong-dan-nhanh" target="_blank">
-    <img src="https://img.shields.io/badge/Quick%20Guide-Vnstock-blue?style=for-the-badge&logo=book" alt="Vnstock Docs Badge"/>
+    <img src="https://img.shields.io/badge/Quick%20Guide-vnbroker-blue?style=for-the-badge&logo=book" alt="vnbroker Docs Badge"/>
   </a>
 </div>
 
 ---
 
-## 🤖 AI-Powered Vibe Coding with Vnstock (Try Now)
+## 🤖 AI-Powered Vibe Coding with vnbroker (Try Now)
 
 **Stop manual coding! Let AI write accurate code for you.**
 
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/vnstock-hq/vnstock-agent-guide.git
-cd vnstock-agent-guide
+git clone https://github.com/vnbroker-hq/vnbroker-agent-guide.git
+cd vnbroker-agent-guide
 ```
 
 - If you don't have git installed, download and install [Git](https://git-scm.com/install/)
@@ -793,7 +793,7 @@ cp GEMINI.md ./
 
 ### Step 4: Start Writing Code with AI
 
-After setup, you can ask AI to write accurate vnstock code:
+After setup, you can ask AI to write accurate vnbroker code:
 
 **Example AI prompts:**
 
@@ -801,31 +801,31 @@ After setup, you can ask AI to write accurate vnstock code:
 - "Analyze FPT's latest quarterly financial report"
 - "Compare performance of top 5 banking stocks"
 
-> 🎯 **The Magic:** AI will automatically write accurate code with correct syntax, parameters, and vnstock data structure, run the program and return results without your participation.
+> 🎯 **The Magic:** AI will automatically write accurate code with correct syntax, parameters, and vnbroker data structure, run the program and return results without your participation.
 
 ---
 
 ## 8.1 Installation
 
-Install or upgrade to the latest version of Vnstock via pip:
+Install or upgrade to the latest version of vnbroker via pip:
 
 ```bash
-pip install -U vnstock
+pip install -U vnbroker
 ```
 
 You can also install the experimental release from GitHub using the command:
 
 ```bash
-pip install git+https://github.com/vietdungiitb/vnstock.git
+pip install git+https://github.com/vietdungiitb/vnbroker.git
 ```
 
-### Replace standard `vnstock` with this repository build
+### Replace standard `vnbroker` with this repository build
 
 To use this optimized repository build instead of the standard PyPI package:
 
 ```bash
-# 1) Remove existing vnstock package
-pip uninstall -y vnstock
+# 1) Remove existing vnbroker package
+pip uninstall -y vnbroker
 
 # 2) Install directly from your fork
 pip install git+https://github.com/<your-user>/<your-repo>.git@main
@@ -834,10 +834,10 @@ pip install git+https://github.com/<your-user>/<your-repo>.git@main
 Verify your environment is using the forked build:
 
 ```bash
-python -c "import vnstock, importlib.metadata as m; print(m.version('vnstock')); print(vnstock.__file__)"
+python -c "import vnbroker, importlib.metadata as m; print(m.version('vnbroker')); print(vnbroker.__file__)"
 ```
 
-If `vnstock.__file__` resolves to your repository source, replacement is complete.
+If `vnbroker.__file__` resolves to your repository source, replacement is complete.
 
 Full migration guide: `docs/FORK_MIGRATION_GUIDE.md`.
 
@@ -845,7 +845,7 @@ Full migration guide: `docs/FORK_MIGRATION_GUIDE.md`.
 
 ## 8.2 Importing the Library
 
-You can import Vnstock into your Python environment using Jupyter Notebook or any Python console.
+You can import vnbroker into your Python environment using Jupyter Notebook or any Python console.
 
 Core data features are ready to use directly in the current release.
 
@@ -856,15 +856,15 @@ There are four supported methods:
 Load from core modules that support dynamic switching between data providers:
 
 ```python
-from vnstock import Listing, Quote, Company, Finance, Trading
+from vnbroker import Listing, Quote, Company, Finance, Trading
 ```
 
-For `TCBS`, current endpoints require a valid Bearer token. You can pass it explicitly with `auth_token` or use the environment variables `VNSTOCK_TCBS_AUTH_TOKEN` or `TCBS_AUTH_TOKEN`.
+For `TCBS`, current endpoints require a valid Bearer token. You can pass it explicitly with `auth_token` or use the environment variables `vnbroker_TCBS_AUTH_TOKEN` or `TCBS_AUTH_TOKEN`.
 
 If you are using the official TCBS iFlash Open API, you can exchange `apiKey + otp` for a JWT with the built-in helper:
 
 ```python
-from vnstock.explorer.tcbs.auth import request_openapi_token
+from vnbroker.explorer.tcbs.auth import request_openapi_token
 
 token = request_openapi_token(
   otp='111111',
@@ -875,9 +875,9 @@ token = request_openapi_token(
 Or call it directly from the public API without manually exchanging the token first:
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='TCBS', show_log=False).stock(
+stock = vnbroker(source='TCBS', show_log=False).stock(
   symbol='VCB',
   api_key='YOUR_TCBS_OPENAPI_API_KEY',
   otp='111111'
@@ -885,9 +885,9 @@ stock = Vnstock(source='TCBS', show_log=False).stock(
 ```
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='TCBS', show_log=False).stock(
+stock = vnbroker(source='TCBS', show_log=False).stock(
   symbol='VCB',
   auth_token='YOUR_TCBS_BEARER_TOKEN'
 )
@@ -896,24 +896,24 @@ stock.quote.history(start='2024-01-01', end='2024-03-31', interval='1D')
 
 ```python
 import os
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-os.environ['VNSTOCK_TCBS_AUTH_TOKEN'] = 'YOUR_TCBS_BEARER_TOKEN'
-stock = Vnstock(source='TCBS', show_log=False).stock(symbol='VCB')
+os.environ['vnbroker_TCBS_AUTH_TOKEN'] = 'YOUR_TCBS_BEARER_TOKEN'
+stock = vnbroker(source='TCBS', show_log=False).stock(symbol='VCB')
 ```
 
 ### 8.2.2. Import from Specific Data Providers
 
-For advanced users needing fixed data sources. Refer to the [source code](https://github.com/vietdungiitb/vnstock/tree/main/vnstock/explorer) for details:
+For advanced users needing fixed data sources. Refer to the [source code](https://github.com/vietdungiitb/vnbroker/tree/main/vnbroker/explorer) for details:
 
 ```python
-from vnstock.explorer.vci import Listing, Quote, Company, Finance, Trading
+from vnbroker.explorer.vci import Listing, Quote, Company, Finance, Trading
 ```
 
 or
 
 ```python
-from vnstock.explorer.kbs import Quote, Company, Finance, Trading
+from vnbroker.explorer.kbs import Quote, Company, Finance, Trading
 ```
 
 ---
@@ -923,7 +923,7 @@ from vnstock.explorer.kbs import Quote, Company, Finance, Trading
 Used for generating lists of available tickers—essential for batch operations:
 
 ```python
-from vnstock import Listing
+from vnbroker import Listing
 listing = Listing(source='KBS')
 listing.all_symbols()
 ```
@@ -935,7 +935,7 @@ listing.all_symbols()
 ### Historical Prices
 
 ```python
-from vnstock import Quote 
+from vnbroker import Quote 
 quote = Quote(symbol='ACB', source='KBS')
 quote.history(length='90', interval='d')
 ```
@@ -943,7 +943,7 @@ quote.history(length='90', interval='d')
 Or use:
 
 ```python
-from vnstock import Quote
+from vnbroker import Quote
 quote = Quote(symbol='ACB', source='KBS')
 quote.history(start='2024-01-01', end='2025-03-19', interval='d')
 ```
@@ -965,7 +965,7 @@ stock.quote.intraday(symbol='ACB', page_size=10_000, show_log=False)
 Get real-time quotes for multiple tickers:
 
 ```python
-from vnstock import Trading
+from vnbroker import Trading
 Trading(source='KBS').price_board(['VCB','ACB','TCB','BID'])
 ```
 
@@ -974,7 +974,7 @@ Trading(source='KBS').price_board(['VCB','ACB','TCB','BID'])
 ## 8.7 Company Information
 
 ```python
-from vnstock import Company
+from vnbroker import Company
 company = Company(symbol='ACB', source='KBS')
 company.overview()
 ```
@@ -984,7 +984,7 @@ company.overview()
 ## 8.8 Financial Reports
 
 ```python
-from vnstock import Finance
+from vnbroker import Finance
 finance = Finance(symbol='VCI', source='KBS')
 
 # Balance Sheet - yearly
@@ -1010,7 +1010,7 @@ finance.ratio(period='year', lang='vi')
 This feature currently works only with `TCBS` and requires a valid Bearer token.
 
 ```python
-from vnstock import Screener
+from vnbroker import Screener
 
 screener = Screener(source='TCBS', auth_token='YOUR_TCBS_BEARER_TOKEN')
 df = screener.stock(params={'exchangeName': 'HOSE,HNX,UPCOM'}, limit=50)
@@ -1022,7 +1022,7 @@ df.head()
 ## 8.10 Mutual Fund Data
 
 ```python
-from vnstock.explorer.fmarket.fund import Fund
+from vnbroker.explorer.fmarket.fund import Fund
 fund = Fund()
 fund.listing()
 ```
@@ -1032,8 +1032,8 @@ fund.listing()
 ## 8.11 International Markets: Stocks, FX, Indices
 
 ```python
-from vnstock import Vnstock
-fx = Vnstock().fx(symbol='JPYVND', source='MSN')
+from vnbroker import vnbroker
+fx = vnbroker().fx(symbol='JPYVND', source='MSN')
 df = fx.quote.history(start='2025-01-02', end='2025-03-20', interval='1D')
 df
 ```
@@ -1043,7 +1043,7 @@ df
 ## 8.12 Exchange Rates & Gold Prices
 
 ```python
-from vnstock.explorer.misc import *
+from vnbroker.explorer.misc import *
 
 # VCB exchange rate
 vcb_exchange_rate(date='2024-03-21')
@@ -1056,7 +1056,7 @@ sjc_gold_price()
 
 ## 8.13 Exporting Data
 
-> All data from Vnstock is returned as Pandas `DataFrame` or `Series`, making it AI-friendly and easy to process or export.
+> All data from vnbroker is returned as Pandas `DataFrame` or `Series`, making it AI-friendly and easy to process or export.
 
 ```python
 # Save ratio data to memory

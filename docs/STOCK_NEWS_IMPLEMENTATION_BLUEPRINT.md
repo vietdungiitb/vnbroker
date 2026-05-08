@@ -1,11 +1,11 @@
-# Stock News Multi-Source Implementation Blueprint
+﻿# Stock News Multi-Source Implementation Blueprint
 
 Last updated: 2026-04-11
 Status: Design for phased implementation
 
 ## 1) Product target
 
-Build a production-grade, multi-source stock news library in vnstock with:
+Build a production-grade, multi-source stock news library in vnbroker with:
 
 - Fast ingestion from prioritized sources
 - Unified news schema
@@ -35,19 +35,19 @@ Build a production-grade, multi-source stock news library in vnstock with:
 2. Official market announcement channels (exchange/issuer where accessible)
 3. Optional international news enrichment feeds
 
-## 3) Proposed architecture in vnstock
+## 3) Proposed architecture in vnbroker
 
 ## 3.1 New module layers
 
-1. `vnstock/api/news.py`
+1. `vnbroker/api/news.py`
    - Public adapter for market-wide and symbol-scoped news
-2. `vnstock/explorer/<source>/news.py`
+2. `vnbroker/explorer/<source>/news.py`
    - Source-specific providers (vci, kbs, rss_cafef, rss_vneconomy, etc.)
-3. `vnstock/news/normalize.py`
+3. `vnbroker/news/normalize.py`
    - Canonical schema mapping
-4. `vnstock/news/dedup.py`
+4. `vnbroker/news/dedup.py`
    - Dedup keys and similarity grouping
-5. `vnstock/news/quality.py`
+5. `vnbroker/news/quality.py`
    - Quality score and source reliability logic
 
 ## 3.2 Keep existing behavior

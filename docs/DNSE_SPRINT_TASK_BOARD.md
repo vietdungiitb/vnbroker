@@ -1,4 +1,4 @@
-# DNSE Sprint Task Board
+﻿# DNSE Sprint Task Board
 
 > Mục tiêu: bảng theo dõi công việc slice-by-slice cho đội code.
 >
@@ -14,7 +14,7 @@
 
 | Hạng mục | Giá trị |
 |---|---|
-| Sprint goal | DNSE được dùng như source ngang hàng VCI/KBS/TCBS trong vnstock |
+| Sprint goal | DNSE được dùng như source ngang hàng VCI/KBS/TCBS trong vnbroker |
 | Độ dài sprint | 1-2 ngày working |
 | Branch | `dev` |
 | Định nghĩa done (toàn sprint) | Tất cả ô trạng thái = ✅ DONE, `git diff --check` sạch, CI pass |
@@ -60,13 +60,13 @@
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/connector/dnse/client.py` |
+| **File tác động** | `vnbroker/connector/dnse/client.py` |
 | **Mục tiêu slice** | `_to_dataframe` nhận đủ keys: `bars`, `candles`, `ohlc`, `trades`, `instruments`, `securities` |
 | **Phụ thuộc** | Không có |
 | **Ước tính** | 10 phút |
 | **Người làm** | _____ |
 | **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -c "from vnstock.connector.dnse.client import DNSEClient; import inspect; src = inspect.getsource(DNSEClient._to_dataframe); assert 'bars' in src; print('S1 PASS')"` |
+| **Bằng chứng** | `python -c "from vnbroker.connector.dnse.client import DNSEClient; import inspect; src = inspect.getsource(DNSEClient._to_dataframe); assert 'bars' in src; print('S1 PASS')"` |
 
 **Checklist S1:**
 - [ ] Keys `bars`, `candles`, `ohlc` được nhận
@@ -80,7 +80,7 @@
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/explorer/dnse/quote.py` (NEW) |
+| **File tác động** | `vnbroker/explorer/dnse/quote.py` (NEW) |
 | **Mục tiêu slice** | `DNSEQuote.history()` trả DataFrame đúng schema với mock client |
 | **Phụ thuộc** | S1 |
 | **Ước tính** | 30 phút |
@@ -89,7 +89,7 @@
 | **Bằng chứng** | `pytest tests/unit/explorer/dnse/test_quote.py -q` → 0 failed |
 
 **Checklist S2:**
-- [ ] File `vnstock/explorer/dnse/quote.py` tồn tại
+- [ ] File `vnbroker/explorer/dnse/quote.py` tồn tại
 - [ ] Class `DNSEQuote` có `__init__(symbol, api_key, api_secret, show_log, **kwargs)`
 - [ ] `ValueError` raise khi thiếu api_key hoặc api_secret
 - [ ] `ValueError` message có URL đăng ký DNSE
@@ -113,7 +113,7 @@
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/explorer/dnse/listing.py` (NEW) |
+| **File tác động** | `vnbroker/explorer/dnse/listing.py` (NEW) |
 | **Mục tiêu slice** | `DNSEListing.all_symbols()` trả DataFrame có cột `symbol`, `exchange` |
 | **Phụ thuộc** | S1 |
 | **Ước tính** | 20 phút |
@@ -122,7 +122,7 @@
 | **Bằng chứng** | `pytest tests/unit/explorer/dnse/test_listing.py -q` → 0 failed |
 
 **Checklist S3:**
-- [ ] File `vnstock/explorer/dnse/listing.py` tồn tại
+- [ ] File `vnbroker/explorer/dnse/listing.py` tồn tại
 - [ ] Class `DNSEListing` có `__init__(api_key, api_secret, show_log, **kwargs)`
 - [ ] `ValueError` raise khi thiếu credential
 - [ ] Method `all_symbols()` trả DataFrame
@@ -139,55 +139,55 @@
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/explorer/dnse/__init__.py` (NEW) |
+| **File tác động** | `vnbroker/explorer/dnse/__init__.py` (NEW) |
 | **Mục tiêu slice** | `ProviderRegistry.is_registered("quote", "dnse")` → `True` |
 | **Phụ thuộc** | S2, S3 |
 | **Ước tính** | 5 phút |
 | **Người làm** | _____ |
 | **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -c "from vnstock.explorer.dnse import DNSEQuote, DNSEListing; print('S4 PASS')"` |
+| **Bằng chứng** | `python -c "from vnbroker.explorer.dnse import DNSEQuote, DNSEListing; print('S4 PASS')"` |
 
 **Checklist S4:**
-- [ ] File `vnstock/explorer/dnse/__init__.py` tồn tại
+- [ ] File `vnbroker/explorer/dnse/__init__.py` tồn tại
 - [ ] `ProviderRegistry.register("quote", "dnse", DNSEQuote)` được gọi
 - [ ] `ProviderRegistry.register("listing", "dnse", DNSEListing)` được gọi
 - [ ] Import `DNSEQuote`, `DNSEListing` từ `__init__` hoạt động
 
 ---
 
-### S5 — Sửa `vnstock/__init__.py` (lazy load dnse)
+### S5 — Sửa `vnbroker/__init__.py` (lazy load dnse)
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/__init__.py` |
+| **File tác động** | `vnbroker/__init__.py` |
 | **Mục tiêu slice** | `_ensure_explorer_modules_loaded()` load `dnse` module |
 | **Phụ thuộc** | S4 |
 | **Ước tính** | 5 phút |
 | **Người làm** | _____ |
 | **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -c "from vnstock import Vnstock; print('S5 PASS')"` |
+| **Bằng chứng** | `python -c "from vnbroker import vnbroker; print('S5 PASS')"` |
 
 **Checklist S5:**
 - [ ] `from .explorer import dnse` được thêm vào `_ensure_explorer_modules_loaded()`
-- [ ] `import vnstock` không gây lỗi ImportError
+- [ ] `import vnbroker` không gây lỗi ImportError
 - [ ] Không tạo circular import
 
 ---
 
-### S6 — Sửa `vnstock/common/client.py` và `common/data.py`
+### S6 — Sửa `vnbroker/common/client.py` và `common/data.py`
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/common/client.py`, `vnstock/common/data.py` |
-| **Mục tiêu slice** | `Vnstock().stock('VNM', source='DNSE', api_key=..., api_secret=...)` khởi tạo được |
+| **File tác động** | `vnbroker/common/client.py`, `vnbroker/common/data.py` |
+| **Mục tiêu slice** | `vnbroker().stock('VNM', source='DNSE', api_key=..., api_secret=...)` khởi tạo được |
 | **Phụ thuộc** | S5 |
 | **Ước tính** | 20 phút |
 | **Người làm** | _____ |
 | **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -c "from vnstock import Vnstock; s = Vnstock().stock('VNM','DNSE',api_key='k',api_secret='s'); print('S6 PASS')"` |
+| **Bằng chứng** | `python -c "from vnbroker import vnbroker; s = vnbroker().stock('VNM','DNSE',api_key='k',api_secret='s'); print('S6 PASS')"` |
 
 **Checklist S6:**
-- [ ] `"DNSE"` có trong `SUPPORTED_SOURCES` của `Vnstock`
+- [ ] `"DNSE"` có trong `SUPPORTED_SOURCES` của `vnbroker`
 - [ ] `stock()` nhận `api_key` và `api_secret` kwargs
 - [ ] `api_key`/`api_secret` được truyền vào `StockComponents`
 - [ ] `StockComponents` với `source='DNSE'` khởi tạo `self.quote` và `self.listing`
@@ -203,17 +203,17 @@
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/connector/dnse/trade.py` |
+| **File tác động** | `vnbroker/connector/dnse/trade.py` |
 | **Mục tiêu slice** | Không còn `print()` trong file `trade.py` |
 | **Phụ thuộc** | Không (độc lập) |
 | **Ước tính** | 20 phút |
 | **Người làm** | _____ |
 | **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `Select-String -Path "vnstock\connector\dnse\trade.py" -Pattern "print\("` → không có output |
+| **Bằng chứng** | `Select-String -Path "vnbroker\connector\dnse\trade.py" -Pattern "print\("` → không có output |
 
 **Checklist S7:**
 - [ ] Không có `print(` trong `trade.py`
-- [ ] `from vnstock.core.utils.logger import get_logger` được import
+- [ ] `from vnbroker.core.utils.logger import get_logger` được import
 - [ ] `logger = get_logger(__name__)` tồn tại
 - [ ] Tất cả `print(...)` đã thay bằng `logger.info(...)` hoặc `logger.error(...)`
 - [ ] Public method names giữ nguyên (backward compat)
@@ -226,7 +226,7 @@
 
 | Trường | Giá trị |
 |---|---|
-| **File tác động** | `vnstock/connector/dnse/trade.py` |
+| **File tác động** | `vnbroker/connector/dnse/trade.py` |
 | **Mục tiêu slice** | `Trade().as_openapi_client(api_key, api_secret)` trả `DNSEClient` instance |
 | **Phụ thuộc** | S7 |
 | **Ước tính** | 20 phút |
@@ -320,7 +320,7 @@
 | S2 | explorer/dnse/quote.py | P0 | S1 | | 🔲 TODO | |
 | S3 | explorer/dnse/listing.py | P0 | S1 | | 🔲 TODO | |
 | S4 | explorer/dnse/__init__.py | P0 | S2, S3 | | 🔲 TODO | |
-| S5 | vnstock/__init__.py lazy load | P0 | S4 | | 🔲 TODO | |
+| S5 | vnbroker/__init__.py lazy load | P0 | S4 | | 🔲 TODO | |
 | S6 | common/client.py + data.py | P0 | S5 | | 🔲 TODO | |
 | S7 | trade.py print → logger | P1 | — | | 🔲 TODO | |
 | S8 | trade.py bridge methods | P1 | S7 | | 🔲 TODO | |
@@ -346,9 +346,9 @@ Sprint chỉ được coi là xong khi tất cả điều kiện sau đồng th�
 
 - [ ] Tất cả S1–S9 ở trạng thái ✅ DONE (S10, S11 có thể SKIP với lý do env)
 - [ ] `pytest tests/unit/explorer/dnse/ tests/unit/connector/dnse/ -q` → 0 failed
-- [ ] `python -c "from vnstock import Vnstock; s = Vnstock().stock('VNM','DNSE',api_key='k',api_secret='s'); print('OK')"` → `OK`
+- [ ] `python -c "from vnbroker import vnbroker; s = vnbroker().stock('VNM','DNSE',api_key='k',api_secret='s'); print('OK')"` → `OK`
 - [ ] `git diff --check` → không có output
-- [ ] `Select-String -Path "vnstock\explorer\dnse\*.py","vnstock\connector\dnse\trade.py" -Pattern "print\("` → không có output
+- [ ] `Select-String -Path "vnbroker\explorer\dnse\*.py","vnbroker\connector\dnse\trade.py" -Pattern "print\("` → không có output
 - [ ] `CENTRAL_MODIFIED_FILES_AUDIT.md` đã được append
 - [ ] `module_tree_full.md` và `DNSE_INDEX.md` đã được cập nhật
 - [ ] Tất cả commit đã push lên nhánh `dev`

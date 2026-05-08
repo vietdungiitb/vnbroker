@@ -1,10 +1,10 @@
 import pytest
 
-from vnstock.api.listing import Listing
-from vnstock.api.quote import Quote
-from vnstock.api.trading import Trading
-from vnstock.core import source_router
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.api.listing import Listing
+from vnbroker.api.quote import Quote
+from vnbroker.api.trading import Trading
+from vnbroker.core import source_router
+from vnbroker.core.registry import ProviderRegistry
 
 
 class _HealthyListingProvider:
@@ -74,7 +74,7 @@ class TestAutoSourceRouter:
             assert source_name == "kbs"
             return _HealthyQuoteProvider
 
-        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["kbs", "vci"])
+        monkeypatch.setattr("vnbroker.base.build_source_order", lambda *args, **kwargs: ["kbs", "vci"])
         monkeypatch.setattr(ProviderRegistry, "get", fake_get)
 
         quote = Quote(source="AUTO", symbol="ACB", show_log=False)
@@ -90,7 +90,7 @@ class TestAutoSourceRouter:
         def fake_get(module_name, source_name):
             return providers[(module_name, source_name)]
 
-        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
+        monkeypatch.setattr("vnbroker.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
         monkeypatch.setattr(ProviderRegistry, "get", fake_get)
 
         listing = Listing(source="AUTO", show_log=False)
@@ -144,7 +144,7 @@ class TestAutoSourceRouter:
         def fake_get(module_name, source_name):
             return providers[(module_name, source_name)]
 
-        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
+        monkeypatch.setattr("vnbroker.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
         monkeypatch.setattr(ProviderRegistry, "get", fake_get)
 
         trading = Trading(source="AUTO", show_log=False)
@@ -191,7 +191,7 @@ class TestAutoSourceRouter:
             )
 
     def test_trading_auto_primary_can_be_overridden_by_env(self, monkeypatch):
-        monkeypatch.setenv("VNSTOCK_TRADING_AUTO_PRIMARY", "vci")
+        monkeypatch.setenv("vnbroker_TRADING_AUTO_PRIMARY", "vci")
         order = source_router.build_source_order("trading", symbol="ACB")
         assert order[0] == "vci"
 
@@ -235,7 +235,7 @@ class TestAutoSourceRouter:
             ("listing", "kbs"): _HealthyListingProvider,
         }
 
-        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
+        monkeypatch.setattr("vnbroker.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
         monkeypatch.setattr(ProviderRegistry, "get", lambda m, s: providers[(m, s)])
 
         listing = Listing(source="AUTO", show_log=False)
@@ -262,7 +262,7 @@ class TestAutoSourceRouter:
             ("listing", "kbs"): _HealthyListingProvider,
         }
 
-        monkeypatch.setattr("vnstock.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
+        monkeypatch.setattr("vnbroker.base.build_source_order", lambda *args, **kwargs: ["vci", "kbs"])
         monkeypatch.setattr(ProviderRegistry, "get", lambda m, s: providers[(m, s)])
 
         listing = Listing(source="AUTO", show_log=False)

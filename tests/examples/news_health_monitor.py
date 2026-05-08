@@ -1,4 +1,4 @@
-"""
+﻿"""
 News health monitor example.
 
 Usage:
@@ -10,8 +10,8 @@ from __future__ import annotations
 import argparse
 import time
 
-from vnstock.common.client import Vnstock
-from vnstock.news.monitor import summarize_alerts
+from vnbroker.common.client import Vnbroker
+from vnbroker.news.monitor import summarize_alerts
 
 
 def run_monitor(
@@ -24,7 +24,7 @@ def run_monitor(
     max_failures: int,
     max_cooldown_sec: float,
 ):
-    stock = Vnstock(show_log=False)
+    stock = Vnbroker(show_log=False)
     target = stock.stock(symbol, source=source)
 
     for idx in range(iterations):
@@ -43,7 +43,7 @@ def run_monitor(
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Monitor vnstock news source health")
+    parser = argparse.ArgumentParser(description="Monitor vnbroker news source health")
     parser.add_argument("--symbol", default="ACB")
     parser.add_argument("--source", default="AUTO")
     parser.add_argument("--iterations", type=int, default=3)

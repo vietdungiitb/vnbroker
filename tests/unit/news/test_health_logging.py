@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import pytest
 
-from vnstock.news.health import append_health_log, health_snapshot_to_dataframe
+from vnbroker.news.health import append_health_log, health_snapshot_to_dataframe
 
 
 @pytest.mark.unit

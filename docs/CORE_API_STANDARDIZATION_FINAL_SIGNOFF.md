@@ -1,6 +1,6 @@
-# Final Signoff - Core API Standardization
+﻿# Final Signoff - Core API Standardization
 
-> Mã gói: VNSTOCK-RFC-CORE-2026-04
+> Mã gói: vnbroker-RFC-CORE-2026-04
 >
 > Ngày chốt: 2026-04-18
 >
@@ -61,7 +61,7 @@
 - Đạt
 
 5. Known operational policy:
-- Live integration phụ thuộc upstream rate-limit, chạy bằng cờ `VNSTOCK_RUN_LIVE_INTEGRATION=1` theo lịch vận hành.
+- Live integration phụ thuộc upstream rate-limit, chạy bằng cờ `vnbroker_RUN_LIVE_INTEGRATION=1` theo lịch vận hành.
 
 ---
 

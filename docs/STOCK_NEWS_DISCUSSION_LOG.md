@@ -1,7 +1,7 @@
-# Stock News - Discussion Log
+﻿# Stock News - Discussion Log
 
 Last updated: 2026-04-11
-Scope: Define strategy to build a high-quality multi-source stock news library integrated deeply into vnstock.
+Scope: Define strategy to build a high-quality multi-source stock news library integrated deeply into vnbroker.
 
 ## 1) Objectives agreed
 
@@ -10,7 +10,7 @@ Scope: Define strategy to build a high-quality multi-source stock news library i
   - Stable ingestion SLA
   - Standardized schema across sources
   - High observability and testability
-- Integrate deeply with existing vnstock adapter/provider architecture, not a parallel code path.
+- Integrate deeply with existing vnbroker adapter/provider architecture, not a parallel code path.
 - Prioritize usable sources first, then expand.
 
 ## 2) Current codebase findings

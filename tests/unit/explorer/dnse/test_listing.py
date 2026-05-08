@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from vnstock.explorer.dnse.listing import DNSEListing
+from vnbroker.explorer.dnse.listing import DNSEListing
 
 
 _SAMPLE_INSTRUMENTS_BODY = {
@@ -26,7 +26,7 @@ _SAMPLE_INDEX_BODY = {
 
 def _make_listing():
     with patch.dict(os.environ, {"DNSE_API_KEY": "test-key", "DNSE_API_SECRET": "test-secret"}):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as mock_client_cls:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_client_cls:
             mock_client = MagicMock()
 
             def side_effect(*args, **kwargs):
@@ -96,7 +96,7 @@ class TestDNSEListing:
     def test_fetch_instruments_exception_returns_empty(self, monkeypatch):
         """_fetch_instruments trả empty DataFrame khi API raise exception."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 mc._market.get_instruments.side_effect = Exception("network error")
                 mock_cls.return_value = mc
@@ -107,7 +107,7 @@ class TestDNSEListing:
     def test_fetch_instruments_body_none_returns_empty(self):
         """_fetch_instruments trả empty DataFrame khi body là None."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 mc._market.get_instruments.return_value = (200, None)
                 mock_cls.return_value = mc
@@ -118,7 +118,7 @@ class TestDNSEListing:
     def test_fetch_instruments_body_dict_fallback_no_list_key(self):
         """_fetch_instruments xử lý body dict không có list key → dùng [body]."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 mc._market.get_instruments.return_value = (
                     200,
@@ -133,7 +133,7 @@ class TestDNSEListing:
     def test_fetch_instruments_body_list_directly(self):
         """_fetch_instruments xử lý body trả về trực tiếp là list."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 mc._market.get_instruments.return_value = (
                     200,
@@ -174,7 +174,7 @@ class TestDNSEListing:
     def test_indices_exception_fallback_with_type_column(self):
         """indices() khi exception xảy ra → fallback lọc type==INDEX."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 call_count = 0
 
@@ -201,7 +201,7 @@ class TestDNSEListing:
     def test_indices_body_none_returns_empty(self):
         """indices() trả empty khi body là None."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 mc._market.get_instruments.return_value = (200, None)
                 mock_cls.return_value = mc
@@ -212,7 +212,7 @@ class TestDNSEListing:
     def test_indices_body_list_directly(self):
         """indices() xử lý body là list trực tiếp."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 mc._market.get_instruments.return_value = (
                     200,
@@ -236,7 +236,7 @@ class TestDNSEListing:
     def test_show_log_via_instance_flag(self):
         """show_log=True trên instance kích hoạt log path."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
                 mc = MagicMock()
                 mc._market.get_instruments.return_value = (200, _SAMPLE_INSTRUMENTS_BODY)
                 mock_cls.return_value = mc

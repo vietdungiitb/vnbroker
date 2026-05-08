@@ -1,4 +1,4 @@
-# DNSE Integration Documentation Index
+﻿# DNSE Integration Documentation Index
 
 Bộ tài liệu này được thiết kế để đội code có thể thực hiện và không cần hỏi lại, có audit minh chứng.  
 **Cập nhật lần cuối:** 2026-05-08 (thêm bộ tài liệu triển khai cho đội code: sprint task board, slice DoD, audit checklist V2 — bổ sung phần I–L, form sign-off 3 vai trò)
@@ -70,7 +70,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 
 ## Mục tiêu
 
-- Tích hợp DNSE OpenAPI vào vnstock với API thống nhất (ngang hàng VCI/TCBS/KBS).
+- Tích hợp DNSE OpenAPI vào vnbroker với API thống nhất (ngang hàng VCI/TCBS/KBS).
 - Tách module theo file riêng, tránh fat file.
 - Hỗ trợ đầy đủ 3 nhóm nghiệp vụ:
   - **Market Data:** OHLC history, intraday trades, security definition, instruments listing.
@@ -81,9 +81,9 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 
 ## Định nghĩa done cho toàn bộ scope
 
-- [ ] Explorer layer: `vnstock/explorer/dnse/` hoạt động, registered vào ProviderRegistry
+- [ ] Explorer layer: `vnbroker/explorer/dnse/` hoạt động, registered vào ProviderRegistry
 - [ ] `StockComponents(symbol, source='DNSE')` hoạt động end-to-end
-- [ ] `Vnstock().stock(symbol, source='DNSE', api_key=..., api_secret=...)` hoạt động
+- [ ] `vnbroker().stock(symbol, source='DNSE', api_key=..., api_secret=...)` hoạt động
 - [ ] `trade.py` không còn `print()`, có `as_openapi_client()` và `login_and_get_trading_session()`
 - [ ] Unit tests pass 100%, coverage ≥ 80%
 - [ ] Integration tests pass ≥ 95% (với env có key thật)

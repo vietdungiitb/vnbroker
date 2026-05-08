@@ -1,7 +1,7 @@
 import pandas as pd
 
-from vnstock.base import BaseAdapter
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.base import BaseAdapter
+from vnbroker.core.registry import ProviderRegistry
 
 
 class _MockFinancialProvider:

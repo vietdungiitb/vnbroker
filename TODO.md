@@ -1,15 +1,15 @@
-# 8X API Calls + 5X Speed Optimization TODO
+﻿# 8X API Calls + 5X Speed Optimization TODO
 ## Current Progress: Phase 1 ⏳
 
 ## Audit File List (Price Unit Standardization - 2026-04-16) ✅ COMPLETED
 
 ### Core Implementation Files
-- vnstock/core/utils/transform.py (enhanced normalization logic + env var handling)
-- vnstock/explorer/msn/quote.py (added price_unit parameter)
-- vnstock/explorer/vci/quote.py (metadata fixes on empty paths)
-- vnstock/explorer/vci/trading.py (added price_unit parameter)
-- vnstock/explorer/kbs/trading.py (added price_unit parameter)
-- vnstock/explorer/tcbs/trading.py (added price_unit parameter)
+- vnbroker/core/utils/transform.py (enhanced normalization logic + env var handling)
+- vnbroker/explorer/msn/quote.py (added price_unit parameter)
+- vnbroker/explorer/vci/quote.py (metadata fixes on empty paths)
+- vnbroker/explorer/vci/trading.py (added price_unit parameter)
+- vnbroker/explorer/kbs/trading.py (added price_unit parameter)
+- vnbroker/explorer/tcbs/trading.py (added price_unit parameter)
 
 ### Test Files
 - tests/unit/explorer/test_trading_price_unit_standardization.py (NEW - 4 tests)
@@ -34,14 +34,14 @@
 ## Phase 2: Quote (vci/kbs → async + parallel)
 
 ## Phase 2: Quote Parallelization (Priority: quote/listing first)
-- [ ] `vnstock/explorer/vci/quote.py`: Add async history(), fetch_multiple(symbols)
-- [ ] `vnstock/explorer/kbs/quote.py`: Add async history(), fetch_multiple()
-- [ ] `vnstock/api/quote.py`: Add quote_multiple(symbols, parallel=True)
+- [ ] `vnbroker/explorer/vci/quote.py`: Add async history(), fetch_multiple(symbols)
+- [ ] `vnbroker/explorer/kbs/quote.py`: Add async history(), fetch_multiple()
+- [ ] `vnbroker/api/quote.py`: Add quote_multiple(symbols, parallel=True)
 
 ## Phase 3: Listing + Financial
-- [ ] `vnstock/explorer/vci/listing.py`: symbols_parallel(groups)
-- [ ] `vnstock/explorer/kbs/listing.py`: Similar  
-- [ ] `vnstock/api/listing.py`: listing_parallel()
+- [ ] `vnbroker/explorer/vci/listing.py`: symbols_parallel(groups)
+- [ ] `vnbroker/explorer/kbs/listing.py`: Similar  
+- [ ] `vnbroker/api/listing.py`: listing_parallel()
 
 ## Phase 4: Productionize
 - [ ] **DEPS**: httpx[http2], asyncio-throttle → requirements.txt

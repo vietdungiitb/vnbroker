@@ -1,6 +1,6 @@
 import pytest
 
-from vnstock.connector.dnse.trade import Trade
+from vnbroker.connector.dnse.trade import Trade
 
 
 def test_trade_bridge_requires_openapi_credentials_for_new_methods():

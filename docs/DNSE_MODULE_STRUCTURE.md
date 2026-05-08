@@ -1,9 +1,9 @@
-# DNSE Module Structure Blueprint
+﻿# DNSE Module Structure Blueprint
 
 ## 1. Cau truc de xuat
 
 ```text
-vnstock/
+vnbroker/
   connector/
     dnse/
       __init__.py

@@ -1,6 +1,6 @@
-# Hướng dẫn sử dụng: Tài chính cơ bản, Giao dịch nội bộ, So sánh ngành
+﻿# Hướng dẫn sử dụng: Tài chính cơ bản, Giao dịch nội bộ, So sánh ngành
 
-> Áp dụng cho nhánh code hiện tại của dự án vnstock-main.
+> Áp dụng cho nhánh code hiện tại của dự án vnbroker-main.
 > 
 > Mục tiêu: dùng đúng 3 nhóm hàm đã chuẩn hóa để tích hợp vào service/API/dashboard.
 
@@ -8,12 +8,12 @@
 
 ## 1) Khởi tạo nhanh
 
-Khuyến nghị đi qua client Vnstock để có đầy đủ component company/finance cho một mã cổ phiếu.
+Khuyến nghị đi qua client vnbroker để có đầy đủ component company/finance cho một mã cổ phiếu.
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-client = Vnstock(show_log=False)
+client = vnbroker(show_log=False)
 stock = client.stock(symbol="VCB", source="AUTO")
 
 # stock.company -> nhóm giao dịch nội bộ
@@ -207,9 +207,9 @@ Ví dụ hàm service:
 
 ```python
 def build_finance_scorecard(symbol: str, source: str = "AUTO"):
-    from vnstock import Vnstock
+    from vnbroker import vnbroker
 
-    stock = Vnstock(show_log=False).stock(symbol=symbol, source=source)
+    stock = vnbroker(show_log=False).stock(symbol=symbol, source=source)
 
     snapshot = stock.finance.fundamental_snapshot(
         metrics=["roe", "roa", "eps", "book_value_per_share"],
@@ -261,7 +261,7 @@ if snapshot.empty:
 - Không tắt standardize cho insider trừ khi debug.
 - Chốt danh sách metric chuẩn theo nghiệp vụ dashboard.
 - Log source/source_used để dễ audit khi AUTO failover.
-- Với test live integration, bật biến VNSTOCK_RUN_LIVE_INTEGRATION=1 theo lịch kiểm thử.
+- Với test live integration, bật biến vnbroker_RUN_LIVE_INTEGRATION=1 theo lịch kiểm thử.
 
 ---
 

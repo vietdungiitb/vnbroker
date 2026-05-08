@@ -1,8 +1,8 @@
 import pandas as pd
 import pytest
 
-from vnstock.news.dedup import deduplicate_news_dataframe
-from vnstock.news.normalize import normalize_news_dataframe
+from vnbroker.news.dedup import deduplicate_news_dataframe
+from vnbroker.news.normalize import normalize_news_dataframe
 
 
 @pytest.mark.unit

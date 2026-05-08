@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from vnstock.connector.dnse.client import DNSEClient
+from vnbroker.connector.dnse.client import DNSEClient
 
 
 def _require_env(name: str) -> str:

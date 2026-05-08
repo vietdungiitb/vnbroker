@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures for vnstock test suite.
+Pytest configuration and shared fixtures for vnbroker test suite.
 
 CORE FIXTURES (for AI understanding):
 ====================================
@@ -150,19 +150,19 @@ def mock_vci_company(monkeypatch):
         }
     
     monkeypatch.setattr(
-        "vnstock.explorer.vci.company.Company._fetch_data",
+        "vnbroker.explorer.vci.company.Company._fetch_data",
         _mock_fetch
     )
 
 
 @pytest.fixture
 def mock_vci_send_request(monkeypatch):
-    """Mock vnstock.core.utils.client.send_request for VCI."""
+    """Mock vnbroker.core.utils.client.send_request for VCI."""
     def _mock_send(*args, **kwargs):
         return {"data": {}}
     
     monkeypatch.setattr(
-        "vnstock.core.utils.client.send_request",
+        "vnbroker.core.utils.client.send_request",
         _mock_send
     )
 
@@ -188,7 +188,7 @@ def mock_tcbs_response(monkeypatch, mock_response_factory):
 def mock_msn_apikey(monkeypatch):
     """Mock MSN API key generation."""
     monkeypatch.setattr(
-        "vnstock.explorer.msn.quote.msn_apikey",
+        "vnbroker.explorer.msn.quote.msn_apikey",
         lambda *args, **kwargs: "mock_api_key"
     )
 

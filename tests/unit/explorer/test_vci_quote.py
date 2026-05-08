@@ -6,7 +6,7 @@ Tests VCI-specific quote data fetching, parsing, and transformations.
 
 import pytest
 import pandas as pd
-from vnstock.explorer.vci.quote import Quote
+from vnbroker.explorer.vci.quote import Quote
 
 
 @pytest.mark.unit
@@ -78,7 +78,7 @@ class TestVCIQuote:
 
     def test_adjust_concurrency_increases_on_clean_batch(self):
         """Adaptive concurrency should ramp up when batch has no failures."""
-        from vnstock.core.adaptive_controller import AdaptiveController
+        from vnbroker.core.adaptive_controller import AdaptiveController
         next_value = AdaptiveController.compute(
             current=8,
             batch_size=8,
@@ -96,7 +96,7 @@ class TestVCIQuote:
 
     def test_adjust_concurrency_decreases_when_fail_ratio_high(self):
         """Adaptive concurrency should reduce pressure when fail ratio exceeds threshold."""
-        from vnstock.core.adaptive_controller import AdaptiveController
+        from vnbroker.core.adaptive_controller import AdaptiveController
         next_value = AdaptiveController.compute(
             current=12,
             batch_size=10,
@@ -114,7 +114,7 @@ class TestVCIQuote:
 
     def test_adjust_concurrency_keeps_value_when_fail_ratio_tolerable(self):
         """Adaptive concurrency should hold when failures are within tolerance."""
-        from vnstock.core.adaptive_controller import AdaptiveController
+        from vnbroker.core.adaptive_controller import AdaptiveController
         next_value = AdaptiveController.compute(
             current=12,
             batch_size=10,
@@ -132,7 +132,7 @@ class TestVCIQuote:
 
     def test_adjust_concurrency_decreases_when_p95_too_high(self):
         """Adaptive concurrency should reduce load when p95 latency exceeds threshold."""
-        from vnstock.core.adaptive_controller import AdaptiveController
+        from vnbroker.core.adaptive_controller import AdaptiveController
         next_value = AdaptiveController.compute(
             current=12,
             batch_size=10,
@@ -150,7 +150,7 @@ class TestVCIQuote:
 
     def test_adjust_concurrency_holds_when_clean_but_latency_mid_range(self):
         """Adaptive concurrency should hold when clean batch latency is between low/high thresholds."""
-        from vnstock.core.adaptive_controller import AdaptiveController
+        from vnbroker.core.adaptive_controller import AdaptiveController
         next_value = AdaptiveController.compute(
             current=12,
             batch_size=10,

@@ -1,6 +1,6 @@
-# 🤖 AI Quick Reference: Vnstock Test Modification Guide
+﻿# 🤖 AI Quick Reference: vnbroker Test Modification Guide
 
-**Goal**: Help AI understand and modify vnstock tests efficiently.
+**Goal**: Help AI understand and modify vnbroker tests efficiently.
 
 ---
 
@@ -29,7 +29,7 @@
 **Test API adapter for new source**
 ```
 1. Create: tests/unit/api/test_newsource.py
-2. Import: from vnstock.api.quote import Quote
+2. Import: from vnbroker.api.quote import Quote
 3. Test initialization and delegation
 4. Run: pytest tests/unit/api/test_newsource.py -v
 ```
@@ -252,7 +252,7 @@ pytest tests/unit/ -x
 pytest tests/unit/ --durations=5
 
 # Run with coverage for specific module
-pytest tests/unit/ --cov=vnstock.explorer.vci --cov-report=term-missing
+pytest tests/unit/ --cov=vnbroker.explorer.vci --cov-report=term-missing
 
 # Run only VCI tests
 pytest tests/unit/ -m vci -v
@@ -302,10 +302,10 @@ pytest tests/unit/test_file.py -v --setup-show
 ### Step 5: Mock Issues
 ```python
 # Wrong: Module not patched correctly
-@patch('vnstock.explorer.quote.requests')  # ❌
+@patch('vnbroker.explorer.quote.requests')  # ❌
 
 # Correct: Patch where it's USED
-@patch('vnstock.api.quote.requests')       # ✅
+@patch('vnbroker.api.quote.requests')       # ✅
 
 # Debug patch
 from unittest.mock import patch, MagicMock
@@ -408,8 +408,8 @@ import pytest                    # Test framework
 import pandas as pd             # DataFrame handling
 from unittest.mock import patch, MagicMock  # Mocking
 import requests                 # HTTP library
-from vnstock.api.quote import Quote          # API adapters
-from vnstock.explorer.vci import Quote       # Data source explorers
+from vnbroker.api.quote import Quote          # API adapters
+from vnbroker.explorer.vci import Quote       # Data source explorers
 ```
 
 ---
@@ -421,7 +421,7 @@ from vnstock.explorer.vci import Quote       # Data source explorers
 
 import pytest
 from unittest.mock import patch
-from vnstock.api.quote import Quote
+from vnbroker.api.quote import Quote
 
 
 @pytest.mark.unit

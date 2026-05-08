@@ -1,4 +1,4 @@
-# DNSE Explorer — Hướng dẫn coding & Ví dụ mẫu
+﻿# DNSE Explorer — Hướng dẫn coding & Ví dụ mẫu
 **Phiên bản:** 1.0  
 **Ngày duyệt:** 2026-05-07  
 **Áp dụng cho:** Đội dev khi viết code Scope A–B trong `DNSE_INTEGRATION_PLAN_20260507.md`
@@ -14,7 +14,7 @@ S1: Sửa connector/dnse/client.py (_to_dataframe)          [5 phút]
 S2: Tạo explorer/dnse/quote.py                             [30 phút]
 S3: Tạo explorer/dnse/listing.py                           [20 phút]
 S4: Tạo explorer/dnse/__init__.py                          [5 phút]
-S5: Sửa vnstock/__init__.py (lazy load dnse)               [5 phút]
+S5: Sửa vnbroker/__init__.py (lazy load dnse)               [5 phút]
 S6: Sửa common/data.py (StockComponents + Quote + Listing) [20 phút]
 S7: Sửa common/client.py (SUPPORTED_SOURCES + api_secret)  [10 phút]
 S8: Sửa connector/dnse/trade.py (logger + bridge methods)  [20 phút]
@@ -22,7 +22,7 @@ S8: Sửa connector/dnse/trade.py (logger + bridge methods)  [20 phút]
 
 Sau mỗi bước chạy quick smoke:
 ```powershell
-python -c "from vnstock import Vnstock; print('import OK')"
+python -c "from vnbroker import vnbroker; print('import OK')"
 ```
 
 ---
@@ -41,7 +41,7 @@ class DNSEQuote:
         show_log: bool = False,
         **kwargs,                          # ← BẮT BUỘC để registry không lỗi
     ):
-        from vnstock.connector.dnse.client import DNSEClient   # ← lazy import
+        from vnbroker.connector.dnse.client import DNSEClient   # ← lazy import
         
         self.symbol = symbol.upper()
         self.show_log = show_log
@@ -150,8 +150,8 @@ Tìm đoạn `elif self.source == 'FMP':` → thêm **sau** nó:
 
 ```python
         elif self.source == 'DNSE':
-            from vnstock.api.quote import Quote as QuoteAdapter
-            from vnstock.api.listing import Listing as ListingAdapter
+            from vnbroker.api.quote import Quote as QuoteAdapter
+            from vnbroker.api.listing import Listing as ListingAdapter
             self.quote = QuoteAdapter(
                 source='dnse',
                 symbol=self.symbol,
@@ -178,7 +178,7 @@ Tìm `module = importlib.import_module(self.source_module)` → thêm **trước
 
 ```python
         if self.source == "DNSE":
-            from vnstock.explorer.dnse.quote import DNSEQuote
+            from vnbroker.explorer.dnse.quote import DNSEQuote
             return DNSEQuote(
                 symbol=self.symbol,
                 api_key=getattr(self, "api_key", None),
@@ -191,7 +191,7 @@ Tìm `module = importlib.import_module(self.source_module)` → thêm **trước
 
 ```python
         if self.source == "DNSE":
-            from vnstock.explorer.dnse.listing import DNSEListing
+            from vnbroker.explorer.dnse.listing import DNSEListing
             return DNSEListing(
                 api_key=getattr(self, "api_key", None),
                 api_secret=getattr(self, "api_secret", None),
@@ -206,7 +206,7 @@ Tìm `module = importlib.import_module(self.source_module)` → thêm **trước
 ### 5.1 Thêm ở đầu file (sau existing imports)
 
 ```python
-from vnstock.core.utils.logger import get_logger
+from vnbroker.core.utils.logger import get_logger
 logger = get_logger(__name__)
 ```
 
@@ -234,7 +234,7 @@ logger = get_logger(__name__)
 ### Sau S1 (client.py _to_dataframe)
 
 ```python
-from vnstock.connector.dnse.client import DNSEClient
+from vnbroker.connector.dnse.client import DNSEClient
 import inspect
 src = inspect.getsource(DNSEClient._to_dataframe)
 assert "bars" in src, "FAIL: thiếu key 'bars'"
@@ -244,19 +244,19 @@ print("S1 PASS")
 ### Sau S4 (__init__.py)
 
 ```python
-from vnstock.explorer.dnse import DNSEQuote, DNSEListing
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.explorer.dnse import DNSEQuote, DNSEListing
+from vnbroker.core.registry import ProviderRegistry
 assert ProviderRegistry.is_registered("quote", "dnse"), "FAIL: quote/dnse chưa register"
 assert ProviderRegistry.is_registered("listing", "dnse"), "FAIL: listing/dnse chưa register"
 print("S4 PASS")
 ```
 
-### Sau S5 (vnstock/__init__.py)
+### Sau S5 (vnbroker/__init__.py)
 
 ```python
-from vnstock import _ensure_explorer_modules_loaded
+from vnbroker import _ensure_explorer_modules_loaded
 _ensure_explorer_modules_loaded()
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.core.registry import ProviderRegistry
 all_prov = ProviderRegistry.list_all()
 assert "dnse" in all_prov.get("quote", []), "FAIL: dnse chưa load"
 print("S5 PASS")
@@ -265,9 +265,9 @@ print("S5 PASS")
 ### Sau S7 (common/client.py)
 
 ```python
-from vnstock.common.client import Vnstock
-assert "DNSE" in Vnstock.SUPPORTED_SOURCES, "FAIL"
-from vnstock.common.data import StockComponents, Quote, Listing
+from vnbroker.common.client import vnbroker
+assert "DNSE" in vnbroker.SUPPORTED_SOURCES, "FAIL"
+from vnbroker.common.data import StockComponents, Quote, Listing
 assert "DNSE" in StockComponents.SUPPORTED_SOURCES, "FAIL"
 assert "DNSE" in Quote.SUPPORTED_SOURCES, "FAIL"
 assert "DNSE" in Listing.SUPPORTED_SOURCES, "FAIL"
@@ -282,9 +282,9 @@ import os
 os.environ.pop("DNSE_API_KEY", None)
 os.environ.pop("DNSE_API_SECRET", None)
 
-from vnstock.common.client import Vnstock
+from vnbroker.common.client import vnbroker
 try:
-    v = Vnstock()
+    v = vnbroker()
     s = v.stock("VNM", source="DNSE")       # StockComponents khởi tạo OK
     df = s.quote.history(start="2024-01-01") # Chỉ tại đây mới gọi DNSEQuote.__init__
     print("FAIL: phải raise ValueError do thiếu key")
@@ -298,8 +298,8 @@ except ValueError as e:
 
 | Lỗi | Nguyên nhân | Cách sửa |
 |---|---|---|
-| `circular import` khi load `vnstock` | Import DNSE ở module level | Chuyển tất cả import DNSEClient/registry vào trong `__init__` của class |
-| `ValueError: Provider 'quote/dnse' not found` | `ProviderRegistry.register` chưa chạy | Kiểm tra `vnstock/__init__.py` đã có `from .explorer import dnse` chưa |
+| `circular import` khi load `vnbroker` | Import DNSE ở module level | Chuyển tất cả import DNSEClient/registry vào trong `__init__` của class |
+| `ValueError: Provider 'quote/dnse' not found` | `ProviderRegistry.register` chưa chạy | Kiểm tra `vnbroker/__init__.py` đã có `from .explorer import dnse` chưa |
 | `DNSE get_trades lỗi: 404 page not found` | Live trades endpoint chưa ổn định trong smoke | `intraday()` trả empty DataFrame và chỉ log warning; không fail cứng |
 | `KeyError: 'bars'` trong DataFrame | `_to_dataframe` cũ chưa có key `bars` | Kiểm tra S1 đã thực hiện chưa |
 | `TypeError: __init__() got unexpected keyword argument 'api_key'` | Class chưa có `**kwargs` | Thêm `**kwargs` vào `__init__` signature |
@@ -322,7 +322,7 @@ except ValueError as e:
 ## 9. Checklist trước khi commit mỗi slice
 
 ```
-□ python -c "from vnstock import Vnstock" không lỗi
+□ python -c "from vnbroker import vnbroker" không lỗi
 □ pytest tests/unit/connector/dnse/ -v pass 100%  
 □ Không có print() mới trong source code  
 □ Không có hardcode api_key/secret  

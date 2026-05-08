@@ -1,8 +1,8 @@
-# Stock News FAQ
+﻿# Stock News FAQ
 
 Last updated: 2026-04-11
 
-This FAQ covers common implementation questions for vnstock News features.
+This FAQ covers common implementation questions for vnbroker News features.
 
 ## 1) Why does `news.query(...)` return empty even though I know matching headlines exist?
 
@@ -11,7 +11,7 @@ This FAQ covers common implementation questions for vnstock News features.
 That means `query(...)` will default to symbol `ACB` scope unless you pass another symbol explicitly.
 
 ```python
-stock = Vnstock(show_log=False).stock("ACB", source="AUTO")
+stock = vnbroker(show_log=False).stock("ACB", source="AUTO")
 
 # Scoped to ACB by default
 df1 = stock.news.query("co tuc")

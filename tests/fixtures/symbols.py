@@ -17,7 +17,7 @@ def real_symbols_dataset():
     Returns dict with symbol lists for each category.
     """
     try:
-        from vnstock.api.listing import Listing
+        from vnbroker.api.listing import Listing
         
         listing = Listing(source='VCI', show_log=False)
         

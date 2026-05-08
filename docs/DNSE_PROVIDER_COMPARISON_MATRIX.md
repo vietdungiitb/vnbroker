@@ -1,8 +1,8 @@
-# DNSE / VCI / KBS / TCBS Provider Comparison Matrix
+﻿# DNSE / VCI / KBS / TCBS Provider Comparison Matrix
 
 > Mục tiêu: so sánh 4 provider theo từng public function để xác định chỗ nào có thể thay thế lẫn nhau, chỗ nào chỉ là DNSE-only, và chỗ nào cần hiểu như fallback của adapter chứ không phải support native.
 >
-> Phạm vi: public market-data functions trong lớp API chuẩn hóa của vnstock, cộng thêm phần mở rộng riêng cho DNSE OpenAPI.
+> Phạm vi: public market-data functions trong lớp API chuẩn hóa của vnbroker, cộng thêm phần mở rộng riêng cho DNSE OpenAPI.
 >
 > Ngày: 2026-05-08
 
@@ -10,7 +10,7 @@
 
 ## 1. Quan điểm thiết kế
 
-vnstock có một lớp API chung cho các provider khác nhau để người dùng lấy các public functions chuẩn hóa của thị trường chứng khoán. Trên lớp này, mục tiêu là:
+vnbroker có một lớp API chung cho các provider khác nhau để người dùng lấy các public functions chuẩn hóa của thị trường chứng khoán. Trên lớp này, mục tiêu là:
 
 - Giữ cách gọi thống nhất.
 - Chuẩn hóa schema đầu ra.
@@ -116,7 +116,7 @@ Kết luận cho nhóm này: nếu app của bạn dùng các hàm DNSE-only, b�
 
 ## 7. Khuyến nghị triển khai trong code
 
-1. Chỉ dùng lớp API chuẩn hóa của vnstock cho những phần cần portability.
+1. Chỉ dùng lớp API chuẩn hóa của vnbroker cho những phần cần portability.
 2. Với các hàm `Partial` hoặc `Fallback`, normalize output trước khi đưa vào nghiệp vụ.
 3. Với DNSE-only flows, tách riêng service/module để tránh làm ô nhiễm lớp public chung.
 4. Khi cần chuyển provider, ưu tiên đổi ở tầng adapter/config, không đổi logic nghiệp vụ ở tầng app.

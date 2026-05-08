@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from vnstock.explorer.kbs.financial import Finance, FieldDisplayMode
+from vnbroker.explorer.kbs.financial import Finance, FieldDisplayMode
 
 
 VALID_REPORT_TYPES = ["income_statement", "balance_sheet", "cash_flow", "financial_ratios"]

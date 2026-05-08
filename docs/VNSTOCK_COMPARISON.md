@@ -1,15 +1,15 @@
-# So sánh `vnstock` chuẩn và repo hiện tại
+﻿# So sánh `vnbroker` chuẩn và repo hiện tại
 
 Tài liệu này tóm tắt các khác biệt đáng chú ý giữa:
 
-- `vnstock` chuẩn: cách hiểu thực dụng là bản stable/upstream mà đa số người dùng cài trực tiếp để sử dụng API công khai.
+- `vnbroker` chuẩn: cách hiểu thực dụng là bản stable/upstream mà đa số người dùng cài trực tiếp để sử dụng API công khai.
 - Repo hiện tại: bản đang làm việc trong workspace này, bao gồm cả các tối ưu đã được thêm cho VCI async, proxy pool, benchmark và telemetry.
 
 Mục tiêu của bảng này không phải liệt kê mọi khác biệt nhỏ, mà tập trung vào những thay đổi có tác động trực tiếp đến vận hành, hiệu năng và khả năng mở rộng.
 
 ## Bảng so sánh nhanh
 
-| Nhóm | `vnstock` chuẩn | Repo hiện tại | Tác động thực tế |
+| Nhóm | `vnbroker` chuẩn | Repo hiện tại | Tác động thực tế |
 | --- | --- | --- | --- |
 | Kiến trúc provider | Có adapter/provider nhưng người dùng thường chỉ cảm nhận như API wrapper truyền thống | Tách provider, registry, lazy loading rõ hơn; dễ mở rộng nhiều nguồn dữ liệu | Dễ thay backend, giảm coupling khi xây dashboard, ETL và service nội bộ |
 | Nguồn dữ liệu mặc định | Thiên về trải nghiệm dùng sẵn | KBS đã trở thành nguồn mặc định, VCI vẫn giữ vai trò quan trọng cho explorer | Giảm phụ thuộc một nguồn duy nhất, linh hoạt hơn khi một backend lỗi hoặc thay đổi |
@@ -74,7 +74,7 @@ Với bài toán ứng dụng thực tế như:
 - cache dữ liệu cho dashboard,
 - tính tín hiệu định kỳ,
 
-repo hiện tại tốt hơn `vnstock` chuẩn ở chỗ nó gần với yêu cầu “vận hành được” hơn là chỉ “gọi được dữ liệu”.
+repo hiện tại tốt hơn `vnbroker` chuẩn ở chỗ nó gần với yêu cầu “vận hành được” hơn là chỉ “gọi được dữ liệu”.
 
 ## Những điểm vẫn cần nhìn thực tế
 
@@ -89,7 +89,7 @@ Một số đánh đổi:
 
 ## Kết luận ngắn
 
-Nếu mục tiêu là học, thử API và phân tích thủ công, `vnstock` chuẩn là đủ cho nhiều trường hợp.
+Nếu mục tiêu là học, thử API và phân tích thủ công, `vnbroker` chuẩn là đủ cho nhiều trường hợp.
 
 Nếu mục tiêu là xây hệ thống theo kiểu:
 
@@ -107,9 +107,9 @@ Nếu mục tiêu là thay bản chuẩn bằng bản fork trong môi trường 
 
 ## Mốc code nên xem tiếp
 
-- `vnstock/base.py`
-- `vnstock/api/quote.py`
-- `vnstock/explorer/vci/quote.py`
-- `vnstock/core/utils/proxy_manager.py`
-- `vnstock/core/utils/async_client.py`
+- `vnbroker/base.py`
+- `vnbroker/api/quote.py`
+- `vnbroker/explorer/vci/quote.py`
+- `vnbroker/core/utils/proxy_manager.py`
+- `vnbroker/core/utils/async_client.py`
 - `tests/examples/vci_perf_benchmark.py`

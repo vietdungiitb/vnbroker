@@ -1,11 +1,11 @@
-{
+﻿{
   "customizations": {
     "codespaces": {
       "openFiles": [
-        "docs/1_vietnam_stock_vnstock3.ipynb",
+        "docs/1_vietnam_stock_vnbroker3.ipynb",
         "docs/2_international_market.ipynb",
-        "docs/3_commodities_vnstock3.ipynb",
-        "docs/4_funds_vnstock3.ipynb"
+        "docs/3_commodities_vnbroker3.ipynb",
+        "docs/4_funds_vnbroker3.ipynb"
       ]
     }
   }

@@ -1,10 +1,10 @@
-# GitHub Actions Testing Integration
+﻿# GitHub Actions Testing Integration
 
-Comprehensive guide for vnstock's automated testing and quality assurance using GitHub Actions.
+Comprehensive guide for vnbroker's automated testing and quality assurance using GitHub Actions.
 
 ## Overview
 
-The vnstock project uses GitHub Actions to automatically test, validate, and report on code quality whenever changes are pushed or pull requests are created.
+The vnbroker project uses GitHub Actions to automatically test, validate, and report on code quality whenever changes are pushed or pull requests are created.
 
 ## Workflows
 
@@ -86,10 +86,10 @@ The vnstock project uses GitHub Actions to automatically test, validate, and rep
 
 ### Covered Modules
 
-- `vnstock/api/` - API layer (Quote, Listing, Company, Finance, Trading)
-- `vnstock/explorer/` - Data source explorers (VCI, TCBS, KBS)
-- `vnstock/core/utils/` - Core utilities (field handling, client, execution)
-- `vnstock/common/` - Common utilities (data, shared constants)
+- `vnbroker/api/` - API layer (Quote, Listing, Company, Finance, Trading)
+- `vnbroker/explorer/` - Data source explorers (VCI, TCBS, KBS)
+- `vnbroker/core/utils/` - Core utilities (field handling, client, execution)
+- `vnbroker/common/` - Common utilities (data, shared constants)
 
 ### Test Categories
 
@@ -110,7 +110,7 @@ pip install -e ".[test]"
 pytest tests/
 
 # Run with coverage
-pytest tests/ --cov=vnstock --cov-report=html
+pytest tests/ --cov=vnbroker --cov-report=html
 ```
 
 ### Advanced Usage
@@ -220,7 +220,7 @@ GitHub Actions will comment on your PR with:
 
 1. **Run tests locally before pushing**
    ```bash
-   pytest tests/ --cov=vnstock
+   pytest tests/ --cov=vnbroker
    ```
 
 2. **Use meaningful commit messages**

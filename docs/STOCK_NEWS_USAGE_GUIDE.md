@@ -1,8 +1,8 @@
-# Stock News Usage Guide
+﻿# Stock News Usage Guide
 
 Last updated: 2026-04-11
 
-This guide documents the implemented stock news features in vnstock so developers can integrate safely and consistently.
+This guide documents the implemented stock news features in vnbroker so developers can integrate safely and consistently.
 
 ## 1) Scope
 
@@ -23,14 +23,14 @@ The News feature provides:
 - `RSS_CAFEF`
 - `RSS_VNECONOMY`
 
-For `AUTO`, vnstock will route requests by source health and failover rules.
+For `AUTO`, vnbroker will route requests by source health and failover rules.
 
 ## 3) Quick start
 
 ```python
-from vnstock.common.client import Vnstock
+from vnbroker.common.client import vnbroker
 
-stock = Vnstock(show_log=False).stock("ACB", source="AUTO")
+stock = vnbroker(show_log=False).stock("ACB", source="AUTO")
 
 # Latest normalized news
 df_latest = stock.news.latest(limit=20)

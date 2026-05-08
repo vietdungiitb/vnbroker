@@ -2,7 +2,7 @@
 
 import pytest
 
-from vnstock.api.quote import Quote
+from vnbroker.api.quote import Quote
 
 
 def _mock_vci_history_response(*args, **kwargs):
@@ -53,10 +53,10 @@ def _mock_tcbs_history_response(*args, **kwargs):
 @pytest.mark.unit
 @pytest.mark.api
 def test_quote_history_vci_and_kbs_are_consistent_in_vnd(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
-    monkeypatch.setattr("vnstock.explorer.vci.quote.send_request", _mock_vci_history_response)
-    monkeypatch.setattr("vnstock.explorer.kbs.quote.send_request", _mock_kbs_history_response)
-    monkeypatch.setattr("vnstock.explorer.tcbs.quote.client.send_request", _mock_tcbs_history_response)
+    monkeypatch.delenv("vnbroker_PRICE_UNIT", raising=False)
+    monkeypatch.setattr("vnbroker.explorer.vci.quote.send_request", _mock_vci_history_response)
+    monkeypatch.setattr("vnbroker.explorer.kbs.quote.send_request", _mock_kbs_history_response)
+    monkeypatch.setattr("vnbroker.explorer.tcbs.quote.client.send_request", _mock_tcbs_history_response)
 
     vci_df = Quote(source="VCI", symbol="ACB", show_log=False).history(
         start="2024-04-01", end="2024-04-01", interval="1D"
@@ -79,10 +79,10 @@ def test_quote_history_vci_and_kbs_are_consistent_in_vnd(monkeypatch):
 @pytest.mark.unit
 @pytest.mark.api
 def test_quote_history_vci_and_kbs_are_consistent_in_thousand_vnd(monkeypatch):
-    monkeypatch.setenv("VNSTOCK_PRICE_UNIT", "THOUSAND_VND")
-    monkeypatch.setattr("vnstock.explorer.vci.quote.send_request", _mock_vci_history_response)
-    monkeypatch.setattr("vnstock.explorer.kbs.quote.send_request", _mock_kbs_history_response)
-    monkeypatch.setattr("vnstock.explorer.tcbs.quote.client.send_request", _mock_tcbs_history_response)
+    monkeypatch.setenv("vnbroker_PRICE_UNIT", "THOUSAND_VND")
+    monkeypatch.setattr("vnbroker.explorer.vci.quote.send_request", _mock_vci_history_response)
+    monkeypatch.setattr("vnbroker.explorer.kbs.quote.send_request", _mock_kbs_history_response)
+    monkeypatch.setattr("vnbroker.explorer.tcbs.quote.client.send_request", _mock_tcbs_history_response)
 
     vci_df = Quote(source="VCI", symbol="ACB", show_log=False).history(
         start="2024-04-01", end="2024-04-01", interval="1D"

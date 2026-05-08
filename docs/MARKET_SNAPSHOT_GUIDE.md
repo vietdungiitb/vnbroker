@@ -1,8 +1,8 @@
-# MarketSnapshot — Hướng dẫn sử dụng
+﻿# MarketSnapshot — Hướng dẫn sử dụng
 
-> **Phiên bản:** vnstock ≥ 3.4.0  
-> **Module:** `vnstock.api.snapshot`  
-> **Tác giả:** vnstock team  
+> **Phiên bản:** vnbroker ≥ 3.4.0  
+> **Module:** `vnbroker.api.snapshot`  
+> **Tác giả:** vnbroker team  
 > **Cập nhật:** 2026-04-18
 
 ---
@@ -59,11 +59,11 @@ MarketSnapshot.heatmap_data(symbols)
 ## 2. Cài đặt / Import
 
 ```python
-# Cách 1 — import trực tiếp từ vnstock
-from vnstock import MarketSnapshot
+# Cách 1 — import trực tiếp từ vnbroker
+from vnbroker import MarketSnapshot
 
 # Cách 2 — import từ module cụ thể
-from vnstock.api.snapshot import MarketSnapshot
+from vnbroker.api.snapshot import MarketSnapshot
 ```
 
 Khởi tạo:
@@ -100,7 +100,7 @@ Mỗi phần tử trong list / mỗi hàng trong DataFrame:
 ### 4.1 Lấy dữ liệu cho danh sách mã
 
 ```python
-from vnstock import MarketSnapshot
+from vnbroker import MarketSnapshot
 
 snap = MarketSnapshot()
 
@@ -166,7 +166,7 @@ data = snap.heatmap_data(["VCB", "VNM"], price_unit="VND")
 
 ```python
 import json
-from vnstock import MarketSnapshot
+from vnbroker import MarketSnapshot
 
 snap = MarketSnapshot()
 data = snap.heatmap_data_by_group("VN30")
@@ -181,7 +181,7 @@ print(json_str[:500])
 ```python
 # views.py
 from django.http import JsonResponse
-from vnstock import MarketSnapshot
+from vnbroker import MarketSnapshot
 
 _snap = MarketSnapshot()  # Singleton — khởi tạo 1 lần
 
@@ -353,9 +353,9 @@ export function transformToTreemap(snapshotData) {
 }
 ```
 
-### Mapping field vnstock → frontend
+### Mapping field vnbroker → frontend
 
-| vnstock field | Frontend field (quotesBySymbol) | Ghi chú |
+| vnbroker field | Frontend field (quotesBySymbol) | Ghi chú |
 |---|---|---|
 | `symbol` | `symbol` | Key định danh |
 | `current_price` | `current_price` | Giá khớp (WS override nếu có) |

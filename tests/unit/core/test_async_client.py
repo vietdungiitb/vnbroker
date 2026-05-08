@@ -4,7 +4,7 @@ import asyncio
 
 import httpx
 
-from vnstock.core.utils.async_client import (
+from vnbroker.core.utils.async_client import (
     async_send_request,
     fetch_multiple_requests,
     get_async_request_stats,
@@ -49,7 +49,7 @@ def test_async_send_request_collects_success_stats(monkeypatch):
         return SequenceClient([DummyResponse(200, {"value": 1})])
 
     monkeypatch.setattr(
-        "vnstock.core.utils.async_client.async_client_mgr.get_client",
+        "vnbroker.core.utils.async_client.async_client_mgr.get_client",
         fake_get_client,
     )
 
@@ -82,7 +82,7 @@ def test_async_send_request_collects_retry_stats(monkeypatch):
         ])
 
     monkeypatch.setattr(
-        "vnstock.core.utils.async_client.async_client_mgr.get_client",
+        "vnbroker.core.utils.async_client.async_client_mgr.get_client",
         fake_get_client,
     )
 
@@ -114,7 +114,7 @@ def test_async_send_request_collects_timeout_stats(monkeypatch):
         ])
 
     monkeypatch.setattr(
-        "vnstock.core.utils.async_client.async_client_mgr.get_client",
+        "vnbroker.core.utils.async_client.async_client_mgr.get_client",
         fake_get_client,
     )
 
@@ -147,7 +147,7 @@ def test_async_send_request_does_not_retry_non_transient_http_error(monkeypatch)
         ])
 
     monkeypatch.setattr(
-        "vnstock.core.utils.async_client.async_client_mgr.get_client",
+        "vnbroker.core.utils.async_client.async_client_mgr.get_client",
         fake_get_client,
     )
 
@@ -178,7 +178,7 @@ def test_fetch_multiple_requests_preserves_input_order(monkeypatch):
         return {"idx": idx, "url": kwargs["url"]}
 
     monkeypatch.setattr(
-        "vnstock.core.utils.async_client.async_send_request",
+        "vnbroker.core.utils.async_client.async_send_request",
         fake_async_send_request,
     )
 
@@ -204,7 +204,7 @@ def test_fetch_multiple_requests_honors_max_concurrency(monkeypatch):
         return {"ok": True}
 
     monkeypatch.setattr(
-        "vnstock.core.utils.async_client.async_send_request",
+        "vnbroker.core.utils.async_client.async_send_request",
         fake_async_send_request,
     )
 

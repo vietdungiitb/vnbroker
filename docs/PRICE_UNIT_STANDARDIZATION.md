@@ -1,8 +1,8 @@
-# Chuẩn hóa đơn vị giá đa provider (KBS, VCI, TCBS, MSN)
+﻿# Chuẩn hóa đơn vị giá đa provider (KBS, VCI, TCBS, MSN)
 
 ## 1. Mục tiêu
 
-Tài liệu này mô tả cơ chế chuẩn hóa đơn vị giá để mọi nguồn dữ liệu trong vnstock trả về cùng một định dạng, tránh lỗi lệch đơn vị khi thay đổi provider.
+Tài liệu này mô tả cơ chế chuẩn hóa đơn vị giá để mọi nguồn dữ liệu trong vnbroker trả về cùng một định dạng, tránh lỗi lệch đơn vị khi thay đổi provider.
 
 Bài toán điển hình:
 - Pipeline A đang lưu giá theo VND tuyệt đối.
@@ -11,7 +11,7 @@ Bài toán điển hình:
 
 ## 2. Hành vi mới (an toàn cho production)
 
-vnstock đã có chuẩn hóa tập trung tại tầng transform.
+vnbroker đã có chuẩn hóa tập trung tại tầng transform.
 
 - Mặc định toàn hệ thống: `VND` (giá tuyệt đối).
 - Có thể bật chế độ tương thích ngược: `THOUSAND_VND`.
@@ -28,7 +28,7 @@ Mỗi DataFrame trả về có metadata:
 
 ### 3.1 Mặc định
 
-Không cần cấu hình gì thêm. Nếu không đặt biến môi trường, vnstock trả giá theo `VND`.
+Không cần cấu hình gì thêm. Nếu không đặt biến môi trường, vnbroker trả giá theo `VND`.
 
 ### 3.2 Bật chế độ tương thích ngược (nghìn VND)
 
@@ -37,13 +37,13 @@ Không cần cấu hình gì thêm. Nếu không đặt biến môi trường, v
 Windows PowerShell:
 
 ```powershell
-$env:VNSTOCK_PRICE_UNIT = "THOUSAND_VND"
+$env:vnbroker_PRICE_UNIT = "THOUSAND_VND"
 ```
 
 Linux/macOS:
 
 ```bash
-export VNSTOCK_PRICE_UNIT=THOUSAND_VND
+export vnbroker_PRICE_UNIT=THOUSAND_VND
 ```
 
 Các giá trị hợp lệ (không phân biệt hoa thường):
@@ -69,7 +69,7 @@ Các giá trị hợp lệ (không phân biệt hoa thường):
 
 Nếu code hiện tại đã gọi `Quote(...).history()` hoặc `intraday()`, thông thường không cần sửa.
 
-Mặc định sau khi nâng cấp vnstock:
+Mặc định sau khi nâng cấp vnbroker:
 - Dữ liệu giá được chuẩn hóa về `VND`.
 - Việc đổi `source` giữa `KBS`, `VCI`, `TCBS` sẽ không làm đổi thang đo giá.
 - Consumer chỉ cần đọc `df.attrs['price_unit']` nếu muốn kiểm soát chặt contract.
@@ -116,15 +116,15 @@ VND tuyệt đối giúp giảm nhầm lẫn khi lưu trữ, tính PnL và hợp
 
 ### Q2: Tôi đang có dữ liệu cũ theo nghìn VND thì sao?
 
-Giữ `VNSTOCK_PRICE_UNIT=THOUSAND_VND` tạm thời để tương thích. Sau đó migration dần bằng phép nhân 1000 trước khi hợp nhất dữ liệu lịch sử.
+Giữ `vnbroker_PRICE_UNIT=THOUSAND_VND` tạm thời để tương thích. Sau đó migration dần bằng phép nhân 1000 trước khi hợp nhất dữ liệu lịch sử.
 
-### Q3: Có cần chỉnh từng hàm ở dự án gọi vnstock không?
+### Q3: Có cần chỉnh từng hàm ở dự án gọi vnbroker không?
 
 Không bắt buộc. Cấu hình bằng biến môi trường là đủ cho hầu hết trường hợp.
 
 ## 9. Tệp mã liên quan
 
-- `vnstock/core/utils/transform.py`
-- `vnstock/explorer/kbs/quote.py`
-- `vnstock/explorer/vci/quote.py`
+- `vnbroker/core/utils/transform.py`
+- `vnbroker/explorer/kbs/quote.py`
+- `vnbroker/explorer/vci/quote.py`
 - `tests/unit/core/test_price_unit_normalization.py`

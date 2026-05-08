@@ -1,4 +1,4 @@
-# DNSE Implementation Execution Playbook
+﻿# DNSE Implementation Execution Playbook
 
 > Mục tiêu: biến bộ tài liệu DNSE hiện có thành quy trình thực thi cho đội code, không cần hỏi lại từng bước.
 >
@@ -10,7 +10,7 @@
 
 ## 1. Mục đích
 
-Tài liệu này là lớp điều hành cho đội code khi triển khai DNSE vào vnstock.
+Tài liệu này là lớp điều hành cho đội code khi triển khai DNSE vào vnbroker.
 
 Nó có ba nhiệm vụ:
 

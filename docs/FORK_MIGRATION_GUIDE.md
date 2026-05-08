@@ -1,6 +1,6 @@
-# Hướng dẫn dùng bản fork này thay `vnstock` chuẩn
+﻿# Hướng dẫn dùng bản fork này thay `vnbroker` chuẩn
 
-Tài liệu này hướng dẫn chuyển từ bản `vnstock` chuẩn (PyPI/upstream) sang bản fork trong repo hiện tại một cách an toàn.
+Tài liệu này hướng dẫn chuyển từ bản `vnbroker` chuẩn (PyPI/upstream) sang bản fork trong repo hiện tại một cách an toàn.
 
 ## 1. Khi nào nên dùng bản fork
 
@@ -18,47 +18,47 @@ Nếu bạn chỉ dùng notebook đơn giản với khối lượng nhỏ, bản
 ## 2.1 Local dev
 
 ```bash
-pip uninstall -y vnstock
+pip uninstall -y vnbroker
 pip install git+https://github.com/<your-user>/<your-repo>.git@main
 ```
 
 ## 2.2 Khóa theo commit cụ thể (ổn định hơn)
 
 ```bash
-pip uninstall -y vnstock
+pip uninstall -y vnbroker
 pip install git+https://github.com/<your-user>/<your-repo>.git@<commit-sha>
 ```
 
 ## 2.3 Cài editable khi phát triển trực tiếp trong repo
 
 ```bash
-pip uninstall -y vnstock
+pip uninstall -y vnbroker
 pip install -e .
 ```
 
 ## 3. Kiểm tra đã thay thành công chưa
 
 ```bash
-python -c "import vnstock, importlib.metadata as m; print(m.version('vnstock')); print(vnstock.__file__)"
+python -c "import vnbroker, importlib.metadata as m; print(m.version('vnbroker')); print(vnbroker.__file__)"
 ```
 
 Kỳ vọng:
 
-- `m.version('vnstock')` có version mong muốn.
-- `vnstock.__file__` trỏ tới source của repo fork hoặc site-packages được cài từ fork.
+- `m.version('vnbroker')` có version mong muốn.
+- `vnbroker.__file__` trỏ tới source của repo fork hoặc site-packages được cài từ fork.
 
 ## 4. Cập nhật requirements cho team
 
 Trong `requirements.txt` hoặc file lock tương đương:
 
 ```txt
-git+https://github.com/<your-user>/<your-repo>.git@main#egg=vnstock
+git+https://github.com/<your-user>/<your-repo>.git@main#egg=vnbroker
 ```
 
 Hoặc pin commit:
 
 ```txt
-git+https://github.com/<your-user>/<your-repo>.git@<commit-sha>#egg=vnstock
+git+https://github.com/<your-user>/<your-repo>.git@<commit-sha>#egg=vnbroker
 ```
 
 ## 5. Cập nhật CI/CD
@@ -72,7 +72,7 @@ Trong pipeline:
 Ví dụ lệnh smoke test:
 
 ```bash
-python -c "import vnstock; print(vnstock.__file__)"
+python -c "import vnbroker; print(vnbroker.__file__)"
 ```
 
 ## 6. Tương thích cách gọi hàm
@@ -109,7 +109,7 @@ python -c "import vnstock; print(vnstock.__file__)"
 
 ## 8. Tài liệu liên quan
 
-- `docs/VNSTOCK_COMPARISON.md`
+- `docs/vnbroker_COMPARISON.md`
 - `docs/PORTFOLIO_ROBOADVISOR_GUIDE.md`
 - `tests/examples/vci_perf_benchmark.py`
-- `tests/examples/compare_vnstock_libraries.py`
+- `tests/examples/compare_vnbroker_libraries.py`

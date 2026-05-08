@@ -1,4 +1,4 @@
-# Vnstock Test Suite - Documentation Index
+﻿# vnbroker Test Suite - Documentation Index
 
 **Quick Navigation for All Test Documentation**
 
@@ -93,7 +93,7 @@ tests/
 
 **Improve test coverage?**
 1. Check: COVERAGE_STRATEGY.md (10 min)
-2. Run: `pytest tests/unit/ --cov=vnstock --cov-report=html` (3 min)
+2. Run: `pytest tests/unit/ --cov=vnbroker --cov-report=html` (3 min)
 3. View: htmlcov/index.html in browser (2 min)
 4. Identify: Low coverage modules (5 min)
 5. Add: Tests for those modules (varies)
@@ -221,7 +221,7 @@ Overall:           29% (unit tests only - expected)
    - Run and debug (10 min)
 
 4. **Day 2: Master**
-   - Check coverage: `pytest --cov=vnstock` (3 min)
+   - Check coverage: `pytest --cov=vnbroker` (3 min)
    - Read COVERAGE_STRATEGY.md (10 min)
    - Understand tradeoffs and design (5 min)
 

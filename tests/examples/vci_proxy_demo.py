@@ -23,13 +23,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 try:
-    from vnstock.core.utils.proxy_manager import ProxyManager, Proxy
-    from vnstock.explorer.vci.quote import Quote
-    from vnstock.explorer.vci.listing import Listing
-    logger.info("✅ Successfully imported vnstock modules")
+    from vnbroker.core.utils.proxy_manager import ProxyManager, Proxy
+    from vnbroker.explorer.vci.quote import Quote
+    from vnbroker.explorer.vci.listing import Listing
+    logger.info("✅ Successfully imported vnbroker modules")
 except ImportError as e:
-    logger.error(f"❌ Failed to import vnstock: {e}")
-    logger.error("Please install vnstock: pip install vnstock")
+    logger.error(f"❌ Failed to import vnbroker: {e}")
+    logger.error("Please install vnbroker: pip install vnbroker")
     sys.exit(1)
 
 

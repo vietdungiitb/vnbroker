@@ -1,12 +1,12 @@
-# Hướng dẫn sử dụng Price Unit API - Chuẩn hóa Đơn vị Giá
+﻿# Hướng dẫn sử dụng Price Unit API - Chuẩn hóa Đơn vị Giá
 
 ## Tổng quan
 
-Từ phiên bản này, vnstock chuẩn hóa tất cả các hàm trả về dữ liệu giá với đơn vị thống nhất. Mặc định, tất cả giá được trả về dưới **đơn vị VND (Việt Nam Đồng)**. Bạn có thể yêu cầu đơn vị khác bằng tham số `price_unit` nếu cần.
+Từ phiên bản này, vnbroker chuẩn hóa tất cả các hàm trả về dữ liệu giá với đơn vị thống nhất. Mặc định, tất cả giá được trả về dưới **đơn vị VND (Việt Nam Đồng)**. Bạn có thể yêu cầu đơn vị khác bằng tham số `price_unit` nếu cần.
 
 ### Những thay đổi chính
 - **Mặc định**: Tất cả hàm trả về giá sử dụng đơn vị **VND**
-- **Tương thích ngược**: Hành vi cũ vẫn hỗ trợ qua biến môi trường `VNSTOCK_PRICE_UNIT`
+- **Tương thích ngược**: Hành vi cũ vẫn hỗ trợ qua biến môi trường `vnbroker_PRICE_UNIT`
 - **Linh hoạt**: Bạn có thể yêu cầu đơn vị khác tại mỗi lệnh gọi hàm
 - **Metadata**: Mỗi DataFrame trả về chứa thông tin đơn vị trong `df.attrs['price_unit']`
 
@@ -18,7 +18,7 @@ Từ phiên bản này, vnstock chuẩn hóa tất cả các hàm trả về d�
 
 #### VCI - Quote History với VND (mặc định)
 ```python
-from vnstock import Stock
+from vnbroker import Stock
 
 stock = Stock(source='VCI')
 df = stock.quote.history(symbol='ACB', start='2024-01-01', end='2024-12-31')
@@ -66,7 +66,7 @@ df = stock_msn.quote.history(symbol='VNM', interval='1D', length='1M')
 
 #### VCI Trading Price Board
 ```python
-from vnstock.explorer.vci.trading import Trading
+from vnbroker.explorer.vci.trading import Trading
 
 vci_trading = Trading(symbol='ACB')
 df = vci_trading.price_board()
@@ -79,7 +79,7 @@ df_thousand = vci_trading.price_board(price_unit='THOUSAND_VND')
 
 #### KBS Trading Price Board
 ```python
-from vnstock.explorer.kbs.trading import Trading as KBSTrading
+from vnbroker.explorer.kbs.trading import Trading as KBSTrading
 
 kbs_trading = KBSTrading(symbol='VCB')
 df = kbs_trading.price_board()
@@ -90,7 +90,7 @@ df_thousand = kbs_trading.price_board(price_unit='THOUSAND_VND')
 
 #### TCBS Trading Price Board
 ```python
-from vnstock.explorer.tcbs.trading import Trading as TCBSTrading
+from vnbroker.explorer.tcbs.trading import Trading as TCBSTrading
 
 tcbs_trading = TCBSTrading(symbol='TCB')
 df = tcbs_trading.price_board()
@@ -105,7 +105,7 @@ df_thousand = tcbs_trading.price_board(price_unit='THOUSAND_VND')
 
 #### Sử dụng High-level Quote API
 ```python
-from vnstock import quote
+from vnbroker import quote
 
 # Lấy lịch sử giá với VND (mặc định)
 df = quote.history(symbol='ACB', source='VCI', length='1M')
@@ -133,33 +133,33 @@ df_board_thousand = quote.price_board(
 
 ### Biến môi trường (Environment Variable)
 
-Để thay đổi đơn vị mặc định cho toàn bộ ứng dụng, đặt biến môi trường `VNSTOCK_PRICE_UNIT`:
+Để thay đổi đơn vị mặc định cho toàn bộ ứng dụng, đặt biến môi trường `vnbroker_PRICE_UNIT`:
 
 **Windows (PowerShell)**
 ```powershell
-$env:VNSTOCK_PRICE_UNIT = "THOUSAND_VND"
+$env:vnbroker_PRICE_UNIT = "THOUSAND_VND"
 python your_script.py
 ```
 
 **Windows (CMD)**
 ```cmd
-set VNSTOCK_PRICE_UNIT=THOUSAND_VND
+set vnbroker_PRICE_UNIT=THOUSAND_VND
 python your_script.py
 ```
 
 **Linux/macOS**
 ```bash
-export VNSTOCK_PRICE_UNIT=THOUSAND_VND
+export vnbroker_PRICE_UNIT=THOUSAND_VND
 python your_script.py
 ```
 
 **Python (trong code)**
 ```python
 import os
-os.environ['VNSTOCK_PRICE_UNIT'] = 'THOUSAND_VND'
+os.environ['vnbroker_PRICE_UNIT'] = 'THOUSAND_VND'
 
 # Sau đó gọi hàm như bình thường
-from vnstock import Stock
+from vnbroker import Stock
 stock = Stock(source='VCI')
 df = stock.quote.history(symbol='ACB', length='1M')
 # Sẽ trả về THOUSAND_VND vì env được đặt
@@ -175,7 +175,7 @@ Nếu bạn đặt giá trị không hợp lệ, hệ thống sẽ tự động 
 
 ## Kiểm tra đơn vị trong DataFrame
 
-Mỗi DataFrame trả về từ vnstock đều có metadata về đơn vị giá:
+Mỗi DataFrame trả về từ vnbroker đều có metadata về đơn vị giá:
 
 ```python
 df = stock.quote.history(symbol='ACB', length='1M')
@@ -217,7 +217,7 @@ if df.attrs['price_unit'] == 'VND':
 ## Ví dụ: Tích hợp trong ứng dụng
 
 ```python
-from vnstock import Stock
+from vnbroker import Stock
 import pandas as pd
 
 class PriceAnalyzer:
@@ -256,7 +256,7 @@ print(analyzer.get_latest_price())
 
 ## Migration Guide (Từ phiên bản cũ)
 
-Nếu bạn có code cũ sử dụng vnstock:
+Nếu bạn có code cũ sử dụng vnbroker:
 
 **Trước (hành vi không xác định)**
 ```python
@@ -291,8 +291,8 @@ print(df.attrs['price_unit'])  # THOUSAND_VND
 - `MSN.Trading.price_board(..., price_unit=None)` (if applicable)
 
 ### Core Utilities
-- `vnstock.core.utils.transform.normalize_price_columns(..., target_unit=None)`
-- `vnstock.core.utils.transform._parse_price_unit(raw)`
+- `vnbroker.core.utils.transform.normalize_price_columns(..., target_unit=None)`
+- `vnbroker.core.utils.transform._parse_price_unit(raw)`
 
 ---
 
@@ -308,7 +308,7 @@ print(df.attrs['price_unit'])  # THOUSAND_VND
 **A**: Sử dụng khi bạn cần giá dưới dạng ngàn đơn vị (phổ biến để giảm kích thước dữ liệu hoặc tương thích với hệ thống cũ).
 
 ### Q: Tôi muốn mặc định toàn cầu là THOUSAND_VND?
-**A**: Đặt biến môi trường: `export VNSTOCK_PRICE_UNIT=THOUSAND_VND` (Linux/macOS) hoặc `set VNSTOCK_PRICE_UNIT=THOUSAND_VND` (Windows).
+**A**: Đặt biến môi trường: `export vnbroker_PRICE_UNIT=THOUSAND_VND` (Linux/macOS) hoặc `set vnbroker_PRICE_UNIT=THOUSAND_VND` (Windows).
 
 ---
 
@@ -318,7 +318,7 @@ print(df.attrs['price_unit'])  # THOUSAND_VND
 - ✨ Thêm tham số `price_unit` cho tất cả hàm trả về giá
 - ✨ Chuẩn hóa mặc định về VND
 - ✨ Thêm metadata `df.attrs['price_unit']` cho tất cả DataFrames
-- 🔧 Hỗ trợ `VNSTOCK_PRICE_UNIT` env var
+- 🔧 Hỗ trợ `vnbroker_PRICE_UNIT` env var
 - ✅ Tương thích ngược 100%
 
 ---
@@ -326,6 +326,6 @@ print(df.attrs['price_unit'])  # THOUSAND_VND
 ## Liên hệ & Hỗ trợ
 
 Nếu bạn gặp vấn đề với price_unit API, vui lòng:
-1. Kiểm tra version vnstock: `python -c "import vnstock; print(vnstock.__version__)"`
+1. Kiểm tra version vnbroker: `python -c "import vnbroker; print(vnbroker.__version__)"`
 2. Xem logs với `show_log=True`
 3. Báo cáo issue trên GitHub với chi tiết reproduction steps

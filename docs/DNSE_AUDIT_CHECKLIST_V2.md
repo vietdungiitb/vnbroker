@@ -1,4 +1,4 @@
-# DNSE Audit Checklist V2 — Triển khai đầy đủ
+﻿# DNSE Audit Checklist V2 — Triển khai đầy đủ
 
 > Mục tiêu: bộ checklist audit đầy đủ để sign-off trước khi merge nhánh `dev`.
 >
@@ -21,9 +21,9 @@
 
 | # | Hạng mục | Lệnh kiểm tra | Kết quả mong đợi | Kết quả thực tế | Bằng chứng |
 |---|---|---|---|---|---|
-| A1 | `vnstock/explorer/dnse/__init__.py` tồn tại | `Test-Path vnstock/explorer/dnse/__init__.py` | True | | |
-| A2 | `vnstock/explorer/dnse/quote.py` tồn tại | `Test-Path vnstock/explorer/dnse/quote.py` | True | | |
-| A3 | `vnstock/explorer/dnse/listing.py` tồn tại | `Test-Path vnstock/explorer/dnse/listing.py` | True | | |
+| A1 | `vnbroker/explorer/dnse/__init__.py` tồn tại | `Test-Path vnbroker/explorer/dnse/__init__.py` | True | | |
+| A2 | `vnbroker/explorer/dnse/quote.py` tồn tại | `Test-Path vnbroker/explorer/dnse/quote.py` | True | | |
+| A3 | `vnbroker/explorer/dnse/listing.py` tồn tại | `Test-Path vnbroker/explorer/dnse/listing.py` | True | | |
 | A4 | `tests/unit/explorer/dnse/__init__.py` tồn tại | `Test-Path tests/unit/explorer/dnse/__init__.py` | True | | |
 | A5 | `tests/unit/explorer/dnse/test_quote.py` tồn tại | `Test-Path ...` | True | | |
 | A6 | `tests/unit/explorer/dnse/test_listing.py` tồn tại | `Test-Path ...` | True | | |
@@ -35,9 +35,9 @@
 **Lệnh kiểm tra tổng hợp A:**
 ```powershell
 @(
-  "vnstock/explorer/dnse/__init__.py",
-  "vnstock/explorer/dnse/quote.py",
-  "vnstock/explorer/dnse/listing.py",
+  "vnbroker/explorer/dnse/__init__.py",
+  "vnbroker/explorer/dnse/quote.py",
+  "vnbroker/explorer/dnse/listing.py",
   "tests/unit/explorer/dnse/__init__.py",
   "tests/unit/explorer/dnse/test_quote.py",
   "tests/unit/explorer/dnse/test_listing.py",
@@ -53,32 +53,32 @@
 
 | # | Hạng mục | Lệnh kiểm tra | Kết quả mong đợi | Kết quả thực tế | Bằng chứng |
 |---|---|---|---|---|---|
-| B1 | `from vnstock import Vnstock` không lỗi | `python -c "from vnstock import Vnstock; print('OK')"` | `OK` | | |
-| B2 | `DNSEQuote` importable | `python -c "from vnstock.explorer.dnse.quote import DNSEQuote; print('OK')"` | `OK` | | |
-| B3 | `DNSEListing` importable | `python -c "from vnstock.explorer.dnse.listing import DNSEListing; print('OK')"` | `OK` | | |
+| B1 | `from vnbroker import vnbroker` không lỗi | `python -c "from vnbroker import vnbroker; print('OK')"` | `OK` | | |
+| B2 | `DNSEQuote` importable | `python -c "from vnbroker.explorer.dnse.quote import DNSEQuote; print('OK')"` | `OK` | | |
+| B3 | `DNSEListing` importable | `python -c "from vnbroker.explorer.dnse.listing import DNSEListing; print('OK')"` | `OK` | | |
 | B4 | Registry quote/dnse đã đăng ký | Xem lệnh B4 | `True` | | |
 | B5 | Registry listing/dnse đã đăng ký | Xem lệnh B4 | `True` | | |
-| B6 | `Vnstock.SUPPORTED_SOURCES` có DNSE | Xem lệnh B6 | `True` | | |
+| B6 | `vnbroker.SUPPORTED_SOURCES` có DNSE | Xem lệnh B6 | `True` | | |
 | B7 | `StockComponents.SUPPORTED_SOURCES` có DNSE | Xem lệnh B7 | `True` | | |
-| B8 | Không có circular import | `python -c "import vnstock"` | Không lỗi | | |
+| B8 | Không có circular import | `python -c "import vnbroker"` | Không lỗi | | |
 
 **Lệnh B4:**
 ```python
-from vnstock import _ensure_explorer_modules_loaded; _ensure_explorer_modules_loaded()
-from vnstock.core.registry import ProviderRegistry
+from vnbroker import _ensure_explorer_modules_loaded; _ensure_explorer_modules_loaded()
+from vnbroker.core.registry import ProviderRegistry
 print(ProviderRegistry.is_registered("quote", "dnse"))    # True
 print(ProviderRegistry.is_registered("listing", "dnse"))  # True
 ```
 
 **Lệnh B6:**
 ```python
-from vnstock.common.client import Vnstock
-print("DNSE" in Vnstock.SUPPORTED_SOURCES)
+from vnbroker.common.client import vnbroker
+print("DNSE" in vnbroker.SUPPORTED_SOURCES)
 ```
 
 **Lệnh B7:**
 ```python
-from vnstock.common.data import StockComponents, Quote, Listing
+from vnbroker.common.data import StockComponents, Quote, Listing
 print("DNSE" in StockComponents.SUPPORTED_SOURCES)
 print("DNSE" in Quote.SUPPORTED_SOURCES)
 print("DNSE" in Listing.SUPPORTED_SOURCES)
@@ -100,7 +100,7 @@ print("DNSE" in Listing.SUPPORTED_SOURCES)
 **Lệnh C1:**
 ```python
 import os; os.environ.pop("DNSE_API_KEY", None); os.environ.pop("DNSE_API_SECRET", None)
-from vnstock.explorer.dnse.quote import DNSEQuote
+from vnbroker.explorer.dnse.quote import DNSEQuote
 try:
     q = DNSEQuote("VNM")
     print("FAIL: không raise ValueError")
@@ -112,8 +112,8 @@ except ValueError as e:
 ```python
 import os; os.environ["DNSE_API_KEY"] = "test_k"; os.environ["DNSE_API_SECRET"] = "test_s"
 from unittest.mock import patch
-with patch("vnstock.connector.dnse.client.DNSEClient"):
-    from vnstock.explorer.dnse.quote import DNSEQuote
+with patch("vnbroker.connector.dnse.client.DNSEClient"):
+    from vnbroker.explorer.dnse.quote import DNSEQuote
     q = DNSEQuote("VNM")
     print("PASS - env vars used")
 ```
@@ -135,7 +135,7 @@ with patch("vnstock.connector.dnse.client.DNSEClient"):
 
 **Lệnh D1:**
 ```python
-from vnstock.explorer.dnse.quote import _parse_ohlc
+from vnbroker.explorer.dnse.quote import _parse_ohlc
 records = [{"t": 1704067200, "o": 67000.0, "h": 68500.0, "l": 66800.0, "c": 68000.0, "v": 1234567}]
 df = _parse_ohlc(records)
 print(list(df.columns))
@@ -146,11 +146,11 @@ print(df.dtypes)
 ```python
 from unittest.mock import MagicMock, patch
 import os; os.environ["DNSE_API_KEY"] = "k"; os.environ["DNSE_API_SECRET"] = "s"
-with patch("vnstock.connector.dnse.client.DNSEClient") as MC:
+with patch("vnbroker.connector.dnse.client.DNSEClient") as MC:
     mc = MagicMock()
     mc._market.get_ohlc.side_effect = Exception("timeout")
     MC.return_value = mc
-    from vnstock.explorer.dnse.quote import DNSEQuote
+    from vnbroker.explorer.dnse.quote import DNSEQuote
     q = DNSEQuote("VNM")
     df = q.history(start="2024-01-01")
     print("empty:", df.empty, "cols:", list(df.columns))
@@ -159,16 +159,16 @@ with patch("vnstock.connector.dnse.client.DNSEClient") as MC:
 **Lệnh D8:**
 ```python
 import pandas as pd
-from vnstock.explorer.dnse.quote import _parse_ohlc
+from vnbroker.explorer.dnse.quote import _parse_ohlc
 from unittest.mock import MagicMock, patch
 import os; os.environ["DNSE_API_KEY"] = "k"; os.environ["DNSE_API_SECRET"] = "s"
 # Giả lập list[dict] như live DNSE trả về
 secdef_list = [{"symbol": "VNM", "boardId": "HOSE", "lotSize": 100}]
-with patch("vnstock.connector.dnse.client.DNSEClient") as MC:
+with patch("vnbroker.connector.dnse.client.DNSEClient") as MC:
     mc = MagicMock()
     mc._market.get_security_definition.return_value = (None, secdef_list)
     MC.return_value = mc
-    from vnstock.explorer.dnse.quote import DNSEQuote
+    from vnbroker.explorer.dnse.quote import DNSEQuote
     q = DNSEQuote("VNM")
     df = q.price_depth()
     print("rows:", len(df), "cols:", list(df.columns))
@@ -187,17 +187,17 @@ with patch("vnstock.connector.dnse.client.DNSEClient") as MC:
 
 **Lệnh E1:**
 ```powershell
-Select-String -Path "vnstock\explorer\dnse\*.py" -Pattern "print\("
+Select-String -Path "vnbroker\explorer\dnse\*.py" -Pattern "print\("
 ```
 
 **Lệnh E2:**
 ```powershell
-Select-String -Path "vnstock\connector\dnse\trade.py" -Pattern "print\("
+Select-String -Path "vnbroker\connector\dnse\trade.py" -Pattern "print\("
 ```
 
 **Lệnh E3:**
 ```powershell
-Select-String -Path "vnstock\" -Recurse -Pattern "api_key\s*=\s*['\"][A-Za-z0-9]{10}" -Include "*.py" |
+Select-String -Path "vnbroker\" -Recurse -Pattern "api_key\s*=\s*['\"][A-Za-z0-9]{10}" -Include "*.py" |
   Where-Object { $_.Line -notmatch "#" -and $_.Line -notmatch "environ" }
 ```
 
@@ -209,7 +209,7 @@ Select-String -Path "vnstock\" -Recurse -Pattern "api_key\s*=\s*['\"][A-Za-z0-9]
 |---|---|---|---|---|---|
 | F1 | Unit tests explorer/dnse pass 100% | `pytest tests/unit/explorer/dnse/ -v` | 0 failed | | |
 | F2 | Unit tests connector/dnse pass 100% | `pytest tests/unit/connector/dnse/ -v` | 0 failed | | |
-| F3 | Coverage explorer/dnse ≥ 80% | `pytest --cov=vnstock/explorer/dnse -q` | ≥ 80% | | |
+| F3 | Coverage explorer/dnse ≥ 80% | `pytest --cov=vnbroker/explorer/dnse -q` | ≥ 80% | | |
 | F4 | Full unit không tăng số fail so với baseline | `pytest tests/ -v --ignore=tests/integration/` | Không nhiều hơn baseline | | |
 | F5 | Thời gian chạy unit suite ≤ 30s | Elapsed từ pytest output | ≤ 30 giây | | |
 
@@ -219,17 +219,17 @@ Select-String -Path "vnstock\" -Recurse -Pattern "api_key\s*=\s*['\"][A-Za-z0-9]
 
 | # | Hạng mục | Lệnh kiểm tra | Kết quả mong đợi | Kết quả thực tế | Bằng chứng |
 |---|---|---|---|---|---|
-| G1 | VCI source vẫn hoạt động | `Vnstock().stock('VNM','VCI')` | Không lỗi | | |
-| G2 | TCBS source vẫn hoạt động | `Vnstock().stock('VNM','TCBS')` | Không lỗi | | |
-| G3 | KBS source vẫn hoạt động | `Vnstock().stock('VNM','KBS')` | Không lỗi | | |
-| G4 | AUTO source vẫn hoạt động | `Vnstock().stock('VNM','AUTO')` | Không lỗi | | |
+| G1 | VCI source vẫn hoạt động | `vnbroker().stock('VNM','VCI')` | Không lỗi | | |
+| G2 | TCBS source vẫn hoạt động | `vnbroker().stock('VNM','TCBS')` | Không lỗi | | |
+| G3 | KBS source vẫn hoạt động | `vnbroker().stock('VNM','KBS')` | Không lỗi | | |
+| G4 | AUTO source vẫn hoạt động | `vnbroker().stock('VNM','AUTO')` | Không lỗi | | |
 | G5 | `Trade()` public methods không bị đổi tên | `hasattr(Trade, 'login')`, v.v. | True | | |
-| G6 | Không có circular import | `import vnstock` | Không lỗi ImportError | | |
+| G6 | Không có circular import | `import vnbroker` | Không lỗi ImportError | | |
 | G7 | `explorer/__init__.py` không bị sửa scope | VCI/TCBS/KBS explorers load được | Không lỗi | | |
 
 **Lệnh G7:**
 ```python
-from vnstock.explorer import vci, tcbs, kbs
+from vnbroker.explorer import vci, tcbs, kbs
 print("VCI, TCBS, KBS explorers OK")
 ```
 
@@ -291,7 +291,7 @@ print("VCI, TCBS, KBS explorers OK")
 | L3 | `CENTRAL_MODIFIED_FILES_AUDIT.md` đã append | Review file | Có entry 2026-05-08 | | |
 | L4 | `module_tree_full.md` đã cập nhật | Review file | Có listing DNSE explorer files | | |
 | L5 | `DNSE_INDEX.md` đã cập nhật | Review file | Luồng đọc phản ánh đúng trạng thái | | |
-| L6 | DNSE không có trong `OPEN_SOURCE_CANDIDATES` | `grep -i "dnse" vnstock/core/source_router.py` | Không có hoặc không trong candidates | | |
+| L6 | DNSE không có trong `OPEN_SOURCE_CANDIDATES` | `grep -i "dnse" vnbroker/core/source_router.py` | Không có hoặc không trong candidates | | |
 | L7 | Tất cả commit đã push lên `dev` | `git status` | Không có branch diverge | | |
 
 **Lệnh L2:**
@@ -303,7 +303,7 @@ git diff --name-only "$(git log --oneline | Select-String 'explorer.*dnse\|dnse.
 **Lệnh L6:**
 ```python
 import pathlib
-src = pathlib.Path("vnstock/core/source_router.py").read_text(errors="replace") if pathlib.Path("vnstock/core/source_router.py").exists() else ""
+src = pathlib.Path("vnbroker/core/source_router.py").read_text(errors="replace") if pathlib.Path("vnbroker/core/source_router.py").exists() else ""
 assert "dnse" not in src.lower().split("OPEN_SOURCE_CANDIDATES")[1].split("]")[0].lower() if "OPEN_SOURCE_CANDIDATES" in src else True
 print("L6 PASS - DNSE not in open candidates")
 ```

@@ -1,10 +1,10 @@
-# Stock News Source Policy
+﻿# Stock News Source Policy
 
 Last updated: 2026-04-11
 
 ## 1) Purpose
 
-Define source governance for stock news ingestion in vnstock:
+Define source governance for stock news ingestion in vnbroker:
 
 - Legal and attribution baseline
 - Technical reliability requirements

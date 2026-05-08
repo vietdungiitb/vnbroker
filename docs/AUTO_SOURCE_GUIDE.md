@@ -1,6 +1,6 @@
-# AUTO Source — Hướng dẫn sử dụng nguồn tự động
+﻿# AUTO Source — Hướng dẫn sử dụng nguồn tự động
 
-> Tài liệu mô tả cơ chế `source='AUTO'` trong vnstock: cách chọn nguồn, thứ tự ưu tiên, failover, và cách sử dụng tối ưu.
+> Tài liệu mô tả cơ chế `source='AUTO'` trong vnbroker: cách chọn nguồn, thứ tự ưu tiên, failover, và cách sử dụng tối ưu.
 
 ---
 
@@ -18,16 +18,16 @@
 
 ## 1. Tổng quan
 
-`source='AUTO'` cho phép vnstock **tự động chọn nguồn dữ liệu tốt nhất** mà không cần chỉ định thủ công. Hệ thống sẽ:
+`source='AUTO'` cho phép vnbroker **tự động chọn nguồn dữ liệu tốt nhất** mà không cần chỉ định thủ công. Hệ thống sẽ:
 
 - Ưu tiên nguồn chính theo từng nhóm dữ liệu: `quote/company/financial` dùng **VCI-first**, còn `trading.price_board` dùng **KBS-first**.
 - Tự động **failover sang nguồn kế tiếp** nếu nguồn chính bị rate-limit, timeout, hoặc trả về lỗi.
 - Đặt nguồn lỗi vào **cooldown** (tối thiểu 5 giây, tối đa 90 giây theo exponential backoff) rồi thử lại sau.
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='AUTO', symbol='ACB')
+stock = vnbroker(source='AUTO', symbol='ACB')
 
 # Lịch sử giá — tự động chọn VCI, failover sang KBS nếu cần
 df = stock.quote.history(start='2025-01-01', end='2025-12-31')
@@ -72,10 +72,10 @@ bs = stock.finance.balance_sheet(period='quarter', lang='vi')
 ### 3.1 Lịch sử giá (Quote)
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
 # ✅ Khuyến nghị: AUTO — VCI-first, failover sang KBS tự động
-stock = Vnstock(source='AUTO', symbol='VNM')
+stock = vnbroker(source='AUTO', symbol='VNM')
 df = stock.quote.history(start='2025-01-01', end='2025-12-31', interval='1D')
 
 # Kiểm tra nguồn thực tế đã dùng
@@ -87,16 +87,16 @@ print(df.attrs.get('source_used'))  # → 'VCI' hoặc 'KBS'
 symbols = ['ACB', 'VNM', 'HPG', 'MSN']
 results = {}
 for sym in symbols:
-    stock = Vnstock(source='AUTO', symbol=sym)
+    stock = vnbroker(source='AUTO', symbol=sym)
     results[sym] = stock.quote.history(start='2025-01-01', end='2025-12-31')
 ```
 
 ### 3.2 Thông tin doanh nghiệp (Company)
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='AUTO', symbol='VNM')
+stock = vnbroker(source='AUTO', symbol='VNM')
 
 overview    = stock.company.overview()
 subsidiaries = stock.company.subsidiaries()
@@ -108,9 +108,9 @@ events      = stock.company.events()
 ### 3.3 Tài chính (Finance)
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='AUTO', symbol='VNM')
+stock = vnbroker(source='AUTO', symbol='VNM')
 
 balance_sheet    = stock.finance.balance_sheet(period='quarter', lang='vi')
 income_statement = stock.finance.income_statement(period='year',    lang='vi')
@@ -121,9 +121,9 @@ ratio            = stock.finance.ratio(period='year',               lang='vi')
 ### 3.4 Giao dịch (Trading)
 
 ```python
-from vnstock import Vnstock
+from vnbroker import vnbroker
 
-stock = Vnstock(source='AUTO', symbol='ACB')
+stock = vnbroker(source='AUTO', symbol='ACB')
 
 price_board = stock.trading.price_board(symbols_list=['ACB', 'VNM', 'HPG'])
 ```
@@ -131,7 +131,7 @@ price_board = stock.trading.price_board(symbols_list=['ACB', 'VNM', 'HPG'])
 ### 3.5 Danh sách mã (Listing)
 
 ```python
-from vnstock.common.data import Listing
+from vnbroker.common.data import Listing
 
 listing = Listing(source='AUTO')
 
@@ -143,7 +143,7 @@ hose        = listing.symbols_by_exchange()
 ### 3.6 Chỉ số thị trường (Index)
 
 ```python
-from vnstock.common.indices import Indices
+from vnbroker.common.indices import Indices
 
 indices = Indices(source='VCI')   # Chỉ VCI hỗ trợ đủ
 vni = indices.history(symbol='VNINDEX', start='2025-01-01', end='2025-12-31')
@@ -156,7 +156,7 @@ vni = indices.history(symbol='VNINDEX', start='2025-01-01', end='2025-12-31')
 ### Luồng xử lý một request
 
 ```
-Vnstock(source='AUTO', symbol='ACB').quote.history(...)
+vnbroker(source='AUTO', symbol='ACB').quote.history(...)
          │
          ▼
   build_source_order('quote', symbol='ACB')
@@ -201,7 +201,7 @@ Vnstock(source='AUTO', symbol='ACB').quote.history(...)
 ### Reset trạng thái router
 
 ```python
-from vnstock.core.source_router import reset_router_state
+from vnbroker.core.source_router import reset_router_state
 
 # Xóa toàn bộ cooldown state (dùng trong test hoặc khi muốn bắt đầu lại)
 reset_router_state()
@@ -214,7 +214,7 @@ reset_router_state()
 Kết hợp với AUTO để kiểm soát concurrency và retry:
 
 ```python
-from vnstock.core.performance_profiles import apply_profile, apply_profile_for_current_time
+from vnbroker.core.performance_profiles import apply_profile, apply_profile_for_current_time
 
 # Cho benchmark / batch offline
 apply_profile('benchmark_max_speed')
@@ -303,9 +303,9 @@ python -m tests.examples.auto_source_benchmark --help
 ### Sơ đồ module
 
 ```
-Vnstock(source='AUTO')
-    └── vnstock/common/client.py
-            └── vnstock/common/data.py          ← Facade layer
+vnbroker(source='AUTO')
+    └── vnbroker/common/client.py
+            └── vnbroker/common/data.py          ← Facade layer
                     ├── StockComponents
                     ├── Quote._load_data_source()
                     ├── Listing._load_data_source()
@@ -314,18 +314,18 @@ Vnstock(source='AUTO')
                     └── Finance._load_data_source()
                             │  (khi source in PUBLIC_VN_SOURCES)
                             ▼
-                    vnstock/api/{quote,listing,...}.py  ← Adapter layer
+                    vnbroker/api/{quote,listing,...}.py  ← Adapter layer
                             │
                             ▼
-                    vnstock/base.py (BaseAdapter)
+                    vnbroker/base.py (BaseAdapter)
                             │
-                            ├── vnstock/core/source_router.py  ← Routing engine
+                            ├── vnbroker/core/source_router.py  ← Routing engine
                             │       ├── build_source_order()
                             │       ├── record_success/failure()
                             │       ├── should_failover()
                             │       └── annotate_result_source()
                             │
-                            └── vnstock/core/registry.py       ← Provider registry
+                            └── vnbroker/core/registry.py       ← Provider registry
                                     └── ProviderRegistry.get(module, source)
 ```
 
@@ -333,23 +333,23 @@ Vnstock(source='AUTO')
 
 | File | Vai trò |
 |---|---|
-| `vnstock/core/source_router.py` | Engine routing AUTO: sharding, cooldown, failover |
-| `vnstock/core/types.py` | `DataSource` enum (bao gồm `AUTO = "auto"`) |
-| `vnstock/base.py` | `BaseAdapter` — vòng lặp thử nguồn |
-| `vnstock/common/data.py` | Facade routing `source in PUBLIC_VN_SOURCES` → adapter |
-| `vnstock/common/client.py` | `Vnstock` main class |
-| `vnstock/api/quote.py` | Quote adapter |
-| `vnstock/api/listing.py` | Listing adapter |
-| `vnstock/api/company.py` | Company adapter |
-| `vnstock/api/financial.py` | Finance adapter |
-| `vnstock/api/trading.py` | Trading adapter |
+| `vnbroker/core/source_router.py` | Engine routing AUTO: sharding, cooldown, failover |
+| `vnbroker/core/types.py` | `DataSource` enum (bao gồm `AUTO = "auto"`) |
+| `vnbroker/base.py` | `BaseAdapter` — vòng lặp thử nguồn |
+| `vnbroker/common/data.py` | Facade routing `source in PUBLIC_VN_SOURCES` → adapter |
+| `vnbroker/common/client.py` | `vnbroker` main class |
+| `vnbroker/api/quote.py` | Quote adapter |
+| `vnbroker/api/listing.py` | Listing adapter |
+| `vnbroker/api/company.py` | Company adapter |
+| `vnbroker/api/financial.py` | Finance adapter |
+| `vnbroker/api/trading.py` | Trading adapter |
 | `tests/unit/api/test_auto_source_router.py` | Unit tests routing |
 | `tests/examples/auto_source_benchmark.py` | Benchmark CLI tool |
 
 ### `DataSource` enum
 
 ```python
-from vnstock.core.types import DataSource
+from vnbroker.core.types import DataSource
 
 DataSource.AUTO    # "auto"  ← Mới thêm
 DataSource.VCI     # "vci"
@@ -364,5 +364,5 @@ DataSource.TCBS    # "tcbs"
 
 - [PERFORMANCE_PROFILES.md](PERFORMANCE_PROFILES.md) — Profiles và auto-tuning concurrency
 - [PROXY_GUIDE.md](PROXY_GUIDE.md) — Sử dụng proxy với VCI
-- [VNSTOCK_COMPARISON.md](VNSTOCK_COMPARISON.md) — So sánh nguồn dữ liệu
+- [vnbroker_COMPARISON.md](vnbroker_COMPARISON.md) — So sánh nguồn dữ liệu
 - [PORTFOLIO_ROBOADVISOR_GUIDE.md](PORTFOLIO_ROBOADVISOR_GUIDE.md) — Tích hợp robo-advisor

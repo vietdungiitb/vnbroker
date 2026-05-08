@@ -1,6 +1,6 @@
-# RFC - DNSE Broker Platform: từ nguồn dữ liệu thành cầu nối giao dịch
+﻿# RFC - DNSE Broker Platform: từ nguồn dữ liệu thành cầu nối giao dịch
 
-> Mã RFC: VNSTOCK-RFC-DNSE-BROKER-2026-05
+> Mã RFC: vnbroker-RFC-DNSE-BROKER-2026-05
 >
 > Trạng thái: Proposal
 >
@@ -10,11 +10,11 @@
 
 ## 1. Tóm tắt điều hành
 
-Đề xuất này không xem DNSE là một provider market-data đơn lẻ nữa. Mục tiêu là nâng DNSE thành một **broker platform layer** cho vnstock: một lớp cầu nối thống nhất giữa ứng dụng và công ty chứng khoán, bao phủ đọc dữ liệu thị trường, quản lý tài khoản, đặt/sửa/hủy lệnh, theo dõi vị thế, đối soát trạng thái và mở rộng các tác vụ vận hành.
+Đề xuất này không xem DNSE là một provider market-data đơn lẻ nữa. Mục tiêu là nâng DNSE thành một **broker platform layer** cho vnbroker: một lớp cầu nối thống nhất giữa ứng dụng và công ty chứng khoán, bao phủ đọc dữ liệu thị trường, quản lý tài khoản, đặt/sửa/hủy lệnh, theo dõi vị thế, đối soát trạng thái và mở rộng các tác vụ vận hành.
 
 Điểm cốt lõi của đề xuất:
 
-- Giữ nguyên tương thích với vnstock hiện tại, đặc biệt là `Vnstock`, `StockComponents`, `Quote`, `Listing` và `Trade`.
+- Giữ nguyên tương thích với vnbroker hiện tại, đặc biệt là `vnbroker`, `StockComponents`, `Quote`, `Listing` và `Trade`.
 - Dùng DNSE làm broker backend chuẩn cho ứng dụng của bạn, thay vì chỉ dùng DNSE để xem giá.
 - Tách rõ hai lớp: **connector** để nói chuyện với OpenAPI, và **broker bridge** để điều phối nghiệp vụ cho ứng dụng.
 - Thiết kế theo hướng capability-based: endpoint nào DNSE hỗ trợ thật thì public, endpoint nào chưa ổn định thì cô lập, không để làm gãy các luồng khác.
@@ -49,7 +49,7 @@ Nếu DNSE chỉ dừng ở provider market-data, bạn sẽ có một thư vi�
 - Đối soát trạng thái lại thành một job khác.
 - Mỗi khi DNSE thêm endpoint mới, app phải tự nối lại từ đầu.
 
-Kết quả là ứng dụng của bạn sẽ phân mảnh: đọc dữ liệu thì qua vnstock, đặt lệnh thì qua script riêng, kiểm tra vị thế thì qua một API khác, đối soát thì lại viết thêm một pipeline khác.
+Kết quả là ứng dụng của bạn sẽ phân mảnh: đọc dữ liệu thì qua vnbroker, đặt lệnh thì qua script riêng, kiểm tra vị thế thì qua một API khác, đối soát thì lại viết thêm một pipeline khác.
 
 Đó là cách rất nhanh để tạo ra chi phí bảo trì cao và contract drift.
 
@@ -57,7 +57,7 @@ Kết quả là ứng dụng của bạn sẽ phân mảnh: đọc dữ liệu t
 
 Bạn đã có tài khoản DNSE thật, nghĩa là có thể xác minh live contract và không phải đoán theo spec.
 
-Bạn cũng đang có một dự án lớn hơn vnstock thuần túy: tracker, robo-advisor, tác vụ đọc thị trường, quản trị danh mục và tự động hóa giao dịch. Những use case này cần một broker bridge, không chỉ một quote provider.
+Bạn cũng đang có một dự án lớn hơn vnbroker thuần túy: tracker, robo-advisor, tác vụ đọc thị trường, quản trị danh mục và tự động hóa giao dịch. Những use case này cần một broker bridge, không chỉ một quote provider.
 
 ---
 
@@ -80,7 +80,7 @@ Biến DNSE thành lớp cầu nối chuẩn giữa ứng dụng và công ty ch
 - Mở public API ở mức đủ cho app sử dụng, không tạo fat file.
 - Dùng audit và test để bảo đảm mọi thay đổi có thể kiểm soát.
 
-Quan điểm thiết kế ở đây là: **vnstock có một lớp API chung cho mọi provider cho các public functions đã được chuẩn hóa**, còn DNSE được mở thêm một lớp mở rộng riêng cho người dùng có tài khoản DNSE để đi sâu vào OpenAPI account/trading/portfolio.
+Quan điểm thiết kế ở đây là: **vnbroker có một lớp API chung cho mọi provider cho các public functions đã được chuẩn hóa**, còn DNSE được mở thêm một lớp mở rộng riêng cho người dùng có tài khoản DNSE để đi sâu vào OpenAPI account/trading/portfolio.
 
 ### 3.3 Mô hình lớp
 
@@ -95,7 +95,7 @@ Quan điểm thiết kế ở đây là: **vnstock có một lớp API chung cho
             └── DNSE Connector (OpenAPI, ký request, lỗi, raw response)
 ```
 
-Nếu đi theo mô hình này, `vnstock` không bị khóa vào một broker duy nhất, nhưng DNSE lại đủ sâu để dùng như hạ tầng giao dịch thật.
+Nếu đi theo mô hình này, `vnbroker` không bị khóa vào một broker duy nhất, nhưng DNSE lại đủ sâu để dùng như hạ tầng giao dịch thật.
 
 ---
 
@@ -124,11 +124,11 @@ Tài liệu contract hiện tại đã ghi nhận các quan sát live sau:
 
 Đây là điểm mấu chốt: bridge phải dựa trên **năng lực xác minh được**, không dựa trên giả định.
 
-### 4.2 Bảng tương thích với kiến trúc hiện có của vnstock
+### 4.2 Bảng tương thích với kiến trúc hiện có của vnbroker
 
 #### 4.2.1 Lớp API chung cho mọi provider
 
-| API / nhóm chức năng | Vai trò trong vnstock | Mức tương thích với DNSE | Chuyển provider an toàn? | Ghi chú thiết kế |
+| API / nhóm chức năng | Vai trò trong vnbroker | Mức tương thích với DNSE | Chuyển provider an toàn? | Ghi chú thiết kế |
 |---|---|---|---|---|
 | `Quote.history()` | Lấy lịch sử giá chuẩn hóa | Cao | Có | DNSE dùng `bar_type="STOCK"`; output chuẩn hóa `time/open/high/low/close/volume` |
 | `Listing.all_symbols()` | Danh sách mã chứng khoán | Cao | Có | DNSE đã chuẩn hóa output và hạ limit an toàn về `1000` |
@@ -139,14 +139,14 @@ Tài liệu contract hiện tại đã ghi nhận các quan sát live sau:
 
 #### 4.2.2 Lớp mở rộng riêng cho người dùng DNSE
 
-| DNSE OpenAPI function family | Có trong lớp API chung vnstock? | DNSE support | Khi chuyển provider | Ghi chú |
+| DNSE OpenAPI function family | Có trong lớp API chung vnbroker? | DNSE support | Khi chuyển provider | Ghi chú |
 |---|---|---|---|---|
 | Account: `get_accounts`, `get_balances`, `get_loan_packages`, `get_ppse` | Không | Có | Không áp dụng | Chỉ mở cho người dùng có DNSE credentials |
 | Orders: `get_orders`, `get_order_detail`, `get_execution_detail`, `get_order_history` | Không | Có | Không áp dụng | Nên đi qua broker bridge riêng của DNSE |
 | Trading: `send_email_otp`, `create_trading_token`, `post_order`, `put_order`, `cancel_order` | Không | Có | Không áp dụng | Đây là lớp giao dịch riêng, không nên giả lập như market-data |
 | Portfolio / position / reconciliation | Không chuẩn hóa chung | Có thể mở rộng | Không áp dụng | Dùng cho app giao dịch thực, đồng bộ trạng thái và đối soát |
 
-Kết luận thực dụng của bảng tương thích: **người dùng có thể đổi provider khá an toàn nếu code chỉ bám vào lớp API chuẩn hóa của vnstock và schema đã normalize**. Còn nếu họ dùng các hàm DNSE extension, đó là năng lực riêng của DNSE và không thể kỳ vọng provider khác có cùng hành vi 1:1.
+Kết luận thực dụng của bảng tương thích: **người dùng có thể đổi provider khá an toàn nếu code chỉ bám vào lớp API chuẩn hóa của vnbroker và schema đã normalize**. Còn nếu họ dùng các hàm DNSE extension, đó là năng lực riêng của DNSE và không thể kỳ vọng provider khác có cùng hành vi 1:1.
 
 ---
 
@@ -180,7 +180,7 @@ Lý do mạnh nhất để chọn phương án này là chi phí bảo trì. M�
 
 ### 7.1 Connector layer
 
-Giữ `vnstock.connector.dnse` là lớp thấp nhất, chuyên:
+Giữ `vnbroker.connector.dnse` là lớp thấp nhất, chuyên:
 
 - Ký request.
 - Gọi HTTP.
@@ -324,7 +324,7 @@ Mục tiêu:
 
 Tôi đề nghị bạn phê duyệt theo nguyên tắc sau:
 
-1. Chấp thuận DNSE là **broker platform** của vnstock, không chỉ là data provider.
+1. Chấp thuận DNSE là **broker platform** của vnbroker, không chỉ là data provider.
 2. Chấp thuận xây dựng một **broker bridge layer** ở trên connector hiện có.
 3. Chấp thuận làm theo **phase-based rollout**, bắt đầu từ capability inventory và contract lock.
 4. Chấp thuận nguyên tắc: mọi logic app với DNSE phải đi qua bridge, không gọi raw endpoint rải rác.

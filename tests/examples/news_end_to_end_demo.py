@@ -1,4 +1,4 @@
-"""
+﻿"""
 End-to-end Stock News demo.
 
 Usage:
@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import argparse
 
-from vnstock.common.client import Vnstock
-from vnstock.news.monitor import summarize_alerts
+from vnbroker.common.client import Vnbroker
+from vnbroker.news.monitor import summarize_alerts
 
 
 def run(symbol: str, source: str, query: str, out: str):
-    stock = Vnstock(show_log=False).stock(symbol, source=source)
+    stock = Vnbroker(show_log=False).stock(symbol, source=source)
 
     print("=== 1) latest ===")
     latest = stock.news.latest(limit=10)

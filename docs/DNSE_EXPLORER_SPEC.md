@@ -1,4 +1,4 @@
-# DNSE Explorer Layer — Đặc tả kỹ thuật chi tiết
+﻿# DNSE Explorer Layer — Đặc tả kỹ thuật chi tiết
 **Phiên bản:** 1.0  
 **Ngày duyệt:** 2026-05-07  
 **Trạng thái:** ĐÃ DUYỆT — Đội code thực hiện theo tài liệu này, không được tự sửa phạm vi.
@@ -14,7 +14,7 @@ Tài liệu này định nghĩa **chính xác từng file, từng class, từng 
 ## 2. Cây file cần tạo/sửa
 
 ```
-vnstock/
+vnbroker/
 ├── explorer/
 │   └── dnse/                          ← MỚI HOÀN TOÀN
 │       ├── __init__.py                ← Đăng ký ProviderRegistry
@@ -32,7 +32,7 @@ vnstock/
 
 ---
 
-## 3. File `vnstock/explorer/dnse/quote.py`
+## 3. File `vnbroker/explorer/dnse/quote.py`
 
 ### 3.1 Import dependencies
 
@@ -42,7 +42,7 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 import pandas as pd
-from vnstock.core.utils.logger import get_logger
+from vnbroker.core.utils.logger import get_logger
 
 logger = get_logger(__name__)
 ```
@@ -154,7 +154,7 @@ def __init__(
    ```
 6. Import lazy (tránh circular):  
    ```python
-   from vnstock.connector.dnse.client import DNSEClient
+   from vnbroker.connector.dnse.client import DNSEClient
    ```
 7. `self._client = DNSEClient(api_key=resolved_key, api_secret=resolved_secret, show_log=show_log)`
 8. `self._market = self._client._market`
@@ -252,11 +252,11 @@ def price_depth(
 
 ---
 
-## 4. File `vnstock/explorer/dnse/listing.py`
+## 4. File `vnbroker/explorer/dnse/listing.py`
 
 ### 4.1 Import dependencies
 
-Giống quote.py, thêm `from vnstock.connector.dnse.client import DNSEClient` (lazy trong `__init__`).
+Giống quote.py, thêm `from vnbroker.connector.dnse.client import DNSEClient` (lazy trong `__init__`).
 
 ### 4.2 Hằng số
 
@@ -331,14 +331,14 @@ def _fetch_instruments(
 
 ---
 
-## 5. File `vnstock/explorer/dnse/__init__.py`
+## 5. File `vnbroker/explorer/dnse/__init__.py`
 
 ```python
 """
-vnstock/explorer/dnse/__init__.py
-Đăng ký DNSE explorer providers vào ProviderRegistry của vnstock.
+vnbroker/explorer/dnse/__init__.py
+Đăng ký DNSE explorer providers vào ProviderRegistry của vnbroker.
 """
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.core.registry import ProviderRegistry
 from .quote import DNSEQuote
 from .listing import DNSEListing
 
@@ -353,7 +353,7 @@ __all__ = ["DNSEQuote", "DNSEListing"]
 
 ---
 
-## 6. Sửa `vnstock/connector/dnse/client.py`
+## 6. Sửa `vnbroker/connector/dnse/client.py`
 
 ### Chỉ thay đổi duy nhất: method `_to_dataframe`
 
@@ -375,7 +375,7 @@ Không sửa gì khác trong file này.
 
 ---
 
-## 7. Sửa `vnstock/__init__.py`
+## 7. Sửa `vnbroker/__init__.py`
 
 ### Chỉ thay đổi duy nhất: thêm `dnse` vào lazy load
 
@@ -392,7 +392,7 @@ Không sửa gì khác trong file này.
 
 ---
 
-## 8. Sửa `vnstock/common/data.py`
+## 8. Sửa `vnbroker/common/data.py`
 
 ### 8.1 Thêm DNSE vào `StockComponents.SUPPORTED_SOURCES`
 
@@ -434,8 +434,8 @@ Thêm vào cuối block `elif` trong `_initialize_components`:
 
 ```python
 elif self.source == 'DNSE':
-    from vnstock.api.quote import Quote as QuoteAdapter
-    from vnstock.api.listing import Listing as ListingAdapter
+    from vnbroker.api.quote import Quote as QuoteAdapter
+    from vnbroker.api.listing import Listing as ListingAdapter
     self.quote = QuoteAdapter(
         source='dnse',
         symbol=self.symbol,
@@ -474,7 +474,7 @@ Thêm branch trước `module = importlib.import_module(...)`:
 
 ```python
 if self.source == "DNSE":
-    from vnstock.explorer.dnse.quote import DNSEQuote
+    from vnbroker.explorer.dnse.quote import DNSEQuote
     return DNSEQuote(
         symbol=self.symbol,
         api_key=getattr(self, "api_key", None),
@@ -502,7 +502,7 @@ Thêm branch trước `module = importlib.import_module(...)`:
 
 ```python
 if self.source == "DNSE":
-    from vnstock.explorer.dnse.listing import DNSEListing
+    from vnbroker.explorer.dnse.listing import DNSEListing
     return DNSEListing(
         api_key=getattr(self, "api_key", None),
         api_secret=getattr(self, "api_secret", None),
@@ -524,9 +524,9 @@ def __init__(self, source: str = Config.DEFAULT_SOURCE,
 
 ---
 
-## 9. Sửa `vnstock/common/client.py`
+## 9. Sửa `vnbroker/common/client.py`
 
-### 9.1 Thêm DNSE vào `Vnstock.SUPPORTED_SOURCES`
+### 9.1 Thêm DNSE vào `vnbroker.SUPPORTED_SOURCES`
 
 ```python
 # TRƯỚC
@@ -536,7 +536,7 @@ SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN"]
 SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "DNSE"]
 ```
 
-### 9.2 Thêm `api_key`/`api_secret` vào `Vnstock.stock()`
+### 9.2 Thêm `api_key`/`api_secret` vào `vnbroker.stock()`
 
 ```python
 # TRƯỚC
@@ -567,13 +567,13 @@ return StockComponents(
 
 ---
 
-## 10. Sửa `vnstock/connector/dnse/trade.py`
+## 10. Sửa `vnbroker/connector/dnse/trade.py`
 
 ### 10.1 Thay `print()` → `logger`
 
 Thêm import ở đầu file:
 ```python
-from vnstock.core.utils.logger import get_logger
+from vnbroker.core.utils.logger import get_logger
 logger = get_logger(__name__)
 ```
 
@@ -683,13 +683,13 @@ Sau khi code xong, chạy lệnh sau — tất cả phải pass:
 
 ```python
 # Kiểm tra 1: Import không lỗi
-python -c "from vnstock import Vnstock; print('OK')"
+python -c "from vnbroker import vnbroker; print('OK')"
 
 # Kiểm tra 2: DNSE có trong registry
 python -c "
-from vnstock import _ensure_explorer_modules_loaded
+from vnbroker import _ensure_explorer_modules_loaded
 _ensure_explorer_modules_loaded()
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.core.registry import ProviderRegistry
 print(ProviderRegistry.list_all())
 # Phải thấy 'dnse' trong quote và listing
 "
@@ -697,7 +697,7 @@ print(ProviderRegistry.list_all())
 # Kiểm tra 3: Quote DNSE khởi tạo đúng (thiếu key phải raise ValueError)
 python -c "
 import os; os.environ.pop('DNSE_API_KEY', None); os.environ.pop('DNSE_API_SECRET', None)
-from vnstock.explorer.dnse.quote import DNSEQuote
+from vnbroker.explorer.dnse.quote import DNSEQuote
 try:
     q = DNSEQuote('VNM')
     print('FAIL: phải raise ValueError')
@@ -705,10 +705,10 @@ except ValueError as e:
     print('PASS:', str(e)[:60])
 "
 
-# Kiểm tra 4: Vnstock nhận DNSE
+# Kiểm tra 4: vnbroker nhận DNSE
 python -c "
-from vnstock.common.client import Vnstock
-v = Vnstock()
+from vnbroker.common.client import vnbroker
+v = vnbroker()
 print('SUPPORTED_SOURCES:', v.SUPPORTED_SOURCES)
 assert 'DNSE' in v.SUPPORTED_SOURCES, 'DNSE phải có trong SUPPORTED_SOURCES'
 print('PASS')

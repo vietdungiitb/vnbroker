@@ -1,6 +1,6 @@
 """Unit tests for KBS adaptive worker control — now backed by AdaptiveController."""
 
-from vnstock.core.adaptive_controller import AdaptiveController
+from vnbroker.core.adaptive_controller import AdaptiveController
 
 
 def test_adjust_worker_count_increase_on_clean_low_latency():

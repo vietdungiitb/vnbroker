@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from vnstock.explorer.dnse.quote import (
+from vnbroker.explorer.dnse.quote import (
     DNSEQuote,
     _normalize_interval,
     _to_unix_seconds,
@@ -40,7 +40,7 @@ _SAMPLE_SECDEF_BODY = {
 
 def _make_quote():
     with patch.dict(os.environ, {"DNSE_API_KEY": "test-key", "DNSE_API_SECRET": "test-secret"}):
-        with patch("vnstock.connector.dnse.client.DNSEClient") as mock_client_cls:
+        with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_client_cls:
             mock_client = MagicMock()
             mock_client._market.get_ohlc.return_value = (200, _SAMPLE_OHLC_BODY)
             mock_client._market.get_trades.return_value = (200, _SAMPLE_TRADES_BODY)
@@ -130,7 +130,7 @@ class TestDNSEQuote:
     def test_history_returns_empty_on_api_error(self):
         """history() trả empty DataFrame khi API lỗi, không raise."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_ohlc.side_effect = Exception("network timeout")
                 mc.return_value = m
@@ -142,7 +142,7 @@ class TestDNSEQuote:
     def test_history_with_show_log(self):
         """history() log khi show_log=True."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_ohlc.return_value = (200, _SAMPLE_OHLC_BODY)
                 mc.return_value = m
@@ -161,7 +161,7 @@ class TestDNSEQuote:
     def test_intraday_empty_on_404(self):
         """intraday() trả empty khi API lỗi (404 live)."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_trades.side_effect = Exception("404 not found")
                 mc.return_value = m
@@ -173,7 +173,7 @@ class TestDNSEQuote:
     def test_intraday_body_none_returns_empty(self):
         """intraday() trả empty khi body là None."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_trades.return_value = (200, None)
                 mc.return_value = m
@@ -184,7 +184,7 @@ class TestDNSEQuote:
     def test_intraday_body_list_directly(self):
         """intraday() xử lý body trả về trực tiếp là list."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_trades.return_value = (
                     200,
@@ -198,7 +198,7 @@ class TestDNSEQuote:
     def test_intraday_show_log(self):
         """intraday() log khi show_log=True."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_trades.return_value = (200, _SAMPLE_TRADES_BODY)
                 mc.return_value = m
@@ -217,7 +217,7 @@ class TestDNSEQuote:
     def test_price_depth_with_list_body(self):
         """price_depth() xử lý body list[dict] như live DNSE."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_security_definition.return_value = (
                     200,
@@ -231,7 +231,7 @@ class TestDNSEQuote:
     def test_price_depth_body_none_returns_empty(self):
         """price_depth() trả empty DataFrame khi body None."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_security_definition.return_value = (200, None)
                 mc.return_value = m
@@ -242,7 +242,7 @@ class TestDNSEQuote:
     def test_price_depth_api_error_returns_empty(self):
         """price_depth() trả empty khi API lỗi, không raise."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_security_definition.side_effect = Exception("500 error")
                 mc.return_value = m
@@ -253,7 +253,7 @@ class TestDNSEQuote:
     def test_history_uses_symbol_from_init(self):
         """history() dùng symbol từ __init__ nếu không truyền tham số."""
         with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
-            with patch("vnstock.connector.dnse.client.DNSEClient") as mc:
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
                 m = MagicMock()
                 m._market.get_ohlc.return_value = (200, _SAMPLE_OHLC_BODY)
                 mc.return_value = m

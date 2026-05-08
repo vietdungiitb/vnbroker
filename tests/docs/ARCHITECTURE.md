@@ -1,6 +1,6 @@
-# Vnstock Test Architecture & Quick Guide
+﻿# vnbroker Test Architecture & Quick Guide
 
-**For AI: This guide helps you understand, modify, and extend vnstock tests efficiently.**
+**For AI: This guide helps you understand, modify, and extend vnbroker tests efficiently.**
 
 ---
 
@@ -30,7 +30,7 @@ tests/
 │       └── test_vci_quote_with_proxy.py       # Proxy integration
 │
 ├── integration/                     # Real API calls (skip by default)
-│   └── test_vnstock_client.py       # End-to-end workflows
+│   └── test_vnbroker_client.py       # End-to-end workflows
 │
 └── report/
     ├── coverage_html/               # Generated HTML coverage report
@@ -184,13 +184,13 @@ pytest tests/ -m smoke -q
 
 ```bash
 # Generate HTML report
-pytest tests/unit/ -m "not integration" --cov=vnstock --cov-report=html
+pytest tests/unit/ -m "not integration" --cov=vnbroker --cov-report=html
 
 # View coverage in terminal
-pytest tests/unit/ -m "not integration" --cov=vnstock --cov-report=term-missing
+pytest tests/unit/ -m "not integration" --cov=vnbroker --cov-report=term-missing
 
 # Coverage for specific module
-pytest tests/unit/ -m "not integration" --cov=vnstock.core.utils
+pytest tests/unit/ -m "not integration" --cov=vnbroker.core.utils
 ```
 
 ### Debug Tests
@@ -218,7 +218,7 @@ pytest tests/unit/ --durations=10
 # tests/unit/explorer/test_mynewsource.py
 
 import pytest
-from vnstock.explorer.mysource import MyClass
+from vnbroker.explorer.mysource import MyClass
 
 @pytest.mark.unit
 @pytest.mark.mysource
@@ -335,7 +335,7 @@ pytest --fixtures | grep your_fixture_name
 ### Problem: "Mock not working"
 **Solution**: Patch correct import path
 ```python
-@patch('vnstock.explorer.vci.quote.requests.get')  # ✅ Correct
+@patch('vnbroker.explorer.vci.quote.requests.get')  # ✅ Correct
 def test_example(mock_get):
     ...
 ```
@@ -344,7 +344,7 @@ def test_example(mock_get):
 **Solution**: Expected for unit tests without integration
 ```bash
 # Run integration tests for full coverage
-pytest tests/unit/ --cov=vnstock --cov-report=html
+pytest tests/unit/ --cov=vnbroker --cov-report=html
 ```
 
 ---
@@ -394,7 +394,7 @@ pytest runs
 - [ ] Test markers added
 - [ ] pytest.ini updated if new markers
 - [ ] Tests pass: `pytest tests/unit/ -q`
-- [ ] Coverage checked: `--cov=vnstock`
+- [ ] Coverage checked: `--cov=vnbroker`
 - [ ] Documentation updated if new patterns
 - [ ] Slow/integration tests marked appropriately
 - [ ] No hardcoded paths or external dependencies

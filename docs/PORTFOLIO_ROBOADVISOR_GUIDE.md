@@ -1,6 +1,6 @@
-# Áp dụng repo hiện tại cho Portfolio Tracker và Robo-Advisor
+﻿# Áp dụng repo hiện tại cho Portfolio Tracker và Robo-Advisor
 
-Tài liệu này trả lời câu hỏi thực dụng hơn sau khi so sánh với `vnstock` chuẩn:
+Tài liệu này trả lời câu hỏi thực dụng hơn sau khi so sánh với `vnbroker` chuẩn:
 
 - Nếu xây hệ thống theo kiểu `portfolio tracker` hoặc `robo-advisor`, repo hiện tại nên được dùng như thế nào?
 - Những phần nào đã đủ tốt để tận dụng ngay?
@@ -17,11 +17,11 @@ Nếu mục tiêu là xây một hệ thống gồm:
 - phục vụ API cho dashboard,
 - chạy rule-based signal hoặc allocation job định kỳ,
 
-thì repo hiện tại phù hợp hơn `vnstock` chuẩn vì đã tiến gần đến mô hình “data service” hơn là chỉ một thư viện gọi dữ liệu thủ công.
+thì repo hiện tại phù hợp hơn `vnbroker` chuẩn vì đã tiến gần đến mô hình “data service” hơn là chỉ một thư viện gọi dữ liệu thủ công.
 
 Nói ngắn gọn:
 
-- `vnstock` chuẩn: đủ cho nghiên cứu và notebook.
+- `vnbroker` chuẩn: đủ cho nghiên cứu và notebook.
 - Repo hiện tại: phù hợp hơn cho backend job, worker và data ingestion pipeline.
 
 ## Phân rã theo use case
@@ -67,9 +67,9 @@ Nếu hệ thống của bạn dùng React + Django + Pandas + Redis + Celery, c
 
 ### Tầng dữ liệu
 
-- `vnstock/api/*` và `vnstock/explorer/*`: adapter lấy dữ liệu từ các provider.
-- `vnstock/core/utils/async_client.py`: dùng cho batch fetch, retry, rate limit, telemetry.
-- `vnstock/core/utils/proxy_manager.py`: quản lý proxy pool khi chạy môi trường dễ block IP.
+- `vnbroker/api/*` và `vnbroker/explorer/*`: adapter lấy dữ liệu từ các provider.
+- `vnbroker/core/utils/async_client.py`: dùng cho batch fetch, retry, rate limit, telemetry.
+- `vnbroker/core/utils/proxy_manager.py`: quản lý proxy pool khi chạy môi trường dễ block IP.
 
 ### Tầng ingestion/service
 
@@ -98,7 +98,7 @@ Các phần nên tận dụng ngay trong repo hiện tại:
 
 ## Những gì vẫn nên tự bọc thêm ở tầng ứng dụng
 
-Repo hiện tại tốt hơn `vnstock` chuẩn, nhưng vẫn chưa nên bị hiểu là một data platform hoàn chỉnh. Ở tầng ứng dụng bạn vẫn nên tự thêm:
+Repo hiện tại tốt hơn `vnbroker` chuẩn, nhưng vẫn chưa nên bị hiểu là một data platform hoàn chỉnh. Ở tầng ứng dụng bạn vẫn nên tự thêm:
 
 1. Data cache policy.
 2. Persistent storage schema cho OHLC, holdings, signals, rebalance history.
@@ -160,7 +160,7 @@ Việc nên làm:
 3. Thêm alert theo tỷ lệ fail, timeout, 429.
 4. Benchmark định kỳ theo giờ giao dịch.
 
-## Khi nào repo hiện tại đáng giá hơn `vnstock` chuẩn
+## Khi nào repo hiện tại đáng giá hơn `vnbroker` chuẩn
 
 Bạn nên dùng repo hiện tại nếu có ít nhất 2 điều sau:
 
@@ -170,12 +170,12 @@ Bạn nên dùng repo hiện tại nếu có ít nhất 2 điều sau:
 - Muốn tuning hiệu năng bằng số liệu thay vì cảm giác.
 - Muốn tiếp tục fork và tối ưu như một data engine nội bộ.
 
-Nếu chưa có các nhu cầu trên, `vnstock` chuẩn có thể vẫn là lựa chọn đơn giản hơn.
+Nếu chưa có các nhu cầu trên, `vnbroker` chuẩn có thể vẫn là lựa chọn đơn giản hơn.
 
 ## Mốc code liên quan
 
-- `vnstock/explorer/vci/quote.py`
-- `vnstock/core/utils/proxy_manager.py`
-- `vnstock/core/utils/async_client.py`
+- `vnbroker/explorer/vci/quote.py`
+- `vnbroker/core/utils/proxy_manager.py`
+- `vnbroker/core/utils/async_client.py`
 - `tests/examples/vci_perf_benchmark.py`
-- `docs/VNSTOCK_COMPARISON.md`
+- `docs/vnbroker_COMPARISON.md`

@@ -12,10 +12,10 @@ import os
 
 import pytest
 import pandas as pd
-from vnstock.explorer.vci.quote import Quote
+from vnbroker.explorer.vci.quote import Quote
 
 
-RUN_LIVE_INTEGRATION = os.getenv("VNSTOCK_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
+RUN_LIVE_INTEGRATION = os.getenv("vnbroker_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
     "1",
     "true",
     "yes",
@@ -25,7 +25,7 @@ RUN_LIVE_INTEGRATION = os.getenv("VNSTOCK_RUN_LIVE_INTEGRATION", "0").strip().lo
 if not RUN_LIVE_INTEGRATION:
     pytest.skip(
         "Live VCI integration tests are disabled by default. "
-        "Set VNSTOCK_RUN_LIVE_INTEGRATION=1 to run this module.",
+        "Set vnbroker_RUN_LIVE_INTEGRATION=1 to run this module.",
         allow_module_level=True,
     )
 
@@ -151,7 +151,7 @@ class TestVCIQuoteComprehensive:
     def test_history_derivatives(self):
         """Test history() with derivative symbols."""
         # Dynamically fetch future indices to ensure valid symbols
-        from vnstock.explorer.vci.listing import Listing
+        from vnbroker.explorer.vci.listing import Listing
         listing = Listing(random_agent=False, show_log=False)
         try:
             derivative_symbols = listing.all_future_indices()

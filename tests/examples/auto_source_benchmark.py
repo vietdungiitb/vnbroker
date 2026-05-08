@@ -19,9 +19,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
-from vnstock.api.listing import Listing
-from vnstock.api.quote import Quote
-from vnstock.core.performance_profiles import apply_profile, list_profiles
+from vnbroker.api.listing import Listing
+from vnbroker.api.quote import Quote
+from vnbroker.core.performance_profiles import apply_profile, list_profiles
 
 
 DEFAULT_BENCH_SYMBOLS = [

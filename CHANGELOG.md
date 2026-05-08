@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
   - `docs/FINANCE_INSIDER_INDUSTRY_USAGE_GUIDE.md`
 
 ### Changed
-- Stabilized unit test behavior by gating live integration suites behind `VNSTOCK_RUN_LIVE_INTEGRATION=1` to avoid false negatives from upstream rate limits.
+- Stabilized unit test behavior by gating live integration suites behind `vnbroker_RUN_LIVE_INTEGRATION=1` to avoid false negatives from upstream rate limits.
 - Updated implementation and signoff documentation for production-ready handoff.
 
 ### Validation
@@ -23,12 +23,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Perpetual false upgrade notices**: `_check_version_updates()` previously compared package metadata version (`1.0.x`) against GitHub release tags (`3.x`), causing the upgrade notice to fire on every import.
-- **Root cause**: `importlib.metadata.version("vnstock")` returns the editable-install packaging version (`1.0.0`) which is unrelated to the upstream release line (`3.x`).
-- **Solution**: Added `_get_current_github_channel_version()` which reads the highest version key from `VERSION_REQUIREMENTS`, `VERSION_NOTICES`, and `PYTHON_VERSION_SUPPORT` in `vnstock/config.py` (currently `"3.4.0"`) as the source-of-truth for the installed codebase version. GitHub-only comparison is preserved (no PyPI fallback added).
+- **Root cause**: `importlib.metadata.version("vnbroker")` returns the editable-install packaging version (`1.0.0`) which is unrelated to the upstream release line (`3.x`).
+- **Solution**: Added `_get_current_github_channel_version()` which reads the highest version key from `VERSION_REQUIREMENTS`, `VERSION_NOTICES`, and `PYTHON_VERSION_SUPPORT` in `vnbroker/config.py` (currently `"3.4.0"`) as the source-of-truth for the installed codebase version. GitHub-only comparison is preserved (no PyPI fallback added).
 - **Message cleanup**: Removed noisy `package metadata: 1.0.0` text from notice output. Display now shows `Current: 3.4.0 (Python 3.x (venv))`.
 
 ### Added
-- `_get_current_github_channel_version()` — internal helper in `vnstock/core/utils/upgrade.py`.
+- `_get_current_github_channel_version()` — internal helper in `vnbroker/core/utils/upgrade.py`.
 - `get_github_version_diagnostics()` — public debug helper returning a dict with `package`, `github_repo`, `package_metadata_version`, `current_github_channel_version`, `latest_github_release`.
 - `tests/unit/core/test_upgrade_notice.py` — 4 regression tests locking the GitHub-only update notice behavior.
 
@@ -40,32 +40,32 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Unified News facade** in `StockComponents`: `stock.news` now provides normalized multi-source news access for stock symbols.
 - **New News adapter and providers**:
-	- `vnstock/api/news.py`
+	- `vnbroker/api/news.py`
 	- provider wrappers for `VCI`, `KBS`, `TCBS`
 	- RSS providers for `RSS_CAFEF` and `RSS_VNECONOMY`
 - **Normalization and dedup pipeline**:
-	- `vnstock/news/normalize.py` for canonical schema mapping
-	- `vnstock/news/dedup.py` for duplicate reduction
+	- `vnbroker/news/normalize.py` for canonical schema mapping
+	- `vnbroker/news/dedup.py` for duplicate reduction
 - **Criteria-based filtering API**:
 	- `News.filter(...)` supports symbol, query text, source list, and time-range filters
 	- `News.query(...)` convenience alias for text search
-	- utility `vnstock/news/filtering.py`
+	- utility `vnbroker/news/filtering.py`
 - **Source health observability for News**:
-	- `vnstock/core/source_router.get_source_health_snapshot("news")`
+	- `vnbroker/core/source_router.get_source_health_snapshot("news")`
 	- `News.health()` and `News.health_dataframe()`
 - **Health log export**:
 	- `News.log_health(file_path, fmt="jsonl|csv")`
-	- utility `vnstock/news/health.py`
+	- utility `vnbroker/news/health.py`
 - **Alerting and monitor helpers**:
 	- `News.alerts(...)` and `News.monitor_health(...)`
-	- utility `vnstock/news/monitor.py`
+	- utility `vnbroker/news/monitor.py`
 - **Example monitor script**:
 	- `tests/examples/news_health_monitor.py`
 - **News integration and unit test coverage** for adapter failover, normalization, dedup, filtering, health logging, and alerts.
 
 ### Changed
 - `AUTO` source router now includes a dedicated `news` module candidate pool and primary pool behavior.
-- `vnstock/__init__.py` and common exports now expose News-related functionality for direct developer usage.
+- `vnbroker/__init__.py` and common exports now expose News-related functionality for direct developer usage.
 
 ### Docs
 - Added `docs/STOCK_NEWS_USAGE_GUIDE.md` with end-to-end usage for retrieval, filtering, monitoring, logging, and alerts.
@@ -74,12 +74,12 @@ All notable changes to this project will be documented in this file.
 ## [2026-04-04] — AUTO Source & VCI-first Routing
 
 ### Added
-- **AUTO source routing** (`source='AUTO'`): vnstock now ships a built-in source router that automatically selects VCI as the primary provider and fails over to KBS (then MSN where applicable) when VCI returns rate-limit errors, timeouts, or HTTP 4xx/5xx responses.
-- `DataSource.AUTO = "auto"` enum value added to `vnstock/core/types.py`.
-- `vnstock/core/source_router.py`: new routing engine with `build_source_order()`, `record_success/failure()`, exponential cooldown backoff (5 s → 90 s), `should_failover()`, and `annotate_result_source()`.
-- All five public API adapters (`Quote`, `Listing`, `Trading`, `Company`, `Finance` in `vnstock/api/`) now accept `source='AUTO'` (and `source='auto'`) without raising `ValueError`.
-- `Vnstock.SUPPORTED_SOURCES` in `vnstock/common/client.py` now includes `"AUTO"`.
-- `PUBLIC_VN_SOURCES` constant in `vnstock/common/data.py`; all facade `_load_data_source()` methods route through the adapter layer (instead of importing explorer modules directly) when `source in PUBLIC_VN_SOURCES`.
+- **AUTO source routing** (`source='AUTO'`): vnbroker now ships a built-in source router that automatically selects VCI as the primary provider and fails over to KBS (then MSN where applicable) when VCI returns rate-limit errors, timeouts, or HTTP 4xx/5xx responses.
+- `DataSource.AUTO = "auto"` enum value added to `vnbroker/core/types.py`.
+- `vnbroker/core/source_router.py`: new routing engine with `build_source_order()`, `record_success/failure()`, exponential cooldown backoff (5 s → 90 s), `should_failover()`, and `annotate_result_source()`.
+- All five public API adapters (`Quote`, `Listing`, `Trading`, `Company`, `Finance` in `vnbroker/api/`) now accept `source='AUTO'` (and `source='auto'`) without raising `ValueError`.
+- `vnbroker.SUPPORTED_SOURCES` in `vnbroker/common/client.py` now includes `"AUTO"`.
+- `PUBLIC_VN_SOURCES` constant in `vnbroker/common/data.py`; all facade `_load_data_source()` methods route through the adapter layer (instead of importing explorer modules directly) when `source in PUBLIC_VN_SOURCES`.
 - `tests/unit/api/test_auto_source_router.py`: 4 unit tests covering initial source selection, failover on connection error, cooldown deprioritisation, and VCI-first ordering guarantee.
 - `tests/examples/auto_source_benchmark.py`: CLI benchmark tool comparing AUTO vs explicit providers on large symbol sets; supports `--providers`, `--symbol-count`, `--concurrency`, `--profile`, `--output-csv/json`.
 - `tests/unit/examples/test_auto_source_benchmark.py`: 5 unit tests for benchmark report helpers.
@@ -112,13 +112,13 @@ All notable changes to this project will be documented in this file.
 ## [2026-03-07]
 
 ### Added
-- **Market events module**: Introduced `vnstock/core/utils/market-events.py` containing a comprehensive list of Vietnam market holidays, suspensions and other notable events. The dataset is maintained in an open format so the community can contribute additional quant-focused events and reuse the list for analysis.
+- **Market events module**: Introduced `vnbroker/core/utils/market-events.py` containing a comprehensive list of Vietnam market holidays, suspensions and other notable events. The dataset is maintained in an open format so the community can contribute additional quant-focused events and reuse the list for analysis.
 
 ### Changed
-- **Upgrade suggestions now more helpful**: When upgrading vnstock, the system now properly detects your Python environment and shows you the exact command to use. If you have multiple Python versions installed, it will suggest the upgrade using the correct one.
+- **Upgrade suggestions now more helpful**: When upgrading vnbroker, the system now properly detects your Python environment and shows you the exact command to use. If you have multiple Python versions installed, it will suggest the upgrade using the correct one.
 
 ### Removed
-- **Screener functionality removed**: The built-in stock screener from TCBS is no longer available. If you were using this feature, you can find similar functionality in the vnstock_data (sponsored version).
+- **Screener functionality removed**: The built-in stock screener from TCBS is no longer available. If you were using this feature, you can find similar functionality in the vnbroker_data (sponsored version).
 
 ## [2026-03-05]
 
@@ -139,7 +139,7 @@ All notable changes to this project will be documented in this file.
 - Fixed `Listing` tests to correctly handle `pd.Series` return types from `all_future_indices` and related methods
 - Fixed `Quote` integration tests to handle missing data and expired derivatives gracefully without failing the entire suite
 - Fixed `KBS Quote` to correctly interpret bar-based lookback lengths (e.g., '500b') using `interpret_lookback_length` logic
-- Enabled full integration test suite for `vnstock.explorer` module
+- Enabled full integration test suite for `vnbroker.explorer` module
 
 ### Changed
 - Consolidated test documentation into `tests/docs/` directory
@@ -147,7 +147,7 @@ All notable changes to this project will be documented in this file.
 - Standardized KBS Quote price data to use decimal values (thousands unit) instead of VND in `history` and `intraday` methods
 
 ### Removed
-- Removed `price_depth` method from `vnstock.explorer.vci.quote`
+- Removed `price_depth` method from `vnbroker.explorer.vci.quote`
 
 
 ## [3.4.2] - 2026-01-27
@@ -217,7 +217,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
-- Removed outdated Vietnam stock notebook (1_vietnam_stock_vnstock3.ipynb) containing 6497 lines of legacy content
+- Removed outdated Vietnam stock notebook (1_vietnam_stock_vnbroker3.ipynb) containing 6497 lines of legacy content
 - Cleaned up comprehensive examples covering Listing, Quote, Company, Finance, and Trading modules
 
 ## [2026-01-06]
@@ -229,10 +229,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Feature "Smart Lookback" for `Quote.history` in `vnstock/explorer/vci/quote.py` and `vnstock/explorer/tcbs/quote.py`. Users can now use `length` parameter (e.g., `'3M'`, `'10W'`, `'100b'`, `150`) instead of specifying start/end dates.
-- New utility `vnstock/core/utils/lookback.py` for parsing flexible time periods and calculating start dates.
+- Feature "Smart Lookback" for `Quote.history` in `vnbroker/explorer/vci/quote.py` and `vnbroker/explorer/tcbs/quote.py`. Users can now use `length` parameter (e.g., `'3M'`, `'10W'`, `'100b'`, `150`) instead of specifying start/end dates.
+- New utility `vnbroker/core/utils/lookback.py` for parsing flexible time periods and calculating start dates.
 - Documentation for Smart Lookback feature at `docs/feature_lookback.md`.
-- Enhanced header management mechanism in `vnstock/core/utils/user_agent.py` supporting `Authorization`, `custom_headers`, and `override_headers` for dynamic and flexible request configuration.
+- Enhanced header management mechanism in `vnbroker/core/utils/user_agent.py` supporting `Authorization`, `custom_headers`, and `override_headers` for dynamic and flexible request configuration.
 - Enhanced `ProxyManager` with `get_fresh_proxies`, custom proxy support, and singleton instance.
 - Updated `client.py` to support `AUTO` proxy mode and integrated with `ProxyManager`.
 - Refactored `TCBS Quote` to use central `client.py` request wrapper, enabling proxy support.
@@ -242,4 +242,4 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `Quote.history`: `start` parameter is now optional if `length` or `count_back` is provided.
-- Updated `get_asset_type` in `vnstock/core/utils/parser.py` to dynamically recognize all indices from `vnstock.constants.INDICES_INFO`, ensuring better support for sector and investment indices (e.g., `VNSI`, `VNFINLEAD`, `VNIND`).
+- Updated `get_asset_type` in `vnbroker/core/utils/parser.py` to dynamically recognize all indices from `vnbroker.constants.INDICES_INFO`, ensuring better support for sector and investment indices (e.g., `VNSI`, `VNFINLEAD`, `VNIND`).

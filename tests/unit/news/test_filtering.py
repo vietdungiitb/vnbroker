@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from vnstock.news.filtering import filter_news_dataframe
+from vnbroker.news.filtering import filter_news_dataframe
 
 
 @pytest.mark.unit

@@ -1,13 +1,13 @@
 import inspect
 
-from vnstock.explorer.kbs.company import Company as KBSCompany
-from vnstock.explorer.kbs.financial import Finance as KBSFinance
-from vnstock.explorer.kbs.listing import Listing as KBSListing
-from vnstock.explorer.kbs.quote import Quote as KBSQuote
-from vnstock.explorer.vci.company import Company as VCICompany
-from vnstock.explorer.vci.financial import Finance as VCIFinance
-from vnstock.explorer.vci.listing import Listing as VCIListing
-from vnstock.explorer.vci.quote import Quote as VCIQuote
+from vnbroker.explorer.kbs.company import Company as KBSCompany
+from vnbroker.explorer.kbs.financial import Finance as KBSFinance
+from vnbroker.explorer.kbs.listing import Listing as KBSListing
+from vnbroker.explorer.kbs.quote import Quote as KBSQuote
+from vnbroker.explorer.vci.company import Company as VCICompany
+from vnbroker.explorer.vci.financial import Finance as VCIFinance
+from vnbroker.explorer.vci.listing import Listing as VCIListing
+from vnbroker.explorer.vci.quote import Quote as VCIQuote
 
 
 def _param_names(func):

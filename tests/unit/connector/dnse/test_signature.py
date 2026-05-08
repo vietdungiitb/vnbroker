@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from vnstock.connector.dnse.core.signature import build_signature, format_date_header
+from vnbroker.connector.dnse.core.signature import build_signature, format_date_header
 
 
 def test_format_date_header_uses_rfc_style_utc_offset():

@@ -1,4 +1,4 @@
-# DNSE Provider Decision Guide
+﻿# DNSE Provider Decision Guide
 
 > Mục tiêu: biến ma trận so sánh provider thành khuyến nghị ra quyết định.
 >
@@ -114,7 +114,7 @@ Lý do:
 
 - Có account, orders, OTP, trading token, post/put/cancel order.
 - Có thể xây một lớp cầu nối giữa ứng dụng và công ty chứng khoán.
-- Hợp với kiến trúc mà vnstock chỉ cung cấp API chung, còn DNSE là extension riêng cho người dùng có tài khoản DNSE.
+- Hợp với kiến trúc mà vnbroker chỉ cung cấp API chung, còn DNSE là extension riêng cho người dùng có tài khoản DNSE.
 
 Khuyến nghị phụ:
 

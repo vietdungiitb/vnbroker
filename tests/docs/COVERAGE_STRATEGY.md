@@ -1,4 +1,4 @@
-# Coverage Strategy & Optimization Guide
+﻿# Coverage Strategy & Optimization Guide
 
 ## Current Status: ✅ Fixed
 
@@ -11,31 +11,31 @@
 
 ### High Coverage (>70%) ✅
 ```
-vnstock/core/utils/proxy_manager.py        117     22    81%  ✅ EXCELLENT
-vnstock/core/types.py                      141     11    92%  ✅ EXCELLENT
-vnstock/config.py                           12      1    92%  ✅ EXCELLENT
-vnstock/core/utils/logger.py                23      2    91%  ✅ EXCELLENT
-vnstock/base.py                             40     10    75%  ✅ GOOD
-vnstock/api/listing.py                      49     12    76%  ✅ GOOD
+vnbroker/core/utils/proxy_manager.py        117     22    81%  ✅ EXCELLENT
+vnbroker/core/types.py                      141     11    92%  ✅ EXCELLENT
+vnbroker/config.py                           12      1    92%  ✅ EXCELLENT
+vnbroker/core/utils/logger.py                23      2    91%  ✅ EXCELLENT
+vnbroker/base.py                             40     10    75%  ✅ GOOD
+vnbroker/api/listing.py                      49     12    76%  ✅ GOOD
 ```
 
 ### Medium Coverage (30-70%)
 ```
-vnstock/explorer/vci/listing.py            116     72    38%  
-vnstock/core/utils/browser_profiles.py      13      4    69%
-vnstock/core/utils/upgrade.py               57     18    68%
-vnstock/core/utils/user_agent.py            27      8    70%
-vnstock/explorer/vci/trading.py             57     38    33%
-vnstock/explorer/tcbs/trading.py            39     23    41%
+vnbroker/explorer/vci/listing.py            116     72    38%  
+vnbroker/core/utils/browser_profiles.py      13      4    69%
+vnbroker/core/utils/upgrade.py               57     18    68%
+vnbroker/core/utils/user_agent.py            27      8    70%
+vnbroker/explorer/vci/trading.py             57     38    33%
+vnbroker/explorer/tcbs/trading.py            39     23    41%
 ```
 
 ### Low Coverage (<30%)
 ```
-vnstock/connector/xno/config.py            209    189    10%
-vnstock/connector/xno/quote.py             118     97    18%
-vnstock/explorer/fmarket/fund.py           185    148    20%
-vnstock/explorer/tcbs/financial.py         115     92    20%
-vnstock/explorer/vci/financial.py          210    174    17%
+vnbroker/connector/xno/config.py            209    189    10%
+vnbroker/connector/xno/quote.py             118     97    18%
+vnbroker/explorer/fmarket/fund.py           185    148    20%
+vnbroker/explorer/tcbs/financial.py         115     92    20%
+vnbroker/explorer/vci/financial.py          210    174    17%
 ```
 
 ---
@@ -143,25 +143,25 @@ def test_quote_invalid_response():
 ### Run Specific High-Coverage Modules
 ```bash
 # Show only modules >70% coverage
-pytest tests/unit/ -m "not integration" --cov=vnstock \
+pytest tests/unit/ -m "not integration" --cov=vnbroker \
   --cov-report=term-missing | grep "10[0-9]%\|9[0-9]%\|8[0-9]%\|7[0-9]%"
 ```
 
 ### Generate HTML Coverage Report
 ```bash
 # Creates: htmlcov/index.html
-pytest tests/unit/ -m "not integration" --cov=vnstock \
+pytest tests/unit/ -m "not integration" --cov=vnbroker \
   --cov-report=html
 ```
 
 ### Track Coverage Over Time
 ```bash
 # Save current coverage
-pytest tests/unit/ -m "not integration" --cov=vnstock \
+pytest tests/unit/ -m "not integration" --cov=vnbroker \
   --cov-report=json > coverage_baseline.json
 
 # Compare with new changes
-pytest tests/unit/ -m "not integration" --cov=vnstock \
+pytest tests/unit/ -m "not integration" --cov=vnbroker \
   --cov-report=json > coverage_new.json
 ```
 
@@ -208,7 +208,7 @@ pytest tests/unit/ -m "not integration" --cov=vnstock \
 
 [coverage:run]
 # What to measure
-source = vnstock
+source = vnbroker
 branch = True  # Track branch coverage too
 
 omit =
@@ -234,7 +234,7 @@ pytest tests/unit/ -m "not integration"
 pytest tests/unit/ -m integration -v
 
 # All tests with coverage
-pytest tests/ --cov=vnstock --cov-report=html
+pytest tests/ --cov=vnbroker --cov-report=html
 
 # Quick smoke tests
 pytest tests/ -m smoke -q

@@ -1,12 +1,12 @@
-# DNSE Integration Master Plan
+﻿# DNSE Integration Master Plan
 
 ## 1. Scope va ket qua can dat
 
-Scope tich hop DNSE vao vnstock theo huong "API thong nhat, khong hoc lai tu dau".
+Scope tich hop DNSE vao vnbroker theo huong "API thong nhat, khong hoc lai tu dau".
 
 Ket qua can dat:
 
-- Nguoi dung vnstock co the goi DNSE voi style quen thuoc.
+- Nguoi dung vnbroker co the goi DNSE voi style quen thuoc.
 - Team de dang mo rong endpoint DNSE moi ma khong tao fat file.
 - Co test strategy ro rang cho unit, integration, E2E.
 
@@ -34,7 +34,7 @@ Ket qua can dat:
 - Tang Facade:
   - DNSEClient (public entry cho connector).
 - Tang Adapter/API:
-  - Mapping vao Vnstock/Trading adapter theo style hien co.
+  - Mapping vao vnbroker/Trading adapter theo style hien co.
 
 ## 4. Giai doan trien khai
 
@@ -45,7 +45,7 @@ Ket qua can dat:
 
 ### Phase 2 - Public API thong nhat (1 ngay)
 
-- Mapping method theo naming nhat quan voi vnstock.
+- Mapping method theo naming nhat quan voi vnbroker.
 - Muc tieu: nguoi dung goi ham de nho, tham so de doan.
 
 ### Phase 3 - Backward compatibility (0.5 ngay)

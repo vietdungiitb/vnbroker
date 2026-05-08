@@ -1,6 +1,6 @@
 import pandas as pd
 
-from vnstock.common.data import Finance
+from vnbroker.common.data import Finance
 
 
 class _DummyFinanceDataSource:

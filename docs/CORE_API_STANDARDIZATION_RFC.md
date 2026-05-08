@@ -1,6 +1,6 @@
-# RFC - Chuẩn hoá Core API cho Financial, Insider, Industry Comparison
+﻿# RFC - Chuẩn hoá Core API cho Financial, Insider, Industry Comparison
 
-> Mã RFC: VNSTOCK-RFC-CORE-2026-04
+> Mã RFC: vnbroker-RFC-CORE-2026-04
 >
 > Trạng thái: Implemented and verified
 >
@@ -155,10 +155,10 @@ Quy tắc:
 ## 8) Tích hợp với kiến trúc hiện có
 
 Các điểm tích hợp chính:
-- Adapter dispatch: `vnstock/base.py`
-- Provider registration: `vnstock/core/registry.py`
-- AUTO routing/failover: `vnstock/core/source_router.py`
-- Public API lớp data facade: `vnstock/common/data.py`
+- Adapter dispatch: `vnbroker/base.py`
+- Provider registration: `vnbroker/core/registry.py`
+- AUTO routing/failover: `vnbroker/core/source_router.py`
+- Public API lớp data facade: `vnbroker/common/data.py`
 
 Không thay đổi lớn ở các lớp này; chỉ mở rộng theo nguyên tắc plug-in.
 

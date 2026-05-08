@@ -1,4 +1,4 @@
-# Central Modified Files Audit
+﻿# Central Modified Files Audit
 
 > Mục đích: Nhật ký tập trung theo dõi toàn bộ file đã chỉnh sửa theo từng task để phục vụ kiểm toán/handoff nhanh.
 
@@ -70,9 +70,9 @@ Phạm vi yêu cầu:
 - Tập trung vào code thật và hậu kiểm sau code.
 
 Danh sách file đã tạo/chỉnh sửa:
-1. `vnstock/api/company.py` (updated)
-2. `vnstock/explorer/kbs/company.py` (updated)
-3. `vnstock/explorer/vci/company.py` (updated)
+1. `vnbroker/api/company.py` (updated)
+2. `vnbroker/explorer/kbs/company.py` (updated)
+3. `vnbroker/explorer/vci/company.py` (updated)
 4. `tests/unit/explorer/test_provider_api_compatibility.py` (updated)
 5. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
 
@@ -90,7 +90,7 @@ Phạm vi yêu cầu:
 - Tiếp tục coding theo kế hoạch, tập trung chuẩn hoá output insider và hậu kiểm.
 
 Danh sách file đã tạo/chỉnh sửa:
-1. `vnstock/common/data.py` (updated)
+1. `vnbroker/common/data.py` (updated)
 2. `tests/unit/core/test_company_insider_normalization.py` (new)
 3. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
 
@@ -108,7 +108,7 @@ Phạm vi yêu cầu:
 - Tiếp tục coding theo kế hoạch, mở rộng API tài chính chuẩn hóa và tăng test hậu kiểm.
 
 Danh sách file đã tạo/chỉnh sửa:
-1. `vnstock/common/data.py` (updated)
+1. `vnbroker/common/data.py` (updated)
 2. `tests/unit/api/test_company_auto_failover_insider.py` (new)
 3. `tests/unit/core/test_finance_fundamental_snapshot.py` (new)
 4. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
@@ -127,7 +127,7 @@ Phạm vi yêu cầu:
 - Tiếp tục coding theo kế hoạch, hoàn thiện nhóm API so sánh ngành và hậu kiểm.
 
 Danh sách file đã tạo/chỉnh sửa:
-1. `vnstock/common/data.py` (updated)
+1. `vnbroker/common/data.py` (updated)
 2. `tests/unit/core/test_finance_industry_comparison.py` (new)
 3. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
 
@@ -151,7 +151,7 @@ Danh sách file đã tạo/chỉnh sửa:
 5. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
 
 Kết quả bàn giao:
-- Gating live integration tests bằng biến môi trường `VNSTOCK_RUN_LIVE_INTEGRATION=1`.
+- Gating live integration tests bằng biến môi trường `vnbroker_RUN_LIVE_INTEGRATION=1`.
 - Mặc định CI/local `pytest tests/unit` chạy deterministic, tránh fail đỏ do 429 từ upstream.
 - Hậu kiểm full unit sau sửa: 194 passed, 6 skipped.
 
@@ -232,10 +232,10 @@ Danh sách file đã tạo/chỉnh sửa:
 32. `tests/unit/explorer/test_vci_company_finance_comprehensive.py` (updated via git commit)
 33. `tests/unit/explorer/test_vci_listing_comprehensive.py` (updated via git commit)
 34. `tests/unit/explorer/test_vci_quote_comprehensive.py` (updated via git commit)
-35. `vnstock/api/company.py` (updated via git commit)
-36. `vnstock/common/data.py` (updated via git commit)
-37. `vnstock/explorer/kbs/company.py` (updated via git commit)
-38. `vnstock/explorer/vci/company.py` (updated via git commit)
+35. `vnbroker/api/company.py` (updated via git commit)
+36. `vnbroker/common/data.py` (updated via git commit)
+37. `vnbroker/explorer/kbs/company.py` (updated via git commit)
+38. `vnbroker/explorer/vci/company.py` (updated via git commit)
 
 Kết quả bàn giao:
 - **Release commit**: 3c14c39 "release: v1.0.2 core api standardization and production hardening"
@@ -248,7 +248,7 @@ Kết quả bàn giao:
   - Full unit regression: **195 passed, 6 skipped**
   - All 3 API function groups implemented and tested
   - Comprehensive documentation delivered (21 docs + usage guide)
-  - Live integration stability improved (gated by VNSTOCK_RUN_LIVE_INTEGRATION=1)
+  - Live integration stability improved (gated by vnbroker_RUN_LIVE_INTEGRATION=1)
 - **Next step**: Ready for deployment to production environment
 
 ---
@@ -256,7 +256,7 @@ Kết quả bàn giao:
 ## 2026-04-18 - Fix: Ngăn KeyError crash cứng trên đường nóng AUTO provider
 
 **Vấn đề ghi nhận:**
-- `KeyError: data` khi khởi tạo `Vnstock(...).stock(..., source='AUTO')` — provider upstream trả payload thiếu key chuẩn.
+- `KeyError: data` khi khởi tạo `vnbroker(...).stock(..., source='AUTO')` — provider upstream trả payload thiếu key chuẩn.
 - `should_failover()` không nhận diện `KeyError` → lỗi propagate thẳng ra caller thay vì kích hoạt failover chain.
 - Các provider VCI (company, financial, listing) dùng bare `dict['key']` access → crash ngay khi payload biến dạng.
 
@@ -266,10 +266,10 @@ Kết quả bàn giao:
 3. Khi thêm provider mới hoặc sửa response parsing, bắt buộc kiểm tra lại 2 quy tắc trên trước khi merge.
 
 **Danh sách file đã sửa:**
-1. `vnstock/core/source_router.py` (updated) — `should_failover()`: thêm `KeyError`, `LookupError` vào isinstance check
-2. `vnstock/explorer/vci/company.py` (updated) — `_fetch_data()`: `response_data['data']` → `.get('data')` + guard ValueError
-3. `vnstock/explorer/vci/financial.py` (updated) — `_get_ratio_list()`: `response_data['data']['ListFinancialRatio']` → `.get()` chain + guard
-4. `vnstock/explorer/vci/listing.py` (updated) — `all_symbols()`, `industries_icb()`: 2 chỗ `json_data['data'][...]` → `.get()` chain + guard
+1. `vnbroker/core/source_router.py` (updated) — `should_failover()`: thêm `KeyError`, `LookupError` vào isinstance check
+2. `vnbroker/explorer/vci/company.py` (updated) — `_fetch_data()`: `response_data['data']` → `.get('data')` + guard ValueError
+3. `vnbroker/explorer/vci/financial.py` (updated) — `_get_ratio_list()`: `response_data['data']['ListFinancialRatio']` → `.get()` chain + guard
+4. `vnbroker/explorer/vci/listing.py` (updated) — `all_symbols()`, `industries_icb()`: 2 chỗ `json_data['data'][...]` → `.get()` chain + guard
 5. `tests/unit/api/test_auto_source_router.py` (updated) — +4 test case: `KeyError` failover, `LookupError` failover, missing-key AUTO chain, ValueError-prefix AUTO chain
 
 **Kết quả hậu kiểm:**
@@ -283,23 +283,23 @@ Kết quả bàn giao:
 
 Phạm vi yêu cầu:
 - Tích hợp DNSE thành source chuẩn ngang hàng VCI/KBS/TCBS.
-- Nối `Vnstock.stock(..., source='DNSE')` qua `common.data`.
-- Mở public adapter `vnstock.api.quote` và `vnstock.api.listing` cho DNSE.
+- Nối `vnbroker.stock(..., source='DNSE')` qua `common.data`.
+- Mở public adapter `vnbroker.api.quote` và `vnbroker.api.listing` cho DNSE.
 - Refactor `trade.py` để bỏ `print()` và thêm bridge helpers.
 - Thêm unit tests DNSE cho explorer, adapter, và trade bridge.
 - Cập nhật tài liệu chốt kế hoạch/spec/test/audit và module tree.
 
 Danh sách file đã tạo/chỉnh sửa:
 1. `module_tree_full.md` (new)
-2. `vnstock/api/listing.py` (updated)
-3. `vnstock/api/quote.py` (updated)
-4. `vnstock/common/client.py` (updated)
-5. `vnstock/common/data.py` (updated)
-6. `vnstock/connector/dnse/client.py` (updated)
-7. `vnstock/connector/dnse/trade.py` (updated)
-8. `vnstock/explorer/dnse/__init__.py` (new)
-9. `vnstock/explorer/dnse/listing.py` (new)
-10. `vnstock/explorer/dnse/quote.py` (new)
+2. `vnbroker/api/listing.py` (updated)
+3. `vnbroker/api/quote.py` (updated)
+4. `vnbroker/common/client.py` (updated)
+5. `vnbroker/common/data.py` (updated)
+6. `vnbroker/connector/dnse/client.py` (updated)
+7. `vnbroker/connector/dnse/trade.py` (updated)
+8. `vnbroker/explorer/dnse/__init__.py` (new)
+9. `vnbroker/explorer/dnse/listing.py` (new)
+10. `vnbroker/explorer/dnse/quote.py` (new)
 11. `tests/unit/explorer/dnse/__init__.py` (new)
 12. `tests/unit/explorer/dnse/test_quote.py` (new)
 13. `tests/unit/explorer/dnse/test_listing.py` (new)
@@ -313,15 +313,15 @@ Danh sách file đã tạo/chỉnh sửa:
 21. `docs/DNSE_AUDIT_CHECKLIST.md` (new)
 
 Kết quả bàn giao:
-- DNSE giờ có explorer provider riêng cho quote/listing, registry registration đầy đủ, và flow `Vnstock().stock(..., source='DNSE')` chạy được.
+- DNSE giờ có explorer provider riêng cho quote/listing, registry registration đầy đủ, và flow `vnbroker().stock(..., source='DNSE')` chạy được.
 - `trade.py` đã sạch `print()` và có `as_openapi_client()` + `login_and_get_trading_session()`.
 - Public adapters `Quote(source='dnse')` và `Listing(source='dnse')` hỗ trợ credentials DNSE.
 - Fallback listing compatibility cho các method legacy được thêm để tránh crash khi dùng wrapper chung.
 
 Kết quả kiểm tra:
 - `pytest tests/unit/explorer/dnse tests/unit/connector/dnse -q`: **18 passed, 2 warnings**
-- Smoke `Vnstock().stock('VNM', source='DNSE', api_key='k', api_secret='s')`: PASS
-- Smoke `vnstock.api.quote.Quote(source='dnse', ...)` và `vnstock.api.listing.Listing(source='dnse', ...)`: PASS
+- Smoke `vnbroker().stock('VNM', source='DNSE', api_key='k', api_secret='s')`: PASS
+- Smoke `vnbroker.api.quote.Quote(source='dnse', ...)` và `vnbroker.api.listing.Listing(source='dnse', ...)`: PASS
 
 Ghi chú:
 - `module_tree_full.md` đã được tạo lại để phản ánh trạng thái hiện tại của tree.
@@ -337,8 +337,8 @@ Phạm vi yêu cầu:
 - Chốt lại kết quả benchmark công khai bằng số liệu có thể audit.
 
 Danh sách file đã tạo/chỉnh sửa:
-1. `vnstock/explorer/dnse/listing.py` (updated) — default instruments page size giảm về 1000 để khớp giới hạn API
-2. `vnstock/explorer/dnse/quote.py` (updated) — OHLC parser nhận top-level dict, `history()` dùng `bar_type='STOCK'`
+1. `vnbroker/explorer/dnse/listing.py` (updated) — default instruments page size giảm về 1000 để khớp giới hạn API
+2. `vnbroker/explorer/dnse/quote.py` (updated) — OHLC parser nhận top-level dict, `history()` dùng `bar_type='STOCK'`
 3. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
 4. `module_tree_full.md` (updated)
 
@@ -418,7 +418,7 @@ Danh sách file đã tạo/chỉnh sửa:
 
 Điểm chính của RFC:
 - DNSE nên được nâng từ provider market-data thành broker platform layer.
-- Kiến trúc đề xuất tách connector, bridge, và app integration để vừa tương thích vnstock vừa phục vụ ứng dụng giao dịch.
+- Kiến trúc đề xuất tách connector, bridge, và app integration để vừa tương thích vnbroker vừa phục vụ ứng dụng giao dịch.
 - Lộ trình triển khai theo phase-based rollout, bắt đầu bằng capability inventory và contract lock.
 - RFC đã bổ sung lý do kinh doanh, lợi ích kỹ thuật, rủi ro, và tiêu chí thành công để hỗ trợ quyết định.
 
@@ -427,7 +427,7 @@ Danh sách file đã tạo/chỉnh sửa:
 ## 2026-05-08 - Task: DNSE compatibility matrix update
 
 Phạm vi yêu cầu:
-- Bổ sung bảng tương thích vào RFC DNSE để làm rõ lớp API chung của vnstock và lớp mở rộng riêng cho DNSE.
+- Bổ sung bảng tương thích vào RFC DNSE để làm rõ lớp API chung của vnbroker và lớp mở rộng riêng cho DNSE.
 
 Danh sách file đã tạo/chỉnh sửa:
 1. `docs/DNSE_BROKER_PLATFORM_RFC.md` (updated)

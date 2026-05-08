@@ -1,24 +1,24 @@
-"""
+﻿"""
 Integration tests for stock news facade and live source behavior.
 """
 
 import pandas as pd
 import pytest
 
-from vnstock.common.client import Vnstock
+from vnbroker.common.client import Vnbroker
 
 
 @pytest.mark.integration
 class TestNewsIntegration:
     def test_stock_components_exposes_news(self):
-        stock = Vnstock(show_log=False)
+        stock = Vnbroker(show_log=False)
         acb = stock.stock("ACB", source="AUTO")
 
         assert hasattr(acb, "news")
         assert acb.news is not None
 
     def test_news_live_fetch_auto(self):
-        stock = Vnstock(show_log=False)
+        stock = Vnbroker(show_log=False)
         acb = stock.stock("ACB", source="AUTO")
 
         try:
@@ -30,7 +30,7 @@ class TestNewsIntegration:
         assert set(["title", "url", "source"]).issubset(set(data.columns))
 
     def test_news_health_snapshot(self):
-        stock = Vnstock(show_log=False)
+        stock = Vnbroker(show_log=False)
         acb = stock.stock("ACB", source="AUTO")
         health = acb.news.health()
 

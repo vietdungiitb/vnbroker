@@ -1,4 +1,4 @@
-"""Auto-tune concurrency for vnstock quote providers.
+"""Auto-tune concurrency for vnbroker quote providers.
 
 Examples:
 - python -m tests.examples.auto_tune_concurrency --provider vci --symbols ACB,VCB,TCB,HPG,VNM --concurrency 8,12,16,24
@@ -18,8 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List
 
-from vnstock.explorer.kbs.quote import Quote as KBSQuote
-from vnstock.explorer.vci.quote import Quote as VCIQuote
+from vnbroker.explorer.kbs.quote import Quote as KBSQuote
+from vnbroker.explorer.vci.quote import Quote as VCIQuote
 
 
 @dataclass
@@ -160,7 +160,7 @@ async def benchmark_one_level(provider: str, symbols: List[str], concurrency: in
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Auto-tune vnstock concurrency")
+    parser = argparse.ArgumentParser(description="Auto-tune vnbroker concurrency")
     parser.add_argument("--provider", type=str, choices=["vci", "kbs"], default="vci")
     parser.add_argument("--symbols", type=str, default="ACB,VCB,TCB,HPG,VNM")
     parser.add_argument("--concurrency", type=str, default="6,8,12,16,24")

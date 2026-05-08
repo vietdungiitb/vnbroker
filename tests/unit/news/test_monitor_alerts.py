@@ -1,6 +1,6 @@
 import pytest
 
-from vnstock.news.monitor import evaluate_health_alerts, summarize_alerts
+from vnbroker.news.monitor import evaluate_health_alerts, summarize_alerts
 
 
 @pytest.mark.unit

@@ -1,10 +1,10 @@
-# Price Unit Standardization - Quick Reference
+﻿# Price Unit Standardization - Quick Reference
 
 ## 🎯 Nhanh chóng sử dụng
 
 ### Mặc định VND
 ```python
-from vnstock import Stock
+from vnbroker import Stock
 stock = Stock(source='VCI')
 df = stock.quote.history(symbol='ACB', length='1M')
 # Tất cả giá ở VND, df.attrs['price_unit'] == 'VND'
@@ -18,7 +18,7 @@ df = stock.quote.history(symbol='ACB', length='1M', price_unit='THOUSAND_VND')
 
 ### Bảng giao dịch (Price Board)
 ```python
-from vnstock.explorer.vci.trading import Trading
+from vnbroker.explorer.vci.trading import Trading
 vci = Trading(symbol='ACB')
 df = vci.price_board()  # VND mặc định
 df_t = vci.price_board(price_unit='THOUSAND_VND')
@@ -37,14 +37,14 @@ df_t = vci.price_board(price_unit='THOUSAND_VND')
 
 ```bash
 # Linux/macOS
-export VNSTOCK_PRICE_UNIT=THOUSAND_VND
+export vnbroker_PRICE_UNIT=THOUSAND_VND
 
 # Windows PowerShell
-$env:VNSTOCK_PRICE_UNIT = "THOUSAND_VND"
+$env:vnbroker_PRICE_UNIT = "THOUSAND_VND"
 
 # Python
 import os
-os.environ['VNSTOCK_PRICE_UNIT'] = 'THOUSAND_VND'
+os.environ['vnbroker_PRICE_UNIT'] = 'THOUSAND_VND'
 ```
 
 ## 🔍 Kiểm tra đơn vị

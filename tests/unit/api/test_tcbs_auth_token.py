@@ -1,25 +1,25 @@
-import pytest
+﻿import pytest
 
-from vnstock import Vnstock
-from vnstock.api.quote import Quote
-from vnstock.explorer.tcbs import auth
-from vnstock.explorer.tcbs.auth import resolve_auth_token
+from vnbroker import Vnbroker
+from vnbroker.api.quote import Quote
+from vnbroker.explorer.tcbs import auth
+from vnbroker.explorer.tcbs.auth import resolve_auth_token
 
 
 @pytest.mark.unit
 @pytest.mark.api
 class TestTCBSAuthToken:
     def test_resolve_auth_token_prefers_explicit_value(self, monkeypatch):
-        monkeypatch.setenv("VNSTOCK_TCBS_AUTH_TOKEN", "env-token")
+        monkeypatch.setenv("vnbroker_TCBS_AUTH_TOKEN", "env-token")
         assert resolve_auth_token("explicit-token") == "explicit-token"
 
     def test_resolve_auth_token_reads_environment(self, monkeypatch):
-        monkeypatch.delenv("VNSTOCK_TCBS_AUTH_TOKEN", raising=False)
+        monkeypatch.delenv("vnbroker_TCBS_AUTH_TOKEN", raising=False)
         monkeypatch.setenv("TCBS_AUTH_TOKEN", "env-token")
         assert resolve_auth_token() == "env-token"
 
     def test_resolve_openapi_api_key_reads_environment(self, monkeypatch):
-        monkeypatch.delenv("VNSTOCK_TCBS_OPENAPI_API_KEY", raising=False)
+        monkeypatch.delenv("vnbroker_TCBS_OPENAPI_API_KEY", raising=False)
         monkeypatch.setenv("TCBS_OPENAPI_API_KEY", "api-key-env")
         assert auth.resolve_openapi_api_key() == "api-key-env"
 
@@ -68,8 +68,8 @@ class TestTCBSAuthToken:
         )
         assert quote._provider.headers["Authorization"] == "Bearer token-123"
 
-    def test_vnstock_stock_propagates_auth_token_to_tcbs_components(self):
-        stock = Vnstock(source="TCBS", show_log=False).stock(
+    def test_vnbroker_stock_propagates_auth_token_to_tcbs_components(self):
+        stock = Vnbroker(source="TCBS", show_log=False).stock(
             "VCB",
             source="TCBS",
             auth_token="token-456",
@@ -77,7 +77,7 @@ class TestTCBSAuthToken:
         assert stock.quote.data_source.headers["Authorization"] == "Bearer token-456"
         assert stock.company.data_source.headers["Authorization"] == "Bearer token-456"
 
-    def test_vnstock_stock_can_exchange_openapi_token(self, monkeypatch):
+    def test_vnbroker_stock_can_exchange_openapi_token(self, monkeypatch):
         captured = {}
 
         def fake_request_openapi_token(**kwargs):
@@ -85,11 +85,11 @@ class TestTCBSAuthToken:
             return "jwt-from-openapi"
 
         monkeypatch.setattr(
-            "vnstock.common.client.request_openapi_token",
+            "vnbroker.common.client.request_openapi_token",
             fake_request_openapi_token,
         )
 
-        stock = Vnstock(source="TCBS", show_log=False).stock(
+        stock = Vnbroker(source="TCBS", show_log=False).stock(
             "VCB",
             source="TCBS",
             api_key="api-key-123",
@@ -105,16 +105,16 @@ class TestTCBSAuthToken:
         }
         assert stock.quote.data_source.headers["Authorization"] == "Bearer jwt-from-openapi"
 
-    def test_vnstock_stock_prefers_explicit_auth_token_over_otp(self, monkeypatch):
+    def test_vnbroker_stock_prefers_explicit_auth_token_over_otp(self, monkeypatch):
         def fail_request_openapi_token(**kwargs):
             raise AssertionError("OpenAPI token exchange should not be called")
 
         monkeypatch.setattr(
-            "vnstock.common.client.request_openapi_token",
+            "vnbroker.common.client.request_openapi_token",
             fail_request_openapi_token,
         )
 
-        stock = Vnstock(source="TCBS", show_log=False).stock(
+        stock = Vnbroker(source="TCBS", show_log=False).stock(
             "VCB",
             source="TCBS",
             auth_token="explicit-token",

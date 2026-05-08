@@ -2,11 +2,11 @@
 
 import pandas as pd
 
-from vnstock.core.utils.transform import intraday_to_df, ohlc_to_df
+from vnbroker.core.utils.transform import intraday_to_df, ohlc_to_df
 
 
 def test_ohlc_defaults_to_vnd_unit(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
+    monkeypatch.delenv("vnbroker_PRICE_UNIT", raising=False)
 
     data = [
         {
@@ -42,7 +42,7 @@ def test_ohlc_defaults_to_vnd_unit(monkeypatch):
 
 
 def test_ohlc_supports_legacy_thousand_unit(monkeypatch):
-    monkeypatch.setenv("VNSTOCK_PRICE_UNIT", "THOUSAND_VND")
+    monkeypatch.setenv("vnbroker_PRICE_UNIT", "THOUSAND_VND")
 
     data = [
         {
@@ -78,7 +78,7 @@ def test_ohlc_supports_legacy_thousand_unit(monkeypatch):
 
 
 def test_intraday_defaults_to_vnd_unit(monkeypatch):
-    monkeypatch.delenv("VNSTOCK_PRICE_UNIT", raising=False)
+    monkeypatch.delenv("vnbroker_PRICE_UNIT", raising=False)
 
     data = [
         {

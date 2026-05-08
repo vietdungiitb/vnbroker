@@ -1,5 +1,5 @@
 """
-Unit tests for vnstock API Quote adapter.
+Unit tests for vnbroker API Quote adapter.
 
 Tests the Quote class adapter pattern, parameter filtering,
 and delegation to underlying explorer quote implementations.
@@ -7,7 +7,7 @@ and delegation to underlying explorer quote implementations.
 
 import pytest
 import pandas as pd
-from vnstock.api.quote import Quote
+from vnbroker.api.quote import Quote
 
 
 @pytest.mark.unit

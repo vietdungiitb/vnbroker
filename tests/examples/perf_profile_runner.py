@@ -1,4 +1,4 @@
-"""Apply a vnstock performance profile and optionally run throughput benchmark.
+"""Apply a vnbroker performance profile and optionally run throughput benchmark.
 
 Examples:
 - python -m tests.examples.perf_profile_runner --profile benchmark_max_speed --show-env
@@ -13,11 +13,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from vnstock.core.performance_profiles import apply_profile, list_profiles
+from vnbroker.core.performance_profiles import apply_profile, list_profiles
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Apply vnstock performance profile presets")
+    parser = argparse.ArgumentParser(description="Apply vnbroker performance profile presets")
     parser.add_argument("--profile", type=str, default="production_stable", choices=list_profiles())
     parser.add_argument("--show-env", action="store_true")
     parser.add_argument("--run-benchmark", action="store_true")

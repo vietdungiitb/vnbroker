@@ -1,4 +1,4 @@
-# Execution Status - Core API Standardization (2026-04-18)
+﻿# Execution Status - Core API Standardization (2026-04-18)
 
 ---
 
@@ -28,7 +28,7 @@
 
 5. Hardening test suite hoàn tất:
 - Full unit suite chạy ổn định deterministic.
-- Live integration modules được gating bằng `VNSTOCK_RUN_LIVE_INTEGRATION=1` để tránh false-negative do upstream 429.
+- Live integration modules được gating bằng `vnbroker_RUN_LIVE_INTEGRATION=1` để tránh false-negative do upstream 429.
 
 ## 3) Việc đang làm
 
@@ -46,7 +46,7 @@
 ## 6) Kế hoạch ngày tiếp theo
 
 1. Chuyển sang theo dõi hậu phát hành (post-release monitoring 72h).
-2. Nếu cần, chạy thêm live integration theo lịch với `VNSTOCK_RUN_LIVE_INTEGRATION=1`.
+2. Nếu cần, chạy thêm live integration theo lịch với `vnbroker_RUN_LIVE_INTEGRATION=1`.
 
 ## 7) Cập nhật chất lượng
 

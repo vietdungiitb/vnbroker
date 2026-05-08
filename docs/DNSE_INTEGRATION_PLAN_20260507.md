@@ -1,4 +1,4 @@
-# Kế hoạch tích hợp DNSE LightSpeed API vào vnstock
+﻿# Kế hoạch tích hợp DNSE LightSpeed API vào vnbroker
 **Ngày:** 2026-05-07  
 **Trạng thái:** CHỜ PHÊ DUYỆT  
 **Tác giả:** GitHub Copilot  
@@ -13,17 +13,17 @@ Dự án đã có skeleton DNSE từ sprint 2026-04-13:
 
 | File | Trạng thái | Ghi chú |
 |---|---|---|
-| `vnstock/connector/dnse/core/*` | ✅ Xong | Config, signature, http_client, errors, models |
-| `vnstock/connector/dnse/services/*` | ✅ Xong | AccountService, MarketService, OrderService, PositionService, TokenService |
-| `vnstock/connector/dnse/client.py` | ✅ Xong | Facade DNSEClient với dry_run/raw mode |
-| `vnstock/connector/dnse/trade.py` | ✅ Có | Class Trade cũ (JWT-based, api.dnse.com.vn) — còn dùng `print()` thô |
-| `vnstock/connector/dnse/__init__.py` | ✅ Xong | Export DNSEClient, Trade |
+| `vnbroker/connector/dnse/core/*` | ✅ Xong | Config, signature, http_client, errors, models |
+| `vnbroker/connector/dnse/services/*` | ✅ Xong | AccountService, MarketService, OrderService, PositionService, TokenService |
+| `vnbroker/connector/dnse/client.py` | ✅ Xong | Facade DNSEClient với dry_run/raw mode |
+| `vnbroker/connector/dnse/trade.py` | ✅ Có | Class Trade cũ (JWT-based, api.dnse.com.vn) — còn dùng `print()` thô |
+| `vnbroker/connector/dnse/__init__.py` | ✅ Xong | Export DNSEClient, Trade |
 | `tests/unit/connector/dnse/*` | ✅ Xong | Unit tests cho core/services |
 
 ### 1.2 Vấn đề còn tồn tại
 
-1. **Không có explorer/dnse** — DNSE chưa thể dùng qua `Vnstock().stock('VNM', source='DNSE')` hay `Quote(source='dnse', ...)` như VCI/KBS/TCBS.
-2. **Vnstock.SUPPORTED_SOURCES chưa có 'DNSE'** — sẽ raise ValueError.
+1. **Không có explorer/dnse** — DNSE chưa thể dùng qua `vnbroker().stock('VNM', source='DNSE')` hay `Quote(source='dnse', ...)` như VCI/KBS/TCBS.
+2. **vnbroker.SUPPORTED_SOURCES chưa có 'DNSE'** — sẽ raise ValueError.
 3. **Trade cũ (JWT-based) và DNSEClient (HMAC-based) chưa được bridge** — hai luồng auth chạy song song, user phải biết dùng cái nào.
 4. **`_to_dataframe` trong client.py thiếu key** `bars`, `candles`, `trades`, `instruments` — OHLC/market data bị trả về dict thô thay vì DataFrame.
 5. **Không có `.env.dnse.example`** đầy đủ cho người mới vào.
@@ -36,23 +36,23 @@ Dự án đã có skeleton DNSE từ sprint 2026-04-13:
 Sau khi hoàn tất, người dùng có thể:
 
 ```python
-# Cách 1: Giao diện thống nhất vnstock (Market Data, cần API key DNSE)
-from vnstock import Vnstock
-stock = Vnstock()
+# Cách 1: Giao diện thống nhất vnbroker (Market Data, cần API key DNSE)
+from vnbroker import vnbroker
+stock = vnbroker()
 vnm = stock.stock('VNM', source='DNSE',
                   api_key='your_key', api_secret='your_secret')
 df = vnm.quote.history(start='2024-01-01', end='2024-12-31')
 listing = vnm.listing.all_symbols()
 
 # Cách 2: Trực tiếp qua DNSEClient (low-level, đầy đủ nhất)
-from vnstock.connector.dnse import DNSEClient
+from vnbroker.connector.dnse import DNSEClient
 client = DNSEClient(api_key='...', api_secret='...')
 client.get_ohlc(bar_type='D', query={'symbol': 'VNM', 'from': ..., 'to': ...})
 client.get_accounts()
 client.post_order(...)
 
 # Cách 3: Tài khoản cá nhân — login bằng JWT rồi đặt lệnh
-from vnstock.connector.dnse import Trade
+from vnbroker.connector.dnse import Trade
 t = Trade()
 t.login('username', 'password')
 t.email_otp()
@@ -64,18 +64,18 @@ t.place_order(sub_account='...', symbol='VNM', side='buy', ...)
 
 ## 3. Phạm vi công việc (Scope)
 
-### Scope A — Market Data Provider (tích hợp vào chuẩn vnstock)
+### Scope A — Market Data Provider (tích hợp vào chuẩn vnbroker)
 
 Mục tiêu: DNSE xuất hiện như một `source` bình đẳng với VCI, KBS, TCBS.
 
 | # | Hạng mục | File tác động | Ghi chú |
 |---|---|---|---|
-| A1 | Tạo `vnstock/explorer/dnse/quote.py` | Mới | Class `DNSEQuote` implement `history()`, `intraday()`, `price_depth()` |
-| A2 | Tạo `vnstock/explorer/dnse/listing.py` | Mới | Class `DNSEListing` implement `all_symbols()`, `symbols_by_exchange()`, `indices()` |
-| A3 | Tạo `vnstock/explorer/dnse/__init__.py` | Mới | Đăng ký vào `ProviderRegistry` với `source='dnse'` |
-| A4 | Sửa `vnstock/__init__.py` | Có sẵn | Thêm `from .explorer import dnse` vào `_ensure_explorer_modules_loaded()` |
-| A5 | Sửa `vnstock/common/client.py` | Có sẵn | Thêm `'DNSE'` vào `SUPPORTED_SOURCES`; xử lý kwargs `api_key`/`api_secret` cho DNSE trong `stock()` |
-| A6 | Sửa `vnstock/connector/dnse/client.py` | Có sẵn | Mở rộng `_to_dataframe` để nhận key `bars`, `candles`, `trades`, `instruments` |
+| A1 | Tạo `vnbroker/explorer/dnse/quote.py` | Mới | Class `DNSEQuote` implement `history()`, `intraday()`, `price_depth()` |
+| A2 | Tạo `vnbroker/explorer/dnse/listing.py` | Mới | Class `DNSEListing` implement `all_symbols()`, `symbols_by_exchange()`, `indices()` |
+| A3 | Tạo `vnbroker/explorer/dnse/__init__.py` | Mới | Đăng ký vào `ProviderRegistry` với `source='dnse'` |
+| A4 | Sửa `vnbroker/__init__.py` | Có sẵn | Thêm `from .explorer import dnse` vào `_ensure_explorer_modules_loaded()` |
+| A5 | Sửa `vnbroker/common/client.py` | Có sẵn | Thêm `'DNSE'` vào `SUPPORTED_SOURCES`; xử lý kwargs `api_key`/`api_secret` cho DNSE trong `stock()` |
+| A6 | Sửa `vnbroker/connector/dnse/client.py` | Có sẵn | Mở rộng `_to_dataframe` để nhận key `bars`, `candles`, `trades`, `instruments` |
 
 ### Scope B — Trading & Account API (tài khoản cá nhân)
 
@@ -100,7 +100,7 @@ Mục tiêu: Giữ `Trade` cũ (JWT) hoạt động, cải tiến chất lượn
 
 ## 4. Thiết kế chi tiết từng hạng mục
 
-### A1 – `vnstock/explorer/dnse/quote.py`
+### A1 – `vnbroker/explorer/dnse/quote.py`
 
 **Class:** `DNSEQuote(symbol, api_key, api_secret, show_log)`
 
@@ -129,7 +129,7 @@ Mục tiêu: Giữ `Trade` cũ (JWT) hoạt động, cải tiến chất lượn
 
 ---
 
-### A2 – `vnstock/explorer/dnse/listing.py`
+### A2 – `vnbroker/explorer/dnse/listing.py`
 
 **Class:** `DNSEListing(api_key, api_secret, show_log)`
 
@@ -146,10 +146,10 @@ Mục tiêu: Giữ `Trade` cũ (JWT) hoạt động, cải tiến chất lượn
 
 ---
 
-### A3 – `vnstock/explorer/dnse/__init__.py`
+### A3 – `vnbroker/explorer/dnse/__init__.py`
 
 ```python
-from vnstock.core.registry import ProviderRegistry
+from vnbroker.core.registry import ProviderRegistry
 from .quote import DNSEQuote
 from .listing import DNSEListing
 
@@ -159,7 +159,7 @@ ProviderRegistry.register("listing", "dnse", DNSEListing)
 
 ---
 
-### A4 – Sửa `vnstock/__init__.py`
+### A4 – Sửa `vnbroker/__init__.py`
 
 Thêm `from .explorer import dnse` vào block `_ensure_explorer_modules_loaded()`.
 
@@ -173,7 +173,7 @@ from .explorer import vci, tcbs, msn, kbs, rss_cafef, rss_vneconomy, dnse
 
 ---
 
-### A5 – Sửa `vnstock/common/client.py`
+### A5 – Sửa `vnbroker/common/client.py`
 
 **Thay đổi 1:** Thêm `'DNSE'` vào `SUPPORTED_SOURCES`.
 
@@ -193,7 +193,7 @@ def stock(self, symbol=None, source=None,
 
 ---
 
-### A6 – Sửa `vnstock/connector/dnse/client.py`
+### A6 – Sửa `vnbroker/connector/dnse/client.py`
 
 Mở rộng `_to_dataframe` nhận thêm các key market data:
 
@@ -259,7 +259,7 @@ def login_and_get_trading_session(
 | S2 | A1 (explorer/dnse/quote.py) | P0 | 30 phút |
 | S3 | A2 (explorer/dnse/listing.py) | P0 | 20 phút |
 | S4 | A3 (explorer/dnse/__init__.py) | P0 | 5 phút |
-| S5 | A4 (vnstock/__init__.py) | P0 | 5 phút |
+| S5 | A4 (vnbroker/__init__.py) | P0 | 5 phút |
 | S6 | A5 (common/client.py SUPPORTED_SOURCES + kwargs) | P0 | 15 phút |
 | S7 | B1 (Trade refactor print→logger) | P1 | 20 phút |
 | S8 | B2/B3 (Trade bridge methods) | P1 | 20 phút |
@@ -284,7 +284,7 @@ def login_and_get_trading_session(
 ## 7. Điều kiện dừng (Done criteria)
 
 - [ ] `Quote(source='dnse', symbol='VNM', api_key=..., api_secret=...).history(start='2024-01-01')` trả DataFrame đúng schema
-- [ ] `Vnstock().stock('VNM', source='DNSE', api_key=..., api_secret=...).quote.history(...)` hoạt động
+- [ ] `vnbroker().stock('VNM', source='DNSE', api_key=..., api_secret=...).quote.history(...)` hoạt động
 - [ ] `DNSEClient(...).get_ohlc(...)` trả DataFrame (không trả dict)
 - [ ] `Trade().login(...)` dùng logger thay print
 - [ ] Unit tests Scope C pass 100%
@@ -308,5 +308,5 @@ def login_and_get_trading_session(
 - [ ] Không hardcode api_key/secret trong bất kỳ file nào
 - [ ] Không có `print()` mới trong business logic
 - [ ] Unit tests pass: `pytest tests/unit/connector/dnse tests/unit/explorer/dnse -v`
-- [ ] Import không gây circular: `python -c "from vnstock import Vnstock"`
+- [ ] Import không gây circular: `python -c "from vnbroker import vnbroker"`
 - [ ] `.env.dnse.example` có đủ hướng dẫn 2 luồng (HMAC OpenAPI + JWT Trading)

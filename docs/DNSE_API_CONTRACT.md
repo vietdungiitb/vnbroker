@@ -1,4 +1,4 @@
-# DNSE API Contract For vnstock
+﻿# DNSE API Contract For vnbroker
 
 ## 1. Muc tieu contract
 
@@ -7,7 +7,7 @@ Tai lieu nay quy dinh API level cho team dev de code dong nhat va cho QA de test
 ## 2. Khoi tao client
 
 ```python
-from vnstock.connector.dnse.client import DNSEClient
+from vnbroker.connector.dnse.client import DNSEClient
 
 client = DNSEClient(
     api_key="your_api_key",

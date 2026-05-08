@@ -1,4 +1,4 @@
-# Price Unit Standardization - Change Manifest
+﻿# Price Unit Standardization - Change Manifest
 
 **Release Date**: 2026-04-16  
 **Feature**: Price Unit Standardization (Feature/Enhancement)  
@@ -9,20 +9,20 @@
 ### 2026-04-16 - KBS Finance endpoint maintenance
 
 Modified files:
-- `vnstock/explorer/kbs/const.py`
-- `vnstock/explorer/kbs/financial.py`
+- `vnbroker/explorer/kbs/const.py`
+- `vnbroker/explorer/kbs/financial.py`
 - `tests/examples/kbs_financial_benchmark.py`
 
 ### 2026-04-16 - VCI/KBS API compatibility standardization
 
 Modified files:
-- `vnstock/explorer/vci/financial.py`
-- `vnstock/explorer/kbs/financial.py`
-- `vnstock/explorer/vci/listing.py`
-- `vnstock/explorer/kbs/listing.py`
-- `vnstock/explorer/kbs/company.py`
-- `vnstock/explorer/vci/quote.py`
-- `vnstock/explorer/kbs/quote.py`
+- `vnbroker/explorer/vci/financial.py`
+- `vnbroker/explorer/kbs/financial.py`
+- `vnbroker/explorer/vci/listing.py`
+- `vnbroker/explorer/kbs/listing.py`
+- `vnbroker/explorer/kbs/company.py`
+- `vnbroker/explorer/vci/quote.py`
+- `vnbroker/explorer/kbs/quote.py`
 - `tests/unit/explorer/test_provider_api_compatibility.py`
 
 ---
@@ -33,7 +33,7 @@ Modified files:
 
 #### Core Utility Module
 ```
-File: vnstock/core/utils/transform.py
+File: vnbroker/core/utils/transform.py
 Changes:
   + Added _parse_price_unit(raw: str | None) -> str
     - Validates and canonicalizes price unit values
@@ -41,7 +41,7 @@ Changes:
     - Returns canonical form or raises ValueError
   
   + Enhanced _resolve_target_price_unit() -> str
-    - Reads VNSTOCK_PRICE_UNIT env var safely
+    - Reads vnbroker_PRICE_UNIT env var safely
     - Falls back to 'VND' on invalid values
     - Logs warning for non-standard env values
   
@@ -58,7 +58,7 @@ Tests: ✅ Tested in consistency suite
 
 #### Quote Module - MSN
 ```
-File: vnstock/explorer/msn/quote.py
+File: vnbroker/explorer/msn/quote.py
 Changes:
   + history(..., price_unit: str | None = None)
     - Added price_unit parameter
@@ -75,7 +75,7 @@ Tests: ✅ Included in quote consistency
 
 #### Quote Module - VCI
 ```
-File: vnstock/explorer/vci/quote.py
+File: vnbroker/explorer/vci/quote.py
 Changes:
   + Empty return paths now normalize
     - history() empty case: normalize before return
@@ -90,7 +90,7 @@ Tests: ✅ Edge case coverage
 
 #### Trading Module - VCI
 ```
-File: vnstock/explorer/vci/trading.py
+File: vnbroker/explorer/vci/trading.py
 Changes:
   + price_board(..., price_unit: str | None = None)
     - Added price_unit parameter
@@ -105,7 +105,7 @@ Tests: ✅ test_vci_price_board_honors_explicit_thousand_unit
 
 #### Trading Module - KBS
 ```
-File: vnstock/explorer/kbs/trading.py
+File: vnbroker/explorer/kbs/trading.py
 Changes:
   + Added _PRICE_BOARD_PRICE_COLUMNS constant
     - Lists all price-related column names
@@ -123,7 +123,7 @@ Tests: ✅ test_kbs_price_board_defaults_to_vnd
 
 #### Trading Module - TCBS
 ```
-File: vnstock/explorer/tcbs/trading.py
+File: vnbroker/explorer/tcbs/trading.py
 Changes:
   + Added _PRICE_BOARD_PRICE_COLUMNS_RAW constant
     - Lists raw price columns before rename mapping
@@ -325,7 +325,7 @@ Status: 100/127 total tests ✅ (25 pre-existing VCI API failures)
 | Feature | Supported | Status |
 |---------|-----------|--------|
 | Existing code without price_unit | ✅ Yes | Works as-is, defaults VND |
-| Environment variable VNSTOCK_PRICE_UNIT | ✅ Yes | Global default |
+| Environment variable vnbroker_PRICE_UNIT | ✅ Yes | Global default |
 | price_unit per-call override | ✅ Yes | New feature |
 | Empty DataFrame handling | ✅ Yes | Metadata always set |
 | Error conditions | ✅ Yes | Normalized return |

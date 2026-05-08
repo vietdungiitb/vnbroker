@@ -1,10 +1,10 @@
-# External Project Integration Guide
+﻿# External Project Integration Guide
 
-This guide helps other projects integrate vnstock with the new performance features quickly.
+This guide helps other projects integrate vnbroker with the new performance features quickly.
 
 Target users:
 
-- Teams using vnstock in backend services (FastAPI, Django, Celery workers).
+- Teams using vnbroker in backend services (FastAPI, Django, Celery workers).
 - Data pipelines that fetch high-volume quote data.
 - Repos that need stable production profile and repeatable benchmark profile.
 
@@ -15,21 +15,21 @@ For reproducible deployments, pin a version or commit.
 Stable from PyPI:
 
 ```bash
-pip install "vnstock==1.0.2"
+pip install "vnbroker==1.0.2"
 ```
 
 From GitHub branch/commit:
 
 ```bash
-pip install "git+https://github.com/vietdungiitb/vnstock.git@<commit_or_tag>"
+pip install "git+https://github.com/vietdungiitb/vnbroker.git@<commit_or_tag>"
 ```
 
 ## 2) Apply Performance Presets in App Startup
 
-Use built-in presets from vnstock core:
+Use built-in presets from vnbroker core:
 
 ```python
-from vnstock.core.performance_profiles import apply_profile
+from vnbroker.core.performance_profiles import apply_profile
 
 # production profile recommended for APIs/services
 apply_profile("production_stable", overwrite=False)
@@ -38,7 +38,7 @@ apply_profile("production_stable", overwrite=False)
 For stress test/benchmark environment:
 
 ```python
-from vnstock.core.performance_profiles import apply_profile
+from vnbroker.core.performance_profiles import apply_profile
 
 apply_profile("benchmark_max_speed", overwrite=True)
 ```
@@ -53,11 +53,11 @@ Available profiles:
 
 ## 2a) Time-Aware Auto Profile Selection
 
-Let vnstock pick the right profile automatically based on the current VN market
+Let vnbroker pick the right profile automatically based on the current VN market
 session (ICT timezone, Mon–Fri):
 
 ```python
-from vnstock.core.performance_profiles import apply_profile_for_current_time
+from vnbroker.core.performance_profiles import apply_profile_for_current_time
 
 # Call once at process start — picks market_hours or benchmark_max_speed automatically
 result = apply_profile_for_current_time()
@@ -78,12 +78,12 @@ For FastAPI:
 
 ```python
 from fastapi import FastAPI
-from vnstock.core.performance_profiles import apply_profile_for_current_time
+from vnbroker.core.performance_profiles import apply_profile_for_current_time
 
 app = FastAPI()
 
 @app.on_event("startup")
-def setup_vnstock_profile() -> None:
+def setup_vnbroker_profile() -> None:
     apply_profile_for_current_time(overwrite=False)
 ```
 
@@ -91,45 +91,45 @@ def setup_vnstock_profile() -> None:
 
 VCI adaptive variables:
 
-- `VNSTOCK_VCI_ADAPTIVE_CONCURRENCY`
-- `VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY`
-- `VNSTOCK_VCI_ADAPTIVE_MIN_CONCURRENCY`
-- `VNSTOCK_VCI_ADAPTIVE_STEP_UP`
-- `VNSTOCK_VCI_ADAPTIVE_STEP_DOWN`
-- `VNSTOCK_VCI_ADAPTIVE_FAIL_THRESHOLD`
-- `VNSTOCK_VCI_ADAPTIVE_P95_LOW_SECONDS`
-- `VNSTOCK_VCI_ADAPTIVE_P95_HIGH_SECONDS`
+- `vnbroker_VCI_ADAPTIVE_CONCURRENCY`
+- `vnbroker_VCI_ADAPTIVE_START_CONCURRENCY`
+- `vnbroker_VCI_ADAPTIVE_MIN_CONCURRENCY`
+- `vnbroker_VCI_ADAPTIVE_STEP_UP`
+- `vnbroker_VCI_ADAPTIVE_STEP_DOWN`
+- `vnbroker_VCI_ADAPTIVE_FAIL_THRESHOLD`
+- `vnbroker_VCI_ADAPTIVE_P95_LOW_SECONDS`
+- `vnbroker_VCI_ADAPTIVE_P95_HIGH_SECONDS`
 
 KBS adaptive variables:
 
-- `VNSTOCK_KBS_ADAPTIVE_CONCURRENCY`
-- `VNSTOCK_KBS_ADAPTIVE_START_CONCURRENCY`
-- `VNSTOCK_KBS_ADAPTIVE_MIN_CONCURRENCY`
-- `VNSTOCK_KBS_ADAPTIVE_STEP_UP`
-- `VNSTOCK_KBS_ADAPTIVE_STEP_DOWN`
-- `VNSTOCK_KBS_ADAPTIVE_FAIL_THRESHOLD`
-- `VNSTOCK_KBS_ADAPTIVE_P95_LOW_SECONDS`
-- `VNSTOCK_KBS_ADAPTIVE_P95_HIGH_SECONDS`
+- `vnbroker_KBS_ADAPTIVE_CONCURRENCY`
+- `vnbroker_KBS_ADAPTIVE_START_CONCURRENCY`
+- `vnbroker_KBS_ADAPTIVE_MIN_CONCURRENCY`
+- `vnbroker_KBS_ADAPTIVE_STEP_UP`
+- `vnbroker_KBS_ADAPTIVE_STEP_DOWN`
+- `vnbroker_KBS_ADAPTIVE_FAIL_THRESHOLD`
+- `vnbroker_KBS_ADAPTIVE_P95_LOW_SECONDS`
+- `vnbroker_KBS_ADAPTIVE_P95_HIGH_SECONDS`
 
 Global retry variable:
 
-- `VNSTOCK_MAX_RETRIES`
+- `vnbroker_MAX_RETRIES`
 
 Global async diagnostics toggle:
 
-- `VNSTOCK_ASYNC_STATS_ENABLED` — set to `0` to disable lock-based counters (~53%
+- `vnbroker_ASYNC_STATS_ENABLED` — set to `0` to disable lock-based counters (~53%
   throughput gain in benchmarks). The `benchmark_max_speed` preset sets this automatically.
 
 ## 4) Example: FastAPI Startup (manual profile)
 
 ```python
 from fastapi import FastAPI
-from vnstock.core.performance_profiles import apply_profile
+from vnbroker.core.performance_profiles import apply_profile
 
 app = FastAPI()
 
 @app.on_event("startup")
-def setup_vnstock_profile() -> None:
+def setup_vnbroker_profile() -> None:
     apply_profile("production_stable", overwrite=False)
 ```
 
@@ -137,7 +137,7 @@ def setup_vnstock_profile() -> None:
 
 ```python
 from django.apps import AppConfig
-from vnstock.core.performance_profiles import apply_profile_for_current_time
+from vnbroker.core.performance_profiles import apply_profile_for_current_time
 
 class MarketConfig(AppConfig):
     name = "market"
@@ -151,7 +151,7 @@ class MarketConfig(AppConfig):
 
 ```python
 from celery import Celery
-from vnstock.core.performance_profiles import apply_profile
+from vnbroker.core.performance_profiles import apply_profile
 
 apply_profile("production_stable", overwrite=False)
 app = Celery("market")
@@ -162,7 +162,7 @@ app = Celery("market")
 VCI parallel multi-symbol:
 
 ```python
-from vnstock.explorer.vci.quote import Quote as VCIQuote
+from vnbroker.explorer.vci.quote import Quote as VCIQuote
 
 quote = VCIQuote(symbol="ACB", show_log=False)
 frames = quote.history(
@@ -176,7 +176,7 @@ frames = quote.history(
 KBS parallel multi-symbol:
 
 ```python
-from vnstock.explorer.kbs.quote import Quote as KBSQuote
+from vnbroker.explorer.kbs.quote import Quote as KBSQuote
 
 quote = KBSQuote(symbol="ACB", show_log=False)
 frames = quote.history(
@@ -190,13 +190,13 @@ frames = quote.history(
 
 ## 8) AdaptiveController — Advanced Usage
 
-For custom providers or non-vnstock fetch loops that want the same adaptive windowing:
+For custom providers or non-vnbroker fetch loops that want the same adaptive windowing:
 
 ```python
-from vnstock.core.adaptive_controller import AdaptiveController
+from vnbroker.core.adaptive_controller import AdaptiveController
 
 ctrl = AdaptiveController.from_env(
-    "VNSTOCK_VCI_ADAPTIVE_",
+    "vnbroker_VCI_ADAPTIVE_",
     default_start=8,
     default_min=2,
     default_max=24,
@@ -212,7 +212,7 @@ for batch in batches:
 ### GlobalPressure — cross-provider stress signal
 
 ```python
-from vnstock.core.adaptive_controller import get_global_pressure
+from vnbroker.core.adaptive_controller import get_global_pressure
 
 gp = get_global_pressure()
 # Both VCI and KBS already call gp.record_batch() internally.
@@ -226,9 +226,9 @@ if gp.stressed:
 Use the new News facade from stock components:
 
 ```python
-from vnstock.common.client import Vnstock
+from vnbroker.common.client import vnbroker
 
-stock = Vnstock(show_log=False).stock("ACB", source="AUTO")
+stock = vnbroker(show_log=False).stock("ACB", source="AUTO")
 
 # Latest normalized news
 latest = stock.news.latest(limit=20)
@@ -304,7 +304,7 @@ python -m tests.examples.auto_tune_concurrency \
 
 - Call `apply_profile_for_current_time()` at startup to auto-select concurrency.
 - Use `production_stable` / `market_hours` for live services; never `benchmark_max_speed`.
-- Keep `VNSTOCK_MAX_RETRIES` ≤ 2 for high-throughput workloads.
+- Keep `vnbroker_MAX_RETRIES` ≤ 2 for high-throughput workloads.
 - Prefer direct mode unless proxy is required.
 - Re-run auto-tune periodically (ideally via nightly CI) to keep configs fresh.
 - Watch `GlobalPressure.stressed` via your APM if you need custom circuit-breaker logic.

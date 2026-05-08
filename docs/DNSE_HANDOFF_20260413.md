@@ -1,4 +1,4 @@
-# DNSE Handoff Note - 2026-04-13
+﻿# DNSE Handoff Note - 2026-04-13
 
 ## Branch
 
@@ -17,12 +17,12 @@
 - docs/DNSE_DELIVERY_REPORT_20260413.md
 
 2. DNSE module refactor implemented:
-- vnstock/connector/dnse/core/*
-- vnstock/connector/dnse/services/*
-- vnstock/connector/dnse/client.py
-- vnstock/connector/dnse/trade.py (compat bridge)
-- vnstock/connector/dnse/__init__.py
-- vnstock/connector/__init__.py
+- vnbroker/connector/dnse/core/*
+- vnbroker/connector/dnse/services/*
+- vnbroker/connector/dnse/client.py
+- vnbroker/connector/dnse/trade.py (compat bridge)
+- vnbroker/connector/dnse/__init__.py
+- vnbroker/connector/__init__.py
 
 3. Test and tooling added:
 - tests/unit/connector/dnse/*

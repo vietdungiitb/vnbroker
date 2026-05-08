@@ -27,9 +27,9 @@ def test_build_recommendation_prefers_kbs_when_only_kbs_is_safe():
     rec = build_recommendation(payload)
 
     assert rec["trading"]["primary"] == "kbs"
-    assert rec["recommended_env"]["VNSTOCK_TRADING_AUTO_PRIMARY"] == "kbs"
-    assert rec["recommended_env"]["VNSTOCK_KBS_ADAPTIVE_START_CONCURRENCY"] == "16"
-    assert "VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY" not in rec["recommended_env"]
+    assert rec["recommended_env"]["vnbroker_TRADING_AUTO_PRIMARY"] == "kbs"
+    assert rec["recommended_env"]["vnbroker_KBS_ADAPTIVE_START_CONCURRENCY"] == "16"
+    assert "vnbroker_VCI_ADAPTIVE_START_CONCURRENCY" not in rec["recommended_env"]
 
 
 def test_build_recommendation_can_select_vci_when_vci_is_only_safe():
@@ -58,5 +58,5 @@ def test_build_recommendation_can_select_vci_when_vci_is_only_safe():
     rec = build_recommendation(payload)
 
     assert rec["trading"]["primary"] == "vci"
-    assert rec["recommended_env"]["VNSTOCK_TRADING_AUTO_PRIMARY"] == "vci"
-    assert rec["recommended_env"]["VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY"] == "6"
+    assert rec["recommended_env"]["vnbroker_TRADING_AUTO_PRIMARY"] == "vci"
+    assert rec["recommended_env"]["vnbroker_VCI_ADAPTIVE_START_CONCURRENCY"] == "6"

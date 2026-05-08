@@ -1,7 +1,7 @@
 import pandas as pd
 
-from vnstock.common.data import Finance
-from vnstock.common.data import Listing
+from vnbroker.common.data import Finance
+from vnbroker.common.data import Listing
 
 
 def _mock_symbols_by_industries(*args, **kwargs):

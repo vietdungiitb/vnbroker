@@ -59,12 +59,12 @@ def build_recommendation(payload: dict[str, Any]) -> dict[str, Any]:
     vci_target = vci_safe or vci_max
 
     env = {
-        "VNSTOCK_TRADING_AUTO_PRIMARY": primary,
+        "vnbroker_TRADING_AUTO_PRIMARY": primary,
     }
     if kbs_target is not None:
-        env["VNSTOCK_KBS_ADAPTIVE_START_CONCURRENCY"] = str(int(kbs_target["concurrency"]))
+        env["vnbroker_KBS_ADAPTIVE_START_CONCURRENCY"] = str(int(kbs_target["concurrency"]))
     if vci_target is not None:
-        env["VNSTOCK_VCI_ADAPTIVE_START_CONCURRENCY"] = str(int(vci_target["concurrency"]))
+        env["vnbroker_VCI_ADAPTIVE_START_CONCURRENCY"] = str(int(vci_target["concurrency"]))
 
     return {
         "source": payload.get("generated_at"),

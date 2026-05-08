@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from vnstock.news.health import sanitize_health_jsonl_file
+from vnbroker.news.health import sanitize_health_jsonl_file
 
 
 @pytest.mark.unit

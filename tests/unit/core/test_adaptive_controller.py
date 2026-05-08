@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from vnstock.core.adaptive_controller import (
+from vnbroker.core.adaptive_controller import (
     AdaptiveController,
     GlobalPressure,
     _env_bool,

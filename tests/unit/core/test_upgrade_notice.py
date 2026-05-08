@@ -1,6 +1,6 @@
 import pytest
 
-from vnstock.core.utils import upgrade
+from vnbroker.core.utils import upgrade
 
 
 @pytest.mark.unit
@@ -17,8 +17,8 @@ def test_get_github_version_diagnostics_reports_expected_fields(monkeypatch):
 
     diagnostics = upgrade.get_github_version_diagnostics()
 
-    assert diagnostics["package"] == "vnstock"
-    assert diagnostics["github_repo"] == "vietdungiitb/vnstock"
+    assert diagnostics["package"] == "vnbroker"
+    assert diagnostics["github_repo"] == "vietdungiitb/vnbroker"
     assert diagnostics["package_metadata_version"] == "1.0.0"
     assert diagnostics["current_github_channel_version"] == "3.4.0"
     assert diagnostics["latest_github_release"] == "3.5.0"
@@ -75,4 +75,4 @@ def test_check_version_updates_shows_notice_when_github_release_is_newer(monkeyp
     assert len(messages) == 1
     assert "Current: 3.4.0" in messages[0]
     assert "package metadata" not in messages[0]
-    assert "git+https://github.com/vietdungiitb/vnstock.git@v3.5.0#egg=vnstock" in messages[0]
+    assert "git+https://github.com/vietdungiitb/vnbroker.git@v3.5.0#egg=vnbroker" in messages[0]

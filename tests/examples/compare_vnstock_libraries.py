@@ -1,8 +1,8 @@
-"""Compare the current vnstock repo against the installed standard vnstock package.
+"""Compare the current vnbroker repo against the installed standard vnbroker package.
 
 Usage examples:
-- python -m tests.examples.compare_vnstock_libraries --symbols ACB,VCB,TCB --runs 1 --count-back 5 --start 2026-03-31 --end 2026-04-03
-- python -m tests.examples.compare_vnstock_libraries --symbols ACB,VCB,TCB,HPG,VNM --runs 3 --count-back 20 --start 2026-03-20 --end 2026-04-03 --repo-concurrency 8
+- python -m tests.examples.compare_vnbroker_libraries --symbols ACB,VCB,TCB --runs 1 --count-back 5 --start 2026-03-31 --end 2026-04-03
+- python -m tests.examples.compare_vnbroker_libraries --symbols ACB,VCB,TCB,HPG,VNM --runs 3 --count-back 20 --start 2026-03-20 --end 2026-04-03 --repo-concurrency 8
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ def parse_positive_int_list(raw: str, fallback: int) -> List[int]:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Compare current vnstock repo with installed vnstock package")
+    parser = argparse.ArgumentParser(description="Compare current vnbroker repo with installed vnbroker package")
     parser.add_argument("--symbols", type=str, default="ACB,VCB,TCB")
     parser.add_argument("--interval", type=str, default="1D")
     parser.add_argument("--start", type=str, default="")
@@ -108,11 +108,11 @@ def build_child_code() -> str:
         PAYLOAD = json.loads(sys.argv[2])
 
         try:
-            from vnstock.explorer.vci.quote import Quote
-            import vnstock
+            from vnbroker.explorer.vci.quote import Quote
+            import vnbroker
 
-            version = importlib.metadata.version("vnstock")
-            import_path = getattr(vnstock, "__file__", "") or ""
+            version = importlib.metadata.version("vnbroker")
+            import_path = getattr(vnbroker, "__file__", "") or ""
             symbols = PAYLOAD["symbols"]
             latencies = []
             success_count = 0
@@ -396,17 +396,17 @@ def run_one_workload(
     repo_root: Path,
     payload: dict[str, Any],
 ) -> tuple[LibraryBenchmarkResult, LibraryBenchmarkResult]:
-    with tempfile.TemporaryDirectory(prefix="vnstock-installed-") as tmp_dir:
+    with tempfile.TemporaryDirectory(prefix="vnbroker-installed-") as tmp_dir:
         installed_result = run_benchmark_subprocess(
             mode="installed",
             cwd=Path(tmp_dir),
-            payload={**payload, "label": "vnstock-installed"},
+            payload={**payload, "label": "vnbroker-installed"},
         )
 
         repo_result = run_benchmark_subprocess(
             mode="repo",
             cwd=repo_root,
-            payload={**payload, "label": "vnstock-repo"},
+            payload={**payload, "label": "vnbroker-repo"},
         )
     return installed_result, repo_result
 
@@ -421,7 +421,7 @@ def main() -> int:
         args.repo_concurrency,
     )
 
-    print("=== Vnstock Library Comparison Benchmark ===")
+    print("=== vnbroker Library Comparison Benchmark ===")
     print(f"Symbols: {symbols}")
     print(f"Runs levels: {run_levels}")
     print(f"Warmup runs: {args.warmup_runs}")

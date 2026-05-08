@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from vnstock.common.client import Vnstock
-from vnstock.api.quote import Quote as QuoteAdapter
-from vnstock.api.listing import Listing as ListingAdapter
+from vnbroker.common.client import Vnbroker
+from vnbroker.api.quote import Quote as QuoteAdapter
+from vnbroker.api.listing import Listing as ListingAdapter
 
 
 def _mock_dnse_client() -> MagicMock:
@@ -17,7 +17,7 @@ def test_public_adapters_support_dnse(monkeypatch):
     monkeypatch.setenv("DNSE_API_KEY", "key")
     monkeypatch.setenv("DNSE_API_SECRET", "secret")
 
-    with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+    with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
         mock_cls.return_value = _mock_dnse_client()
 
         quote = QuoteAdapter(source="dnse", symbol="VNM", api_key="key", api_secret="secret")
@@ -27,14 +27,14 @@ def test_public_adapters_support_dnse(monkeypatch):
     assert type(listing.provider).__name__ == "DNSEListing"
 
 
-def test_vnstock_stock_supports_dnse(monkeypatch):
+def test_vnbroker_stock_supports_dnse(monkeypatch):
     monkeypatch.setenv("DNSE_API_KEY", "key")
     monkeypatch.setenv("DNSE_API_SECRET", "secret")
 
-    with patch("vnstock.connector.dnse.client.DNSEClient") as mock_cls:
+    with patch("vnbroker.connector.dnse.client.DNSEClient") as mock_cls:
         mock_cls.return_value = _mock_dnse_client()
 
-        stock = Vnstock(show_log=False).stock(
+        stock = Vnbroker(show_log=False).stock(
             "VNM",
             source="DNSE",
             api_key="key",

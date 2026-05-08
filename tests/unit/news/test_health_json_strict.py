@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from vnstock.news.health import append_health_log
+from vnbroker.news.health import append_health_log
 
 
 @pytest.mark.unit
