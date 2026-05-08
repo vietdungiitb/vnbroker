@@ -77,7 +77,7 @@ class DNSEListing:
         self,
         market_id: Optional[str] = None,
         security_group_id: Optional[str] = None,
-        limit: int = 2000,
+        limit: int = 1000,
     ) -> pd.DataFrame:
         """Gọi API lấy danh sách instruments từ DNSE."""
         try:

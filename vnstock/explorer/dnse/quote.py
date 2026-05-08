@@ -102,6 +102,9 @@ def _extract_ohlc_list(body: dict | list | None) -> list:
         return []
     if isinstance(body, list):
         return body
+    if isinstance(body, dict):
+        if any(key in body for key in ("t", "time", "timestamp", "o", "open", "h", "high", "l", "low", "c", "close", "v", "volume")):
+            return [body]
     for key in _OHLC_RESPONSE_KEYS:
         value = body.get(key)
         if isinstance(value, list):
@@ -240,8 +243,8 @@ class DNSEQuote:
         if not end:
             end = datetime.now().strftime("%Y-%m-%d")
 
-        norm_interval = _normalize_interval(interval)
-        bar_type = _INTERVAL_TO_BAR_TYPE.get(norm_interval, "D")
+        _ = _normalize_interval(interval)
+        bar_type = "STOCK"
 
         from_ts = _to_unix_seconds(start)
         to_ts = _to_unix_seconds(end) + 86399  # đến cuối ngày end

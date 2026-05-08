@@ -1,6 +1,6 @@
 # Module Tree Full
 
-Updated: 2026-05-07
+Updated: 2026-05-08
 
 ## vnstock/
 - `__init__.py` - lazy-load explorer modules including DNSE
@@ -11,8 +11,8 @@ Updated: 2026-05-07
 - `connector/dnse/client.py` - `_to_dataframe()` recognizes market-data payload keys
 - `connector/dnse/trade.py` - logger refactor and OpenAPI bridge helpers
 - `explorer/dnse/__init__.py` - provider registration
-- `explorer/dnse/quote.py` - DNSE market data provider
-- `explorer/dnse/listing.py` - DNSE listing provider with compatibility fallbacks
+- `explorer/dnse/quote.py` - DNSE market data provider with live STOCK OHLC parsing support
+- `explorer/dnse/listing.py` - DNSE listing provider with compatibility fallbacks and live limit=1000 default
 
 ## tests/
 - `unit/explorer/dnse/__init__.py`

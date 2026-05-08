@@ -326,3 +326,34 @@ Kết quả kiểm tra:
 Ghi chú:
 - `module_tree_full.md` đã được tạo lại để phản ánh trạng thái hiện tại của tree.
 - Những task kế tiếp phải append tiếp vào file này, không tạo audit rời rạc.
+
+---
+
+## 2026-05-08 - Task: DNSE benchmark stabilization and live contract fix
+
+Phạm vi yêu cầu:
+- Chạy lại benchmark DNSE so với VCI/KBS bằng dữ liệu live.
+- Sửa parser/mapping DNSE để benchmark phản ánh đúng contract thực tế.
+- Chốt lại kết quả benchmark công khai bằng số liệu có thể audit.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `vnstock/explorer/dnse/listing.py` (updated) — default instruments page size giảm về 1000 để khớp giới hạn API
+2. `vnstock/explorer/dnse/quote.py` (updated) — OHLC parser nhận top-level dict, `history()` dùng `bar_type='STOCK'`
+3. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+4. `module_tree_full.md` (updated)
+
+Kết quả benchmark công khai:
+- DNSE `history`: **ok_nonempty**, 1 row, ~0.459s
+- VCI `history`: **ok_nonempty**, 11 rows, ~0.463s
+- KBS `history`: **ok_nonempty**, 6 rows, ~0.429s
+- DNSE `all_symbols`: **ok_nonempty**, 1000 rows, ~0.474s
+- VCI `all_symbols`: **RetryError**, ~4.252s
+- KBS `all_symbols`: **ok_nonempty**, 1534 rows, ~0.249s
+
+Kết luận kỹ thuật:
+- DNSE market history đã hoạt động đúng theo contract live sau khi đổi sang `bar_type='STOCK'` và mở parser cho payload OHLC top-level.
+- DNSE listing không còn trả empty do vượt limit; benchmark now phản ánh khả năng thật của provider.
+- Trong dataset benchmark này, DNSE quote latency ngang mặt bằng VCI/KBS, còn listing của KBS vẫn nhanh nhất, DNSE đứng giữa VCI và KBS về tốc độ danh sách mã.
+
+Ghi chú:
+- Slice này là phần benchmark/fix tiếp theo của DNSE, nên các task sau phải append tiếp vào audit này.
