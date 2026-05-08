@@ -474,3 +474,22 @@ Danh sách file đã tạo/chỉnh sửa:
 - Chuyển ma trận so sánh thành khuyến nghị ra quyết định.
 - Chốt rõ DNSE cho broker integration, VCI/KBS cho market-data portable, TCBS là compatibility path.
 - Thêm bảng điểm tương đối, bảng use case, và quy tắc ra quyết định nhanh.
+
+---
+
+## 2026-05-08 - Task: DNSE final project recommendation
+
+Phạm vi yêu cầu:
+- Làm tài liệu chốt cuối cùng cho dự án trước khi quyết định.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_PROJECT_FINAL_RECOMMENDATION.md` (new)
+2. `docs/DNSE_INDEX.md` (updated)
+3. `module_tree_full.md` (updated)
+4. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Điểm chính của tài liệu mới:
+- Chốt mô hình hybrid cho dự án.
+- DNSE là broker layer chính; VCI/KBS là public market-data default; TCBS chỉ là compatibility path.
+- Tách rõ public portable layer và DNSE-only broker extension để tránh trộn semantics.
+- Gợi ý bắt đầu bằng Phase 0: inventory capability, lock contract, route từng nhóm hàm.
