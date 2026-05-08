@@ -1,7 +1,7 @@
 # DNSE Integration Documentation Index
 
 Bộ tài liệu này được thiết kế để đội code có thể thực hiện và không cần hỏi lại, có audit minh chứng.  
-**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker, thêm ma trận so sánh provider, thêm decision guide, thêm final recommendation, thêm executive brief)
+**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker, thêm ma trận so sánh provider, thêm decision guide, thêm final recommendation, thêm executive brief, thêm implementation playbook và evidence protocol)
 
 ---
 
@@ -19,6 +19,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | 3.2 | [DNSE_PROVIDER_DECISION_GUIDE.md](DNSE_PROVIDER_DECISION_GUIDE.md) | Hướng dẫn chọn provider theo mục tiêu dự án và mức portable/broker-fit |
 | 3.3 | [DNSE_PROJECT_FINAL_RECOMMENDATION.md](DNSE_PROJECT_FINAL_RECOMMENDATION.md) | Tài liệu chốt cuối cùng cho dự án trước khi quyết định |
 | 3.4 | [DNSE_EXECUTIVE_DECISION_BRIEF.md](DNSE_EXECUTIVE_DECISION_BRIEF.md) | Bản 1 trang để ra quyết định nhanh |
+| 3.5 | [DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md](DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md) | Quy trình triển khai chuẩn cho đội code, không cần hỏi lại |
 
 ### Bước 2 — Đọc spec kỹ thuật trước khi code (45 phút)
 
@@ -32,6 +33,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | Thứ tự | File | Mục đích |
 |---|---|---|
 | 6 | [DNSE_TEST_SPEC_V2.md](DNSE_TEST_SPEC_V2.md) | Test spec đầy đủ: unit test code sẵn, integration test, fixtures, KPI, phản ánh contract live |
+| 6.1 | [DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md](DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md) | Quy trình thu thập test evidence và audit evidence cho từng slice |
 
 ### Bước 4 — Audit & sign-off trước merge
 
@@ -51,6 +53,8 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | [DNSE_PROVIDER_DECISION_GUIDE.md](DNSE_PROVIDER_DECISION_GUIDE.md) | Khuyến nghị chọn provider theo use case và tiêu chí ra quyết định |
 | [DNSE_PROJECT_FINAL_RECOMMENDATION.md](DNSE_PROJECT_FINAL_RECOMMENDATION.md) | Tài liệu chốt cuối cùng cho dự án trước khi quyết định |
 | [DNSE_EXECUTIVE_DECISION_BRIEF.md](DNSE_EXECUTIVE_DECISION_BRIEF.md) | Bản một trang để chốt quyết định nhanh |
+| [DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md](DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md) | Playbook triển khai cho đội code, khóa quy trình và thứ tự thực hiện |
+| [DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md](DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md) | Protocol ghi minh chứng test/audit cho mọi slice |
 | [DNSE_TEST_PLAN.md](DNSE_TEST_PLAN.md) | Test plan gốc từ sprint trước |
 | [DNSE_E2E_RUNBOOK.md](DNSE_E2E_RUNBOOK.md) | Runbook E2E cho Trading API, có ghi chú live gap trades |
 | [DNSE_HANDOFF_20260413.md](DNSE_HANDOFF_20260413.md) | Handoff notes từ sprint 2026-04-13 |

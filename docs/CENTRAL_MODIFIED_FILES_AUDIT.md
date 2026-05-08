@@ -511,3 +511,24 @@ Danh sách file đã tạo/chỉnh sửa:
 - Chốt một câu: hybrid, DNSE broker chính, VCI/KBS public data default, TCBS compatibility/fallback.
 - Nén nội dung còn một trang để đọc nhanh trước khi quyết định.
 - Giữ nguyên hành động tiếp theo là Phase 0: inventory capability, lock contract, route từng nhóm hàm.
+
+---
+
+## 2026-05-08 - Task: DNSE implementation execution playbook and evidence protocol
+
+Phạm vi yêu cầu:
+- Xây dựng bộ tài liệu triển khai cho đội code thực hiện.
+- Bảo đảm có quy trình thực thi, test evidence, và audit evidence để không cần hỏi lại.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md` (new)
+2. `docs/DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md` (new)
+3. `docs/DNSE_INDEX.md` (updated)
+4. `module_tree_full.md` (updated)
+5. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Điểm chính của tài liệu mới:
+- Playbook mới khóa nguồn sự thật, thứ tự đọc, quy trình slice, và no-question rule cho đội code.
+- Protocol mới chuẩn hóa cách ghi test evidence, benchmark evidence, và audit evidence cho từng slice.
+- Index và module tree được cập nhật để các tài liệu triển khai nằm trong luồng đọc chính thức.
+- Audit log được append để giữ lịch sử thay đổi và phục vụ sign-off sau này.
