@@ -456,3 +456,21 @@ Danh sách file đã tạo/chỉnh sửa:
 - Gắn cờ `intraday` và `price_depth` là portable có caveat, vì semantics/live behavior khác nhau giữa provider.
 - Tách riêng DNSE-only extension: account, order, OTP, trading token, post/put/cancel order.
 - Làm rõ TCBS ở lớp listing public hiện chủ yếu là KBS-backed fallback, không phải listing native.
+
+---
+
+## 2026-05-08 - Task: DNSE provider decision guide
+
+Phạm vi yêu cầu:
+- Ghi thêm một tài liệu quyết định để đủ dữ kiện chọn provider theo use case thực tế.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_PROVIDER_DECISION_GUIDE.md` (new)
+2. `docs/DNSE_INDEX.md` (updated)
+3. `module_tree_full.md` (updated)
+4. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Điểm chính của tài liệu mới:
+- Chuyển ma trận so sánh thành khuyến nghị ra quyết định.
+- Chốt rõ DNSE cho broker integration, VCI/KBS cho market-data portable, TCBS là compatibility path.
+- Thêm bảng điểm tương đối, bảng use case, và quy tắc ra quyết định nhanh.

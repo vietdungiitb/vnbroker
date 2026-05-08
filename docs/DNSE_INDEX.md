@@ -1,7 +1,7 @@
 # DNSE Integration Documentation Index
 
 Bộ tài liệu này được thiết kế để đội code có thể thực hiện và không cần hỏi lại, có audit minh chứng.  
-**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker, thêm ma trận so sánh provider)
+**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật, thêm RFC chiến lược broker, thêm ma trận so sánh provider, thêm decision guide)
 
 ---
 
@@ -16,6 +16,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | 2 | [DNSE_MODULE_STRUCTURE.md](DNSE_MODULE_STRUCTURE.md) | Cấu trúc module connector/dnse đã hoàn chỉnh |
 | 3 | [DNSE_API_CONTRACT.md](DNSE_API_CONTRACT.md) | Hợp đồng API: endpoints, auth, request/response schema, ghi chú live smoke |
 | 3.1 | [DNSE_PROVIDER_COMPARISON_MATRIX.md](DNSE_PROVIDER_COMPARISON_MATRIX.md) | Ma trận so sánh DNSE / VCI / KBS / TCBS theo từng public function |
+| 3.2 | [DNSE_PROVIDER_DECISION_GUIDE.md](DNSE_PROVIDER_DECISION_GUIDE.md) | Hướng dẫn chọn provider theo mục tiêu dự án và mức portable/broker-fit |
 
 ### Bước 2 — Đọc spec kỹ thuật trước khi code (45 phút)
 
@@ -45,6 +46,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | [DNSE_IMPLEMENTATION_WORKFLOW.md](DNSE_IMPLEMENTATION_WORKFLOW.md) | Workflow thực hiện ban đầu (Sprint 2026-04-13) |
 | [DNSE_BROKER_PLATFORM_RFC.md](DNSE_BROKER_PLATFORM_RFC.md) | Đề xuất chiến lược broker platform cho DNSE và ứng dụng |
 | [DNSE_PROVIDER_COMPARISON_MATRIX.md](DNSE_PROVIDER_COMPARISON_MATRIX.md) | Bảng so sánh 4 provider theo public function và DNSE-only extension |
+| [DNSE_PROVIDER_DECISION_GUIDE.md](DNSE_PROVIDER_DECISION_GUIDE.md) | Khuyến nghị chọn provider theo use case và tiêu chí ra quyết định |
 | [DNSE_TEST_PLAN.md](DNSE_TEST_PLAN.md) | Test plan gốc từ sprint trước |
 | [DNSE_E2E_RUNBOOK.md](DNSE_E2E_RUNBOOK.md) | Runbook E2E cho Trading API, có ghi chú live gap trades |
 | [DNSE_HANDOFF_20260413.md](DNSE_HANDOFF_20260413.md) | Handoff notes từ sprint 2026-04-13 |
