@@ -80,6 +80,8 @@ Biến DNSE thành lớp cầu nối chuẩn giữa ứng dụng và công ty ch
 - Mở public API ở mức đủ cho app sử dụng, không tạo fat file.
 - Dùng audit và test để bảo đảm mọi thay đổi có thể kiểm soát.
 
+Quan điểm thiết kế ở đây là: **vnstock có một lớp API chung cho mọi provider cho các public functions đã được chuẩn hóa**, còn DNSE được mở thêm một lớp mở rộng riêng cho người dùng có tài khoản DNSE để đi sâu vào OpenAPI account/trading/portfolio.
+
 ### 3.3 Mô hình lớp
 
 ```text
@@ -121,6 +123,30 @@ Tài liệu contract hiện tại đã ghi nhận các quan sát live sau:
 - `get_trades()` có thể là gap live tạm thời, nên bridge phải dùng semantics best-effort.
 
 Đây là điểm mấu chốt: bridge phải dựa trên **năng lực xác minh được**, không dựa trên giả định.
+
+### 4.2 Bảng tương thích với kiến trúc hiện có của vnstock
+
+#### 4.2.1 Lớp API chung cho mọi provider
+
+| API / nhóm chức năng | Vai trò trong vnstock | Mức tương thích với DNSE | Chuyển provider an toàn? | Ghi chú thiết kế |
+|---|---|---|---|---|
+| `Quote.history()` | Lấy lịch sử giá chuẩn hóa | Cao | Có | DNSE dùng `bar_type="STOCK"`; output chuẩn hóa `time/open/high/low/close/volume` |
+| `Listing.all_symbols()` | Danh sách mã chứng khoán | Cao | Có | DNSE đã chuẩn hóa output và hạ limit an toàn về `1000` |
+| `Listing.symbols_by_exchange()` | Lọc danh sách theo sàn | Cao | Có | Chỉ cần map `exchange`/`market_id` đúng taxonomy |
+| `Listing.indices()` | Danh sách chỉ số | Trung bình - cao | Có, nhưng nên đối chiếu taxonomy | DNSE có thể fallback khi data list không đủ đầy |
+| `Quote.intraday()` | Giao dịch khớp trong ngày | Trung bình | Có điều kiện | DNSE live trades có thể 404; bridge phải trả empty thay vì fail cứng |
+| `Quote.price_depth()` | Dữ liệu security definition / thông tin mã | Trung bình | Có điều kiện | Semantics khác order book; app không nên giả định đây là level-2 depth |
+
+#### 4.2.2 Lớp mở rộng riêng cho người dùng DNSE
+
+| DNSE OpenAPI function family | Có trong lớp API chung vnstock? | DNSE support | Khi chuyển provider | Ghi chú |
+|---|---|---|---|---|
+| Account: `get_accounts`, `get_balances`, `get_loan_packages`, `get_ppse` | Không | Có | Không áp dụng | Chỉ mở cho người dùng có DNSE credentials |
+| Orders: `get_orders`, `get_order_detail`, `get_execution_detail`, `get_order_history` | Không | Có | Không áp dụng | Nên đi qua broker bridge riêng của DNSE |
+| Trading: `send_email_otp`, `create_trading_token`, `post_order`, `put_order`, `cancel_order` | Không | Có | Không áp dụng | Đây là lớp giao dịch riêng, không nên giả lập như market-data |
+| Portfolio / position / reconciliation | Không chuẩn hóa chung | Có thể mở rộng | Không áp dụng | Dùng cho app giao dịch thực, đồng bộ trạng thái và đối soát |
+
+Kết luận thực dụng của bảng tương thích: **người dùng có thể đổi provider khá an toàn nếu code chỉ bám vào lớp API chuẩn hóa của vnstock và schema đã normalize**. Còn nếu họ dùng các hàm DNSE extension, đó là năng lực riêng của DNSE và không thể kỳ vọng provider khác có cùng hành vi 1:1.
 
 ---
 

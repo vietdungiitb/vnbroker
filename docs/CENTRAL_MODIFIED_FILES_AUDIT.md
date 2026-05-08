@@ -421,3 +421,19 @@ Danh sách file đã tạo/chỉnh sửa:
 - Kiến trúc đề xuất tách connector, bridge, và app integration để vừa tương thích vnstock vừa phục vụ ứng dụng giao dịch.
 - Lộ trình triển khai theo phase-based rollout, bắt đầu bằng capability inventory và contract lock.
 - RFC đã bổ sung lý do kinh doanh, lợi ích kỹ thuật, rủi ro, và tiêu chí thành công để hỗ trợ quyết định.
+
+---
+
+## 2026-05-08 - Task: DNSE compatibility matrix update
+
+Phạm vi yêu cầu:
+- Bổ sung bảng tương thích vào RFC DNSE để làm rõ lớp API chung của vnstock và lớp mở rộng riêng cho DNSE.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_BROKER_PLATFORM_RFC.md` (updated)
+2. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Điểm chính được bổ sung:
+- Bảng tương thích cho lớp API chung: `history`, `all_symbols`, `symbols_by_exchange`, `indices`, `intraday`, `price_depth`.
+- Bảng mở rộng DNSE riêng: account, orders, trading, portfolio/reconciliation.
+- Kết luận rõ ràng rằng người dùng có thể chuyển provider an toàn ở lớp API đã chuẩn hóa, nhưng DNSE extension là năng lực riêng theo tài khoản DNSE.
