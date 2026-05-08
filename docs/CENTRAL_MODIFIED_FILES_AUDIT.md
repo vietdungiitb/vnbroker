@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-08 - Task: Cập nhật copyright trong LICENSE
+
+Phạm vi yêu cầu:
+- Sửa lại thông tin copyright trong LICENSE.md theo thay đổi hiện tại.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `LICENSE.md` (updated)
+2. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả bàn giao:
+- LICENSE phản ánh đúng thông tin chủ sở hữu hiện tại.
+
+Ghi chú:
+- Đây là thay đổi tài liệu thuần túy, không đụng đến mã nguồn.
+
 ## 2026-05-08 - Task: Viết lại README và LICENSE theo trạng thái hiện tại
 
 Phạm vi yêu cầu:

@@ -1,6 +1,6 @@
 # Giấy phép tùy chỉnh vnbroker
 
-Copyright (c) 2024 Thinh Vu.
+Copyright (c) 2026 Phạm Việt Dũng  (vietdungiitb@gmail.com).
 
 Tệp này mô tả điều khoản sử dụng phần mềm vnbroker.
 
