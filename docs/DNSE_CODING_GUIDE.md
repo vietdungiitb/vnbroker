@@ -75,7 +75,7 @@ class DNSEQuote:
     ) -> pd.DataFrame:
         sym      = (symbol or self.symbol).upper()
         end      = end or datetime.now().strftime("%Y-%m-%d")
-        bar_type = _INTERVAL_TO_BAR_TYPE.get(_normalize_interval(interval), "D")
+        bar_type = "STOCK"  # live DNSE history contract for equities
         from_ts  = _to_unix_seconds(start)
         to_ts    = _to_unix_seconds(end) + 86399
         
@@ -300,6 +300,7 @@ except ValueError as e:
 |---|---|---|
 | `circular import` khi load `vnstock` | Import DNSE ở module level | Chuyển tất cả import DNSEClient/registry vào trong `__init__` của class |
 | `ValueError: Provider 'quote/dnse' not found` | `ProviderRegistry.register` chưa chạy | Kiểm tra `vnstock/__init__.py` đã có `from .explorer import dnse` chưa |
+| `DNSE get_trades lỗi: 404 page not found` | Live trades endpoint chưa ổn định trong smoke | `intraday()` trả empty DataFrame và chỉ log warning; không fail cứng |
 | `KeyError: 'bars'` trong DataFrame | `_to_dataframe` cũ chưa có key `bars` | Kiểm tra S1 đã thực hiện chưa |
 | `TypeError: __init__() got unexpected keyword argument 'api_key'` | Class chưa có `**kwargs` | Thêm `**kwargs` vào `__init__` signature |
 | DNSE trả 401 | API key/secret sai hoặc chữ ký HMAC lỗi | Dùng `dry_run=True` để xem headers; kiểm tra `DNSEConfig` |

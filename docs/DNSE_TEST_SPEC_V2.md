@@ -28,7 +28,7 @@ tests/
 ```python
 """Fixture dữ liệu mẫu cho DNSE Explorer unit tests."""
 
-# OHLC response giả lập — format bars list
+# OHLC response giả lập — format bars list; live DNSE smoke cũng có thể trả top-level dict t/o/h/l/c/v
 SAMPLE_OHLC_BARS = [
     {"t": 1704067200, "o": 67000.0, "h": 68500.0, "l": 66800.0, "c": 68000.0, "v": 1234567},
     {"t": 1704153600, "o": 68000.0, "h": 69000.0, "l": 67500.0, "c": 68500.0, "v": 987654},
@@ -53,7 +53,7 @@ SAMPLE_TRADES = [
 
 SAMPLE_TRADES_BODY = {"trades": SAMPLE_TRADES}
 
-# Security definition response
+# Security definition response; live DNSE smoke trả list[dict] và price_depth normalize bằng pd.json_normalize
 SAMPLE_SECDEF = {
     "symbol": "VNM",
     "name": "CTCP Sữa Việt Nam",
@@ -358,7 +358,7 @@ class TestDNSEQuoteHistory:
             q = DNSEQuote("VNM")
             q.history(start="2024-01-01", interval="1D")
             call_kwargs = mock_client._market.get_ohlc.call_args
-            assert call_kwargs[1]["bar_type"] == "D"
+            assert call_kwargs[1]["bar_type"] == "STOCK"
 
     def test_symbol_override(self):
         with patch("vnstock.connector.dnse.client.DNSEClient") as MockClient:

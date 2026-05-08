@@ -72,7 +72,8 @@ Expected:
 
 - Symbol hop le, schema field dung.
 - OHLC co truong time/open/high/low/close.
-- Trades co data hoac next_page_token ro rang.
+- Trades co data hoac 404 page not found trong live smoke hien tai; neu 404 thi ghi nhan gap contract, khong fail market-data smoke khac.
+- Security definition khi normalize co the thanh DataFrame nhieu dong.
 
 ### Scenario C - Trading flow (dry run first)
 

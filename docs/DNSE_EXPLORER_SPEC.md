@@ -176,7 +176,7 @@ def history(
 1. `sym = (symbol or self.symbol).upper()`
 2. `end = end or datetime.now().strftime("%Y-%m-%d")`
 3. `norm_interval = _normalize_interval(interval)`
-4. `bar_type = _INTERVAL_TO_BAR_TYPE.get(norm_interval, "D")`
+4. `bar_type = "STOCK"`  # live DNSE history contract for equities
 5. `from_ts = _to_unix_seconds(start)`
 6. `to_ts = _to_unix_seconds(end) + 86399`  ← đến cuối ngày end
 7. `query = {"symbol": sym, "from": from_ts, "to": to_ts}`
@@ -186,6 +186,8 @@ def history(
 10. `df = _parse_ohlc(records)`
 11. Nếu `self.show_log`: `logger.info("DNSE history: %d rows, %s, %s→%s", len(df), sym, start, end)`
 12. Trả `df`
+
+> Ghi chú contract live: `_extract_ohlc_list` phải chấp nhận cả body là list lẫn body là một dict top-level có `t/o/h/l/c/v` rồi wrap thành một record.
 
 **Schema output bắt buộc:**
 
@@ -217,6 +219,8 @@ def intraday(
 5. `df = _parse_trades(records)`
 6. Trả `df`
 
+> Ghi chú contract live: smoke hiện tại trả 404 page not found cho `get_trades`, nên `intraday()` được xem là best-effort và phải log warning rồi trả empty DataFrame khi endpoint chưa ổn định.
+
 **Schema output:**
 
 | Cột | Dtype | Ghi chú |
@@ -244,7 +248,7 @@ def price_depth(
 5. Nếu `list` → `pd.json_normalize(body)`.
 6. Trả `df`.
 
-> **Lưu ý:** `price_depth` trong context DNSE trả security definition (thông tin chứng khoán), không phải order book. Đây là hành vi dự kiến — không cần thêm logic khác.
+> **Lưu ý:** `price_depth` trong context DNSE trả security definition (thông tin chứng khoán), không phải order book. Live smoke quan sát được body dạng list[dict], nên DataFrame thường có nhiều dòng sau normalization. Đây là hành vi dự kiến — không cần thêm logic khác.
 
 ---
 
@@ -316,10 +320,10 @@ def _fetch_instruments(
 
 | Method | Tham số | Logic | DNSE API call |
 |---|---|---|---|
-| `all_symbols(show_log)` | — | Gọi `_fetch_instruments()` | `/instruments?limit=2000` |
-| `symbols_by_exchange(exchange, show_log)` | `'HOSE'/'HNX'/'UPCOM'/'ALL'` | `market_id=None` nếu `ALL`, ngược lại `market_id=exchange.upper()` | `/instruments?marketId={exchange}` |
-| `symbols_by_group(group, show_log)` | mã nhóm DNSE | `_fetch_instruments(security_group_id=group)` | `/instruments?securityGroupId={group}` |
-| `indices(show_log)` | — | Gọi `get_instruments(index_name="all")`, fallback lọc `type==INDEX` từ all_symbols | `/instruments?indexName=all` |
+| `all_symbols(show_log)` | — | Gọi `_fetch_instruments()` | `/instruments?limit=1000` |
+| `symbols_by_exchange(exchange, show_log)` | `'HOSE'/'HNX'/'UPCOM'/'ALL'` | `market_id=None` nếu `ALL`, ngược lại `market_id=exchange.upper()` | `/instruments?marketId={exchange}&limit=1000` |
+| `symbols_by_group(group, show_log)` | mã nhóm DNSE | `_fetch_instruments(security_group_id=group)` | `/instruments?securityGroupId={group}&limit=1000` |
+| `indices(show_log)` | — | Gọi `get_instruments(index_name="all")`, fallback lọc `type==INDEX` từ all_symbols | `/instruments?indexName=all&limit=1000` |
 
 **Tất cả public methods đều:**
 - Gọi `reset_index(drop=True)` trước khi return.

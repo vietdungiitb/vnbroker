@@ -357,3 +357,32 @@ Kết luận kỹ thuật:
 
 Ghi chú:
 - Slice này là phần benchmark/fix tiếp theo của DNSE, nên các task sau phải append tiếp vào audit này.
+
+---
+
+## 2026-05-08 - Task: DNSE intraday / price_depth benchmark and docs sync
+
+Phạm vi yêu cầu:
+- Benchmark thêm `intraday()` và `price_depth()` của DNSE so với VCI/KBS.
+- Đồng bộ lại tài liệu DNSE theo live contract vừa xác nhận.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_API_CONTRACT.md` (updated)
+2. `docs/DNSE_EXPLORER_SPEC.md` (updated)
+3. `docs/DNSE_CODING_GUIDE.md` (updated)
+4. `docs/DNSE_E2E_RUNBOOK.md` (updated)
+5. `docs/DNSE_TEST_SPEC_V2.md` (updated)
+6. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả benchmark live:
+- DNSE `intraday`: **empty**, 0 rows, ~0.379s, do `get_trades` live trả 404 page not found ngay cả khi thử `boardId=HOSE`.
+- VCI `intraday`: **ok_nonempty**, 50 rows, ~0.333s.
+- KBS `intraday`: **ok_nonempty**, 50 rows, ~0.327s.
+- DNSE `price_depth`: **ok_nonempty**, 7 rows, 15 cột, ~0.386s.
+- VCI `price_depth`: **RetryError** do connection error live, ~4.277s.
+- KBS `price_depth`: **RetryError** do endpoint chưa implement trong benchmark hiện tại, ~4.001s.
+
+Kết luận kỹ thuật:
+- DNSE `history`/`price_depth` đang khớp live contract sau khi dùng `bar_type='STOCK'`, parser top-level OHLC dict và normalize security-definition list.
+- DNSE `intraday` hiện là gap live contract: endpoint trades trả 404, nên provider phải tiếp tục xử lý best-effort và trả empty DataFrame thay vì fail cứng.
+- Tài liệu DNSE đã được đồng bộ lại theo các quan sát live này; các task sau phải append tiếp vào audit file này.

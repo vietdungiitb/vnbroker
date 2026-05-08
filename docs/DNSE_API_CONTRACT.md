@@ -51,6 +51,13 @@ client = DNSEClient(
 - `get_trades(symbol: str, board_id: str | None = None, from_date: int | None = None, to_date: int | None = None, limit: int | None = None, order: str | None = None, next_page_token: str | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_instruments(symbol: str | None = None, market_id: str | None = None, security_group_id: str | None = None, index_name: str | None = None, limit: int | None = None, page: int | None = None, dry_run: bool = False, raw: bool = False)`
 
+### 3.1 Live market-data notes
+
+- `get_ohlc(...)` live smoke hiện dùng `bar_type="STOCK"` cho history chứng khoán. Raw body có thể là một OHLC dict top-level với các key `t/o/h/l/c/v`, hoặc là list nằm trong `bars`/`data`.
+- `get_security_definition(...)` live smoke hiện trả về list các dict security-definition; `price_depth()` normalizes list này bằng `pd.json_normalize`.
+- `get_trades(...)` hiện vẫn 404 page not found trong live smoke, kể cả khi thử thêm `boardId=HOSE`. `intraday()` cần được xem là best-effort và phải trả empty DataFrame khi endpoint chưa ổn định.
+- `get_instruments(..., limit=1000)` là ceiling an toàn quan sát được trên live smoke hiện tại; limit cao hơn có thể bị từ chối.
+
 ## 4. Error contract
 
 - `DNSEAuthError`: 401/403, signature sai, token het han.
