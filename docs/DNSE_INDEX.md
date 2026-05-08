@@ -1,7 +1,7 @@
 # DNSE Integration Documentation Index
 
 Bộ tài liệu này được thiết kế để đội code có thể thực hiện và không cần hỏi lại, có audit minh chứng.  
-**Cập nhật lần cuối:** 2026-05-07 (thêm Explorer Layer + bộ audit docs)
+**Cập nhật lần cuối:** 2026-05-08 (đồng bộ live contract, benchmark intraday/price_depth, audit cập nhật)
 
 ---
 
@@ -13,7 +13,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 |---|---|---|
 | 1 | [DNSE_INTEGRATION_PLAN_20260507.md](DNSE_INTEGRATION_PLAN_20260507.md) | Master plan tích hợp DNSE, scope A/B/C, thứ tự slices S1-S11 |
 | 2 | [DNSE_MODULE_STRUCTURE.md](DNSE_MODULE_STRUCTURE.md) | Cấu trúc module connector/dnse đã hoàn chỉnh |
-| 3 | [DNSE_API_CONTRACT.md](DNSE_API_CONTRACT.md) | Hợp đồng API: endpoints, auth, request/response schema |
+| 3 | [DNSE_API_CONTRACT.md](DNSE_API_CONTRACT.md) | Hợp đồng API: endpoints, auth, request/response schema, ghi chú live smoke |
 
 ### Bước 2 — Đọc spec kỹ thuật trước khi code (45 phút)
 
@@ -26,7 +26,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 
 | Thứ tự | File | Mục đích |
 |---|---|---|
-| 6 | [DNSE_TEST_SPEC_V2.md](DNSE_TEST_SPEC_V2.md) | Test spec đầy đủ: unit test code sẵn, integration test, fixtures, KPI |
+| 6 | [DNSE_TEST_SPEC_V2.md](DNSE_TEST_SPEC_V2.md) | Test spec đầy đủ: unit test code sẵn, integration test, fixtures, KPI, phản ánh contract live |
 
 ### Bước 4 — Audit & sign-off trước merge
 
@@ -42,7 +42,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 |---|---|
 | [DNSE_IMPLEMENTATION_WORKFLOW.md](DNSE_IMPLEMENTATION_WORKFLOW.md) | Workflow thực hiện ban đầu (Sprint 2026-04-13) |
 | [DNSE_TEST_PLAN.md](DNSE_TEST_PLAN.md) | Test plan gốc từ sprint trước |
-| [DNSE_E2E_RUNBOOK.md](DNSE_E2E_RUNBOOK.md) | Runbook E2E cho Trading API |
+| [DNSE_E2E_RUNBOOK.md](DNSE_E2E_RUNBOOK.md) | Runbook E2E cho Trading API, có ghi chú live gap trades |
 | [DNSE_HANDOFF_20260413.md](DNSE_HANDOFF_20260413.md) | Handoff notes từ sprint 2026-04-13 |
 | [DNSE_DELIVERY_REPORT_20260413.md](DNSE_DELIVERY_REPORT_20260413.md) | Báo cáo giao hàng connector/dnse |
 

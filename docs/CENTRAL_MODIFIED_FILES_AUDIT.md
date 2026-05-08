@@ -386,3 +386,19 @@ Kết luận kỹ thuật:
 - DNSE `history`/`price_depth` đang khớp live contract sau khi dùng `bar_type='STOCK'`, parser top-level OHLC dict và normalize security-definition list.
 - DNSE `intraday` hiện là gap live contract: endpoint trades trả 404, nên provider phải tiếp tục xử lý best-effort và trả empty DataFrame thay vì fail cứng.
 - Tài liệu DNSE đã được đồng bộ lại theo các quan sát live này; các task sau phải append tiếp vào audit file này.
+
+---
+
+## 2026-05-08 - Task: DNSE docs index refresh
+
+Phạm vi yêu cầu:
+- Cập nhật trang chỉ mục DNSE để phản ánh trạng thái live-contract đã sync.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/DNSE_INDEX.md` (updated)
+2. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả:
+- Cập nhật ngày “last modified” lên `2026-05-08`.
+- Chú thích index đã nhấn mạnh rằng `DNSE_API_CONTRACT.md` và `DNSE_TEST_SPEC_V2.md` hiện phản ánh live smoke mới nhất.
+- `DNSE_E2E_RUNBOOK.md` được mô tả rõ hơn về gap `get_trades` hiện tại.
