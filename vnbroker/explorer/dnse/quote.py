@@ -8,8 +8,8 @@ vào giao diện chuẩn của vnbroker (history, intraday, price_depth).
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Tuple
 
 import pandas as pd
 
@@ -94,6 +94,17 @@ def _to_unix_seconds(date_str: str) -> int:
     """Convert YYYY-MM-DD string sang Unix timestamp (giây, UTC)."""
     dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     return int(dt.timestamp())
+
+
+_VN_TZ = timezone(timedelta(hours=7))
+
+
+def _to_vn_day_bounds(date_str: str) -> Tuple[int, int]:
+    """Trả về (from_ts, to_ts) Unix seconds cho 1 ngày theo giờ VN (UTC+7)."""
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    day_start = dt.replace(hour=0, minute=0, second=0, tzinfo=_VN_TZ)
+    day_end = dt.replace(hour=23, minute=59, second=59, tzinfo=_VN_TZ)
+    return int(day_start.timestamp()), int(day_end.timestamp())
 
 
 def _extract_ohlc_list(body: dict | list | None) -> list:
@@ -268,47 +279,118 @@ class DNSEQuote:
         return df
 
     # ------------------------------------------------------------------
-    # intraday
+    # intraday  (hỗ trợ tape lịch sử theo ngày)
     # ------------------------------------------------------------------
     def intraday(
         self,
         symbol: Optional[str] = None,
-        page_size: int = 100,
+        date: Optional[str] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        page_size: Optional[int] = None,
+        get_all: bool = False,
+        order: str = "asc",
+        show_log: Optional[bool] = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
-        Lấy dữ liệu giao dịch intraday (khớp lệnh) từ DNSE.
+        Lấy dữ liệu lịch sử khớp lệnh (tape) từ DNSE LightSpeed OpenAPI.
+
+        Hỗ trợ cả tape phiên hiện tại lẫn lịch sử theo ngày.
 
         Tham số:
-            symbol (str, tùy chọn): Mã CK.
-            page_size (int): Số lệnh tối đa trả về. Mặc định 100.
+            symbol (str): Mã CK. Mặc định là symbol khởi tạo.
+            date (str): Ngày cụ thể 'YYYY-MM-DD'. Lấy toàn bộ tape 1 ngày.
+            start (str): Ngày bắt đầu 'YYYY-MM-DD' cho khoảng ngày.
+            end (str): Ngày kết thúc 'YYYY-MM-DD' cho khoảng ngày.
+                       Mặc định là hôm nay nếu start được cung cấp.
+            page_size (int): Số lệnh tối đa mỗi request API.
+                             Mặc định 10 000 khi có date/start, 100 cho phiên hiện tại.
+            get_all (bool): Tự động phân trang qua nextPageToken để lấy toàn bộ dữ liệu.
+                            Mặc định False.
+            order (str): Thứ tự sắp xếp 'asc' (cũ→mới) hoặc 'desc' (mới→cũ).
+                         Mặc định 'asc'.
+            show_log (bool): Ghi log. Mặc định kế thừa từ __init__.
 
         Trả về:
             pd.DataFrame với cột: time, price, volume, side
+
+        Ví dụ:
+            >>> q = DNSEQuote("ACB", api_key="...", api_secret="...")
+            # Tape phiên hiện tại (100 lệnh gần nhất)
+            >>> df = q.intraday()
+            # Toàn bộ tape ngày 2026-05-15
+            >>> df = q.intraday(date="2026-05-15", get_all=True)
+            # Tape từ 2026-05-12 đến 2026-05-16
+            >>> df = q.intraday(start="2026-05-12", end="2026-05-16", get_all=True)
         """
         sym = (symbol or self.symbol).upper()
-        try:
-            _, body = self._market.get_trades(symbol=sym, limit=page_size)
-        except Exception as exc:
-            logger.warning("DNSE get_trades lỗi: %s", exc)
-            return pd.DataFrame(columns=["time", "price", "volume", "side"])
+        _show = show_log if show_log is not None else self.show_log
 
-        if body is None:
-            return pd.DataFrame(columns=["time", "price", "volume", "side"])
+        # --- Resolve date range → Unix timestamps (VN timezone UTC+7) ---
+        from_ts: Optional[int] = None
+        to_ts: Optional[int] = None
 
-        records: list = []
-        if isinstance(body, list):
-            records = body
-        elif isinstance(body, dict):
-            for key in ("trades", "data", "items"):
-                val = body.get(key)
-                if isinstance(val, list):
-                    records = val
-                    break
+        if date:
+            from_ts, to_ts = _to_vn_day_bounds(date)
+        elif start:
+            from_ts, _ = _to_vn_day_bounds(start)
+            _end = end or datetime.now(_VN_TZ).strftime("%Y-%m-%d")
+            _, to_ts = _to_vn_day_bounds(_end)
 
-        df = _parse_trades(records)
-        if self.show_log:
-            logger.info("DNSE intraday: %s records, symbol=%s", len(df), sym)
+        # --- Auto page_size ---
+        if page_size is None:
+            page_size = 10_000 if (from_ts is not None) else 100
+
+        # --- Fetch (with optional cursor pagination) ---
+        all_records: list = []
+        next_token: Optional[str] = None
+
+        while True:
+            try:
+                _, body = self._market.get_trades(
+                    symbol=sym,
+                    from_date=from_ts,
+                    to_date=to_ts,
+                    limit=page_size,
+                    order=order,
+                    next_page_token=next_token,
+                )
+            except Exception as exc:
+                logger.warning("DNSE get_trades lỗi: %s", exc)
+                break
+
+            if body is None:
+                break
+
+            records: list = []
+            if isinstance(body, list):
+                records = body
+            elif isinstance(body, dict):
+                for key in ("trades", "data", "items"):
+                    val = body.get(key)
+                    if isinstance(val, list):
+                        records = val
+                        break
+
+            all_records.extend(records)
+
+            if not get_all or not records:
+                break
+
+            # Cursor pagination
+            next_token = None
+            if isinstance(body, dict):
+                next_token = body.get("nextPageToken") or body.get("next_page_token")
+            if not next_token:
+                break
+
+        df = _parse_trades(all_records)
+        if _show:
+            logger.info(
+                "DNSE tape: %s records, symbol=%s, from=%s, to=%s",
+                len(df), sym, from_ts, to_ts,
+            )
         return df
 
     # ------------------------------------------------------------------
