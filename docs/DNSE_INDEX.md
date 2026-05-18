@@ -15,6 +15,7 @@ Bộ tài liệu này được thiết kế để đội code có thể thực h
 | 1 | [DNSE_INTEGRATION_PLAN_20260507.md](DNSE_INTEGRATION_PLAN_20260507.md) | Master plan tích hợp DNSE, scope A/B/C, thứ tự slices S1-S11 |
 | 2 | [DNSE_MODULE_STRUCTURE.md](DNSE_MODULE_STRUCTURE.md) | Cấu trúc module connector/dnse đã hoàn chỉnh |
 | 3 | [DNSE_API_CONTRACT.md](DNSE_API_CONTRACT.md) | Hợp đồng API: endpoints, auth, request/response schema, ghi chú live smoke |
+| 3.0 | [DNSE_TAPE_API_GUIDE.md](DNSE_TAPE_API_GUIDE.md) | **Hướng dẫn lập trình viên:** sử dụng intraday tape (lịch sử, phân trang, timezone) |
 | 3.1 | [DNSE_PROVIDER_COMPARISON_MATRIX.md](DNSE_PROVIDER_COMPARISON_MATRIX.md) | Ma trận so sánh DNSE / VCI / KBS / TCBS theo từng public function |
 | 3.2 | [DNSE_PROVIDER_DECISION_GUIDE.md](DNSE_PROVIDER_DECISION_GUIDE.md) | Hướng dẫn chọn provider theo mục tiêu dự án và mức portable/broker-fit |
 | 3.3 | [DNSE_PROJECT_FINAL_RECOMMENDATION.md](DNSE_PROJECT_FINAL_RECOMMENDATION.md) | Tài liệu chốt cuối cùng cho dự án trước khi quyết định |

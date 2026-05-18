@@ -105,7 +105,9 @@ bot.send_message("ACB vượt ngưỡng cảnh báo")
 ## Tài liệu liên quan
 
 - `module_tree_full.md`
+- `docs/VNBROKER_USAGE_GUIDE.md`
 - `docs/DNSE_INDEX.md`
+- `docs/DNSE_TAPE_API_GUIDE.md`
 - `docs/PRICE_UNIT_STANDARDIZATION.md`
 - `docs/STOCK_NEWS_INDEX.md`
 - `docs/STOCK_NEWS_USAGE_GUIDE.md`
