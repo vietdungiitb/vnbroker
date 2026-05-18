@@ -274,8 +274,12 @@ def camel_to_snake(name):
     """
     str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     output = re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
-    # replace . with _
-    output = output.replace('.', '_')
+    # Replace spaces, hyphens, and dots with underscores
+    output = output.replace(' ', '_').replace('-', '_').replace('.', '_')
+    # Remove consecutive underscores
+    output = re.sub('_+', '_', output)
+    # Strip leading/trailing underscores
+    output = output.strip('_')
     return output
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗

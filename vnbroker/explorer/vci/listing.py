@@ -3,8 +3,7 @@
 # Đồ thị giá, đồ thị dư mua dư bán, đồ thị mức giá vs khối lượng, thống kê hành vi thị tường
 from typing import Optional, List
 from datetime import datetime
-from .const import _GROUP_CODE, _TRADING_URL, _GRAPHQL_URL
-import json
+from .const import _GROUP_CODE, _TRADING_URL, _GRAPHQL_URL, _GROUP_CODE_MAPPING, _VCI_INDEX_MAPPING
 import requests
 import pandas as pd
 from vnbroker.core.utils.parser import camel_to_snake
@@ -69,51 +68,63 @@ class Listing:
         Tham số:
             - lang (tùy chọn): Ngôn ngữ hiển thị. Mặc định là 'vi'.
             - show_log (tùy chọn): Hiển thị thông tin log giúp debug dễ dàng. Mặc định là False.
+
+        Note:
+            VCI đã chuyển từ GraphQL sang REST endpoint kể từ 26/04/2026.
         """
         if lang not in ['vi', 'en']:
             raise ValueError("Tham số lang phải là 'vi' hoặc 'en'.")
 
-        payload = "{\"query\":\"{\\n  CompaniesListingInfo {\\n    ticker\\n    organName\\n    enOrganName\\n    icbName3\\n    enIcbName3\\n    icbName2\\n    enIcbName2\\n    icbName4\\n    enIcbName4\\n    comTypeCode\\n    icbCode1\\n    icbCode2\\n    icbCode3\\n    icbCode4\\n    __typename\\n  }\\n}\\n\",\"variables\":{}}"
-        payload = json.loads(payload)
+        lang_code = '1' if lang == 'vi' else '2'
+        url = f"https://iq.vietcap.com.vn/api/iq-insight-service/v2/company/search-bar?language={lang_code}"
 
         # Use the send_request utility from api_client
         json_data = send_request(
-            url=_GRAPHQL_URL,
+            url=url,
             headers=self.headers,
-            method="POST",
-            payload=payload,
+            method="GET",
             show_log=show_log,
             proxy_list=self.proxy_config.proxy_list,
             proxy_mode=self.proxy_config.proxy_mode,
             request_mode=self.proxy_config.request_mode
         )
 
-        if not json_data:
-            raise ValueError("Không tìm thấy dữ liệu. Vui lòng kiểm tra lại.")
+        if not json_data or "data" not in json_data or json_data["data"] is None:
+            raise ValueError(
+                "Không nhận được dữ liệu (data) từ VCI. Có thể API đã thay đổi cấu trúc."
+            )
 
         if show_log:
-            logger.info(f'Truy xuất thành công dữ liệu danh sách phân ngành icb.')
+            logger.info('Truy xuất thành công dữ liệu danh sách phân ngành icb.')
 
-        _outer = (json_data or {}).get('data') or {}
-        _records = _outer.get('CompaniesListingInfo')
-        if _records is None:
-            raise ValueError(
-                "failed to fetch data: VCI listing response missing 'data.CompaniesListingInfo' "
-                f"(outer keys: {list(_outer.keys()) if _outer else 'empty'})"
-            )
-        df = pd.DataFrame(_records)
-        df.columns = [camel_to_snake(col) for col in df.columns]
-        df = df.drop(columns=['__typename'])
-        df = df.rename(columns={'ticker': 'symbol'})
+        parsed_data = []
+        for company in json_data["data"]:
+            symbol = company.get("code")
+            organ_name = company.get("name")
+            com_type_code = company.get("comTypeCode")
+
+            for level in range(1, 5):
+                icb_key = f"icbLv{level}"
+                if icb_key in company and company[icb_key] is not None:
+                    parsed_data.append(
+                        {
+                            "symbol": symbol,
+                            "organ_name": organ_name,
+                            "com_type_code": com_type_code,
+                            "icb_level": level,
+                            "icb_code": company[icb_key].get("code"),
+                            "icb_name": company[icb_key].get("name"),
+                        }
+                    )
+
+        df = pd.DataFrame(parsed_data)
+
+        if not df.empty:
+            df = df[df["icb_code"].notna() & (df["icb_code"] != "")]
+            df = df.sort_values(by=["symbol", "icb_level"]).reset_index(drop=True)
+            df = df[["symbol", "organ_name", "com_type_code", "icb_level", "icb_code", "icb_name"]]
+
         df.source = "VCI"
-
-        if lang == 'vi':
-            df = drop_cols_by_pattern(df, ['en_'])
-        else:
-            df = df.drop(columns=['organ_name', 'icb_name2', 'icb_name3', 'icb_name4'])
-            # rename columns for those contain 'en_' with 'en_' removed
-            df.columns = [col.replace('en_', '') for col in df.columns]
-
         return df
 
     @optimize_execution("VCI")
@@ -178,16 +189,17 @@ class Listing:
 
         Tham số:
             - show_log (tùy chọn): Hiển thị thông tin log giúp debug dễ dàng. Mặc định là False.
+
+        Note:
+            VCI đã chuyển từ GraphQL sang REST endpoint kể từ 26/04/2026.
         """
-        payload = "{\"query\":\"query Query {\\n  ListIcbCode {\\n    icbCode\\n    level\\n    icbName\\n    enIcbName\\n    __typename\\n  }\\n  CompaniesListingInfo {\\n    ticker\\n    icbCode1\\n    icbCode2\\n    icbCode3\\n    icbCode4\\n    __typename\\n  }\\n}\",\"variables\":{}}"
-        payload = json.loads(payload)
+        url = "https://iq.vietcap.com.vn/api/iq-insight-service/v1/sectors/icb-codes"
 
         # Use the send_request utility from api_client
         json_data = send_request(
-            url=_GRAPHQL_URL,
+            url=url,
             headers=self.headers,
-            method="POST",
-            payload=payload,
+            method="GET",
             show_log=show_log,
             proxy_list=self.proxy_config.proxy_list,
             proxy_mode=self.proxy_config.proxy_mode,
@@ -197,22 +209,29 @@ class Listing:
         if not json_data:
             raise ValueError("Không tìm thấy dữ liệu. Vui lòng kiểm tra lại.")
 
+        if "data" not in json_data or json_data["data"] is None:
+            raise ValueError(
+                "Không nhận được dữ liệu (data) từ VCI. Có thể API đã thay đổi cấu trúc."
+            )
+
         if show_log:
             logger.info('Truy xuất thành công dữ liệu danh sách phân ngành icb.')
 
-        _outer = (json_data or {}).get('data') or {}
-        _records = _outer.get('ListIcbCode')
-        if _records is None:
-            raise ValueError(
-                "failed to fetch data: VCI listing response missing 'data.ListIcbCode' "
-                f"(outer keys: {list(_outer.keys()) if _outer else 'empty'})"
-            )
-        df = pd.DataFrame(_records)
-        df.columns = [camel_to_snake(col) for col in df.columns]
-        df = df.drop(columns=['__typename'])
-        df = df[['icb_name', 'en_icb_name', 'icb_code', 'level']]
-        df.source = "VCI"
+        df = pd.DataFrame(json_data["data"])
+        df = df.rename(
+            columns={
+                "name": "icb_code",
+                "viSector": "icb_name",
+                "enSector": "en_icb_name",
+                "icbLevel": "level",
+            }
+        )
 
+        if not df.empty:
+            df = df[["icb_name", "en_icb_name", "icb_code", "level"]]
+            df = df.sort_values(by=["icb_code"]).reset_index(drop=True)
+
+        df.source = "VCI"
         return df
 
     @optimize_execution("VCI")
@@ -224,10 +243,16 @@ class Listing:
             - group (tùy chọn): Tên nhóm cổ phiếu. Mặc định là 'VN30'.
             - show_log (tùy chọn): Hiển thị thông tin log. Mặc định là False.
         """
-        if group not in _GROUP_CODE:
-            raise ValueError(f"Invalid group. Group must be in {_GROUP_CODE}")
-        
-        url = self.base_url + f'/price/symbols/getByGroup?group={group}'
+        if group not in _GROUP_CODE and group.upper() not in _GROUP_CODE_MAPPING and group.upper() not in _VCI_INDEX_MAPPING:
+            valid_keys = list(_GROUP_CODE_MAPPING.keys()) + list(_VCI_INDEX_MAPPING.keys())
+            raise ValueError(f"Invalid group '{group}'. Must be one of {valid_keys}")
+
+        standardized = group.upper()
+        if standardized in _VCI_INDEX_MAPPING:
+            vci_group = _VCI_INDEX_MAPPING[standardized]
+        else:
+            vci_group = _GROUP_CODE_MAPPING.get(standardized, group)
+        url = self.base_url.rstrip('/') + f'/price/symbols/getByGroup?group={vci_group}'
 
         # Use the send_request utility from api_client
         json_data = send_request(
