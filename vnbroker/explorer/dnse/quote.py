@@ -69,6 +69,10 @@ _OHLC_COLUMN_MAP: dict[str, str] = {
 }
 
 _TRADES_COLUMN_MAP: dict[str, str] = {
+    # DNSE actual field names
+    "matchPrice": "price",
+    "matchQtty": "volume",
+    # Generic aliases
     "t": "time",
     "time": "time",
     "p": "price",
@@ -331,16 +335,22 @@ class DNSEQuote:
         from_ts: Optional[int] = None
         to_ts: Optional[int] = None
 
+        today_str = datetime.now(_VN_TZ).strftime("%Y-%m-%d")
+
         if date:
             from_ts, to_ts = _to_vn_day_bounds(date)
         elif start:
             from_ts, _ = _to_vn_day_bounds(start)
-            _end = end or datetime.now(_VN_TZ).strftime("%Y-%m-%d")
+            _end = end or today_str
             _, to_ts = _to_vn_day_bounds(_end)
+        else:
+            # Live session: default to today's full day (API requires 'from')
+            from_ts, to_ts = _to_vn_day_bounds(today_str)
 
-        # --- Auto page_size ---
+        # --- Auto page_size (DNSE limit: 1–1000) ---
         if page_size is None:
-            page_size = 10_000 if (from_ts is not None) else 100
+            page_size = 1000 if (date or start) else 100
+        page_size = min(page_size, 1000)  # hard cap
 
         # --- Fetch (with optional cursor pagination) ---
         all_records: list = []

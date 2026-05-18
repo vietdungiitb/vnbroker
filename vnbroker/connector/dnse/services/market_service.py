@@ -37,7 +37,9 @@ class MarketService:
         next_page_token: str | None = None,
         dry_run: bool = False,
     ):
-        query = {"symbol": symbol}
+        # Correct path: /price/{symbol}/trades  (symbol is path param, not query param)
+        path = f"/price/{symbol}/trades"
+        query: dict = {}
         if board_id is not None:
             query["boardId"] = board_id
         if from_date is not None:
@@ -50,7 +52,7 @@ class MarketService:
             query["order"] = order
         if next_page_token is not None:
             query["nextPageToken"] = next_page_token
-        return self._http.request("GET", "/price/trades", query=query, dry_run=dry_run)
+        return self._http.request("GET", path, query=query or None, dry_run=dry_run)
 
     def get_instruments(
         self,
