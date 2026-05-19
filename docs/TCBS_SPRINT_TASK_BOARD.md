@@ -102,14 +102,16 @@
 | **Mục tiêu slice** | TCBS broker đọc credential từ namespace riêng, không lẫn provider env |
 | **Phụ thuộc** | S1 |
 | **Ước tính** | 0.5 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_credentials.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_credentials.py -q` → 29/29 PASS. Validation gate: S2 PASS. |
 
 **Checklist S2:**
 
-- [ ] Có model config riêng cho broker TCBS.
-- [ ] Thiếu credential raise lỗi rõ nghĩa.
-- [ ] Không fallback silent sang env public/provider cũ.
+- [x] Có model config riêng cho broker TCBS (`TCBSCredentialConfig`).
+- [x] Thiếu credential raise lỗi rõ nghĩa (`ValueError` + tên env var).
+- [x] Không fallback silent sang env public/provider cũ.
+- [x] `repr()` TCBSCredentialConfig che api_key, auth_token.
+- [x] Redactor: redact_dict() (nested + list), redact_headers(), mask_account_no() — 21 SENSITIVE_KEYS.
 
 ---
 
