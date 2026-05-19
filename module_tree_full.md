@@ -1,6 +1,17 @@
 ﻿# Module Tree Full
 
-Updated: 2026-05-19
+Updated: 2026-05-20
+
+## S1 — Broker Package Skeleton (2026-05-20)
+- `vnbroker/broker/__init__.py` — broker lane package entry, exports `BrokerRegistry`
+- `vnbroker/broker/base.py` — `BaseBrokerClient` ABC: abstract `authenticate()`, `revoke()`, `provider_name` property
+- `vnbroker/broker/registry.py` — `BrokerRegistry` singleton: `register()`, `get()` (case-insensitive), `list_providers()`
+- `vnbroker/broker/security/__init__.py` — placeholder; S2–S3 sẽ thêm credentials, redaction, audit, idempotency, guards
+- `vnbroker/broker/tcbs/__init__.py` — placeholder; S5+ sẽ thêm exceptions, auth, account, money, equity, derivatives, portfolio, client
+- `vnbroker/api/broker.py` — `get_broker()` factory entrypoint (lazy import TCBSBrokerClient khi S10 xong)
+- `tests/unit/broker/__init__.py` — test package init
+- `tests/unit/broker/tcbs/__init__.py` — test package init
+- `tests/unit/broker/test_s1_skeleton.py` — 13 unit tests: BaseBrokerClientABC (6) + BrokerRegistry (7), tất cả PASS
 
 ## vnbroker/
 - `__init__.py` - lazy-load explorer modules including DNSE
@@ -41,6 +52,19 @@ Both VCI and KBS `financial` providers now return identical column format:
 - `DNSE_PROVIDER_COMPARISON_MATRIX.md`
 - `DNSE_PROVIDER_DECISION_GUIDE.md`
 - `DNSE_PROJECT_FINAL_RECOMMENDATION.md`
+- `TCBS_INDEX.md`
+- `TCBS_EXECUTIVE_DECISION_BRIEF.md`
+- `TCBS_BROKER_PLATFORM_RFC.md`
+- `TCBS_INTEGRATION_MASTER_PLAN.md`
+- `TCBS_IMPLEMENTATION_EXECUTION_PLAYBOOK.md`
+- `TCBS_SPRINT_TASK_BOARD.md`
+- `TCBS_SLICE_DEFINITION_OF_DONE.md`
+- `TCBS_API_CONTRACT.md`
+- `TCBS_MODULE_STRUCTURE.md`
+- `TCBS_BROKER_SPEC.md`
+- `TCBS_CODING_GUIDE.md`
+- `TCBS_TEST_SPEC.md`
+- `TCBS_AUDIT_CHECKLIST.md`
 
 ## vnbroker/
 - `__init__.py` - lazy-load explorer modules including DNSE
@@ -79,3 +103,10 @@ Both VCI and KBS `financial` providers now return identical column format:
 - `DNSE_TEST_SPEC_V2.md`
 - `DNSE_AUDIT_CHECKLIST.md`
 - `DNSE_INDEX.md`
+- `TCBS_INDEX.md`
+- `TCBS_EXECUTIVE_DECISION_BRIEF.md`
+- `TCBS_BROKER_PLATFORM_RFC.md`
+- `TCBS_INTEGRATION_MASTER_PLAN.md`
+- `TCBS_IMPLEMENTATION_EXECUTION_PLAYBOOK.md`
+- `TCBS_SPRINT_TASK_BOARD.md`
+- `TCBS_SLICE_DEFINITION_OF_DONE.md`

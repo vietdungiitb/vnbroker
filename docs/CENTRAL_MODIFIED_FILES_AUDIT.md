@@ -4,6 +4,90 @@
 
 ---
 
+## 2026-05-19 - Task: Bộ tài liệu kế hoạch chi tiết TCBS primary broker
+
+Phạm vi yêu cầu:
+- Tạo bộ tài liệu kế hoạch thực hiện chi tiết để xem xét trước khi code đưa TCBS thành broker platform chính.
+- Chốt kiến trúc dual-plane, security-first, provider isolation, task board và DoD theo slice.
+- Cập nhật module tree và audit file để đội code/audit có thể dùng ngay.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/TCBS_INDEX.md` (new)
+2. `docs/TCBS_EXECUTIVE_DECISION_BRIEF.md` (new)
+3. `docs/TCBS_BROKER_PLATFORM_RFC.md` (new)
+4. `docs/TCBS_INTEGRATION_MASTER_PLAN.md` (new)
+5. `docs/TCBS_IMPLEMENTATION_EXECUTION_PLAYBOOK.md` (new)
+6. `docs/TCBS_SPRINT_TASK_BOARD.md` (new)
+7. `docs/TCBS_SLICE_DEFINITION_OF_DONE.md` (new)
+8. `module_tree_full.md` (updated)
+9. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả bàn giao:
+- Có bộ docs hoàn chỉnh cho workstream TCBS-primary gồm index, executive brief, RFC kiến trúc, master plan, execution playbook, sprint task board và slice DoD.
+- Kế hoạch chốt rõ dual-plane architecture: provider lane tách khỏi broker lane; security plane và portfolio domain được coi là phần bắt buộc.
+- Task board S0-S11 và DoD đã mô tả rõ thứ tự phụ thuộc, file tác động, validation gates và audit evidence.
+
+Ghi chú:
+- Đây là thay đổi tài liệu và planning, chưa đụng runtime code của TCBS broker.
+- Validation của slice hiện tại dùng `git diff --check`; chưa có test/runtime smoke vì chưa bắt đầu implement code.
+
+## 2026-05-20 - Task: S1 — Broker package skeleton (code + test + audit)
+
+Phạm vi yêu cầu:
+- Tạo broker lane package skeleton (BrokerRegistry, BaseBrokerClient, api/broker.py).
+- Viết unit tests đầy đủ cho S1, chạy qua CI và audit đối chiếu TCBS_BROKER_SPEC.md.
+- Cập nhật task board S0 + S1 thành DONE với bằng chứng.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `vnbroker/broker/__init__.py` (new) — exports `BrokerRegistry`
+2. `vnbroker/broker/base.py` (new) — `BaseBrokerClient` ABC
+3. `vnbroker/broker/registry.py` (new) — `BrokerRegistry` singleton, case-insensitive
+4. `vnbroker/broker/security/__init__.py` (new) — placeholder S2–S3
+5. `vnbroker/broker/tcbs/__init__.py` (new) — placeholder S5+
+6. `vnbroker/api/broker.py` (new) — `get_broker()` factory entrypoint
+7. `tests/unit/broker/__init__.py` (new)
+8. `tests/unit/broker/tcbs/__init__.py` (new)
+9. `tests/unit/broker/test_s1_skeleton.py` (new) — 13 unit tests (13/13 PASS)
+10. `docs/TCBS_SPRINT_TASK_BOARD.md` (updated) — S0 + S1 → ✅ DONE
+11. `module_tree_full.md` (updated)
+12. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả bàn giao:
+- Broker lane có thể import hoàn toàn tách khỏi provider lane.
+- `BrokerRegistry` hoạt động độc lập, không đụng `ProviderRegistry` của explorer.
+- `Vnbroker.stock()` không bị ảnh hưởng (backward-compatible confirmed).
+- 13/13 unit tests PASS: ABC constraint, provider_name, authenticate/revoke, registry case-insensitive, error message, overwrite.
+- Audit gate: no print(), no explorer import, no circular import, git diff --check clean.
+
+Ghi chú:
+- `api/broker.py` dùng lazy import TCBSBrokerClient (sẽ có trong S10) để tránh ImportError trong alpha.
+- S2 tiếp theo: credentials.py + redaction.py.
+
+---
+
+## 2026-05-19 - Task: Bộ tài liệu kỹ thuật handoff hoàn chỉnh TCBS broker (6 docs)
+
+Phạm vi yêu cầu:
+- Hoàn thiện bộ tài liệu còn thiếu để đội code có thể tự thực hiện và self-audit không lệch mục tiêu.
+- Tạo đủ 6 tài liệu kỹ thuật còn thiếu theo chuẩn DNSE template đã được chấp nhận trong repo.
+- Cập nhật TCBS_INDEX.md để phản ánh thứ tự đọc mới với 12 tài liệu.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/TCBS_API_CONTRACT.md` (new) — Endpoint contract, auth flow, request/response schema, error model, dry-run contract
+2. `docs/TCBS_MODULE_STRUCTURE.md` (new) — Cây thư mục chính xác, quy tắc layer, naming, logging
+3. `docs/TCBS_BROKER_SPEC.md` (new) — Exact class/method signatures, output dtype contracts cho toàn bộ broker lane
+4. `docs/TCBS_CODING_GUIDE.md` (new) — Step-by-step implement với code mẫu, pitfalls, checklist commit
+5. `docs/TCBS_TEST_SPEC.md` (new) — Test code stubs, fixtures, coverage targets, integration test template
+6. `docs/TCBS_AUDIT_CHECKLIST.md` (new) — 14 phần, 82 hạng mục, lệnh validation, sign-off 3 vai trò
+7. `docs/TCBS_INDEX.md` (updated) — Bổ sung Bước 4 và Bước 5, thứ tự ưu tiên 12 tài liệu
+8. `module_tree_full.md` (updated)
+9. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả bàn giao:
+- Bộ tài liệu TCBS hoàn chỉnh gồm 13 file (7 phase-1 + 6 phase-2): index, brief, RFC, master plan, playbook, task board, DoD, API contract, module structure, broker spec, coding guide, test spec, audit checklist.
+- Đội code có thể bắt đầu implement slice S0 ngay — không cần hỏi lại kiến trúc hay convention.
+- Audit checklist 82 hạng mục đủ để tự sign-off trước merge vào main.
+
 ## 2026-05-19 - Task: DNSE history interval mapping fix + DNSE guide v1.1.0
 
 Phạm vi yêu cầu:
