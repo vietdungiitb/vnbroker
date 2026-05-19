@@ -4,17 +4,17 @@
 
 ---
 
-## 2026-05-19 - Task: DNSE history interval mapping fix + DNSE guide v1.0.1
+## 2026-05-19 - Task: DNSE history interval mapping fix + DNSE guide v1.1.0
 
 Phạm vi yêu cầu:
 - Sửa lỗi `DNSEQuote.history()` đang hardcode `bar_type="STOCK"` và bỏ qua `interval`.
 - Bổ sung unit test khóa regression cho mapping `interval -> bar_type`.
-- Cập nhật tài liệu coding guide lên phiên bản `1.0.1` để ngăn tái diễn lỗi.
+- Cập nhật tài liệu coding guide lên phiên bản `1.1.0` để ngăn tái diễn lỗi.
 
 Danh sách file đã tạo/chỉnh sửa:
 1. `vnbroker/explorer/dnse/quote.py` (updated)
 2. `tests/unit/explorer/dnse/test_quote.py` (updated)
-3. `docs/DNSE_CODING_GUIDE.md` (updated, version 1.0.1)
+3. `docs/DNSE_CODING_GUIDE.md` (updated, version 1.1.0)
 4. `module_tree_full.md` (updated)
 5. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
 

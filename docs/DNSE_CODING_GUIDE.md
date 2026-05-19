@@ -1,5 +1,5 @@
 ﻿# DNSE Explorer — Hướng dẫn coding & Ví dụ mẫu
-**Phiên bản:** 1.0.1  
+**Phiên bản:** 1.1.0  
 **Ngày duyệt:** 2026-05-19  
 **Áp dụng cho:** Đội dev khi viết code Scope A–B trong `DNSE_INTEGRATION_PLAN_20260507.md`
 
