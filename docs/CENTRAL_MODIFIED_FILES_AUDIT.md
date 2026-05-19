@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-05-19 - Task: DNSE history interval mapping fix + DNSE guide v1.0.1
+
+Phạm vi yêu cầu:
+- Sửa lỗi `DNSEQuote.history()` đang hardcode `bar_type="STOCK"` và bỏ qua `interval`.
+- Bổ sung unit test khóa regression cho mapping `interval -> bar_type`.
+- Cập nhật tài liệu coding guide lên phiên bản `1.0.1` để ngăn tái diễn lỗi.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `vnbroker/explorer/dnse/quote.py` (updated)
+2. `tests/unit/explorer/dnse/test_quote.py` (updated)
+3. `docs/DNSE_CODING_GUIDE.md` (updated, version 1.0.1)
+4. `module_tree_full.md` (updated)
+5. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả bàn giao:
+- `history(interval="1D")` gửi đúng `bar_type="D"` lên DNSE API thay vì `"STOCK"`.
+- Mapping các interval khác hoạt động đúng (`1W->W`, `1M->M`, `1H->60`, `5m->5`), interval lạ fallback `D`.
+- Unit test DNSE quote pass đầy đủ sau sửa (29/29).
+
+Ghi chú:
+- Không đổi public API; thay đổi tập trung ở logic mapping nội bộ và tài liệu/hậu kiểm.
+
+## 2026-05-08 - Task: Tạo hướng dẫn sử dụng theo phiên bản
+
+Phạm vi yêu cầu:
+- Viết một tài liệu hướng dẫn sử dụng dựa trên API hiện tại và chia theo phiên bản để các lần nâng cấp sau dễ bổ sung.
+
+Danh sách file đã tạo/chỉnh sửa:
+1. `docs/VNBROKER_USAGE_GUIDE.md` (new)
+2. `README.md` (updated)
+3. `docs/CENTRAL_MODIFIED_FILES_AUDIT.md` (updated)
+
+Kết quả bàn giao:
+- Tài liệu mới có phần phiên bản hiện tại, bản đồ API công khai, ví dụ theo nhóm chức năng và mẫu thêm version mới.
+- README đã được gắn liên kết tới tài liệu này để người dùng vào đúng điểm bắt đầu.
+
+Ghi chú:
+- Đây là thay đổi tài liệu; không chạm code runtime.
+
 ## 2026-05-08 - Task: Cập nhật copyright trong LICENSE
 
 Phạm vi yêu cầu:

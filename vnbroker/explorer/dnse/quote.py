@@ -256,10 +256,10 @@ class DNSEQuote:
         """
         sym = (symbol or self.symbol).upper()
         if not end:
-            end = datetime.now().strftime("%Y-%m-%d")
+            end = datetime.now(_VN_TZ).strftime("%Y-%m-%d")
 
-        _ = _normalize_interval(interval)
-        bar_type = "STOCK"
+        normalized = _normalize_interval(interval)
+        bar_type = _INTERVAL_TO_BAR_TYPE.get(normalized, "D")
 
         from_ts = _to_unix_seconds(start)
         to_ts = _to_unix_seconds(end) + 86399  # đến cuối ngày end

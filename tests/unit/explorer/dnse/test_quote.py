@@ -261,3 +261,52 @@ class TestDNSEQuote:
                 df = q.history()
         call_kwargs = m._market.get_ohlc.call_args.kwargs
         assert call_kwargs.get("query", {}).get("symbol") == "HPG"
+
+    def test_history_daily_sends_bar_type_D(self):
+        """interval='1D' phải gửi bar_type='D', không phải 'STOCK'."""
+        with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
+                m = MagicMock()
+                m._market.get_ohlc.return_value = (200, _SAMPLE_OHLC_BODY)
+                mc.return_value = m
+                q = DNSEQuote("VNM")
+                q.history(start="2024-01-01", end="2024-01-31", interval="1D")
+        call_kwargs = m._market.get_ohlc.call_args.kwargs
+        assert call_kwargs.get("bar_type") == "D", (
+            f"bar_type phải là 'D' cho daily, nhận được: {call_kwargs.get('bar_type')!r}"
+        )
+
+    def test_history_interval_aliases_map_correctly(self):
+        """Các alias interval phổ biến phải map sang đúng bar_type DNSE."""
+        cases = [
+            ("daily", "D"),
+            ("1W",    "W"),
+            ("1M",    "M"),
+            ("1H",    "60"),
+            ("5m",    "5"),
+        ]
+        for interval, expected_bar_type in cases:
+            with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
+                with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
+                    m = MagicMock()
+                    m._market.get_ohlc.return_value = (200, _SAMPLE_OHLC_BODY)
+                    mc.return_value = m
+                    q = DNSEQuote("VNM")
+                    q.history(start="2024-01-01", end="2024-01-31", interval=interval)
+            call_kwargs = m._market.get_ohlc.call_args.kwargs
+            actual = call_kwargs.get("bar_type")
+            assert actual == expected_bar_type, (
+                f"interval={interval!r}: kỳ vọng bar_type={expected_bar_type!r}, nhận {actual!r}"
+            )
+
+    def test_history_unknown_interval_defaults_to_D(self):
+        """interval không nhận dạng được phải fallback về bar_type='D'."""
+        with patch.dict(os.environ, {"DNSE_API_KEY": "k", "DNSE_API_SECRET": "s"}):
+            with patch("vnbroker.connector.dnse.client.DNSEClient") as mc:
+                m = MagicMock()
+                m._market.get_ohlc.return_value = (200, _SAMPLE_OHLC_BODY)
+                mc.return_value = m
+                q = DNSEQuote("VNM")
+                q.history(start="2024-01-01", interval="UNKNOWN_INTERVAL")
+        call_kwargs = m._market.get_ohlc.call_args.kwargs
+        assert call_kwargs.get("bar_type") == "D"

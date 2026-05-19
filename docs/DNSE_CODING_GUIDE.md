@@ -1,6 +1,6 @@
 ﻿# DNSE Explorer — Hướng dẫn coding & Ví dụ mẫu
-**Phiên bản:** 1.0  
-**Ngày duyệt:** 2026-05-07  
+**Phiên bản:** 1.0.1  
+**Ngày duyệt:** 2026-05-19  
 **Áp dụng cho:** Đội dev khi viết code Scope A–B trong `DNSE_INTEGRATION_PLAN_20260507.md`
 
 ---
@@ -74,8 +74,9 @@ class DNSEQuote:
         **kwargs,
     ) -> pd.DataFrame:
         sym      = (symbol or self.symbol).upper()
-        end      = end or datetime.now().strftime("%Y-%m-%d")
-        bar_type = "STOCK"  # live DNSE history contract for equities
+        end      = end or datetime.now(_VN_TZ).strftime("%Y-%m-%d")
+        normalized = _normalize_interval(interval)
+        bar_type = _INTERVAL_TO_BAR_TYPE.get(normalized, "D")  # "1D" → "D", "1W" → "W", etc.
         from_ts  = _to_unix_seconds(start)
         to_ts    = _to_unix_seconds(end) + 86399
         

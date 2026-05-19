@@ -11,7 +11,7 @@ Updated: 2026-05-19
 - `connector/dnse/client.py` - `_to_dataframe()` recognizes market-data payload keys
 - `connector/dnse/trade.py` - logger refactor and OpenAPI bridge helpers
 - `explorer/dnse/__init__.py` - provider registration
-- `explorer/dnse/quote.py` - DNSE market data provider with live STOCK OHLC parsing support
+- `explorer/dnse/quote.py` - DNSE market data provider with interval-to-bar_type OHLC mapping (`1D->D`, `1W->W`, ...)
 - `explorer/dnse/listing.py` - DNSE listing provider with compatibility fallbacks and live limit=1000 default
 - `explorer/dnse/financial.py` - DNSE financial stub (NotImplementedError, placeholder)
 
