@@ -47,9 +47,9 @@ class Listing(BaseAdapter):
         self.api_key = api_key
         self.api_secret = api_secret
         
-        valid_sources = ["kbs", "vci", "msn", "dnse", AUTO_SOURCE]
+        valid_sources = ["kbs", "vci", "msn", "dnse", "tcbs", AUTO_SOURCE]
         if source.lower() not in valid_sources:
-            raise ValueError("Lớp Listing chỉ nhận giá trị tham số source là 'KBS', 'VCI', 'MSN' hoặc 'AUTO'.")
+            raise ValueError("Lớp Listing chỉ nhận giá trị tham số source là 'KBS', 'VCI', 'MSN', 'TCBS' hoặc 'AUTO'.")
         
         # BaseAdapter will discover vnbroker.explorer.<real_source>.listing
         # and pass only the kwargs its __init__ accepts (random_agent, show_log).

@@ -255,14 +255,16 @@
 | **Mục tiêu slice** | `Listing(source='TCBS')` hoạt động và TCBS pass compatibility tests theo phạm vi |
 | **Phụ thuộc** | S2 |
 | **Ước tính** | 1 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/explorer/test_provider_api_compatibility.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/explorer/test_provider_api_compatibility.py -q` → 18/18 PASS. Full regression 519/519 PASS. |
 
 **Checklist S9:**
 
-- [ ] Có native listing tối thiểu cho TCBS.
-- [ ] Bỏ fallback KBS silent ở mục tiêu release.
-- [ ] Bổ sung `price_depth`, `financial_ratios`, harmonized signatures nếu còn thiếu.
+- [x] Native listing cho TCBS: all_symbols, symbols_by_exchange, symbols_by_industries, symbols_by_group.
+- [x] Compatibility API: all_future_indices, all_covered_warrant, all_bonds, all_etf, get_supported_groups.
+- [x] api/listing.py chấp nhận source='tcbs'.
+- [x] industries_icb / all_government_bonds raise NotImplementedError (TCBS không hỗ trợ).
+- [x] Không có silent fallback sang KBS.
 
 ---
 

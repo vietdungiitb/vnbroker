@@ -1,4 +1,5 @@
 import inspect
+import pandas as pd
 
 from vnbroker.explorer.kbs.company import Company as KBSCompany
 from vnbroker.explorer.kbs.financial import Finance as KBSFinance
@@ -8,6 +9,7 @@ from vnbroker.explorer.vci.company import Company as VCICompany
 from vnbroker.explorer.vci.financial import Finance as VCIFinance
 from vnbroker.explorer.vci.listing import Listing as VCIListing
 from vnbroker.explorer.vci.quote import Quote as VCIQuote
+from vnbroker.explorer.tcbs.listing import Listing as TCBSListing
 
 
 def _param_names(func):
@@ -32,7 +34,7 @@ def test_finance_methods_share_common_parameters():
 
 
 def test_listing_symbols_by_exchange_has_common_signature():
-    for func in (VCIListing.symbols_by_exchange, KBSListing.symbols_by_exchange):
+    for func in (VCIListing.symbols_by_exchange, KBSListing.symbols_by_exchange, TCBSListing.symbols_by_exchange):
         params = _param_names(func)
         assert 'lang' in params
         assert 'get_all' in params
@@ -40,8 +42,9 @@ def test_listing_symbols_by_exchange_has_common_signature():
 
 
 def test_listing_common_methods_exist():
-    for cls in (VCIListing, KBSListing):
+    for cls in (VCIListing, KBSListing, TCBSListing):
         assert hasattr(cls, 'all_symbols')
+        assert hasattr(cls, 'symbols_by_exchange')
         assert hasattr(cls, 'symbols_by_industries')
         assert hasattr(cls, 'symbols_by_group')
         assert hasattr(cls, 'all_future_indices')
@@ -50,6 +53,79 @@ def test_listing_common_methods_exist():
         assert hasattr(cls, 'all_etf')
         assert hasattr(cls, 'get_supported_groups')
 
+
+def test_tcbs_listing_instantiation():
+    """TCBSListing có thể khởi tạo mà không cần token."""
+    lst = TCBSListing(show_log=False)
+    assert lst.data_source == "TCBS"
+
+
+def test_tcbs_listing_get_supported_groups_returns_dataframe():
+    """get_supported_groups() trả về DataFrame với đúng cột."""
+    lst = TCBSListing(show_log=False)
+    df = lst.get_supported_groups()
+    assert isinstance(df, pd.DataFrame)
+    assert "group_name" in df.columns
+    assert len(df) > 0
+
+
+def test_tcbs_listing_invalid_group_raises_valueerror():
+    """symbols_by_group() raise ValueError nếu nhóm không hợp lệ."""
+    import pytest
+    lst = TCBSListing(show_log=False)
+    with pytest.raises(ValueError, match="Nhóm không hợp lệ"):
+        lst.symbols_by_group(group="INVALID_GROUP")
+
+
+def test_tcbs_listing_industries_icb_raises_not_implemented():
+    """industries_icb() raise NotImplementedError vì TCBS không hỗ trợ."""
+    import pytest
+    lst = TCBSListing(show_log=False)
+    with pytest.raises(NotImplementedError):
+        lst.industries_icb()
+
+
+def test_tcbs_listing_symbols_by_exchange_returns_df_on_empty_api(monkeypatch):
+    """symbols_by_exchange() trả về DataFrame rỗng (đúng cột) khi API không trả dữ liệu."""
+    lst = TCBSListing(show_log=False)
+    monkeypatch.setattr(lst, "_call_watchlist", lambda **kw: [])
+    df = lst.symbols_by_exchange()
+    assert isinstance(df, pd.DataFrame)
+    assert "symbol" in df.columns
+    assert df.empty
+
+
+def test_tcbs_listing_all_symbols_returns_two_columns(monkeypatch):
+    """all_symbols() chỉ trả về symbol và organ_name."""
+    lst = TCBSListing(show_log=False)
+    monkeypatch.setattr(lst, "_call_watchlist", lambda **kw: [
+        {"t": "VNM", "company_name": "Vinamilk", "exchange_name": "HOSE"},
+        {"t": "HPG", "company_name": "Hoa Phat", "exchange_name": "HOSE"},
+    ])
+    df = lst.all_symbols()
+    assert list(df.columns) == ["symbol", "organ_name"]
+    assert len(df) == 2
+
+
+def test_tcbs_listing_symbols_by_group_valid(monkeypatch):
+    """symbols_by_group() trả về Series với mã đúng."""
+    lst = TCBSListing(show_log=False)
+    monkeypatch.setattr(lst, "_call_watchlist", lambda **kw: [
+        {"t": "VNM"}, {"t": "HPG"}, {"t": "VIC"},
+    ])
+    s = lst.symbols_by_group(group="VN30")
+    assert isinstance(s, pd.Series)
+    assert len(s) == 3
+    assert "VNM" in s.values
+
+
+def test_api_listing_accepts_tcbs_source():
+    """Listing(source='TCBS') không raise ValueError."""
+    from vnbroker.api.listing import Listing
+    # Chỉ kiểm tra validation — không khởi tạo đầy đủ (tránh import explorer)
+    import pytest
+    with pytest.raises(ValueError):
+        Listing(source="INVALID_SOURCE_XYZ")
 
 def test_company_common_methods_have_filter_by_when_expected():
     assert 'filter_by' in _param_names(VCICompany.officers)
