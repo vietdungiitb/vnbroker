@@ -145,14 +145,17 @@
 | **Mục tiêu slice** | Token lifecycle và state machine hoạt động qua mocked flow |
 | **Phụ thuộc** | S3 |
 | **Ước tính** | 0.5 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_session_auth.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_session_auth.py -q` → 37/37 PASS. |
 
 **Checklist S4:**
 
-- [ ] Có state machine session rõ ràng.
-- [ ] Có xử lý expiry và lock state.
-- [ ] Write mode vẫn tắt mặc định.
+- [x] Có state machine session rõ ràng (6 states: CREATED/AUTHENTICATING/READ/WRITE/EXPIRED/LOCKED).
+- [x] Có xử lý expiry (auto-expire khi past expires_at) và lock state (vĩnh viễn, không unlock).
+- [x] Write mode vẫn tắt mặc định (is_write_enabled=False sau init và sau set_token).
+- [x] TCBSAuthService: OTP validation, HTTP mocked, 401→BrokerAuthError, timeout→BrokerNetworkError.
+- [x] tcbs/exceptions.py re-export đúng class identity (không tạo class mới).
+- [x] Token KHÔNG xuất hiện trong repr, log, hay error message.
 
 ---
 
