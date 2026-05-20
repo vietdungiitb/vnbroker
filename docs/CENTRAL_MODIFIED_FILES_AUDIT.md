@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-05-19 - Task: S8–S10 — Portfolio Engine, TCBS Listing Provider, Vnbroker.broker() Entrypoint
+
+Phạm vi yêu cầu:
+- S8: TCBSPortfolioEngine — pure compute engine cho holdings/cash snapshot, realized PnL, reconciliation.
+- S9: TCBS Listing provider — đủ parity API với KBS/VCI; api.Listing chấp nhận source='tcbs'.
+- S10: TCBSBrokerClient facade và Vnbroker.broker() entrypoint.
+
+Danh sách file đã tạo/chỉnh sửa:
+
+**S8 — Portfolio Engine** (commit `8b26e1d`):
+1. `vnbroker/broker/tcbs/portfolio.py` (new) — TCBSPortfolioEngine: holdings_snapshot, cash_snapshot, realized_pnl, portfolio_summary, reconcile
+2. `tests/unit/broker/tcbs/test_portfolio.py` (new) — 32 unit tests (32/32 PASS)
+3. `docs/TCBS_SPRINT_TASK_BOARD.md` (updated) — S8 → ✅ DONE
+
+**S9 — TCBS Listing Provider** (commit `5d8b720`):
+4. `vnbroker/explorer/tcbs/listing.py` (new) — TCBSListing: all_symbols, symbols_by_exchange/group/industries, all_etf/covered_warrant/bonds/future_indices, get_supported_groups
+5. `vnbroker/api/listing.py` (updated) — valid_sources thêm "tcbs"
+6. `tests/unit/explorer/test_provider_api_compatibility.py` (updated) — 18 tests (18/18 PASS), thêm TCBSListing compat tests
+7. `docs/TCBS_SPRINT_TASK_BOARD.md` (updated) — S9 → ✅ DONE
+
+**S10 — Broker Entrypoint** (commit `3d162be`):
+8. `vnbroker/broker/tcbs/client.py` (new) — TCBSBrokerClient facade: auth, account, money, equity, derivatives, portfolio_snapshot
+9. `vnbroker/common/client.py` (updated) — Vnbroker.broker() method
+10. `docs/TCBS_SPRINT_TASK_BOARD.md` (updated) — S10 → ✅ DONE
+
+Kết quả bàn giao:
+- S0–S10 toàn bộ hoàn thành. Full regression 519/519 PASS (tất cả branch).
+- TCBSPortfolioEngine: holdings snapshot với weight%/cost_basis/unrealized_pnl_pct; realized PnL từ SELL executions; reconcile 4 trạng thái (MATCH/QTY_MISMATCH/BROKER_ONLY/LOCAL_ONLY).
+- Listing(source='TCBS') hoạt động với đầy đủ parity methods. Không có silent fallback KBS.
+- Vnbroker().broker(provider='tcbs') → TCBSBrokerClient(state='CREATED').
+- TCBSBrokerClient tổng hợp tất cả 6 services thành 1 facade tiện lợi.
+
+Ghi chú:
+- TCBSListing dùng TCBS ligo watchlist preview API (_BASE_URL/ligo/v1/watchlist/preview).
+- industries_icb / all_government_bonds raise NotImplementedError (TCBS không hỗ trợ) theo convention KBS.
+- dry_run=True mặc định được giữ nguyên qua tất cả write methods của TCBSBrokerClient facade.
+
+---
+
 ## 2026-05-19 - Task: Bộ tài liệu kế hoạch chi tiết TCBS primary broker
 
 Phạm vi yêu cầu:

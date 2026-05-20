@@ -1,112 +1,193 @@
-﻿# Module Tree Full
+# Module Tree
+> Generated: 2026-05-20
 
-Updated: 2026-05-20
-
-## S1 — Broker Package Skeleton (2026-05-20)
-- `vnbroker/broker/__init__.py` — broker lane package entry, exports `BrokerRegistry`
-- `vnbroker/broker/base.py` — `BaseBrokerClient` ABC: abstract `authenticate()`, `revoke()`, `provider_name` property
-- `vnbroker/broker/registry.py` — `BrokerRegistry` singleton: `register()`, `get()` (case-insensitive), `list_providers()`
-- `vnbroker/broker/security/__init__.py` — placeholder; S2–S3 sẽ thêm credentials, redaction, audit, idempotency, guards
-- `vnbroker/broker/tcbs/__init__.py` — placeholder; S5+ sẽ thêm exceptions, auth, account, money, equity, derivatives, portfolio, client
-- `vnbroker/api/broker.py` — `get_broker()` factory entrypoint (lazy import TCBSBrokerClient khi S10 xong)
-- `tests/unit/broker/__init__.py` — test package init
-- `tests/unit/broker/tcbs/__init__.py` — test package init
-- `tests/unit/broker/test_s1_skeleton.py` — 13 unit tests: BaseBrokerClientABC (6) + BrokerRegistry (7), tất cả PASS
-
-## vnbroker/
-- `__init__.py` - lazy-load explorer modules including DNSE
-- `api/quote.py` - public quote adapter, now accepts DNSE credentials
-- `api/listing.py` - public listing adapter, now accepts DNSE credentials and source
-- `common/client.py` - `vnbroker.stock()` now accepts DNSE source and `api_secret`
-- `common/data.py` - DNSE-aware `StockComponents`, `Quote`, and `Listing`
-- `connector/dnse/client.py` - `_to_dataframe()` recognizes market-data payload keys
-- `connector/dnse/trade.py` - logger refactor and OpenAPI bridge helpers
-- `explorer/dnse/__init__.py` - provider registration
-- `explorer/dnse/quote.py` - DNSE market data provider with interval-to-bar_type OHLC mapping (`1D->D`, `1W->W`, ...)
-- `explorer/dnse/listing.py` - DNSE listing provider with compatibility fallbacks and live limit=1000 default
-- `explorer/dnse/financial.py` - DNSE financial stub (NotImplementedError, placeholder)
-
-## VCI REST Migration (2026-05-19)
-- `explorer/vci/const.py` — Added `_VCIQ_URL`, `_IQ_FINANCE_REPORT`, `_GROUP_CODE_MAPPING`, `_VCI_INDEX_MAPPING`, `RATIO_COLUMN_MAP_EN/VI/SNAKE`
-- `explorer/vci/financial.py` — **Full rewrite**: migrated from GraphQL → REST (`iq.vietcap.com.vn/api/iq-insight-service`); KBS-compatible output (items-as-rows, periods-as-columns); `df.attrs` standardized; `display_mode` param; methods: `balance_sheet`, `income_statement`, `cash_flow`, `ratio`, `financial_ratios`
-- `explorer/vci/listing.py` — `symbols_by_industries` → REST `/v2/company/search-bar`; `industries_icb` → REST `/v1/sectors/icb-codes`; `symbols_by_group` → uses `_VCI_INDEX_MAPPING` + `_GROUP_CODE_MAPPING` for validation and URL mapping
-- `core/utils/parser.py` — `camel_to_snake()` improved: spaces/hyphens → underscores, no double underscores, strip leading/trailing underscores
-
-## Output Standardization: VCI ↔ KBS
-Both VCI and KBS `financial` providers now return identical column format:
-- Columns: `[item, item_id]` (STD mode) or `[item, item_en, item_id]` (ALL mode) + period columns
-- Period format: `"2024"` (annual) or `"2024-Q1"` (quarterly)
-- `df.attrs`: `{symbol, source, report_type, period, periods}`
-
-## tests/
-- `unit/explorer/dnse/__init__.py`
-- `unit/explorer/dnse/test_quote.py`
-- `unit/explorer/dnse/test_listing.py`
-- `unit/explorer/dnse/test_adapters.py`
-- `unit/connector/dnse/test_trade_bridge.py`
-- existing DNSE connector unit tests and integration smoke remain in place
-
-## docs/
-- `DNSE_INTEGRATION_PLAN_20260507.md`
-- `DNSE_BROKER_PLATFORM_RFC.md`
-- `DNSE_PROVIDER_COMPARISON_MATRIX.md`
-- `DNSE_PROVIDER_DECISION_GUIDE.md`
-- `DNSE_PROJECT_FINAL_RECOMMENDATION.md`
-- `TCBS_INDEX.md`
-- `TCBS_EXECUTIVE_DECISION_BRIEF.md`
-- `TCBS_BROKER_PLATFORM_RFC.md`
-- `TCBS_INTEGRATION_MASTER_PLAN.md`
-- `TCBS_IMPLEMENTATION_EXECUTION_PLAYBOOK.md`
-- `TCBS_SPRINT_TASK_BOARD.md`
-- `TCBS_SLICE_DEFINITION_OF_DONE.md`
-- `TCBS_API_CONTRACT.md`
-- `TCBS_MODULE_STRUCTURE.md`
-- `TCBS_BROKER_SPEC.md`
-- `TCBS_CODING_GUIDE.md`
-- `TCBS_TEST_SPEC.md`
-- `TCBS_AUDIT_CHECKLIST.md`
-
-## vnbroker/
-- `__init__.py` - lazy-load explorer modules including DNSE
-- `api/quote.py` - public quote adapter, now accepts DNSE credentials
-- `api/listing.py` - public listing adapter, now accepts DNSE credentials and source
-- `common/client.py` - `vnbroker.stock()` now accepts DNSE source and `api_secret`
-- `common/data.py` - DNSE-aware `StockComponents`, `Quote`, and `Listing`
-- `connector/dnse/client.py` - `_to_dataframe()` recognizes market-data payload keys
-- `connector/dnse/trade.py` - logger refactor and OpenAPI bridge helpers
-- `explorer/dnse/__init__.py` - provider registration
-- `explorer/dnse/quote.py` - DNSE market data provider with live STOCK OHLC parsing support
-- `explorer/dnse/listing.py` - DNSE listing provider with compatibility fallbacks and live limit=1000 default
-
-## tests/
-- `unit/explorer/dnse/__init__.py`
-- `unit/explorer/dnse/test_quote.py`
-- `unit/explorer/dnse/test_listing.py`
-- `unit/explorer/dnse/test_adapters.py`
-- `unit/connector/dnse/test_trade_bridge.py`
-- existing DNSE connector unit tests and integration smoke remain in place
-
-## docs/
-- `DNSE_INTEGRATION_PLAN_20260507.md`
-- `DNSE_BROKER_PLATFORM_RFC.md`
-- `DNSE_PROVIDER_COMPARISON_MATRIX.md`
-- `DNSE_PROVIDER_DECISION_GUIDE.md`
-- `DNSE_PROJECT_FINAL_RECOMMENDATION.md`
-- `DNSE_EXECUTIVE_DECISION_BRIEF.md`
-- `DNSE_IMPLEMENTATION_EXECUTION_PLAYBOOK.md`
-- `DNSE_TEST_AND_AUDIT_EVIDENCE_PROTOCOL.md`
-- `DNSE_SPRINT_TASK_BOARD.md`
-- `DNSE_SLICE_DEFINITION_OF_DONE.md`
-- `DNSE_AUDIT_CHECKLIST_V2.md`
-- `DNSE_EXPLORER_SPEC.md`
-- `DNSE_CODING_GUIDE.md`
-- `DNSE_TEST_SPEC_V2.md`
-- `DNSE_AUDIT_CHECKLIST.md`
-- `DNSE_INDEX.md`
-- `TCBS_INDEX.md`
-- `TCBS_EXECUTIVE_DECISION_BRIEF.md`
-- `TCBS_BROKER_PLATFORM_RFC.md`
-- `TCBS_INTEGRATION_MASTER_PLAN.md`
-- `TCBS_IMPLEMENTATION_EXECUTION_PLAYBOOK.md`
-- `TCBS_SPRINT_TASK_BOARD.md`
-- `TCBS_SLICE_DEFINITION_OF_DONE.md`
+vnbroker/
++-- __init__.py
++-- api
+    +-- __init__.py
+    +-- broker.py
+    +-- company.py
+    +-- financial.py
+    +-- listing.py
+    +-- news.py
+    +-- quote.py
+    +-- screener.py
+    +-- snapshot.py
+    +-- trading.py
++-- base.py
++-- bot
+    +-- notify.py
++-- broker
+    +-- __init__.py
+    +-- base.py
+    +-- exceptions.py
+    +-- registry.py
+    +-- security
+        +-- __init__.py
+        +-- audit.py
+        +-- credentials.py
+        +-- guards.py
+        +-- idempotency.py
+        +-- redaction.py
+    +-- session.py
+    +-- tcbs
+        +-- __init__.py
+        +-- account.py
+        +-- auth.py
+        +-- client.py
+        +-- derivatives.py
+        +-- equity.py
+        +-- exceptions.py
+        +-- money.py
+        +-- portfolio.py
++-- common
+    +-- INDICES_USAGE.md
+    +-- __init__.py
+    +-- client.py
+    +-- data.py
+    +-- indices.py
++-- config.py
++-- connector
+    +-- __init__.py
+    +-- binance
+        +-- __init__.py
+    +-- dnse
+        +-- __init__.py
+        +-- client.py
+        +-- core
+            +-- __init__.py
+            +-- auth.py
+            +-- config.py
+            +-- errors.py
+            +-- http_client.py
+            +-- models.py
+            +-- signature.py
+        +-- services
+            +-- __init__.py
+            +-- account_service.py
+            +-- market_service.py
+            +-- order_service.py
+            +-- position_service.py
+            +-- token_service.py
+        +-- trade.py
+    +-- fmp
+        +-- __init__.py
+        +-- config.py
+        +-- const.py
+        +-- quote.py
++-- constants.py
++-- core
+    +-- __init__.py
+    +-- adaptive_controller.py
+    +-- base
+        +-- __init__.py
+        +-- provider.py
+        +-- registry.py
+    +-- config
+        +-- __init__.py
+        +-- const.py
+        +-- ggcolab.py
+    +-- constants.py
+    +-- converter
+        +-- __init__.py
+        +-- export.py
+    +-- exceptions.py
+    +-- models.py
+    +-- performance_profiles.py
+    +-- registry.py
+    +-- settings.py
+    +-- source_router.py
+    +-- types.py
+    +-- utils
+        +-- __init__.py
+        +-- async_client.py
+        +-- browser_profiles.py
+        +-- client.py
+        +-- compat.py
+        +-- deprecation.py
+        +-- env.py
+        +-- execution.py
+        +-- ext.py
+        +-- field
+            +-- __init__.py
+            +-- handler.py
+            +-- kbs_mappings.py
+            +-- mapper.py
+            +-- normalizer.py
+            +-- validator.py
+        +-- help.py
+        +-- interval.py
+        +-- launcher.py
+        +-- logger.py
+        +-- lookback.py
+        +-- market.py
+        +-- market_events.py
+        +-- parser.py
+        +-- proxy_manager.py
+        +-- transform.py
+        +-- upgrade.py
+        +-- user_agent.py
+        +-- validation.py
++-- explorer
+    +-- __init__.py
+    +-- dnse
+        +-- __init__.py
+        +-- financial.py
+        +-- listing.py
+        +-- quote.py
+    +-- fmarket
+        +-- __init__.py
+        +-- const.py
+        +-- fund.py
+    +-- kbs
+        +-- __init__.py
+        +-- company.py
+        +-- const.py
+        +-- financial.py
+        +-- listing.py
+        +-- news.py
+        +-- quote.py
+        +-- trading.py
+    +-- misc
+        +-- __init__.py
+        +-- exchange_rate.py
+        +-- gold_price.py
+    +-- msn
+        +-- __init__.py
+        +-- const.py
+        +-- helper.py
+        +-- listing.py
+        +-- quote.py
+    +-- rss_cafef
+        +-- __init__.py
+        +-- news.py
+    +-- rss_vneconomy
+        +-- __init__.py
+        +-- news.py
+    +-- tcbs
+        +-- __init__.py
+        +-- auth.py
+        +-- company.py
+        +-- const.py
+        +-- financial.py
+        +-- listing.py
+        +-- news.py
+        +-- quote.py
+        +-- screener.py
+        +-- trading.py
+    +-- vci
+        +-- __init__.py
+        +-- company.py
+        +-- const.py
+        +-- financial.py
+        +-- listing.py
+        +-- news.py
+        +-- quote.py
+        +-- trading.py
++-- news
+    +-- __init__.py
+    +-- dedup.py
+    +-- filtering.py
+    +-- health.py
+    +-- monitor.py
+    +-- normalize.py
