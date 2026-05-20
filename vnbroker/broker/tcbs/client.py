@@ -139,7 +139,7 @@ class TCBSBrokerClient:
         self, account_no: str, page: int = 0, page_size: int = 50, raw: bool = False
     ) -> pd.DataFrame:
         """Lấy danh sách lệnh đang có."""
-        return self._equity.get_orders(account_no=account_no, page=page, page_size=page_size, raw=raw)
+        return self._equity.get_orders(account_no=account_no, page=page, size=page_size, raw=raw)
 
     def get_order_history(
         self, account_no: str, page: int = 0, page_size: int = 50,

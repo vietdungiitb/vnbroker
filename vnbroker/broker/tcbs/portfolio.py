@@ -210,8 +210,9 @@ class TCBSPortfolioEngine:
                     pd.to_numeric(holdings_df["unrealized_pnl"], errors="coerce").sum()
                 )
             if "market_value" in holdings_df.columns:
-                idx = pd.to_numeric(holdings_df["market_value"], errors="coerce").idxmax()
-                if pd.notna(idx):
+                mv_series = pd.to_numeric(holdings_df["market_value"], errors="coerce").dropna()
+                if not mv_series.empty:
+                    idx = mv_series.idxmax()
                     summary["top_holding"] = holdings_df.loc[idx, "symbol"]
 
         return summary

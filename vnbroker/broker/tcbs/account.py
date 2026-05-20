@@ -66,6 +66,19 @@ class TCBSAccountService:
                                account_type (category), status (category)
         """
         data = self._get(_PATHS["list"])
+
+        # TCBS trả về envelope {code, data, message} khi không tìm thấy hoặc lỗi.
+        # Cần unpack trước khi xử lý.
+        if isinstance(data, dict):
+            inner = data.get("data")
+            if inner is None:
+                # NOT_FOUND hoặc tài khoản chưa kích hoạt OpenAPI
+                data = []
+            elif isinstance(inner, list):
+                data = inner
+            else:
+                data = [inner]
+
         if not isinstance(data, list):
             data = [data]
 
@@ -74,7 +87,16 @@ class TCBSAccountService:
 
         df = pd.DataFrame(data)
         if df.empty:
-            return df
+            return pd.DataFrame(
+                columns=["account_no", "custody_code", "full_name", "account_type", "status"]
+            )
+
+        # Đảm bảo không có envelope columns trong output
+        if "code" in df.columns and "account_no" not in df.columns:
+            _logger.warning("list_accounts: response không đúng format — missing accountNo column.")
+            return pd.DataFrame(
+                columns=["account_no", "custody_code", "full_name", "account_type", "status"]
+            )
 
         df = df.rename(columns={
             "accountNo": "account_no",
