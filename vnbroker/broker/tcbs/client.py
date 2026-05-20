@@ -150,10 +150,10 @@ class TCBSBrokerClient:
     # ── Equity ───────────────────────────────────────────────────────────────
 
     def get_orders(
-        self, account_no: str, page: int = 0, page_size: int = 50, raw: bool = False
+        self, account_no: str, raw: bool = False
     ) -> pd.DataFrame:
-        """Lấy danh sách lệnh đang có."""
-        return self._equity.get_orders(account_no=account_no, page=page, size=page_size, raw=raw)
+        """Lấy danh sách lệnh trong ngày."""
+        return self._equity.get_orders(account_no=account_no, raw=raw)
 
     def get_order_history(
         self, account_no: str, page: int = 0, page_size: int = 50,
@@ -172,10 +172,10 @@ class TCBSBrokerClient:
         return self._equity.get_executions(account_no=account_no, page=page, page_size=page_size, raw=raw)
 
     def get_holdings(
-        self, account_no: str, raw: bool = False
+        self, account_no: str, enrich_prices: bool = True, raw: bool = False
     ) -> pd.DataFrame:
         """Lấy danh mục cổ phiếu đang nắm giữ."""
-        return self._equity.get_holdings(account_no=account_no, raw=raw)
+        return self._equity.get_holdings(account_no=account_no, enrich_prices=enrich_prices, raw=raw)
 
     def place_order(
         self,

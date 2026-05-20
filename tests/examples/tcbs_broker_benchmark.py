@@ -336,6 +336,28 @@ def _resolve_account_no() -> Optional[str]:
     )
 
 
+def _resolve_custody_code_env() -> Optional[str]:
+    """Đọc custody code từ env (dạng 105C...)."""
+    return (
+        os.getenv("VNBROKER_BROKER_TCBS_CUSTODY_CODE")
+        or os.getenv("TCBS_CUSTODY_CODE")
+    )
+
+
+def _fetch_account_no_from_profile(client, custody_code: str) -> Optional[str]:
+    """Gọi get_profile() để lấy account_no (tcbsId) từ custody_code."""
+    try:
+        df = client.get_profile(custody_code=custody_code)
+        import pandas as pd  # noqa: PLC0415
+        if isinstance(df, pd.DataFrame) and not df.empty and "account_no" in df.columns:
+            val = str(df.iloc[0]["account_no"]).strip()
+            if val and val not in ("None", "nan", ""):
+                return val
+    except Exception as exc:
+        print(f"  [WARN] Không lấy được account_no từ profile: {exc}", file=sys.stderr)
+    return None
+
+
 def run_broker_benchmark(client, runs: int, account_no: Optional[str] = None) -> List[BrokerEndpointResult]:
     """Benchmark tất cả read-only broker endpoints.
 
@@ -347,6 +369,14 @@ def run_broker_benchmark(client, runs: int, account_no: Optional[str] = None) ->
     # Lấy account_no
     if not account_no:
         account_no = _resolve_account_no()
+
+    # Auto-resolve account_no từ custody_code nếu chưa có
+    if not account_no:
+        custody_code = getattr(client, "_custody_code", None) or _resolve_custody_code_env()
+        if custody_code:
+            print(f"  → Đang resolve account_no từ profile ({custody_code[:4]}****)...")
+            account_no = _fetch_account_no_from_profile(client, custody_code)
+
     if account_no:
         masked = f"{account_no[:4]}****{account_no[-4:] if len(account_no) > 8 else ''}"
         print(f"  → account_no: {masked}")
@@ -588,6 +618,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="",
         help="Số tiểu khoản TCBS (10 chữ số, vd: 0001170730). Fallback: env TCBS_ACCOUNT_NO",
     )
+    parser.add_argument(
+        "--custody-code",
+        type=str,
+        default="",
+        help="Custody code TCBS (dạng 105C...). Dùng để tự động resolve account_no từ profile. Fallback: env TCBS_CUSTODY_CODE",
+    )
     parser.add_argument("--output-json", type=str, default="", help="Đường dẫn file JSON output")
     parser.add_argument("--output-csv", type=str, default="", help="Đường dẫn file CSV output")
     return parser
@@ -759,7 +795,11 @@ def main() -> int:
             try:
                 if client is not None:
                     print()
-                    acct = getattr(args, "account_no", None) or None
+                    acct = (getattr(args, "account_no", None) or "").strip() or None
+                    # Propagate custody_code to env so auto-resolve can pick it up
+                    cc = (getattr(args, "custody_code", None) or "").strip()
+                    if cc:
+                        os.environ["TCBS_CUSTODY_CODE"] = cc
                     broker_rows = run_broker_benchmark(client=client, runs=args.runs, account_no=acct)
 
                     print("\n  === Broker Endpoint Results ===")
