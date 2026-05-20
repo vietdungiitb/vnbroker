@@ -233,14 +233,17 @@
 | **Mục tiêu slice** | Tính được holdings, average cost, PnL, returns và mismatch reconciliation |
 | **Phụ thuộc** | S5, S6 |
 | **Ước tính** | 1 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_portfolio.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_portfolio.py -q` → 32/32 PASS. Full regression 264/264 PASS. |
 
 **Checklist S8:**
 
-- [ ] Có holdings ledger và cash ledger.
-- [ ] Có realized/unrealized PnL.
-- [ ] Có mismatch classification cho reconciliation.
+- [x] holdings_snapshot(): weight_pct, cost_basis, unrealized_pnl_pct tự tính hoặc giữ từ API.
+- [x] cash_snapshot(): merge balance + purchasing_power (optional).
+- [x] realized_pnl(): chỉ SELL executions, gross/net PnL theo cost_map, pnl_available flag.
+- [x] portfolio_summary(): dict tổng hợp total_asset/cash/stock_value/num_positions/top_holding.
+- [x] reconcile(): 4 status (MATCH/QTY_MISMATCH/BROKER_ONLY/LOCAL_ONLY), qty_diff.
+- [x] Pure compute — không HTTP, không inject session/config.
 
 ---
 
