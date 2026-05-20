@@ -44,46 +44,55 @@ from vnbroker.broker.tcbs.account import _validate_account_no
 _logger = logging.getLogger("vnbroker.broker.tcbs.equity")
 
 _PATHS = {
-    "orders": "/gaia/v1/openapi/account/{accountNo}/orders",
-    "order_detail": "/gaia/v1/openapi/account/{accountNo}/orders/{orderId}",
-    "order_history": "/gaia/v1/openapi/account/{accountNo}/orders/history",
-    "executions": "/gaia/v1/openapi/account/{accountNo}/executions",
-    "holdings": "/gaia/v1/openapi/account/{accountNo}/portfolio/holdings",
+    "orders": "/aion/v1/accounts/{accountNo}/orders",
+    "order_detail": "/aion/v1/accounts/{accountNo}/orders/{orderID}",
+    "matching_details": "/aion/v1/accounts/{accountNo}/matching-details",
+    "se": "/aion/v1/accounts/{accountNo}/se",
+    "place_order": "/akhlys/v1/accounts/{accountNo}/orders",
+    "modify_order": "/akhlys/v1/accounts/{accountNo}/orders/{orderId}",
+    "cancel_orders": "/akhlys/v1/accounts/{accountNo}/cancel-orders",
+    # market enrichment (dùng trong get_holdings)
+    "ticker_commons": "/tartarus/v1/tickerCommons",
 }
 
+# OrderInfo schema từ /aion/v1/accounts/{accountNo}/orders
 _ORDER_COLUMNS = {
-    "orderId": "order_id",
+    "orderID": "order_id",
     "symbol": "symbol",
-    "side": "side",
-    "orderType": "order_type",
-    "quantity": "quantity",
+    "execType": "side",      # NB=buy, NS=sell
+    "priceType": "order_type",
+    "orderQtty": "quantity",
+    "execQtty": "filled_quantity",
     "price": "price",
-    "filledQuantity": "filled_quantity",
     "status": "status",
-    "createdAt": "created_at",
+    "txdate": "tx_date",
+    "txtime": "tx_time",
 }
 
+# CommandMatchInformationDetailResponse
 _EXECUTION_COLUMNS = {
-    "executionId": "execution_id",
     "orderId": "order_id",
+    "side": "side",          # B=buy, S=sell
     "symbol": "symbol",
-    "side": "side",
-    "executedQuantity": "executed_quantity",
-    "executedPrice": "executed_price",
-    "executedAt": "executed_at",
-    "fee": "fee",
-    "tax": "tax",
+    "quoteQtty": "quote_quantity",
+    "quotePrice": "quote_price",
+    "tradeId": "trade_id",
+    "qtty": "executed_quantity",
+    "price": "executed_price",
+    "tradeDate": "trade_date",
+    "tradeTime": "trade_time",
 }
 
+# StockHoldingInfo schema từ SeInfoDTO.stock[]
 _HOLDING_COLUMNS = {
     "symbol": "symbol",
-    "quantity": "quantity",
-    "availableQuantity": "available_quantity",
-    "averageCost": "average_cost",
-    "currentPrice": "current_price",
-    "marketValue": "market_value",
-    "unrealizedPnl": "unrealized_pnl",
-    "unrealizedPnlPercent": "unrealized_pnl_pct",
+    "secType": "sec_type",
+    "availableTrading": "available_quantity",
+    "t0": "t0",
+    "t1": "t1",
+    "t2": "t2",
+    "t3": "t3",
+    "mortgaged": "mortgaged",
 }
 
 
@@ -103,29 +112,28 @@ class TCBSEquityService:
     def get_orders(
         self,
         account_no: str,
-        page: int = 0,
-        size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/orders
+        GET /aion/v1/accounts/{accountNo}/orders
 
-        DataFrame columns (raw=False): order_id, symbol, side (category),
-            order_type (category), quantity (int64), price (float64),
-            filled_quantity (int64), status (category), created_at (str)
+        Trả về sổ lệnh trong ngày. TCBS không hỗ trợ phân trang trên endpoint này.
+
+        DataFrame columns (raw=False):
+            order_id, symbol, side (category: NB/NS),
+            order_type (category: LO/ATO/ATC/MP…),
+            quantity (Int64), filled_quantity (Int64),
+            price (float64), status (category),
+            tx_date (str), tx_time (str)
         """
         _validate_account_no(account_no)
-        if size > 100:
-            raise BrokerValidationError(
-                message="size tối đa 100.",
-                code="INVALID_SIZE",
-            )
         path = _PATHS["orders"].format(accountNo=account_no)
-        data = self._get(path, params={"page": page, "size": size})
+        data = self._get(path)
 
         if raw:
             return data
 
+        # OrderSearchResponse: {object, pageSize, pageIndex, totalCount, data: [OrderInfo]}
         records = data.get("data", []) if isinstance(data, dict) else data
         df = _build_order_df(records)
         return df
@@ -137,7 +145,7 @@ class TCBSEquityService:
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/orders/{orderId}
+        GET /aion/v1/accounts/{accountNo}/orders/{orderID}
         """
         _validate_account_no(account_no)
         if not order_id or not order_id.strip():
@@ -145,80 +153,41 @@ class TCBSEquityService:
                 message="order_id không được để trống.",
                 code="INVALID_ORDER_ID",
             )
-        path = _PATHS["order_detail"].format(accountNo=account_no, orderId=order_id)
+        path = _PATHS["order_detail"].format(accountNo=account_no, orderID=order_id)
         data = self._get(path)
 
         if raw:
             return data
 
-        df = _build_order_df([data] if isinstance(data, dict) else data)
-        return df
-
-    def get_order_history(
-        self,
-        account_no: str,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
-        symbol: Optional[str] = None,
-        page: int = 0,
-        size: int = 50,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /gaia/v1/openapi/account/{accountNo}/orders/history
-
-        Params: fromDate/toDate YYYY-MM-DD, symbol (optional), page, size.
-        """
-        _validate_account_no(account_no)
-        params: dict = {"page": page, "size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-        if symbol:
-            params["symbol"] = symbol
-
-        path = _PATHS["order_history"].format(accountNo=account_no)
-        data = self._get(path, params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
+        records = data.get("data", []) if isinstance(data, dict) else ([data] if data else [])
         df = _build_order_df(records)
         return df
 
-    # ── Executions ────────────────────────────────────────────────────────────
+    # ── Executions (matching details) ─────────────────────────────────────────
 
     def get_executions(
         self,
         account_no: str,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
-        page: int = 0,
-        size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/executions
+        GET /aion/v1/accounts/{accountNo}/matching-details
 
-        DataFrame columns (raw=False): execution_id, order_id, symbol, side,
-            executed_quantity (int64), executed_price (float64),
-            executed_at (str), fee (float64), tax (float64)
+        DataFrame columns (raw=False):
+            order_id, trade_id, symbol,
+            side (category: B/S),
+            quote_quantity (Int64), quote_price (float64),
+            executed_quantity (Int64), executed_price (float64),
+            trade_date (str), trade_time (str)
         """
         _validate_account_no(account_no)
-        params: dict = {"page": page, "size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-
-        path = _PATHS["executions"].format(accountNo=account_no)
-        data = self._get(path, params=params)
+        path = _PATHS["matching_details"].format(accountNo=account_no)
+        data = self._get(path)
 
         if raw:
             return data
 
+        # CommandMatchInformationResponse: {object, totalCount, pageSize, pageIndex, data: [...]}
         records = data.get("data", []) if isinstance(data, dict) else data
         if not records:
             return pd.DataFrame(columns=list(_EXECUTION_COLUMNS.values()))
@@ -226,13 +195,12 @@ class TCBSEquityService:
         df = pd.DataFrame(records)
         df = df.rename(columns=_EXECUTION_COLUMNS)
         df = _ensure_columns(df, _EXECUTION_COLUMNS.values())
-        for col in ("side",):
-            if col in df.columns:
-                df[col] = df[col].astype("category")
-        for col in ("executed_price", "fee", "tax"):
+        if "side" in df.columns:
+            df["side"] = df["side"].astype("category")
+        for col in ("quote_price", "executed_price"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        for col in ("executed_quantity",):
+        for col in ("quote_quantity", "executed_quantity"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
         return df
@@ -242,36 +210,58 @@ class TCBSEquityService:
     def get_holdings(
         self,
         account_no: str,
+        enrich_prices: bool = True,
         raw: bool = False,
     ) -> Union[pd.DataFrame, list]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/portfolio/holdings
+        GET /aion/v1/accounts/{accountNo}/se
 
-        DataFrame columns (raw=False): symbol, quantity (int64),
-            available_quantity (int64), average_cost (float64),
-            current_price (float64), market_value (float64),
-            unrealized_pnl (float64), unrealized_pnl_pct (float64)
+        Trả về danh mục cổ phiếu (SeInfoDTO.stock[]). Nếu enrich_prices=True,
+        tự động gọi /tartarus/v1/tickerCommons để bổ sung giá thị trường.
+
+        DataFrame columns (raw=False):
+            symbol, sec_type (str),
+            available_quantity (Int64), t0 (Int64), t1 (Int64), t2 (Int64), t3 (Int64),
+            mortgaged (Int64),
+            [nếu enrich_prices=True] market_price (float64)
         """
         _validate_account_no(account_no)
-        path = _PATHS["holdings"].format(accountNo=account_no)
+        path = _PATHS["se"].format(accountNo=account_no)
         data = self._get(path)
 
         if raw:
             return data
 
-        records = data if isinstance(data, list) else [data]
-        if not records:
+        # SeInfoDTO: {object, accountNo, custodyID, fullName, stock: [StockHoldingInfo]}
+        stock_list = data.get("stock", []) if isinstance(data, dict) else data
+        if not stock_list:
             return pd.DataFrame(columns=list(_HOLDING_COLUMNS.values()))
 
-        df = pd.DataFrame(records)
+        df = pd.DataFrame(stock_list)
         df = df.rename(columns=_HOLDING_COLUMNS)
         df = _ensure_columns(df, _HOLDING_COLUMNS.values())
-        for col in ("average_cost", "current_price", "market_value", "unrealized_pnl", "unrealized_pnl_pct"):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        for col in ("quantity", "available_quantity"):
+
+        for col in ("available_quantity", "t0", "t1", "t2", "t3", "mortgaged"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+
+        if enrich_prices and not df.empty:
+            symbols = ",".join(df["symbol"].dropna().tolist())
+            try:
+                price_data = self._get(
+                    _PATHS["ticker_commons"],
+                    params={"tickers": symbols},
+                )
+                price_records = price_data if isinstance(price_data, list) else price_data.get("data", [])
+                price_map = {
+                    r.get("symbol", ""): float(r.get("matchPrice") or r.get("refPrice") or 0)
+                    for r in price_records
+                    if isinstance(r, dict)
+                }
+                df["market_price"] = df["symbol"].map(price_map).astype("float64")
+            except Exception as exc:
+                _logger.warning("get_holdings: bỏ qua enrich_prices — %s", exc)
+
         return df
 
     # ── Write methods (dry_run=True default) ────────────────────────────────
@@ -285,25 +275,27 @@ class TCBSEquityService:
         side: str,
         order_type: str,
         quantity: int,
-        price: float,
-        pin_code: str,
-        request_id: str,
+        price: int,
         *,
         dry_run: bool = True,
     ) -> dict:
         """
-        POST /gaia/v1/openapi/account/{accountNo}/orders
+        POST /akhlys/v1/accounts/{accountNo}/orders
 
         Args:
+            side: 'BUY' hoặc 'SELL' (được map sang 'NB'/'NS' theo spec).
+            order_type: 'LO', 'ATO', 'ATC', 'MP', 'MTL', 'MOK', 'MAK', 'PLO'.
+            price: Giá tính theo đơn vị đồng (int).
             dry_run: True (default) → không gửi HTTP, trả về dry_run dict.
                      False → gửi thực. Yêu cầu session.enable_write() trước.
-            pin_code: 6 chữ số. KHÔNG log dưới bất kỳ hình thức nào.
-            request_id: UUID do caller sinh. Idempotency key.
+
+        Returns:
+            {'error': '0', 'message': '...', 'orderId': '...'} khi dry_run=False.
         """
         _validate_account_no(account_no)
-        _validate_order_input(symbol, side, order_type, quantity, price, pin_code, request_id)
+        _validate_order_input(symbol, side, order_type, quantity, price)
         return self._gated_place_order(
-            account_no, symbol, side, order_type, quantity, price, pin_code, request_id,
+            account_no, symbol, side, order_type, quantity, price,
             dry_run=dry_run,
         )
 
@@ -315,22 +307,19 @@ class TCBSEquityService:
         side: str,
         order_type: str,
         quantity: int,
-        price: float,
-        pin_code: str,
-        request_id: str,
+        price: int,
         *,
         dry_run: bool = True,
     ) -> dict:
+        exec_type = "NB" if side.upper() == "BUY" else "NS"
         payload = {
-            "symbol": symbol,
-            "side": side,
-            "orderType": order_type,
+            "symbol": symbol.upper(),
+            "execType": exec_type,
+            "priceType": order_type.upper(),
             "quantity": quantity,
-            "price": price,
-            "requestId": request_id,
-            "pinCode": pin_code,  # NEVER log this value
+            "price": int(price),
         }
-        url = self._config.base_url.rstrip("/") + _PATHS["orders"].format(accountNo=account_no)
+        url = self._config.base_url.rstrip("/") + _PATHS["place_order"].format(accountNo=account_no)
         return self._post(url, payload)
 
     def modify_order(
@@ -338,13 +327,16 @@ class TCBSEquityService:
         account_no: str,
         order_id: str,
         quantity: int,
-        price: float,
-        request_id: str,
+        price: int,
         *,
         dry_run: bool = True,
     ) -> dict:
         """
-        PUT /gaia/v1/openapi/account/{accountNo}/orders/{orderId}
+        PUT /akhlys/v1/accounts/{accountNo}/orders/{orderId}
+
+        Args:
+            price: Giá mới (int, đơn vị đồng).
+            quantity: Khối lượng mới.
         """
         _validate_account_no(account_no)
         if not order_id or not order_id.strip():
@@ -362,12 +354,7 @@ class TCBSEquityService:
                 message="price phải >= 0.",
                 code="INVALID_PRICE",
             )
-        if not request_id or not request_id.strip():
-            raise BrokerValidationError(
-                message="request_id là bắt buộc cho write methods.",
-                code="MISSING_REQUEST_ID",
-            )
-        return self._gated_modify_order(account_no, order_id, quantity, price, request_id, dry_run=dry_run)
+        return self._gated_modify_order(account_no, order_id, quantity, price, dry_run=dry_run)
 
     @write_gate
     def _gated_modify_order(
@@ -375,17 +362,12 @@ class TCBSEquityService:
         account_no: str,
         order_id: str,
         quantity: int,
-        price: float,
-        request_id: str,
+        price: int,
         *,
         dry_run: bool = True,
     ) -> dict:
-        payload = {
-            "quantity": quantity,
-            "price": price,
-            "requestId": request_id,
-        }
-        url = self._config.base_url.rstrip("/") + _PATHS["order_detail"].format(
+        payload = {"quantity": quantity, "price": int(price)}
+        url = self._config.base_url.rstrip("/") + _PATHS["modify_order"].format(
             accountNo=account_no, orderId=order_id
         )
         return self._put(url, payload)
@@ -394,12 +376,14 @@ class TCBSEquityService:
         self,
         account_no: str,
         order_id: str,
-        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
         """
-        DELETE /gaia/v1/openapi/account/{accountNo}/orders/{orderId}
+        PUT /akhlys/v1/accounts/{accountNo}/cancel-orders
+
+        Body: {ordersList: [{orderID: order_id}]}
+        Hỗ trợ huỷ nhiều lệnh: truyền list order_id qua cancel_orders().
         """
         _validate_account_no(account_no)
         if not order_id or not order_id.strip():
@@ -407,27 +391,39 @@ class TCBSEquityService:
                 message="order_id không được để trống.",
                 code="INVALID_ORDER_ID",
             )
-        if not request_id or not request_id.strip():
+        return self._gated_cancel_order(account_no, [order_id], dry_run=dry_run)
+
+    def cancel_orders(
+        self,
+        account_no: str,
+        order_ids: list[str],
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        PUT /akhlys/v1/accounts/{accountNo}/cancel-orders
+
+        Huỷ nhiều lệnh cùng lúc.
+        """
+        _validate_account_no(account_no)
+        if not order_ids:
             raise BrokerValidationError(
-                message="request_id là bắt buộc cho write methods.",
-                code="MISSING_REQUEST_ID",
+                message="order_ids không được rỗng.",
+                code="INVALID_ORDER_ID",
             )
-        return self._gated_cancel_order(account_no, order_id, request_id, dry_run=dry_run)
+        return self._gated_cancel_order(account_no, order_ids, dry_run=dry_run)
 
     @write_gate
     def _gated_cancel_order(
         self,
         account_no: str,
-        order_id: str,
-        request_id: str,
+        order_ids: list[str],
         *,
         dry_run: bool = True,
     ) -> dict:
-        payload = {"requestId": request_id}
-        url = self._config.base_url.rstrip("/") + _PATHS["order_detail"].format(
-            accountNo=account_no, orderId=order_id
-        )
-        return self._delete(url, payload)
+        payload = {"ordersList": [{"orderID": oid} for oid in order_ids]}
+        url = self._config.base_url.rstrip("/") + _PATHS["cancel_orders"].format(accountNo=account_no)
+        return self._put(url, payload)
 
     # ── Internal HTTP ────────────────────────────────────────────────────────
 
@@ -504,9 +500,6 @@ class TCBSEquityService:
 
     def _put(self, url: str, payload: dict) -> dict:
         return self._write_request("PUT", url, payload)
-
-    def _delete(self, url: str, payload: dict) -> dict:
-        return self._write_request("DELETE", url, payload)
 
     def _write_request(self, method: str, url: str, payload: dict) -> dict:
         """
@@ -590,10 +583,10 @@ def _build_order_df(records: list) -> pd.DataFrame:
     for col in ("side", "order_type", "status"):
         if col in df.columns:
             df[col] = df[col].astype("category")
-    for col in ("price", "filled_quantity"):
+    for col in ("price",):
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    for col in ("quantity",):
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+    for col in ("quantity", "filled_quantity"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
     return df
@@ -607,29 +600,30 @@ def _ensure_columns(df: pd.DataFrame, columns) -> pd.DataFrame:
     return df
 
 
+_VALID_PRICE_TYPES = frozenset({"LO", "ATO", "ATC", "PLO", "MP", "MTL", "MOK", "MAK"})
+
+
 def _validate_order_input(
     symbol: str,
     side: str,
     order_type: str,
     quantity: int,
-    price: float,
-    pin_code: str,
-    request_id: str,
+    price: int,
 ) -> None:
-    """Validate đầu vào cho place_order. Raise BrokerValidationError nếu sai."""
+    """Validate đầu vào cho place_order theo TCBS iFlash spec."""
     if not symbol or not symbol.strip():
         raise BrokerValidationError(
             message="symbol không được để trống.",
             code="INVALID_SYMBOL",
         )
-    if side not in ("BUY", "SELL"):
+    if side.upper() not in ("BUY", "SELL"):
         raise BrokerValidationError(
             message="side phải là 'BUY' hoặc 'SELL'.",
             code="INVALID_SIDE",
         )
-    if order_type not in ("LIMIT", "MARKET", "ATO", "ATC"):
+    if order_type.upper() not in _VALID_PRICE_TYPES:
         raise BrokerValidationError(
-            message="order_type không hợp lệ. Hỗ trợ: LIMIT, MARKET, ATO, ATC.",
+            message=f"order_type không hợp lệ. Hỗ trợ: {', '.join(sorted(_VALID_PRICE_TYPES))}.",
             code="INVALID_ORDER_TYPE",
         )
     if quantity <= 0:
@@ -642,12 +636,7 @@ def _validate_order_input(
             message="price phải >= 0.",
             code="INVALID_PRICE",
         )
-    if not pin_code or not str(pin_code).strip():
-        raise BrokerValidationError(
-            message="pin_code là bắt buộc.",
-            code="MISSING_PIN_CODE",
-        )
-    if not request_id or not request_id.strip():
+    if False:  # noqa — sentinel để giữ hàm kết thúc đúng
         raise BrokerValidationError(
             message="request_id là bắt buộc cho write methods (idempotency key).",
             code="MISSING_REQUEST_ID",

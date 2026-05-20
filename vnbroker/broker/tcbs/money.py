@@ -1,9 +1,10 @@
 """
 vnbroker.broker.tcbs.money — TCBSMoneyService: read-only cash & margin data.
 
-Endpoints:
-  GET /gaia/v1/openapi/account/{accountNo}/money/cash
-  GET /gaia/v1/openapi/account/{accountNo}/money/margin
+Endpoints (TCBS iFlash Open API v1.0.0):
+  GET /aion/v1/accounts/{accountNo}/cashInvestments    → get_cash()
+  GET /erebos/v2/digital/margin-info?acctno=&fromdate=&toDate=&page=&size=&custodycd=
+                                                       → get_margin()
 
 RULE: Không có write method. Reuse _get pattern từ account service.
 """
@@ -29,8 +30,8 @@ from vnbroker.broker.tcbs.account import _validate_account_no
 _logger = logging.getLogger("vnbroker.broker.tcbs.money")
 
 _PATHS = {
-    "cash": "/gaia/v1/openapi/account/{accountNo}/money/cash",
-    "margin": "/gaia/v1/openapi/account/{accountNo}/money/margin",
+    "cash": "/aion/v1/accounts/{accountNo}/cashInvestments",
+    "margin": "/erebos/v2/digital/margin-info",
 }
 
 
@@ -51,11 +52,14 @@ class TCBSMoneyService:
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/money/cash
+        GET /aion/v1/accounts/{accountNo}/cashInvestments
+
+        CashInvestmentResponse (paginated). Lấy data[0] nếu có.
 
         DataFrame columns (raw=False):
-            account_no (str), withdrawable_amount (float64),
-            pending_settlement (float64), cash_balance (float64)
+            account_no, custody_id, full_name,
+            cash_balance (float64), bod_balance (float64), balance (float64),
+            buying_power_bf (float64), bank_available_bf (float64)
         """
         _validate_account_no(account_no)
         path = _PATHS["cash"].format(accountNo=account_no)
@@ -64,54 +68,87 @@ class TCBSMoneyService:
         if raw:
             return data
 
+        # Paginated: {data: [CashInvestmentItem], ...}
+        records = data.get("data", []) if isinstance(data, dict) else data
+        record = records[0] if records else {}
         row = {
-            "account_no": data.get("accountNo", account_no),
-            "withdrawable_amount": float(data.get("withdrawableAmount", 0)),
-            "pending_settlement": float(data.get("pendingSettlement", 0)),
-            "cash_balance": float(data.get("cashBalance", 0)),
+            "account_no": record.get("accountNo", account_no),
+            "custody_id": record.get("custodyId", ""),
+            "full_name": record.get("fullName", ""),
+            "cash_balance": float(record.get("cashBalance") or 0),
+            "bod_balance": float(record.get("bodBalance") or 0),
+            "balance": float(record.get("balance") or 0),
+            "buying_power_bf": float(record.get("buyingPowerBf") or 0),
+            "bank_available_bf": float(record.get("bankAvailableBf") or 0),
         }
         return pd.DataFrame([row]).astype({
-            "withdrawable_amount": "float64",
-            "pending_settlement": "float64",
             "cash_balance": "float64",
+            "bod_balance": "float64",
+            "balance": "float64",
+            "buying_power_bf": "float64",
+            "bank_available_bf": "float64",
         })
 
     def get_margin(
         self,
         account_no: str,
+        custody_code: str = "",
+        from_date: str = "",
+        to_date: str = "",
+        page: int = 0,
+        size: int = 20,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/money/margin
+        GET /erebos/v2/digital/margin-info
+
+        Query params: acctno, fromdate, toDate, page, size, custodycd.
 
         DataFrame columns (raw=False):
-            account_no (str), margin_limit (float64), margin_used (float64),
-            margin_available (float64), maintenance_margin_rate (float64)
+            account_no (str), custody_code (str),
+            margin_limit (float64), margin_used (float64),
+            margin_available (float64), call_margin (float64),
+            from_date (str), to_date (str)
         """
         _validate_account_no(account_no)
-        path = _PATHS["margin"].format(accountNo=account_no)
-        data = self._get(path)
+        params: dict = {"acctno": account_no, "page": page, "size": size}
+        if custody_code:
+            params["custodycd"] = custody_code
+        if from_date:
+            params["fromdate"] = from_date
+        if to_date:
+            params["toDate"] = to_date
+
+        data = self._get(_PATHS["margin"], params=params)
 
         if raw:
             return data
 
+        records = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        if not records:
+            record = {}
+        else:
+            record = records[0]
         row = {
-            "account_no": data.get("accountNo", account_no),
-            "margin_limit": float(data.get("marginLimit", 0)),
-            "margin_used": float(data.get("marginUsed", 0)),
-            "margin_available": float(data.get("marginAvailable", 0)),
-            "maintenance_margin_rate": float(data.get("maintenanceMarginRate", 0.0)),
+            "account_no": record.get("acctno", account_no),
+            "custody_code": record.get("custodycd", custody_code),
+            "margin_limit": float(record.get("marginLimit") or 0),
+            "margin_used": float(record.get("marginUsed") or 0),
+            "margin_available": float(record.get("marginAvailable") or 0),
+            "call_margin": float(record.get("callMargin") or 0),
+            "from_date": record.get("fromdate", from_date),
+            "to_date": record.get("toDate", to_date),
         }
         return pd.DataFrame([row]).astype({
             "margin_limit": "float64",
             "margin_used": "float64",
             "margin_available": "float64",
-            "maintenance_margin_rate": "float64",
+            "call_margin": "float64",
         })
 
     # ── Internal HTTP ────────────────────────────────────────────────────────
 
-    def _get(self, path: str) -> dict:
+    def _get(self, path: str, params: dict | None = None) -> dict:
         try:
             token = self._session.token
         except BrokerSessionExpiredError:
@@ -131,6 +168,7 @@ class TCBSMoneyService:
             resp = requests.get(
                 url,
                 headers=headers,
+                params=params,
                 timeout=self._config.timeout_seconds,
             )
         except requests.exceptions.Timeout as exc:

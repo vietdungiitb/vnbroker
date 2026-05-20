@@ -37,6 +37,7 @@ class TCBSCredentialConfig:
     base_url: str = _DEFAULT_BASE_URL
     timeout_seconds: float = 30.0
     auth_token: Optional[str] = field(default=None, repr=False)  # JWT nếu inject sẵn
+    custody_code: Optional[str] = None       # 105C format, dùng cho get_profile + derivatives
 
     def __repr__(self) -> str:
         """Override repr để che api_key trong log/debug."""

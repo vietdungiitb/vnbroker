@@ -1,9 +1,13 @@
 """
 vnbroker.broker.tcbs.derivatives — TCBSDerivativesService: read-only derivatives.
 
-READ endpoints:
-  GET /gaia/v1/openapi/account/{accountNo}/derivatives/positions
-  GET /gaia/v1/openapi/account/{accountNo}/derivatives/orders
+READ endpoints (TCBS iFlash Open API v1.0.0 — /khronos service):
+  GET /khronos/v1/account/portfolio/status?accountId=&subAccountId=   → get_positions()
+  GET /khronos/v1/order/in-day?accountId=&symbol=&pageNo=&pageSize=   → get_orders()
+  GET /khronos/v1/account/status?accountId=&subAccountId=&getType=    → get_cash()
+
+CRITICAL: Phái sinh dùng accountId (custody code 105C format) không phải accountNo.
+          Ví dụ: accountId = '105C334455'
 
 RULE: Chỉ read methods. Write paths sẽ bổ sung sau khi có spec đầy đủ từ TCBS.
 """
@@ -25,36 +29,54 @@ from vnbroker.broker.exceptions import (
 )
 from vnbroker.broker.security.credentials import TCBSCredentialConfig
 from vnbroker.broker.session import BrokerSession
-from vnbroker.broker.tcbs.account import _validate_account_no
 from vnbroker.broker.tcbs.equity import _ensure_columns
 
 _logger = logging.getLogger("vnbroker.broker.tcbs.derivatives")
 
 _PATHS = {
-    "positions": "/gaia/v1/openapi/account/{accountNo}/derivatives/positions",
-    "orders": "/gaia/v1/openapi/account/{accountNo}/derivatives/orders",
+    "positions": "/khronos/v1/account/portfolio/status",
+    "orders": "/khronos/v1/order/in-day",
+    "cash": "/khronos/v1/account/status",
 }
 
+# /khronos/v1/account/portfolio/status response fields
 _POSITION_COLUMNS = {
     "symbol": "symbol",
-    "side": "side",
-    "openQuantity": "open_quantity",
+    "side": "side",             # LONG / SHORT
+    "openQtty": "open_quantity",
     "openPrice": "open_price",
-    "currentPrice": "current_price",
+    "marketPrice": "market_price",
     "unrealizedPnl": "unrealized_pnl",
     "margin": "margin",
+    "tradingValue": "trading_value",
+    "accountId": "account_id",
+    "subAccountId": "sub_account_id",
 }
 
+# /khronos/v1/order/in-day response fields
 _DERIV_ORDER_COLUMNS = {
     "orderId": "order_id",
     "symbol": "symbol",
-    "side": "side",
+    "side": "side",             # BUY / SELL
     "orderType": "order_type",
-    "quantity": "quantity",
-    "price": "price",
-    "filledQuantity": "filled_quantity",
+    "orderQtty": "quantity",
+    "orderPrice": "price",
+    "matchedQtty": "filled_quantity",
     "status": "status",
-    "createdAt": "created_at",
+    "orderDate": "order_date",
+    "orderTime": "order_time",
+    "accountId": "account_id",
+}
+
+# /khronos/v1/account/status response fields
+_CASH_COLUMNS = {
+    "accountId": "account_id",
+    "subAccountId": "sub_account_id",
+    "balance": "balance",
+    "availableBalance": "available_balance",
+    "margin": "margin",
+    "floatingPnl": "floating_pnl",
+    "nav": "nav",
 }
 
 
@@ -71,20 +93,33 @@ class TCBSDerivativesService:
 
     def get_positions(
         self,
-        account_no: str,
+        account_id: str,
+        sub_account_id: str = "",
         raw: bool = False,
     ) -> Union[pd.DataFrame, list]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/derivatives/positions
+        GET /khronos/v1/account/portfolio/status?accountId=&subAccountId=
+
+        Args:
+            account_id: Custody code (105C format), ví dụ '105C334455'.
+            sub_account_id: Tiểu khoản phái sinh (tùy chọn).
 
         DataFrame columns (raw=False):
-            symbol (str), side (category: LONG/SHORT),
+            account_id, sub_account_id, symbol (str), side (category: LONG/SHORT),
             open_quantity (Int64), open_price (float64),
-            current_price (float64), unrealized_pnl (float64), margin (float64)
+            market_price (float64), unrealized_pnl (float64),
+            margin (float64), trading_value (float64)
         """
-        _validate_account_no(account_no)
-        path = _PATHS["positions"].format(accountNo=account_no)
-        data = self._get(path)
+        if not account_id or not account_id.strip():
+            raise BrokerValidationError(
+                message="account_id (custody code) không được để trống.",
+                code="INVALID_ACCOUNT_ID",
+            )
+        params: dict = {"accountId": account_id}
+        if sub_account_id:
+            params["subAccountId"] = sub_account_id
+
+        data = self._get(_PATHS["positions"], params=params)
 
         if raw:
             return data
@@ -96,8 +131,9 @@ class TCBSDerivativesService:
         df = pd.DataFrame(records)
         df = df.rename(columns=_POSITION_COLUMNS)
         df = _ensure_columns(df, _POSITION_COLUMNS.values())
-        df["side"] = df["side"].astype("category")
-        for col in ("open_price", "current_price", "unrealized_pnl", "margin"):
+        if "side" in df.columns:
+            df["side"] = df["side"].astype("category")
+        for col in ("open_price", "market_price", "unrealized_pnl", "margin", "trading_value"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
         if "open_quantity" in df.columns:
@@ -106,26 +142,34 @@ class TCBSDerivativesService:
 
     def get_orders(
         self,
-        account_no: str,
-        page: int = 0,
-        size: int = 50,
+        account_id: str,
+        symbol: Optional[str] = None,
+        page_no: int = 0,
+        page_size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/derivatives/orders
+        GET /khronos/v1/order/in-day?accountId=&symbol=&pageNo=&pageSize=
 
-        DataFrame columns (raw=False): order_id, symbol, side (category),
+        Args:
+            account_id: Custody code (105C format).
+            symbol: Lọc theo mã cụ thể (tùy chọn).
+
+        DataFrame columns (raw=False): account_id, order_id, symbol, side (category),
             order_type (category), quantity (Int64), price (float64),
-            filled_quantity (float64), status (category), created_at (str)
+            filled_quantity (Int64), status (category),
+            order_date (str), order_time (str)
         """
-        _validate_account_no(account_no)
-        if size > 100:
+        if not account_id or not account_id.strip():
             raise BrokerValidationError(
-                message="size tối đa 100.",
-                code="INVALID_SIZE",
+                message="account_id (custody code) không được để trống.",
+                code="INVALID_ACCOUNT_ID",
             )
-        path = _PATHS["orders"].format(accountNo=account_no)
-        data = self._get(path, params={"page": page, "size": size})
+        params: dict = {"accountId": account_id, "pageNo": page_no, "pageSize": page_size}
+        if symbol:
+            params["symbol"] = symbol.upper()
+
+        data = self._get(_PATHS["orders"], params=params)
 
         if raw:
             return data
@@ -140,11 +184,62 @@ class TCBSDerivativesService:
         for col in ("side", "order_type", "status"):
             if col in df.columns:
                 df[col] = df[col].astype("category")
-        for col in ("price", "filled_quantity"):
+        for col in ("price",):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        if "quantity" in df.columns:
-            df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").astype("Int64")
+        for col in ("quantity", "filled_quantity"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+        return df
+
+    def get_cash(
+        self,
+        account_id: str,
+        sub_account_id: str = "",
+        get_type: str = "",
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /khronos/v1/account/status?accountId=&subAccountId=&getType=
+
+        Trả về thông tin tiền mặt phái sinh: số dư, tiền khả dụng, nặp/rút ký quỹ.
+
+        Args:
+            account_id: Custody code (105C format).
+            sub_account_id: Tiểu khoản phái sinh (tùy chọn).
+            get_type: Loại truy vấn (tùy thuộc API TCBS, có thể để rỗng).
+
+        DataFrame columns (raw=False):
+            account_id, sub_account_id, balance (float64),
+            available_balance (float64), margin (float64),
+            floating_pnl (float64), nav (float64)
+        """
+        if not account_id or not account_id.strip():
+            raise BrokerValidationError(
+                message="account_id (custody code) không được để trống.",
+                code="INVALID_ACCOUNT_ID",
+            )
+        params: dict = {"accountId": account_id}
+        if sub_account_id:
+            params["subAccountId"] = sub_account_id
+        if get_type:
+            params["getType"] = get_type
+
+        data = self._get(_PATHS["cash"], params=params)
+
+        if raw:
+            return data
+
+        record = data if isinstance(data, dict) else (data[0] if data else {})
+        if not record:
+            return pd.DataFrame(columns=list(_CASH_COLUMNS.values()))
+
+        df = pd.DataFrame([record])
+        df = df.rename(columns=_CASH_COLUMNS)
+        df = _ensure_columns(df, _CASH_COLUMNS.values())
+        for col in ("balance", "available_balance", "margin", "floating_pnl", "nav"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
         return df
 
     # ── Internal HTTP ────────────────────────────────────────────────────────

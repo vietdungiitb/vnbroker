@@ -1,11 +1,10 @@
 """
 vnbroker.broker.tcbs.account — TCBSAccountService: read-only account data.
 
-Endpoints:
-  GET /gaia/v1/openapi/account/list
-  GET /gaia/v1/openapi/account/{accountNo}/profile
-  GET /gaia/v1/openapi/account/{accountNo}/balance
-  GET /gaia/v1/openapi/account/{accountNo}/portfolio/purchasing-power
+Endpoints (TCBS iFlash Open API v1.0.0):
+  GET /eros/v2/get-profile/by-username/{custodyCode}   → get_profile()
+  GET /aion/v1/accounts/{accountNo}/cashInvestments    → get_balance()
+  GET /aion/v1/accounts/{accountNo}/ppse               → get_purchasing_power()
 
 RULE: Không có write method. Mọi request dùng requests trực tiếp + session.token.
       custodyCode, idNo, phone, email phải masked trong raw=False output.
@@ -32,10 +31,9 @@ from vnbroker.broker.session import BrokerSession
 _logger = logging.getLogger("vnbroker.broker.tcbs.account")
 
 _PATHS = {
-    "list": "/gaia/v1/openapi/account/list",
-    "profile": "/gaia/v1/openapi/account/{accountNo}/profile",
-    "balance": "/gaia/v1/openapi/account/{accountNo}/balance",
-    "purchasing_power": "/gaia/v1/openapi/account/{accountNo}/portfolio/purchasing-power",
+    "profile": "/eros/v2/get-profile/by-username/{custodyCode}",
+    "balance": "/aion/v1/accounts/{accountNo}/cashInvestments",
+    "purchasing_power": "/aion/v1/accounts/{accountNo}/ppse",
 }
 
 
@@ -52,98 +50,45 @@ class TCBSAccountService:
 
     # ── Public methods ───────────────────────────────────────────────────────
 
-    def list_accounts(self, raw: bool = False) -> Union[pd.DataFrame, list]:
-        """
-        GET /gaia/v1/openapi/account/list
-
-        Args:
-            raw: True → trả về list[dict] nguyên gốc.
-                 False → trả về DataFrame (custodyCode masked).
-
-        Returns:
-            DataFrame hoặc list tùy `raw`.
-            DataFrame columns: account_no, custody_code, full_name,
-                               account_type (category), status (category)
-        """
-        data = self._get(_PATHS["list"])
-
-        # TCBS trả về envelope {code, data, message} khi không tìm thấy hoặc lỗi.
-        # Cần unpack trước khi xử lý.
-        if isinstance(data, dict):
-            inner = data.get("data")
-            if inner is None:
-                # NOT_FOUND hoặc tài khoản chưa kích hoạt OpenAPI
-                data = []
-            elif isinstance(inner, list):
-                data = inner
-            else:
-                data = [inner]
-
-        if not isinstance(data, list):
-            data = [data]
-
-        if raw:
-            return data
-
-        df = pd.DataFrame(data)
-        if df.empty:
-            return pd.DataFrame(
-                columns=["account_no", "custody_code", "full_name", "account_type", "status"]
-            )
-
-        # Đảm bảo không có envelope columns trong output
-        if "code" in df.columns and "account_no" not in df.columns:
-            _logger.warning("list_accounts: response không đúng format — missing accountNo column.")
-            return pd.DataFrame(
-                columns=["account_no", "custody_code", "full_name", "account_type", "status"]
-            )
-
-        df = df.rename(columns={
-            "accountNo": "account_no",
-            "custodyCode": "custody_code",
-            "fullName": "full_name",
-            "accountType": "account_type",
-            "status": "status",
-        })
-        # Mask custody_code trong raw=False
-        if "custody_code" in df.columns:
-            df["custody_code"] = df["custody_code"].apply(
-                lambda v: Redactor.mask_account_no(str(v)) if pd.notna(v) else v
-            )
-        for col in ("account_type", "status"):
-            if col in df.columns:
-                df[col] = df[col].astype("category")
-        return df
-
     def get_profile(
         self,
-        account_no: str,
+        custody_code: str,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/profile
+        GET /eros/v2/get-profile/by-username/{custodyCode}
 
-        PII fields (idNo, phone, email, custodyCode) đều bị redact trong raw=False.
+        Args:
+            custody_code: Số tài khoản 105C (ví dụ: "105C334455").
+            raw: True → trả về dict nguyên gốc (AccountInformationResponse).
+                 False → trả về DataFrame với PII masked.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no (str) — tcbsId, dùng cho các endpoint /aion/, /akhlys/
+                custody_code (str, masked)
+                status (category)
+                full_name (str, nếu có trong personalInfo)
         """
-        _validate_account_no(account_no)
-        path = _PATHS["profile"].format(accountNo=account_no)
+        _validate_custody_code(custody_code)
+        path = _PATHS["profile"].format(custodyCode=custody_code)
         data = self._get(path)
 
         if raw:
             return data
 
-        # Redact PII trong output
-        safe = Redactor.redact_dict(
-            data,
-            keys=frozenset({"idno", "id_no", "phone", "email", "custodycode", "custody_code"}),
-        )
-        df = pd.DataFrame([safe])
-        df = df.rename(columns={
-            "accountNo": "account_no",
-            "custodyCode": "custody_code",
-            "fullName": "full_name",
-            "idNo": "id_no",
-        })
+        basic = data.get("basicInfo", {}) if isinstance(data, dict) else {}
+        personal = data.get("personalInfo", {}) if isinstance(data, dict) else {}
+
+        row = {
+            "account_no": basic.get("tcbsId", ""),
+            "custody_code": Redactor.mask_account_no(basic.get("code105C", custody_code)),
+            "status": basic.get("status", ""),
+            "full_name": personal.get("fullName", ""),
+        }
+        df = pd.DataFrame([row])
+        if "status" in df.columns:
+            df["status"] = df["status"].astype("category")
         return df
 
     def get_balance(
@@ -152,12 +97,18 @@ class TCBSAccountService:
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/balance
+        GET /aion/v1/accounts/{accountNo}/cashInvestments
 
-        DataFrame columns (raw=False):
-            account_no (str), total_asset (float64), cash_balance (float64),
-            stock_value (float64), debt_balance (float64),
-            available_advance_amount (float64)
+        Args:
+            account_no: Số tiểu khoản 10 chữ số (ví dụ: "0001170730").
+            raw: True → trả về dict nguyên gốc (CashInvestmentResponse).
+                 False → trả về DataFrame.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no, custody_id, full_name,
+                cash_balance (float64), bod_balance (float64),
+                balance (float64), buying_power_bf (float64), bank_available_bf (float64)
         """
         _validate_account_no(account_no)
         path = _PATHS["balance"].format(accountNo=account_no)
@@ -166,20 +117,31 @@ class TCBSAccountService:
         if raw:
             return data
 
+        # CashInvestmentResponse: {object, totalCount, pageSize, pageIndex, data: [CashInvestmentInfo]}
+        records = data.get("data", []) if isinstance(data, dict) else []
+        if not records:
+            return pd.DataFrame(
+                columns=["account_no", "custody_id", "full_name", "cash_balance",
+                         "bod_balance", "balance", "buying_power_bf", "bank_available_bf"]
+            )
+        item = records[0] if isinstance(records, list) else records
+
         row = {
-            "account_no": data.get("accountNo", account_no),
-            "total_asset": float(data.get("totalAsset", 0)),
-            "cash_balance": float(data.get("cashBalance", 0)),
-            "stock_value": float(data.get("stockValue", 0)),
-            "debt_balance": float(data.get("debtBalance", 0)),
-            "available_advance_amount": float(data.get("availableAdvanceAmount", 0)),
+            "account_no": item.get("accountNo", account_no),
+            "custody_id": item.get("custodyID", ""),
+            "full_name": item.get("fullName", ""),
+            "cash_balance": float(item.get("cashBalance") or 0),
+            "bod_balance": float(item.get("bodBalance") or 0),
+            "balance": float(item.get("balance") or 0),
+            "buying_power_bf": float(item.get("pp0forBF") or 0),
+            "bank_available_bf": float(item.get("bankAvlBalanceBF") or 0),
         }
         return pd.DataFrame([row]).astype({
-            "total_asset": "float64",
             "cash_balance": "float64",
-            "stock_value": "float64",
-            "debt_balance": "float64",
-            "available_advance_amount": "float64",
+            "bod_balance": "float64",
+            "balance": "float64",
+            "buying_power_bf": "float64",
+            "bank_available_bf": "float64",
         })
 
     def get_purchasing_power(
@@ -188,11 +150,18 @@ class TCBSAccountService:
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
-        GET /gaia/v1/openapi/account/{accountNo}/portfolio/purchasing-power
+        GET /aion/v1/accounts/{accountNo}/ppse
 
-        DataFrame columns (raw=False):
-            account_no (str), purchasing_power (float64),
-            margin_purchasing_power (float64), margin_ratio (float64)
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            raw: True → trả về dict nguyên gốc.
+                 False → trả về DataFrame.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no (str), custody_id (str),
+                pp0 (float64) — sức mua T0,
+                ppse (float64) — sức mua thực tế
         """
         _validate_account_no(account_no)
         path = _PATHS["purchasing_power"].format(accountNo=account_no)
@@ -201,21 +170,21 @@ class TCBSAccountService:
         if raw:
             return data
 
+        # Response schema không có trong spec — map các field phổ biến
         row = {
             "account_no": data.get("accountNo", account_no),
-            "purchasing_power": float(data.get("purchasingPower", 0)),
-            "margin_purchasing_power": float(data.get("marginPurchasingPower", 0)),
-            "margin_ratio": float(data.get("marginRatio", 0.0)),
+            "custody_id": data.get("custodyID", ""),
+            "pp0": float(data.get("pp0") or 0),
+            "ppse": float(data.get("ppse") or 0),
         }
         return pd.DataFrame([row]).astype({
-            "purchasing_power": "float64",
-            "margin_purchasing_power": "float64",
-            "margin_ratio": "float64",
+            "pp0": "float64",
+            "ppse": "float64",
         })
 
     # ── Internal HTTP ────────────────────────────────────────────────────────
 
-    def _get(self, path: str) -> dict | list:
+    def _get(self, path: str, params: dict | None = None) -> dict | list:
         """
         Gửi GET request với Bearer token từ session.
         Không log Authorization header.
@@ -239,6 +208,7 @@ class TCBSAccountService:
             resp = requests.get(
                 url,
                 headers=headers,
+                params=params,
                 timeout=self._config.timeout_seconds,
             )
         except requests.exceptions.Timeout as exc:
@@ -288,4 +258,12 @@ def _validate_account_no(account_no: str) -> None:
         raise BrokerValidationError(
             message="account_no không được để trống.",
             code="INVALID_ACCOUNT_NO",
+        )
+
+
+def _validate_custody_code(custody_code: str) -> None:
+    if not custody_code or not custody_code.strip():
+        raise BrokerValidationError(
+            message="custody_code không được để trống (ví dụ: '105C334455').",
+            code="INVALID_CUSTODY_CODE",
         )
