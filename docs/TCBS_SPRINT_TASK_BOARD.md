@@ -210,14 +210,18 @@
 | **Mục tiêu slice** | Place/update/cancel chạy được ở `dry_run` với guard và audit |
 | **Phụ thuộc** | S6 |
 | **Ước tính** | 1 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_order_write_flow.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_order_write_flow.py -q` → 42/42 PASS. Full regression 232/232 PASS. |
 
 **Checklist S7:**
 
-- [ ] Tất cả write method có `dry_run=True` mặc định trong phase đầu.
-- [ ] Có `request_id` và `idempotency_key`.
-- [ ] Không retry mù.
+- [x] Tất cả write method (place/modify/cancel) có `dry_run=True` mặc định.
+- [x] Có `request_id` bắt buộc trên mọi write call (idempotency key).
+- [x] Không retry mù — errors raise ngay, không retry logic trong write path.
+- [x] @write_gate trên internal _gated_* methods; validation chạy TRƯỚC gate check.
+- [x] dry_run=False + write NOT enabled → BrokerPermissionError("WRITE_NOT_ENABLED").
+- [x] pin_code KHÔNG xuất hiện trong dry_run output.
+- [x] 422 → BrokerOrderError, 429 → BrokerRateLimitError, 401 → revoke + BrokerAuthError.
 
 ---
 

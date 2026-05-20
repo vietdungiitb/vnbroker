@@ -1,5 +1,5 @@
 """
-vnbroker.broker.tcbs.equity — TCBSEquityService: read-only equity data.
+vnbroker.broker.tcbs.equity — TCBSEquityService: read + write equity.
 
 READ endpoints:
   GET /gaia/v1/openapi/account/{accountNo}/orders
@@ -8,12 +8,15 @@ READ endpoints:
   GET /gaia/v1/openapi/account/{accountNo}/executions
   GET /gaia/v1/openapi/account/{accountNo}/portfolio/holdings
 
-WRITE endpoints (S8 — not here):
-  POST   /gaia/v1/openapi/account/{accountNo}/orders   → place_order()
+WRITE endpoints (dry_run=True mặc định, @write_gate bắt buộc):
+  POST   /gaia/v1/openapi/account/{accountNo}/orders          → place_order()
   PUT    /gaia/v1/openapi/account/{accountNo}/orders/{orderId} → modify_order()
   DELETE /gaia/v1/openapi/account/{accountNo}/orders/{orderId} → cancel_order()
 
-RULE: Chỉ read methods trong slice này. Write methods thêm ở S8.
+SECURITY RULES:
+  - pinCode KHÔNG được log. Redacted trong dry_run output.
+  - request_id bắt buộc cho mọi write call (idempotency).
+  - Dùng requests trực tiếp. KHÔNG dùng core/utils/client.
 """
 from __future__ import annotations
 
@@ -26,12 +29,15 @@ import requests
 from vnbroker.broker.exceptions import (
     BrokerAuthError,
     BrokerNetworkError,
+    BrokerOrderError,
     BrokerPermissionError,
     BrokerRateLimitError,
     BrokerSessionExpiredError,
     BrokerValidationError,
 )
 from vnbroker.broker.security.credentials import TCBSCredentialConfig
+from vnbroker.broker.security.guards import write_gate
+from vnbroker.broker.security.redaction import Redactor
 from vnbroker.broker.session import BrokerSession
 from vnbroker.broker.tcbs.account import _validate_account_no
 
@@ -268,6 +274,161 @@ class TCBSEquityService:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
         return df
 
+    # ── Write methods (dry_run=True default) ────────────────────────────────
+    # Pattern: validation chạy TRƯỚC write_gate check.
+    # Public method validate → delegate sang @write_gate internal method.
+
+    def place_order(
+        self,
+        account_no: str,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: int,
+        price: float,
+        pin_code: str,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        POST /gaia/v1/openapi/account/{accountNo}/orders
+
+        Args:
+            dry_run: True (default) → không gửi HTTP, trả về dry_run dict.
+                     False → gửi thực. Yêu cầu session.enable_write() trước.
+            pin_code: 6 chữ số. KHÔNG log dưới bất kỳ hình thức nào.
+            request_id: UUID do caller sinh. Idempotency key.
+        """
+        _validate_account_no(account_no)
+        _validate_order_input(symbol, side, order_type, quantity, price, pin_code, request_id)
+        return self._gated_place_order(
+            account_no, symbol, side, order_type, quantity, price, pin_code, request_id,
+            dry_run=dry_run,
+        )
+
+    @write_gate
+    def _gated_place_order(
+        self,
+        account_no: str,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: int,
+        price: float,
+        pin_code: str,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "orderType": order_type,
+            "quantity": quantity,
+            "price": price,
+            "requestId": request_id,
+            "pinCode": pin_code,  # NEVER log this value
+        }
+        url = self._config.base_url.rstrip("/") + _PATHS["orders"].format(accountNo=account_no)
+        return self._post(url, payload)
+
+    def modify_order(
+        self,
+        account_no: str,
+        order_id: str,
+        quantity: int,
+        price: float,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        PUT /gaia/v1/openapi/account/{accountNo}/orders/{orderId}
+        """
+        _validate_account_no(account_no)
+        if not order_id or not order_id.strip():
+            raise BrokerValidationError(
+                message="order_id không được để trống.",
+                code="INVALID_ORDER_ID",
+            )
+        if quantity <= 0:
+            raise BrokerValidationError(
+                message="quantity phải > 0.",
+                code="INVALID_QUANTITY",
+            )
+        if price < 0:
+            raise BrokerValidationError(
+                message="price phải >= 0.",
+                code="INVALID_PRICE",
+            )
+        if not request_id or not request_id.strip():
+            raise BrokerValidationError(
+                message="request_id là bắt buộc cho write methods.",
+                code="MISSING_REQUEST_ID",
+            )
+        return self._gated_modify_order(account_no, order_id, quantity, price, request_id, dry_run=dry_run)
+
+    @write_gate
+    def _gated_modify_order(
+        self,
+        account_no: str,
+        order_id: str,
+        quantity: int,
+        price: float,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        payload = {
+            "quantity": quantity,
+            "price": price,
+            "requestId": request_id,
+        }
+        url = self._config.base_url.rstrip("/") + _PATHS["order_detail"].format(
+            accountNo=account_no, orderId=order_id
+        )
+        return self._put(url, payload)
+
+    def cancel_order(
+        self,
+        account_no: str,
+        order_id: str,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        DELETE /gaia/v1/openapi/account/{accountNo}/orders/{orderId}
+        """
+        _validate_account_no(account_no)
+        if not order_id or not order_id.strip():
+            raise BrokerValidationError(
+                message="order_id không được để trống.",
+                code="INVALID_ORDER_ID",
+            )
+        if not request_id or not request_id.strip():
+            raise BrokerValidationError(
+                message="request_id là bắt buộc cho write methods.",
+                code="MISSING_REQUEST_ID",
+            )
+        return self._gated_cancel_order(account_no, order_id, request_id, dry_run=dry_run)
+
+    @write_gate
+    def _gated_cancel_order(
+        self,
+        account_no: str,
+        order_id: str,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        payload = {"requestId": request_id}
+        url = self._config.base_url.rstrip("/") + _PATHS["order_detail"].format(
+            accountNo=account_no, orderId=order_id
+        )
+        return self._delete(url, payload)
+
     # ── Internal HTTP ────────────────────────────────────────────────────────
 
     def _get(self, path: str, params: Optional[dict] = None) -> dict | list:
@@ -338,6 +499,85 @@ class TCBSEquityService:
 
         return resp.json()
 
+    def _post(self, url: str, payload: dict) -> dict:
+        return self._write_request("POST", url, payload)
+
+    def _put(self, url: str, payload: dict) -> dict:
+        return self._write_request("PUT", url, payload)
+
+    def _delete(self, url: str, payload: dict) -> dict:
+        return self._write_request("DELETE", url, payload)
+
+    def _write_request(self, method: str, url: str, payload: dict) -> dict:
+        """
+        Gửi write request. pinCode và Authorization KHÔNG được log.
+        """
+        try:
+            token = self._session.token
+        except BrokerSessionExpiredError:
+            raise
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            resp = requests.request(
+                method,
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self._config.timeout_seconds,
+            )
+        except requests.exceptions.Timeout as exc:
+            raise BrokerNetworkError(
+                message=f"Timeout khi gọi {method} {url}.",
+                code="NETWORK_TIMEOUT",
+            ) from exc
+        except requests.exceptions.RequestException as exc:
+            raise BrokerNetworkError(
+                message=f"Lỗi mạng: {type(exc).__name__}",
+                code="NETWORK_ERROR",
+            ) from exc
+
+        if resp.status_code == 401:
+            self._session.revoke()
+            raise BrokerAuthError(
+                message="Token hết hạn hoặc không hợp lệ.",
+                code="TOKEN_EXPIRED",
+                http_status=401,
+            )
+        if resp.status_code == 403:
+            raise BrokerPermissionError(
+                message="Không đủ quyền thực thi lệnh.",
+                code="FORBIDDEN",
+                http_status=403,
+            )
+        if resp.status_code == 422:
+            raise BrokerOrderError(
+                message=f"Lỗi nghiệp vụ lệnh: {resp.text[:200]}",
+                code="ORDER_REJECTED",
+                http_status=422,
+            )
+        if resp.status_code == 429:
+            raise BrokerRateLimitError(
+                message="Vượt rate limit TCBS.",
+                code="RATE_LIMIT",
+                http_status=429,
+            )
+        if resp.status_code == 400:
+            raise BrokerValidationError(
+                message=f"Request không hợp lệ: {resp.text[:200]}",
+                code="BAD_REQUEST",
+                http_status=400,
+            )
+        if resp.status_code >= 500:
+            raise BrokerNetworkError(
+                message=f"TCBS server error {resp.status_code}.",
+                code="SERVER_ERROR",
+                http_status=resp.status_code,
+            )
+
+        return resp.json()
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -365,3 +605,51 @@ def _ensure_columns(df: pd.DataFrame, columns) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = pd.NA
     return df
+
+
+def _validate_order_input(
+    symbol: str,
+    side: str,
+    order_type: str,
+    quantity: int,
+    price: float,
+    pin_code: str,
+    request_id: str,
+) -> None:
+    """Validate đầu vào cho place_order. Raise BrokerValidationError nếu sai."""
+    if not symbol or not symbol.strip():
+        raise BrokerValidationError(
+            message="symbol không được để trống.",
+            code="INVALID_SYMBOL",
+        )
+    if side not in ("BUY", "SELL"):
+        raise BrokerValidationError(
+            message="side phải là 'BUY' hoặc 'SELL'.",
+            code="INVALID_SIDE",
+        )
+    if order_type not in ("LIMIT", "MARKET", "ATO", "ATC"):
+        raise BrokerValidationError(
+            message="order_type không hợp lệ. Hỗ trợ: LIMIT, MARKET, ATO, ATC.",
+            code="INVALID_ORDER_TYPE",
+        )
+    if quantity <= 0:
+        raise BrokerValidationError(
+            message="quantity phải > 0.",
+            code="INVALID_QUANTITY",
+        )
+    if price < 0:
+        raise BrokerValidationError(
+            message="price phải >= 0.",
+            code="INVALID_PRICE",
+        )
+    if not pin_code or not str(pin_code).strip():
+        raise BrokerValidationError(
+            message="pin_code là bắt buộc.",
+            code="MISSING_PIN_CODE",
+        )
+    if not request_id or not request_id.strip():
+        raise BrokerValidationError(
+            message="request_id là bắt buộc cho write methods (idempotency key).",
+            code="MISSING_REQUEST_ID",
+        )
+
