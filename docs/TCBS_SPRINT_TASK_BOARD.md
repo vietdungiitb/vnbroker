@@ -189,14 +189,16 @@
 | **Mục tiêu slice** | Query order/position state đầy đủ cho cơ sở và phái sinh |
 | **Phụ thuộc** | S5 |
 | **Ước tính** | 1 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_orders_positions.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_equity_derivatives.py -q` → 40/40 PASS. Full regression 190/190 PASS. |
 
 **Checklist S6:**
 
-- [ ] Cơ sở và phái sinh tách semantics rõ.
-- [ ] Có tests cho empty/error/expired-session.
-- [ ] Chưa mở write-side.
+- [x] Cơ sở (equity) và phái sinh (derivatives) tách service riêng, semantics rõ ràng.
+- [x] Tests đầy đủ cho empty/error/expired-session/401-revoke/429-rate-limit/timeout.
+- [x] Chưa mở write-side (get_orders read-only; S8 mới có place/modify/cancel).
+- [x] DataFrame output chuẩn: snake_case, float64/Int64/category dtypes, empty list → empty df với đúng columns.
+- [x] 429 → BrokerRateLimitError, 401 → revoke + BrokerAuthError.
 
 ---
 
