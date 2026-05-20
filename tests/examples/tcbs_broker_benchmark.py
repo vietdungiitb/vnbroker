@@ -328,47 +328,57 @@ def _benchmark_endpoint(
     )
 
 
-def run_broker_benchmark(client, runs: int) -> List[BrokerEndpointResult]:
-    """Benchmark tất cả read-only broker endpoints."""
+def _resolve_account_no() -> Optional[str]:
+    """Đọc account_no từ env (10 chữ số, dạng 0001170730)."""
+    return (
+        os.getenv("VNBROKER_BROKER_TCBS_ACCOUNT_NO")
+        or os.getenv("TCBS_ACCOUNT_NO")
+    )
+
+
+def run_broker_benchmark(client, runs: int, account_no: Optional[str] = None) -> List[BrokerEndpointResult]:
+    """Benchmark tất cả read-only broker endpoints.
+
+    account_no: 10-digit string (e.g. '0001170730').
+    Nếu không truyền, đọc từ env TCBS_ACCOUNT_NO / VNBROKER_BROKER_TCBS_ACCOUNT_NO.
+    """
     results: List[BrokerEndpointResult] = []
 
-    # 1. get_accounts — lấy danh sách tài khoản
-    print("  → benchmarking get_accounts()...")
-    accounts_result = _benchmark_endpoint(
-        "get_accounts",
-        lambda: client.get_accounts(),
-        runs=runs,
-    )
-    results.append(accounts_result)
-
-    # Lấy account_no đầu tiên để dùng cho các endpoint tiếp theo
-    account_no: Optional[str] = None
-    try:
-        import pandas as pd  # noqa: PLC0415
-        accounts_df = client.get_accounts()
-        if isinstance(accounts_df, pd.DataFrame) and not accounts_df.empty:
-            if "account_no" in accounts_df.columns:
-                val = accounts_df.iloc[0]["account_no"]
-                if pd.notna(val) and str(val).strip():
-                    account_no = str(val)
-            if account_no is None:
-                # fallback: dùng cột đầu tiên nếu trông hợp lệ (số/chữ)
-                first_val = str(accounts_df.iloc[0, 0])
-                if first_val.strip() and first_val not in ("None", "nan", "NOT_FOUND"):
-                    account_no = first_val
-        elif isinstance(accounts_df, list) and accounts_df:
-            account_no = str(accounts_df[0].get("account_no", ""))
-        if account_no:
-            print(f"  → Dùng account_no: {account_no[:4]}****{account_no[-4:] if len(account_no) > 8 else ''}")
-    except Exception as exc:
-        print(f"  [WARN] Không lấy được account_no: {exc}", file=sys.stderr)
-
+    # Lấy account_no
     if not account_no:
-        print("  [INFO] Không tìm thấy account_no (tài khoản chưa kích hoạt OpenAPI?).", file=sys.stderr)
+        account_no = _resolve_account_no()
+    if account_no:
+        masked = f"{account_no[:4]}****{account_no[-4:] if len(account_no) > 8 else ''}"
+        print(f"  → account_no: {masked}")
+
+    # ── Market endpoints (không cần account_no) ───────────────────────────────
+    print("  → benchmarking get_ticker_info()...")
+    results.append(_benchmark_endpoint(
+        "get_ticker_info",
+        lambda: client.get_ticker_info(tickers=["ACB", "VCB", "TCB"]),
+        runs=runs,
+    ))
+
+    print("  → benchmarking get_intraday_history()...")
+    results.append(_benchmark_endpoint(
+        "get_intraday_history",
+        lambda: client.get_intraday_history(ticker="ACB"),
+        runs=runs,
+    ))
+
+    print("  → benchmarking get_bsa()...")
+    results.append(_benchmark_endpoint(
+        "get_bsa",
+        lambda: client.get_bsa(ticker="ACB"),
+        runs=runs,
+    ))
+
+    # ── Account endpoints (cần account_no) ───────────────────────────────────
+    if not account_no:
+        print("  [INFO] Không có account_no — set env TCBS_ACCOUNT_NO=<số tiểu khoản>", file=sys.stderr)
         print("  [SKIP] Bỏ qua các endpoint per-account.", file=sys.stderr)
         return results
 
-    # 2. get_balance
     print("  → benchmarking get_balance()...")
     results.append(_benchmark_endpoint(
         "get_balance",
@@ -376,15 +386,13 @@ def run_broker_benchmark(client, runs: int) -> List[BrokerEndpointResult]:
         runs=runs,
     ))
 
-    # 3. get_holdings
     print("  → benchmarking get_holdings()...")
     results.append(_benchmark_endpoint(
         "get_holdings",
-        lambda: client.get_holdings(account_no),
+        lambda: client.get_holdings(account_no, enrich_prices=False),
         runs=runs,
     ))
 
-    # 4. get_orders
     print("  → benchmarking get_orders()...")
     results.append(_benchmark_endpoint(
         "get_orders",
@@ -392,7 +400,6 @@ def run_broker_benchmark(client, runs: int) -> List[BrokerEndpointResult]:
         runs=runs,
     ))
 
-    # 5. get_purchasing_power
     print("  → benchmarking get_purchasing_power()...")
     results.append(_benchmark_endpoint(
         "get_purchasing_power",
@@ -400,7 +407,6 @@ def run_broker_benchmark(client, runs: int) -> List[BrokerEndpointResult]:
         runs=runs,
     ))
 
-    # 6. portfolio_snapshot
     print("  → benchmarking portfolio_snapshot()...")
     results.append(_benchmark_endpoint(
         "portfolio_snapshot",
@@ -576,6 +582,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--runs", type=int, default=3, help="Số lần chạy mỗi batch (default: 3)")
     parser.add_argument("--skip-listing", action="store_true", help="Bỏ qua listing.all_symbols benchmark")
+    parser.add_argument(
+        "--account-no",
+        type=str,
+        default="",
+        help="Số tiểu khoản TCBS (10 chữ số, vd: 0001170730). Fallback: env TCBS_ACCOUNT_NO",
+    )
     parser.add_argument("--output-json", type=str, default="", help="Đường dẫn file JSON output")
     parser.add_argument("--output-csv", type=str, default="", help="Đường dẫn file CSV output")
     return parser
@@ -725,44 +737,30 @@ def main() -> int:
             print(f"  Runs     : {args.runs}")
             print()
 
-            client = None
-            try:
-                # Kiểm tra pre-obtained JWT trước
+            # Dùng broker_client đã xác thực ở pre-auth (nếu có)
+            client = broker_client
+
+            if client is None:
+                # Pre-auth không thành công — thử lại lần cuối
                 broker_auth_token = (
                     os.getenv("TCBS_AUTH_TOKEN")
                     or os.getenv("vnbroker_TCBS_AUTH_TOKEN")
                 )
-
                 if broker_auth_token:
                     print("  Dùng pre-obtained JWT token từ TCBS_AUTH_TOKEN ...")
                     from vnbroker.broker.tcbs.client import TCBSBrokerClient  # noqa: PLC0415
-                    from vnbroker.broker.session import BrokerSession  # noqa: PLC0415
-
                     client = TCBSBrokerClient(api_key=api_key)
-                    # Inject token trực tiếp vào session
                     client.session._token = broker_auth_token  # type: ignore[attr-defined]
                     client.session._authenticated = True  # type: ignore[attr-defined]
                     print("  ✓ Session khởi tạo từ pre-obtained token")
                 else:
-                    print("  Cần OTP để xác thực TCBS OpenAPI ...")
-                    print("  (Mở TCBS app → Smart OTP → nhập 6 số)")
-                    otp = getpass.getpass("  Nhập OTP: ")
-                    if not otp.strip():
-                        print("  [SKIP] Bỏ qua broker lane (không có OTP).", file=sys.stderr)
-                        otp = None
+                    print("  [SKIP] Bỏ qua broker lane (chưa xác thực — hãy nhập OTP ở prompt đầu tiên).")
 
-                    if otp:
-                        print("  Đang xác thực ...")
-                        client = _authenticate_broker(api_key=api_key, otp=otp.strip())
-                        if client.is_authenticated:
-                            print("  ✓ Xác thực thành công")
-                        else:
-                            print("  [ERROR] Xác thực thất bại — kiểm tra API key và OTP.", file=sys.stderr)
-                            client = None
-
+            try:
                 if client is not None:
                     print()
-                    broker_rows = run_broker_benchmark(client=client, runs=args.runs)
+                    acct = getattr(args, "account_no", None) or None
+                    broker_rows = run_broker_benchmark(client=client, runs=args.runs, account_no=acct)
 
                     print("\n  === Broker Endpoint Results ===")
                     for r in broker_rows:
@@ -806,4 +804,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # Fix Unicode output on Windows (cp1252 → utf-8)
+    import io
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     sys.exit(main())
