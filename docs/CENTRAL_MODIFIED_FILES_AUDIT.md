@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-05-20 - Task: TCBS broker bugfix — TypeError get_holdings/get_orders + benchmark custody-code
+
+Phạm vi yêu cầu:
+- Fix `TypeError: get_holdings() got an unexpected keyword argument 'enrich_prices'` — client wrapper không expose param `enrich_prices`.
+- Fix `TypeError: get_orders() got an unexpected keyword argument 'page'` — client wrapper truyền `page/size` xuống `equity.get_orders()` nhưng method không nhận param đó.
+- Thêm `--custody-code` CLI flag cho benchmark để auto-resolve `account_no` từ profile (không cần set thủ công).
+- Điều tra BrokerPermissionError 403 trên `get_balance`/`get_purchasing_power` — xác nhận là API key scope issue phía TCBS server, không phải bug code.
+
+Danh sách file đã tạo/chỉnh sửa:
+
+**Commit `624a874`:**
+1. `vnbroker/broker/tcbs/client.py` (updated) — `get_holdings()` thêm `enrich_prices: bool = True` param; `get_orders()` bỏ `page/size` args không hợp lệ
+2. `tests/examples/tcbs_broker_benchmark.py` (updated) — thêm `--custody-code` CLI flag, `_resolve_custody_code_env()`, `_fetch_account_no_from_profile()`, auto-resolve logic trong `run_broker_benchmark()`
+
+Kết quả bàn giao:
+- Hai TypeError đã sửa và xác nhận bằng code review.
+- Benchmark hỗ trợ `--custody-code "105C836591"` → tự resolve `account_no = "10000928344"` từ `get_profile()` mà không cần set env thủ công.
+- Benchmark hỗ trợ `TCBS_AUTH_TOKEN` env var để inject JWT đã có, bỏ qua OTP prompt hoàn toàn (dùng cho CI/repeated testing).
+
+Ghi chú:
+- Live benchmark bị 429 rate limit do TCBS OTP là one-time-use (1 OTP = 1 auth, không dùng lại được). Đây là TCBS architectural constraint, không phải bug.
+- BrokerPermissionError 403 trên `get_balance`/`get_purchasing_power`: API key scope không bao gồm financial account endpoints — cần liên hệ TCBS để mở rộng scope nếu cần.
+- Benchmark được đóng dựa trên code review vì live test không thể lặp lại liên tục với OTP.
+
+---
+
 ## 2026-05-19 - Task: S8–S10 — Portfolio Engine, TCBS Listing Provider, Vnbroker.broker() Entrypoint
 
 Phạm vi yêu cầu:
