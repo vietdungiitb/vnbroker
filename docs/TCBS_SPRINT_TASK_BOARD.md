@@ -167,14 +167,17 @@
 | **Mục tiêu slice** | Query account, balances, cash, buying power ổn định |
 | **Phụ thuộc** | S4 |
 | **Ước tính** | 1 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_account_money.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_account_money.py -q` → 39/39 PASS. Full regression 150/150 PASS. |
 
 **Checklist S5:**
 
-- [ ] Chuẩn hóa output read-side.
-- [ ] Error model có `request_id` và `operation`.
-- [ ] Không tạo side-effect write.
+- [x] Chuẩn hóa output read-side (DataFrame + raw=True, snake_case columns, float64 dtypes, category dtype cho enum fields).
+- [x] Error model đúng class (BrokerAuthError/BrokerPermissionError/BrokerNetworkError/BrokerValidationError với code string).
+- [x] Không tạo side-effect write (no @write_gate, no POST/PUT/DELETE — test_no_write_gate_on_read_services PASS).
+- [x] PII fields (idNo, phone, email, custodyCode) redacted trong raw=False output.
+- [x] 401 → revoke session → BrokerAuthError; session.state == EXPIRED sau 401.
+- [x] Không dùng core/utils/client; requests trực tiếp. Không log token/api_key.
 
 ---
 
