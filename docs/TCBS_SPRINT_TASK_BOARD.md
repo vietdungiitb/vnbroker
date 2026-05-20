@@ -123,14 +123,17 @@
 | **Mục tiêu slice** | Secret không lọt vào log/audit ở broker lane |
 | **Phụ thuộc** | S2 |
 | **Ước tính** | 1 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -m pytest tests/unit/broker/tcbs/test_security.py -q` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -m pytest tests/unit/broker/test_s3_security.py -q` → 32/32 PASS. S3 PASS gate OK. |
 
 **Checklist S3:**
 
-- [ ] `apiKey`, `otp`, `authorization`, `token`, `payload` được mask.
-- [ ] Có `AuditSink` và payload hash.
-- [ ] Broker client không gọi đường logging generic chưa redacted.
+- [x] `apiKey`, `otp`, `authorization`, `token`, `payload` được mask (SENSITIVE_KEYS 21 keys + Redactor).
+- [x] Có `AuditSink`, `AuditRecord` (structured JSON, propagate=False, UTC timestamp).
+- [x] Broker client không gọi đường logging generic chưa redacted (`audit.py` dùng logger riêng).
+- [x] `IdempotencyStore` TTL in-memory, check_and_store, mark_completed, purge_expired.
+- [x] `@write_gate`: dry_run=True default, BrokerPermissionError khi write chưa enabled.
+- [x] `vnbroker/broker/exceptions.py`: BrokerError hierarchy đầy đủ (7 exception class).
 
 ---
 
