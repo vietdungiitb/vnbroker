@@ -233,3 +233,32 @@ class Vnbroker:
             >>> all_funds = funds.listing()
         """
         return Fund(source)
+
+    def broker(
+        self,
+        provider: str = "tcbs",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+        """
+        Trả về broker client để thực hiện giao dịch qua broker API.
+
+        Client trả về chưa authenticated — cần gọi .authenticate(otp=...) trước
+        khi dùng bất kỳ read/write method nào.
+
+        Args:
+            provider: Tên broker provider. Hiện tại chỉ hỗ trợ "tcbs".
+            api_key: API key (tùy chọn — đọc từ env VNBROKER_BROKER_TCBS_API_KEY nếu không truyền).
+            base_url: Override base URL (tùy chọn).
+
+        Returns:
+            BaseBrokerClient subclass tương ứng với provider.
+
+        Example:
+            >>> vn = Vnbroker()
+            >>> client = vn.broker(provider='tcbs', api_key='your-key')
+            >>> client.authenticate(otp='123456')
+            >>> balance = client.get_balance(account_no='0123456789')
+        """
+        from vnbroker.api.broker import get_broker  # noqa: PLC0415
+        return get_broker(provider=provider, api_key=api_key, base_url=base_url)

@@ -276,14 +276,16 @@
 | **Mục tiêu slice** | `Vnbroker.broker(provider='TCBS')` hoạt động mà không vỡ `stock()` |
 | **Phụ thuộc** | S4, S5, S6, S9 |
 | **Ước tính** | 0.5 ngày |
-| **Trạng thái** | 🔲 TODO |
-| **Bằng chứng** | `python -c "from vnbroker import Vnbroker; print(hasattr(Vnbroker(), 'broker'))"` |
+| **Trạng thái** | ✅ DONE |
+| **Bằng chứng** | `python -c "from vnbroker import Vnbroker; print(hasattr(Vnbroker(), 'broker'))"` → True. Full regression 519/519 PASS. |
 
 **Checklist S10:**
 
-- [ ] Có broker entrypoint riêng.
-- [ ] Public provider path vẫn giữ behavior cũ.
-- [ ] Auth broker không còn khởi tạo trong `stock()` ở final target.
+- [x] TCBSBrokerClient facade tổng hợp tất cả services (auth/account/money/equity/derivatives/portfolio).
+- [x] Vnbroker.broker(provider='tcbs') hoạt động đúng.
+- [x] api/broker.get_broker() import TCBSBrokerClient thành công.
+- [x] stock() behavior không bị ảnh hưởng.
+- [x] dry_run=True mặc định cho write methods được giữ nguyên qua facade.
 
 ---
 
