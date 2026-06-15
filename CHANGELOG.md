@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-15] — Release 2.0.0: PAT-Only Gateway Architecture & Private Brokerage Lane
+
+### Architecture Overhaul
+- **Hard Cut-off to PAT-Only Gateway**: All market data (Quote, Company, Finance, Listing, Trading, News, MarketSnapshot, Fund, FX, Crypto, World Index) now exclusively routes through vninvest SaaS Gateway with Personal Access Token (PAT) authentication.
+- **Direct Mode Removed**: Legacy direct providers (KBS, VCI, TCBS, DNSE, MSN, FMP, Binance) completely removed for market data access.
+- **Supported Sources**: Only `GATEWAY` and `AUTO` are valid for market data components.
+- **Emergency Fallback**: Automatic fallback to local explorers when Gateway is unavailable (max 10 calls/day quota).
+
+### Private Brokerage Lane (Bypass Gateway)
+- **TCBS Broker Client**: Full trading operations via direct TCBS iFlash OpenAPI v1.0.0:
+  - Read: Profile, Balance, Purchasing Power, Cash, Margin, Holdings, Orders, Executions, Derivatives Positions/Orders/Cash
+  - Write: Place/Modify/Cancel orders (dry_run=True default, idempotency via request_id)
+  - Market Data: Ticker info, snaps, BSA, intraday, derivatives info (public endpoints)
+  - Portfolio Engine: Snapshot, PnL, reconciliation (pure compute)
+- **DNSE Broker Client**: Scaffolded (coming soon)
+- **Security Model**: Zero-Knowledge — OTP, API Key/Secret, PIN never transit Gateway. Direct client → Broker API for minimal latency and maximum security.
+
+### API Changes
+- `Vnbroker.__init__()`: Removed deprecated params (`auth_token`, `api_key`, `api_secret`, `otp`, `openapi_base_url`). Added `pat_key`, `gateway_url`.
+- `Vnbroker.stock()`: Removed `source` override, `auth_token` propagation. Always uses Gateway.
+- `Vnbroker.fx()`, `crypto()`, `world_index()`: Added source validation (GATEWAY/AUTO only).
+- `Vnbroker.broker()`: New method returning `TCBSBrokerClient` for private brokerage.
+- `Quote.history()`: Removed MSN symbol mapping logic.
+- `Finance` class: Removed duplicate methods (`industry_peers`, `industry_benchmark`, `industry_rank`, `_extract_latest_metric_values`).
+- `Screener`: Removed (was TCBS-direct only).
+
+### Testing
+- Deleted DNSE direct adapter tests (`test_quote.py`, `test_listing.py`, `test_adapters.py`).
+- All 518 unit tests pass (12 skipped — pre-existing live API/env issues).
+
+### Migration Guide
+```python
+# OLD (Direct Mode - no longer works)
+vn = Vnbroker(source="TCBS", auth_token="...")
+acb = vn.stock("ACB", source="VCI")
+
+# NEW (PAT-Only Gateway)
+vn = Vnbroker(pat_key="vninvest_pat_your_token")
+acb = vn.stock("ACB")  # Always Gateway
+
+# Broker Lane (unchanged - direct API)
+client = vn.broker(provider="tcbs", api_key="tcbs_openapi_key")
+client.authenticate(otp="123456")
+balance = client.get_balance("0123456789")
+```
+
 ## [2026-04-18] — Release 1.0.2: Core API standardization and production hardening
 
 ### Added
