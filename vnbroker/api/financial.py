@@ -31,7 +31,9 @@ class Finance(BaseAdapter):
         period: str = "quarter",
         get_all: bool = True,
         show_log: bool = False,
-        auth_token: Optional[str] = None
+        auth_token: Optional[str] = None,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None
     ):
         # Ensure explorer modules are loaded (lazy load to avoid deadlock)
         from vnbroker import _ensure_explorer_modules_loaded
@@ -44,20 +46,24 @@ class Finance(BaseAdapter):
         self.get_all = get_all
         self.show_log = show_log
         self.auth_token = auth_token
+        self.api_key = api_key
+        self.api_secret = api_secret
         
         valid_sources = ["kbs", "vci", "tcbs", "dnse", AUTO_SOURCE]
         if source.lower() not in valid_sources:
             raise ValueError("Lớp Finance chỉ nhận giá trị tham số source là 'VCI', 'KBS', 'TCBS', 'DNSE' hoặc 'AUTO'.")
         
         # BaseAdapter will discover vnbroker.explorer.<real_source>.financial
-        # and pass only the kwargs its __init__ accepts (symbol, period, get_all, show_log).
+        # and pass only the kwargs its __init__ accepts.
         super().__init__(
             source=source,
             symbol=symbol,
             period=period,
             get_all=get_all,
             show_log=show_log,
-            auth_token=auth_token
+            auth_token=auth_token,
+            api_key=api_key,
+            api_secret=api_secret
         )
 
     @retry(

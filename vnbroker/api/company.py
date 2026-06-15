@@ -36,7 +36,9 @@ class Company(BaseAdapter):
         symbol: str = None,
         random_agent: bool = False,
         show_log: bool = False,
-        auth_token: Optional[str] = None
+        auth_token: Optional[str] = None,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None
     ):
         # Ensure explorer modules are loaded (lazy load to avoid deadlock)
         from vnbroker import _ensure_explorer_modules_loaded
@@ -48,19 +50,23 @@ class Company(BaseAdapter):
         self.random_agent = random_agent
         self.show_log = show_log
         self.auth_token = auth_token
+        self.api_key = api_key
+        self.api_secret = api_secret
         
         valid_sources = ["kbs", "vci", "tcbs", "dnse", AUTO_SOURCE]
         if source.lower() not in valid_sources:
             raise ValueError("Lớp Company chỉ nhận giá trị tham số source là 'VCI', 'KBS', 'TCBS', 'DNSE' hoặc 'AUTO'.")
         
         # BaseAdapter will discover vnbroker.explorer.<real_source>.company
-        # and pass only the kwargs its __init__ accepts (random_agent, show_log).
+        # and pass only the kwargs its __init__ accepts.
         super().__init__(
             source=source,
             symbol=symbol,
             random_agent=random_agent,
             show_log=show_log,
-            auth_token=auth_token
+            auth_token=auth_token,
+            api_key=api_key,
+            api_secret=api_secret
         )
 
 

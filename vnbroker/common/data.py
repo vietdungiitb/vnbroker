@@ -19,7 +19,7 @@ from vnbroker.core.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-PUBLIC_VN_SOURCES = {"AUTO", "KBS", "VCI", "MSN", "TCBS", "GATEWAY"}
+PUBLIC_VN_SOURCES = {"AUTO", "KBS", "VCI", "MSN", "TCBS"}
 
 
 _INSIDER_STANDARD_COLUMNS = [
@@ -231,7 +231,7 @@ class BaseComponent:
 
         Args:
             symbol: Stock/asset symbol
-            source: Data source (GATEWAY, AUTO)
+            source: Data source (VCI, MSN, FMP, etc.)
 
         Raises:
             ValueError: If source not in SUPPORTED_SOURCES
@@ -239,6 +239,7 @@ class BaseComponent:
         self.symbol = symbol.upper() if symbol else None
         self.source = source.upper()
         self._validate_source()
+        self.source_module = f"vnbroker.explorer.{self.source.lower()}"
         self.data_source = self._load_data_source()
 
     def _validate_source(self) -> None:
@@ -257,51 +258,29 @@ class BaseComponent:
 
 
 class StockComponents(BaseComponent):
-    """Unified access to stock data and related information.
+    """Unified access to stock data and related information."""
 
-    PAT-Only Architecture: All data access MUST go through GATEWAY with valid PAT.
-    Direct provider access (VCI, KBS, TCBS, etc.) is DEPRECATED and will be removed in v2.0.
-    """
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "FMP", "DNSE"]
 
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
-
-    def __init__(self, symbol: str, source: str = "GATEWAY",
+    def __init__(self, symbol: str, source: str = Config.DEFAULT_SOURCE,
                  show_log: bool = True,
                  auth_token: Optional[str] = None,
                  api_key: Optional[str] = None,
-                 api_secret: Optional[str] = None,
-                 gateway_client: Optional[Any] = None,
-                 gateway_request_func: Optional[Any] = None):
+                 api_secret: Optional[str] = None):
         """
         Initialize stock components.
 
         Args:
             symbol: Stock symbol (e.g., 'ACB', 'VNM')
-            source: Data source (MUST be GATEWAY or AUTO)
+            source: Data source (VCI, TCBS, MSN, FMP, DNSE)
             show_log: Whether to display log messages
-            auth_token: DEPRECATED - TCBS Bearer token (legacy direct mode)
-            api_key: DEPRECATED - API key for TCBS/DNSE (legacy direct mode)
-            api_secret: DEPRECATED - API secret for DNSE (legacy direct mode)
-            gateway_client: GatewayHttpClient instance (GATEWAY mode)
-            gateway_request_func: Function to execute gateway requests (GATEWAY mode)
 
         Raises:
-            ValueError: If source is not GATEWAY or PAT is missing
+            ValueError: If source not supported
         """
-        import warnings
-        
-        # Enforce GATEWAY mode with PAT
-        if source not in self.SUPPORTED_SOURCES:
-            raise ValueError(f"Source '{source}' is not supported. Only GATEWAY and AUTO are allowed.")
-        
         self.auth_token = auth_token
         self.api_key = api_key
         self.api_secret = api_secret
-        self.gateway_client = gateway_client
-        self.gateway_request_func = gateway_request_func
-        # Always use gateway in PAT-only architecture
-        self._use_gateway = True
-        
         super().__init__(symbol, source)
         self.show_log = show_log
 
@@ -319,23 +298,67 @@ class StockComponents(BaseComponent):
 
     def _initialize_components(self):
         """Initialize quote, company, finance, trading components."""
-        # Always use GATEWAY for components
-        component_source = "GATEWAY"
-        
-        self.company = Company(self.symbol, source=component_source, auth_token=self.auth_token, 
-                               gateway_client=self.gateway_client, gateway_request_func=self.gateway_request_func)
-        self.finance = Finance(self.symbol, source=component_source, auth_token=self.auth_token,
-                               gateway_client=self.gateway_client, gateway_request_func=self.gateway_request_func)
-        self.news = News(self.symbol, source=component_source, auth_token=self.auth_token,
-                         gateway_client=self.gateway_client, gateway_request_func=self.gateway_request_func)
-        self.trading = Trading(self.symbol, source=component_source, auth_token=self.auth_token,
-                           gateway_client=self.gateway_client, gateway_request_func=self.gateway_request_func)
+        # Initialize company and finance for stocks
+        if self.source == 'DNSE':
+            # DNSE has fallback company/finance providers (empty DataFrames)
+            self.company = Company(self.symbol, source=self.source, auth_token=self.auth_token,
+                                   api_key=self.api_key, api_secret=self.api_secret)
+            self.finance = Finance(self.symbol, source=self.source, auth_token=self.auth_token,
+                                   api_key=self.api_key, api_secret=self.api_secret)
+            self.news = None  # DNSE doesn't have news in explorer layer
+        elif self.source == 'FMP' or self.asset_type == "stock":
+            self.company = Company(self.symbol, source=self.source, auth_token=self.auth_token)
+            self.finance = Finance(self.symbol, source=self.source, auth_token=self.auth_token)
+            if self.source in ["AUTO", "KBS", "VCI", "TCBS"]:
+                self.news = News(self.symbol, source=self.source, auth_token=self.auth_token)
+            else:
+                self.news = None
+        else:
+            self.company = None
+            self.finance = None
+            self.news = None
+            logger.info(
+                "Not a stock. Company and finance data unavailable."
+            )
 
-        self.listing = Listing(source=component_source, 
-                               gateway_client=self.gateway_client, gateway_request_func=self.gateway_request_func)
-        self.screener = None  # Screener not yet supported via Gateway
-        self.quote = Quote(self.symbol, component_source, auth_token=self.auth_token,
-                           gateway_client=self.gateway_client, gateway_request_func=self.gateway_request_func)
+        # Initialize source-specific components
+        if self.source == 'AUTO':
+            self.listing = Listing(source='AUTO')
+            self.screener = None
+            self.quote = Quote(self.symbol, self.source, auth_token=self.auth_token)
+            self.trading = Trading(self.symbol, source=self.source, auth_token=self.auth_token)
+        elif self.source in ['KBS', 'VCI', 'TCBS']:
+            self.listing = Listing(source='KBS')
+            self.screener = Screener(source='TCBS', auth_token=self.auth_token)
+            self.quote = Quote(self.symbol, self.source, auth_token=self.auth_token)
+            self.trading = Trading(self.symbol, source=self.source, auth_token=self.auth_token)
+            if self.source == 'TCBS':
+                logger.info("TCBS listing data fallback to KBS.")
+        elif self.source == 'MSN':
+            self.quote = Quote(self.symbol, 'MSN')
+            self.listing = Listing(source='MSN')
+            self.trading = None
+            self.screener = None
+        elif self.source == 'FMP':
+            self.quote = Quote(self.symbol, 'FMP')
+            self.listing = Listing(source='FMP')
+            self.trading = None
+            self.screener = None
+        elif self.source == 'DNSE':
+            self.quote = Quote(
+                self.symbol,
+                'DNSE',
+                auth_token=self.auth_token,
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+            )
+            self.listing = Listing(
+                source='DNSE',
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+            )
+            self.trading = None
+            self.screener = None
 
     def _load_data_source(self):
         """StockComponents manages multiple sources."""
@@ -347,82 +370,45 @@ class StockComponents(BaseComponent):
         self._initialize_components()
 
 
-class GatewayQuoteAdapter:
-    """Adapter for Quote operations via vninvest SaaS Gateway."""
-    
-    def __init__(self, symbol: str, gateway_request_func):
-        self.symbol = symbol
-        self.gateway_request_func = gateway_request_func
-    
-    def history(self, start: str = None, end: str = None, interval: str = "1D", **kwargs):
-        """Fetch historical price data via Gateway."""
-        payload = {
-            "symbol": self.symbol,
-            "start": start,
-            "end": end,
-            "interval": interval,
-        }
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/quote/history", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def intraday(self, **kwargs):
-        """Fetch intraday trading data via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/quote/intraday", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def price_depth(self, **kwargs):
-        """Fetch order book depth data via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/quote/price_depth", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def price_board(self, symbols: list = None, **kwargs):
-        """Fetch price board for multiple symbols via Gateway."""
-        payload = {"symbols": symbols or [self.symbol]}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/quote/price_board", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def _parse_response(self, response: dict):
-        """Parse Gateway response to DataFrame."""
-        import pandas as pd
-        if "data" in response:
-            data = response["data"]
-            if isinstance(data, list):
-                return pd.DataFrame(data)
-            elif isinstance(data, dict):
-                return pd.DataFrame([data])
-        return pd.DataFrame()
-
-
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "MSN", "FMP", "DNSE"]
 
-    def __init__(self, symbol: str, source: str = "GATEWAY",
+    def __init__(self, symbol: str, source: str = Config.DEFAULT_SOURCE,
                  auth_token: Optional[str] = None,
                  api_key: Optional[str] = None,
-                 api_secret: Optional[str] = None,
-                 gateway_client: Optional[Any] = None,
-                 gateway_request_func: Optional[Any] = None):
+                 api_secret: Optional[str] = None):
         self.auth_token = auth_token
         self.api_key = api_key
         self.api_secret = api_secret
-        self.gateway_client = gateway_client
-        self.gateway_request_func = gateway_request_func
-        self._use_gateway = True
         super().__init__(symbol, source)
 
     def _load_data_source(self):
         """Load quote data source module."""
-        return GatewayQuoteAdapter(
+        if self.source == "DNSE":
+            from vnbroker.explorer.dnse.quote import DNSEQuote
+            return DNSEQuote(
+                symbol=self.symbol,
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+                show_log=False,
+            )
+        if self.source in PUBLIC_VN_SOURCES:
+            from vnbroker.api.quote import Quote as QuoteAdapter
+            return QuoteAdapter(
+                source=self.source,
+                symbol=self.symbol,
+                show_log=False,
+                auth_token=self.auth_token,
+            )
+        module = importlib.import_module(self.source_module)
+        if self.source == "MSN":
+            return module.Quote(self.symbol.lower())
+        return _instantiate_supported(
+            module.Quote,
             symbol=self.symbol,
-            gateway_request_func=self.gateway_request_func,
+            auth_token=self.auth_token,
         )
 
     def _update_data_source(self, symbol: Optional[str] = None):
@@ -437,6 +423,16 @@ class Quote(BaseComponent):
     )
     def history(self, symbol: Optional[str] = None, **kwargs):
         """Fetch historical price data."""
+        if self.source == "MSN":
+            _load_msn_const()
+            symbol_map = {
+                **_CURRENCY_ID_MAP,
+                **_GLOBAL_INDICES,
+                **_CRYPTO_ID_MAP
+            }
+            if symbol and symbol in symbol_map:
+                self.symbol = symbol_map[symbol]
+                logger.debug(f"MSN symbol mapping: {symbol} -> {self.symbol}")
         self._update_data_source(symbol)
         return self.data_source.history(**kwargs)
 
@@ -462,24 +458,30 @@ class Quote(BaseComponent):
 class Listing(BaseComponent):
     """Symbol listing and grouping data."""
 
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "MSN", "FMP", "DNSE"]
 
-    def __init__(self, source: str = "GATEWAY",
+    def __init__(self, source: str = Config.DEFAULT_SOURCE,
                  api_key: Optional[str] = None,
-                 api_secret: Optional[str] = None,
-                 gateway_client: Optional[Any] = None,
-                 gateway_request_func: Optional[Any] = None):
+                 api_secret: Optional[str] = None):
         self.api_key = api_key
         self.api_secret = api_secret
-        self.gateway_client = gateway_client
-        self.gateway_request_func = gateway_request_func
-        self._use_gateway = True
         # Don't need symbol for listing data
         super().__init__(symbol=None, source=source)
 
     def _load_data_source(self):
         """Load listing data source module."""
-        return GatewayListingAdapter(gateway_request_func=self.gateway_request_func)
+        if self.source == "DNSE":
+            from vnbroker.explorer.dnse.listing import DNSEListing
+            return DNSEListing(
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+                show_log=False,
+            )
+        if self.source in {"AUTO", "KBS", "VCI", "MSN"}:
+            from vnbroker.api.listing import Listing as ListingAdapter
+            return ListingAdapter(source=self.source, show_log=False)
+        module = importlib.import_module(self.source_module)
+        return module.Listing()
 
     @lru_cache(maxsize=Config.CACHE_SIZE)
     def all_symbols(self, **kwargs):
@@ -527,118 +529,32 @@ class Listing(BaseComponent):
         return self.data_source.all_government_bonds(**kwargs)
 
 
-class GatewayListingAdapter:
-    """Adapter for Listing operations via vninvest SaaS Gateway."""
-    
-    def __init__(self, gateway_request_func):
-        self.gateway_request_func = gateway_request_func
-    
-    def all_symbols(self, **kwargs):
-        """Get all available symbols via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/all_symbols", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def symbols_by_industries(self, **kwargs):
-        """Get symbols grouped by industry via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/industries", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def symbols_by_exchange(self, **kwargs):
-        """Get symbols for specific exchange via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/exchanges", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def symbols_by_group(self, group='VN30', **kwargs):
-        """Get symbols for market group via Gateway."""
-        payload = {"group": group}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/listing/group", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def industries_icb(self, **kwargs):
-        """Get ICB industry classification via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/icb", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def all_future_indices(self, **kwargs):
-        """Get all available futures indices via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/futures", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def all_covered_warrant(self, **kwargs):
-        """Get all covered warrants via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/covered_warrants", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def all_bonds(self, **kwargs):
-        """Get all bonds via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/bonds", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def all_government_bonds(self, **kwargs):
-        """Get all government bonds via Gateway."""
-        response = self.gateway_request_func("/api/v1/listing/government_bonds", "GET", params=kwargs)
-        return self._parse_response(response)
-    
-    def _parse_response(self, response: dict):
-        """Parse Gateway response to DataFrame."""
-        import pandas as pd
-        if "data" in response:
-            data = response["data"]
-            if isinstance(data, list):
-                return pd.DataFrame(data)
-            elif isinstance(data, dict):
-                return pd.DataFrame([data])
-        return pd.DataFrame()
-
-
-class GatewayTradingAdapter:
-    """Adapter for Trading operations via vninvest SaaS Gateway."""
-    
-    def __init__(self, symbol: str, gateway_request_func):
-        self.symbol = symbol
-        self.gateway_request_func = gateway_request_func
-    
-    def price_board(self, symbols_list: list, **kwargs):
-        """Fetch price board for multiple symbols via Gateway."""
-        payload = {"symbols": symbols_list}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/trading/price_board", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def _parse_response(self, response: dict):
-        """Parse Gateway response to DataFrame."""
-        import pandas as pd
-        if "data" in response:
-            data = response["data"]
-            if isinstance(data, list):
-                return pd.DataFrame(data)
-            elif isinstance(data, dict):
-                return pd.DataFrame([data])
-        return pd.DataFrame()
-
-
 class Trading(BaseComponent):
     """Real-time trading data and market board information."""
 
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS"]
 
     def __init__(self, symbol: Optional[str] = 'VN30F1M',
-                 source: str = "GATEWAY",
-                 auth_token: Optional[str] = None,
-                 gateway_client: Optional[Any] = None,
-                 gateway_request_func: Optional[Any] = None):
+                 source: str = Config.DEFAULT_SOURCE,
+                 auth_token: Optional[str] = None):
         self.auth_token = auth_token
-        self.gateway_client = gateway_client
-        self.gateway_request_func = gateway_request_func
-        self._use_gateway = True
         super().__init__(symbol, source)
 
     def _load_data_source(self):
         """Load trading data source module."""
-        return GatewayTradingAdapter(
+        if self.source in {"AUTO", "KBS", "VCI", "TCBS"}:
+            from vnbroker.api.trading import Trading as TradingAdapter
+            return TradingAdapter(
+                source=self.source,
+                symbol=self.symbol,
+                show_log=False,
+                auth_token=self.auth_token,
+            )
+        module = importlib.import_module(self.source_module)
+        return _instantiate_supported(
+            module.Trading,
             symbol=self.symbol,
-            gateway_request_func=self.gateway_request_func,
+            auth_token=self.auth_token,
         )
 
     def _update_data_source(self, symbol: Optional[str] = None):
@@ -659,24 +575,43 @@ class Trading(BaseComponent):
 class Company(BaseComponent):
     """Company profile, management, ownership information."""
 
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "FMP", "DNSE"]
 
     def __init__(self, symbol: Optional[str] = 'ACB',
-                 source: str = "GATEWAY",
+                 source: str = "VCI",
                  auth_token: Optional[str] = None,
-                 gateway_client: Optional[Any] = None,
-                 gateway_request_func: Optional[Any] = None):
+                 api_key: Optional[str] = None,
+                 api_secret: Optional[str] = None):
         self.auth_token = auth_token
-        self.gateway_client = gateway_client
-        self.gateway_request_func = gateway_request_func
-        self._use_gateway = True
+        self.api_key = api_key
+        self.api_secret = api_secret
         super().__init__(symbol, source)
 
     def _load_data_source(self):
         """Load company data source module."""
-        return GatewayCompanyAdapter(
+        if self.source in {"AUTO", "KBS", "VCI", "TCBS"}:
+            from vnbroker.api.company import Company as CompanyAdapter
+            return CompanyAdapter(
+                source=self.source,
+                symbol=self.symbol,
+                show_log=False,
+                auth_token=self.auth_token,
+            )
+        if self.source == "DNSE":
+            from vnbroker.api.company import Company as CompanyAdapter
+            return CompanyAdapter(
+                source=self.source,
+                symbol=self.symbol,
+                show_log=False,
+                auth_token=self.auth_token,
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+            )
+        module = importlib.import_module(self.source_module)
+        return _instantiate_supported(
+            module.Company,
             symbol=self.symbol,
-            gateway_request_func=self.gateway_request_func,
+            auth_token=self.auth_token,
         )
 
     def _update_data_source(self, symbol: Optional[str] = None):
@@ -752,227 +687,32 @@ class Company(BaseComponent):
         return self.data_source.ratio_summary(**kwargs)
 
 
-class GatewayCompanyAdapter:
-    """Adapter for Company operations via vninvest SaaS Gateway."""
-    
-    def __init__(self, symbol: str, gateway_request_func):
-        self.symbol = symbol
-        self.gateway_request_func = gateway_request_func
-    
-    def overview(self, **kwargs):
-        """Get company overview via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/overview", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def profile(self, **kwargs):
-        """Get detailed company profile via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/profile", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def shareholders(self, **kwargs):
-        """Get major shareholders via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/shareholders", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def insider_deals(self, **kwargs):
-        """Get insider trading activity via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/insider_deals", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def subsidiaries(self, **kwargs):
-        """Get subsidiaries and affiliates via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/subsidiaries", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def officers(self, **kwargs):
-        """Get management team via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/officers", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def events(self, **kwargs):
-        """Get company events via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/events", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def news(self, **kwargs):
-        """Get company news via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/news", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def dividends(self, **kwargs):
-        """Get dividend payment history via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/dividends", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def affiliate(self, **kwargs):
-        """Get affiliated companies via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/affiliate", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def trading_stats(self, **kwargs):
-        """Get trading statistics via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/trading_stats", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def ratio_summary(self, **kwargs):
-        """Get financial ratio summary via Gateway."""
-        payload = {"symbol": self.symbol}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/company/ratio_summary", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def _parse_response(self, response: dict):
-        """Parse Gateway response to DataFrame."""
-        import pandas as pd
-        if "data" in response:
-            data = response["data"]
-            if isinstance(data, list):
-                return pd.DataFrame(data)
-            elif isinstance(data, dict):
-                return pd.DataFrame([data])
-        return pd.DataFrame()
-
-
-class GatewayFinanceAdapter:
-    """Adapter for Finance operations via vninvest SaaS Gateway."""
-    
-    def __init__(self, symbol: str, period: str = 'quarter', get_all: bool = True, gateway_request_func=None):
-        self.symbol = symbol
-        self.period = period
-        self.get_all = get_all
-        self.gateway_request_func = gateway_request_func
-    
-    def balance_sheet(self, **kwargs):
-        """Get balance sheet via Gateway."""
-        payload = {"symbol": self.symbol, "period": self.period, "get_all": self.get_all}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/finance/balance_sheet", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def income_statement(self, **kwargs):
-        """Get income statement via Gateway."""
-        payload = {"symbol": self.symbol, "period": self.period, "get_all": self.get_all}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/finance/income_statement", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def cash_flow(self, **kwargs):
-        """Get cash flow statement via Gateway."""
-        payload = {"symbol": self.symbol, "period": self.period, "get_all": self.get_all}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/finance/cash_flow", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def ratio(self, **kwargs):
-        """Get financial ratios via Gateway."""
-        payload = {"symbol": self.symbol, "period": self.period, "get_all": self.get_all}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/finance/ratios", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def _parse_response(self, response: dict):
-        """Parse Gateway response to DataFrame."""
-        import pandas as pd
-        if "data" in response:
-            data = response["data"]
-            if isinstance(data, list):
-                return pd.DataFrame(data)
-            elif isinstance(data, dict):
-                return pd.DataFrame([data])
-        return pd.DataFrame()
-
-
-class GatewayNewsAdapter:
-    """Adapter for News operations via vninvest SaaS Gateway."""
-    
-    def __init__(self, symbol: Optional[str], gateway_request_func):
-        self.symbol = symbol
-        self.gateway_request_func = gateway_request_func
-    
-    def market_news(self, limit: int = 20, **kwargs):
-        """Get market news via Gateway."""
-        payload = {"limit": limit}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/news/market", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def symbol_news(self, symbol: str, limit: int = 20, **kwargs):
-        """Get symbol-specific news via Gateway."""
-        payload = {"symbol": symbol, "limit": limit}
-        payload.update(kwargs)
-        response = self.gateway_request_func("/api/v1/news/symbol", "POST", json_data=payload)
-        return self._parse_response(response)
-    
-    def by_symbol(self, symbol: str, limit: int = 20, **kwargs):
-        """Get news by symbol via Gateway."""
-        return self.symbol_news(symbol=symbol, limit=limit, **kwargs)
-    
-    def filter(self, symbol: Optional[str] = None, query: Optional[str] = None, limit: int = 20, **kwargs):
-        """Filter news by symbol and/or query via Gateway."""
-        if symbol:
-            return self.symbol_news(symbol=symbol, limit=limit, **kwargs)
-        else:
-            return self.market_news(limit=limit, **kwargs)
-    
-    def latest(self, limit: int = 20, **kwargs):
-        """Get latest market news via Gateway."""
-        return self.market_news(limit=limit, **kwargs)
-    
-    def _parse_response(self, response: dict):
-        """Parse Gateway response to DataFrame."""
-        import pandas as pd
-        if "data" in response:
-            data = response["data"]
-            if isinstance(data, list):
-                return pd.DataFrame(data)
-            elif isinstance(data, dict):
-                return pd.DataFrame([data])
-        return pd.DataFrame()
-
-
 class News(BaseComponent):
     """Multi-source normalized stock news access."""
 
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
+    SUPPORTED_SOURCES = [
+        "AUTO",
+        "KBS",
+        "VCI",
+        "TCBS",
+        "RSS_CAFEF",
+        "RSS_VNECONOMY",
+    ]
 
     def __init__(self, symbol: Optional[str] = None,
-                 source: str = "GATEWAY",
-                 auth_token: Optional[str] = None,
-                 gateway_client: Optional[Any] = None,
-                 gateway_request_func: Optional[Any] = None):
+                 source: str = "AUTO",
+                 auth_token: Optional[str] = None):
         self.auth_token = auth_token
-        self.gateway_client = gateway_client
-        self.gateway_request_func = gateway_request_func
-        self._use_gateway = True
         super().__init__(symbol, source)
 
     def _load_data_source(self):
         """Load news data source module."""
-        return GatewayNewsAdapter(
+        from vnbroker.api.news import News as NewsAdapter
+        return NewsAdapter(
+            source=self.source,
             symbol=self.symbol,
-            gateway_request_func=self.gateway_request_func,
+            show_log=False,
+            auth_token=self.auth_token,
         )
 
     def health(self) -> Dict[str, Dict[str, Any]]:
@@ -1106,18 +846,18 @@ class News(BaseComponent):
 class Finance(BaseComponent):
     """Financial statements and ratios."""
 
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
+    SUPPORTED_SOURCES = ["AUTO", "KBS", "VCI", "TCBS", "FMP", "DNSE"]
     SUPPORTED_PERIODS = ["quarter", "year", "annual"]
 
     def __init__(
         self,
         symbol: str,
         period: str = 'quarter',
-        source: str = 'GATEWAY',
+        source: str = 'VCI',
         get_all: bool = True,
         auth_token: Optional[str] = None,
-        gateway_client: Optional[Any] = None,
-        gateway_request_func: Optional[Any] = None
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None
     ):
         """
         Initialize finance component.
@@ -1125,20 +865,15 @@ class Finance(BaseComponent):
         Args:
             symbol: Stock symbol
             period: Reporting period (quarter or annual)
-            source: Data source (MUST be GATEWAY or AUTO)
+            source: Data source
             get_all: Whether to fetch all historical data
-            auth_token: Auth token for direct providers
-            gateway_client: GatewayHttpClient instance (GATEWAY mode)
-            gateway_request_func: Function to execute gateway requests (GATEWAY mode)
 
         Raises:
             ValueError: If period not in SUPPORTED_PERIODS
         """
         self.auth_token = auth_token
-        self.gateway_client = gateway_client
-        self.gateway_request_func = gateway_request_func
-        self._use_gateway = True
-        
+        self.api_key = api_key
+        self.api_secret = api_secret
         normalized_period = (period or 'quarter').lower()
         if normalized_period == 'annual':
             normalized_period = 'year'
@@ -1155,11 +890,33 @@ class Finance(BaseComponent):
 
     def _load_data_source(self):
         """Load finance data source module."""
-        return GatewayFinanceAdapter(
+        if self.source in {"AUTO", "KBS", "VCI", "TCBS"}:
+            from vnbroker.api.financial import Finance as FinanceAdapter
+            return FinanceAdapter(
+                source=self.source,
+                symbol=self.symbol,
+                period=self.period,
+                get_all=self.get_all,
+                show_log=False,
+                auth_token=self.auth_token,
+            )
+        if self.source == "DNSE":
+            from vnbroker.api.financial import Finance as FinanceAdapter
+            return FinanceAdapter(
+                source=self.source,
+                symbol=self.symbol,
+                period=self.period,
+                get_all=self.get_all,
+                show_log=False,
+                auth_token=self.auth_token,
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+            )
+        module = importlib.import_module(self.source_module)
+        return _instantiate_supported(
+            module.Finance,
             symbol=self.symbol,
-            period=self.period,
-            get_all=self.get_all,
-            gateway_request_func=self.gateway_request_func,
+            auth_token=self.auth_token,
         )
 
     def _update_data_source(self, symbol: Optional[str] = None):
@@ -1325,7 +1082,235 @@ class Finance(BaseComponent):
         if not target_symbol:
             raise ValueError("symbol is required for industry_peers")
 
-        listing = Listing(source='GATEWAY', gateway_request_func=self.gateway_request_func)
+        listing = Listing(source='KBS')
+        by_industry = listing.symbols_by_industries()
+        if not isinstance(by_industry, pd.DataFrame) or by_industry.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        df = by_industry.copy()
+        if include_exchanges and "exchange" in df.columns:
+            exchange_set = {e.upper() for e in include_exchanges}
+            df = df[df["exchange"].astype(str).str.upper().isin(exchange_set)]
+
+        target_rows = df[df["symbol"].astype(str).str.upper() == target_symbol]
+        if target_rows.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        industry_code = target_rows.iloc[0].get("industry_code")
+        industry_name = target_rows.iloc[0].get("industry_name")
+
+        peers = df
+        if "industry_code" in df.columns and pd.notna(industry_code):
+            peers = df[df["industry_code"] == industry_code]
+        elif "industry_name" in df.columns:
+            peers = df[df["industry_name"] == industry_name]
+
+        peer_symbols = (
+            peers["symbol"].astype(str).str.upper().drop_duplicates().head(max_peers).tolist()
+        )
+
+        out = pd.DataFrame(
+            {
+                "symbol": [target_symbol] * len(peer_symbols),
+                "industry_code": [industry_code] * len(peer_symbols),
+                "industry_name": [industry_name] * len(peer_symbols),
+                "peer_symbol": peer_symbols,
+                "source": ["KBS"] * len(peer_symbols),
+                "source_used": ["KBS"] * len(peer_symbols),
+            }
+        )
+        return out
+
+    def _extract_latest_metric_values(
+        self,
+        ratio_df: pd.DataFrame,
+        metrics: list[str],
+    ) -> dict[str, Optional[float]]:
+        if not isinstance(ratio_df, pd.DataFrame) or ratio_df.empty:
+            return {m: None for m in metrics}
+        row = ratio_df.iloc[0]
+        values: dict[str, Optional[float]] = {}
+        for m in metrics:
+            if m in ratio_df.columns:
+                v = pd.to_numeric(pd.Series([row.get(m)]), errors="coerce").iloc[0]
+                values[m] = None if pd.isna(v) else float(v)
+            else:
+                values[m] = None
+        return values
+
+    def industry_benchmark(
+        self,
+        symbol: Optional[str] = None,
+        metrics: Optional[list[str]] = None,
+        period: str = "quarter",
+        method: str = "median",
+    ) -> pd.DataFrame:
+        """
+        Compute industry benchmark (median/mean) for requested metrics.
+        """
+        _ = method
+        target_symbol = (symbol or self.symbol or "").upper()
+        if not target_symbol:
+            raise ValueError("symbol is required for industry_benchmark")
+        if not metrics:
+            raise ValueError("metrics is required for industry_benchmark")
+
+        peers_df = self.industry_peers(symbol=target_symbol)
+        if peers_df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "industry_code",
+                    "industry_name",
+                    "peer_symbol",
+                    "metric",
+                    "peer_value",
+                    "industry_median",
+                    "industry_mean",
+                    "percentile",
+                    "zscore",
+                    "rank",
+                    "total_peers",
+                    "source",
+                    "source_used",
+                ]
+            )
+
+        records: list[dict[str, Any]] = []
+        for peer_symbol in peers_df["peer_symbol"].tolist():
+            ratio_df = self._get_financial_data('ratio', peer_symbol, period=period)
+            metric_values = self._extract_latest_metric_values(ratio_df, metrics)
+            for metric, value in metric_values.items():
+                records.append(
+                    {
+                        "peer_symbol": peer_symbol,
+                        "metric": metric,
+                        "peer_value": value,
+                    }
+                )
+
+        values_df = pd.DataFrame(records)
+        if values_df.empty:
+            return values_df
+
+        agg = values_df.groupby("metric", dropna=False)["peer_value"].agg(
+            industry_median="median",
+            industry_mean="mean",
+            total_peers=lambda s: int(s.notna().sum()),
+        )
+        out = values_df.merge(agg, on="metric", how="left")
+
+        base = peers_df.iloc[0]
+        out.insert(0, "symbol", target_symbol)
+        out.insert(1, "industry_code", base.get("industry_code"))
+        out.insert(2, "industry_name", base.get("industry_name"))
+
+        out["percentile"] = None
+        out["zscore"] = None
+        out["rank"] = None
+        out["source"] = self.source.upper()
+        out["source_used"] = self.source.upper()
+
+        out = out[
+            [
+                "symbol",
+                "industry_code",
+                "industry_name",
+                "peer_symbol",
+                "metric",
+                "peer_value",
+                "industry_median",
+                "industry_mean",
+                "percentile",
+                "zscore",
+                "rank",
+                "total_peers",
+                "source",
+                "source_used",
+            ]
+        ]
+        return out
+
+    def industry_rank(
+        self,
+        symbol: Optional[str] = None,
+        metric: str = "roe",
+        period: str = "quarter",
+        method: str = "percentile",
+    ) -> pd.DataFrame:
+        """
+        Compute rank/percentile/z-score for one metric in symbol's industry.
+        """
+        _ = method
+        target_symbol = (symbol or self.symbol or "").upper()
+        bench = self.industry_benchmark(symbol=target_symbol, metrics=[metric], period=period)
+        if bench.empty:
+            return bench
+
+        df = bench.copy()
+        mask = df["metric"] == metric
+        metric_df = df[mask].copy()
+        if metric_df.empty:
+            return bench
+
+        metric_df["rank"] = metric_df["peer_value"].rank(method="min", ascending=False)
+        n = metric_df["peer_value"].notna().sum()
+
+        if n <= 1:
+            metric_df["percentile"] = 100.0
+        else:
+            metric_df["percentile"] = metric_df["rank"].map(lambda r: ((n - r) / (n - 1)) * 100 if pd.notna(r) else None)
+
+        std = metric_df["peer_value"].std(skipna=True)
+        mean = metric_df["peer_value"].mean(skipna=True)
+        if pd.isna(std) or std == 0:
+            metric_df["zscore"] = 0.0
+        else:
+            metric_df["zscore"] = (metric_df["peer_value"] - mean) / std
+
+        bench.loc[mask, ["rank", "percentile", "zscore"]] = metric_df[["rank", "percentile", "zscore"]].values
+        return bench
+
+    def industry_peers(
+        self,
+        symbol: Optional[str] = None,
+        level: int = 4,
+        include_exchanges: Optional[list[str]] = None,
+        max_peers: int = 100,
+    ) -> pd.DataFrame:
+        """
+        Get peer symbols in the same industry as target symbol.
+
+        Args:
+            symbol: Target stock symbol.
+            level: Reserved for future ICB granularity support.
+            include_exchanges: Optional exchange filter (if exchange column exists).
+            max_peers: Maximum number of peers to return.
+        """
+        _ = level
+        target_symbol = (symbol or self.symbol or "").upper()
+        if not target_symbol:
+            raise ValueError("symbol is required for industry_peers")
+
+        listing = Listing(source='KBS')
         by_industry = listing.symbols_by_industries()
         if not isinstance(by_industry, pd.DataFrame) or by_industry.empty:
             return pd.DataFrame(
@@ -1536,8 +1521,6 @@ class Finance(BaseComponent):
 
 
 
-
-
 class Screener(BaseComponent):
     """Stock screening and filtering."""
 
@@ -1592,3 +1575,93 @@ class Fund(BaseComponent):
     def listing(self, **kwargs):
         """Get list of open funds."""
         return self.data_source.listing(**kwargs)
+
+
+class MSNComponents:
+    """Unified component access for MSN data (forex, crypto, indices)."""
+
+    def __init__(self, symbol: Optional[str] = 'EURUSD',
+                 source: str = "MSN"):
+        """
+        Initialize MSN components.
+
+        Args:
+            symbol: Symbol or symbol ID
+            source: Data source (must be MSN)
+
+        Raises:
+            ValueError: If source is not MSN
+        """
+        self.original_symbol = symbol.upper() if symbol else None
+        self.source = source.upper()
+
+        if self.source != "MSN":
+            raise ValueError("MSN components only support MSN source")
+
+        # Map symbol to MSN symbol ID if needed
+        _load_msn_const()
+        symbol_map = {
+            **_CURRENCY_ID_MAP,
+            **_GLOBAL_INDICES,
+            **_CRYPTO_ID_MAP
+        }
+        if self.original_symbol in symbol_map:
+            self.symbol = symbol_map[self.original_symbol]
+            logger.debug(
+                f"Symbol mapping: {self.original_symbol} -> {self.symbol}"
+            )
+        else:
+            self.symbol = self.original_symbol
+            logger.debug(f"No mapping for {self.original_symbol}, using as-is")
+
+        self._initialize_components()
+
+    def _initialize_components(self):
+        """Initialize quote and listing components."""
+        self.quote = Quote(self.symbol, self.source)
+        self.listing = Listing(source=self.source)
+
+    def update_symbol(self, symbol: str):
+        """Switch to a different symbol."""
+        self.symbol = symbol.upper()
+        self._initialize_components()
+
+
+class FMPComponents:
+    """Unified component access for FMP international market data."""
+
+    def __init__(self, symbol: Optional[str] = 'AAPL',
+                 source: str = "FMP",
+                 api_key: Optional[str] = None):
+        """
+        Initialize FMP components.
+
+        Args:
+            symbol: Stock symbol (e.g., 'AAPL')
+            source: Data source (must be FMP)
+            api_key: FMP API key (optional)
+
+        Raises:
+            ValueError: If source is not FMP
+        """
+        self.original_symbol = symbol.upper() if symbol else None
+        self.symbol = self.original_symbol
+        self.source = source.upper()
+        self.api_key = api_key
+
+        if self.source != "FMP":
+            raise ValueError("FMP components only support FMP source")
+
+        self._initialize_components()
+
+    def _initialize_components(self):
+        """Initialize all FMP data access components."""
+        self.quote = Quote(self.symbol, self.source)
+        self.listing = Listing(source=self.source)
+        self.company = Company(self.symbol, source=self.source)
+        self.finance = Finance(self.symbol, source=self.source)
+
+    def update_symbol(self, symbol: str):
+        """Switch to a different symbol."""
+        self.symbol = symbol.upper()
+        self._initialize_components()
