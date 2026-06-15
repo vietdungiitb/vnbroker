@@ -62,10 +62,10 @@ Dự án yêu cầu Python `>=3.10`.
 ```python
 from vnbroker import Vnbroker
 
-# DEV: Gateway chạy local (http://localhost:8000)
+# DEV: Gateway chạy local (http://localhost)
 vn = Vnbroker(
     pat_key="vninvest_pat_dev_free_default_unregistered_key",  # Default PAT
-    gateway_url="http://localhost:8000"
+    gateway_url="http://localhost"
 )
 
 # PRODUCTION: Gateway production (https://saas.edusuccess.vn)
@@ -89,7 +89,7 @@ news = acb.news.latest()
 > **Lưu ý:** Chỉ hỗ trợ `source="GATEWAY"` hoặc `source="AUTO"`. Các nguồn trực tiếp cũ (KBS, VCI, TCBS, DNSE, MSN) đã bị loại bỏ cho dữ liệu thị trường.
 > 
 > **Gateway URLs:**
-> - **Dev:** `http://localhost:8000` (mặc định)
+> - **Dev:** `http://localhost` (mặc định, port 80)
 > - **Production:** `https://saas.edusuccess.vn`
 
 ### 2. Private Brokerage (Bypass Gateway — trực tiếp API Broker)
