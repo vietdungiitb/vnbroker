@@ -1,12 +1,11 @@
 """Quote module for KB Securities (KBS) data source."""
 
-import os
 import statistics
 import time
 import pandas as pd
 import json
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Union, List
 from vnbroker.core.utils.execution import agg_execution
 from vnbroker.core.models import TickerModel
@@ -25,9 +24,7 @@ from vnbroker.core.adaptive_controller import (
 )
 from vnbroker.core.registry import ProviderRegistry  # noqa: E402, F401
 from vnbroker.explorer.kbs.const import (
-    _IIS_BASE_URL, _SAS_HISTORICAL_QUOTES_URL,
-    _OHLC_MAP, _OHLC_DTYPE, _INTERVAL_MAP, _RESAMPLE_MAP,
-    _INTRADAY_MAP, _INTRADAY_DTYPE, _INDEX_MAPPING
+    _IIS_BASE_URL, _OHLC_MAP, _OHLC_DTYPE, _INTERVAL_MAP, _INTRADAY_MAP, _INTRADAY_DTYPE, _INDEX_MAPPING
 )
 
 logger = get_logger(__name__)
@@ -734,5 +731,4 @@ class Quote:
 
 
 # Register KBS Quote provider
-from vnbroker.core.registry import ProviderRegistry  # noqa: E402, F401
 ProviderRegistry.register('quote', 'kbs', Quote)

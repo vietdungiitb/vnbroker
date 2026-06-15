@@ -1,9 +1,7 @@
 """Company module for KB Securities (KBS) data source."""
 
-import json
 import pandas as pd
 from typing import Dict, Optional, List
-import re
 from vnbroker.core.utils.execution import agg_execution
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import get_asset_type, camel_to_snake
@@ -11,8 +9,7 @@ from vnbroker.core.utils.transform import clean_html_dict
 from vnbroker.core.utils.client import send_request, ProxyConfig
 from vnbroker.core.utils.user_agent import get_headers
 from vnbroker.explorer.kbs.const import (
-    _STOCK_INFO_URL, _IIS_BASE_URL, _SAS_NEWS_URL,
-    _PROFILE_MAP, _EVENT_TYPE,
+    _STOCK_INFO_URL, _EVENT_TYPE,
     _COMPANY_PROFILE_MAP, _SUBSIDIARIES_MAP, _LEADERS_MAP,
     _OWNERSHIP_MAP, _SHAREHOLDERS_MAP, _CHARTER_CAPITAL_MAP,
     _LABOR_STRUCTURE_MAP, _EXCHANGE_CODE_MAP

@@ -31,7 +31,6 @@ from vnbroker.broker.exceptions import (
     BrokerOrderError,
     BrokerPermissionError,
     BrokerRateLimitError,
-    BrokerSessionExpiredError,
     BrokerValidationError,
 )
 from vnbroker.broker.security.credentials import TCBSCredentialConfig

@@ -2,10 +2,9 @@
 # Reference: https://github.com/vietdungiitb/vnbroker/blob/legacy/vnbroker/funds.py
 # Shoutout to andrey_jef for the contribution.
 
-import json
 import pandas as pd
 from pandas import json_normalize
-from typing import Union, List
+from typing import List
 from datetime import datetime
 from vnbroker.explorer.fmarket.const import _BASE_URL, _FUND_TYPE_MAPPING, _FUND_LIST_COLUMNS, _FUND_LIST_MAPPING
 from vnbroker.core.utils.logger import get_logger

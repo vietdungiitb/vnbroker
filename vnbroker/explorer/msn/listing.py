@@ -1,7 +1,6 @@
 """Listing module."""
 
 from typing import Optional
-from datetime import datetime
 import pandas as pd
 import requests
 import json

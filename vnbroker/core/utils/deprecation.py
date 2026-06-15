@@ -7,7 +7,7 @@ similar to pandas deprecation warnings.
 
 import warnings
 import functools
-from typing import Optional, Callable, Any, Type
+from typing import Optional, Callable, Type
 from datetime import datetime
 
 from vnbroker.core.exceptions import DeprecationWarning as vnbrokerDeprecationWarning

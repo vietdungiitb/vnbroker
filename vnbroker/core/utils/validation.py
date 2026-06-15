@@ -8,7 +8,6 @@ circular imports.
 from typing import Dict, Optional, Tuple, Any
 from vnbroker.core.utils.parser import get_asset_type
 from datetime import datetime, timedelta
-import re
 
 
 def validate_symbol(

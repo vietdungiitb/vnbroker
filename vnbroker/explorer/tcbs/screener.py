@@ -5,7 +5,6 @@ This module provides functionality to screen stocks based on various parameters
 using TCBS data source.
 """
 
-import json
 from typing import Dict, Any, Optional
 
 import pandas as pd

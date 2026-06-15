@@ -408,7 +408,6 @@ class TestHTTPErrorHandling:
         assert "NETWORK_TIMEOUT" in exc_info.value.code
 
     def test_expired_session_raises_session_expired_error(self):
-        from datetime import timedelta
         session = _make_session()
         # Đặt expires_at về quá khứ
         session._token_expires_at = datetime(2000, 1, 1, tzinfo=timezone.utc)

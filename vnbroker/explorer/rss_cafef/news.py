@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
-from typing import List, Optional
+from typing import List
 
 import pandas as pd
 import requests

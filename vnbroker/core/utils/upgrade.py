@@ -3,9 +3,6 @@ import requests
 from packaging import version
 from importlib.metadata import version as get_version
 import sys
-import os
-import re
-import time
 
 # Try to import IPython for Jupyter notebook/Google Colab support
 try:
@@ -17,8 +14,6 @@ except ImportError:
 # Import environment utilities
 from vnbroker.core.utils.env import (
     detect_venv,
-    get_python_executable,
-    get_python_version_string,
 )
 
 # Import version requirements and notices from config

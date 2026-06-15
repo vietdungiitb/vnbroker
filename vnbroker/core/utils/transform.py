@@ -3,10 +3,9 @@
 import os
 import re
 import pytz
-import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta, time
 from vnbroker.core.utils.parser import localize_timestamp
 from vnbroker.core.utils.logger import get_logger
@@ -806,7 +805,6 @@ def drop_cols_by_pattern(df, patterns, regex=True, case_sensitive=False):
     # Drop columns ending with '_id' or '_key'
     df = drop_cols_by_pattern(df, ['_id$', '_key$'])
     """
-    import re
     
     # Convert single pattern to list
     if isinstance(patterns, str):

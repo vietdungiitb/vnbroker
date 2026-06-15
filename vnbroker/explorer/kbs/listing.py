@@ -1,7 +1,6 @@
 """Listing module for KB Securities (KBS) data source."""
 
-from typing import Dict, List, Optional, Union
-import json
+from typing import Dict, List, Optional
 import pandas as pd
 from vnbroker.core.utils.execution import agg_execution
 from vnbroker.core.utils.logger import get_logger
@@ -9,7 +8,7 @@ from vnbroker.core.utils.client import send_request, ProxyConfig
 from vnbroker.core.utils.user_agent import get_headers
 from vnbroker.common import indices as market_indices
 from vnbroker.explorer.kbs.const import (
-    _IIS_BASE_URL, _SEARCH_URL, _SECTOR_ALL_URL, _SECTOR_STOCK_URL, _INDEX_URL, _GROUP_CODE, _INDUSTRY_CODE
+    _IIS_BASE_URL, _SEARCH_URL, _SECTOR_ALL_URL, _SECTOR_STOCK_URL, _INDEX_URL, _GROUP_CODE
 )
 
 logger = get_logger(__name__)
@@ -286,7 +285,7 @@ class Listing:
             >>> groups = kbs.get_supported_groups()
         """
         if group not in _GROUP_CODE:
-            raise ValueError(f"Nhóm không hợp lệ. Sử dụng get_supported_groups() để xem danh sách nhóm được hỗ trợ.")
+            raise ValueError("Nhóm không hợp lệ. Sử dụng get_supported_groups() để xem danh sách nhóm được hỗ trợ.")
 
         symbols = self._get_symbols_by_group_internal(
             group=group,

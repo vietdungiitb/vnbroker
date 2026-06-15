@@ -4,7 +4,6 @@ BaseBrokerClient — Abstract base class cho mọi broker client.
 Định nghĩa interface contract; không chứa implementation logic.
 """
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class BaseBrokerClient(ABC):

@@ -23,9 +23,7 @@ from typing import Optional, Union
 
 import pandas as pd
 
-from vnbroker.broker.exceptions import BrokerValidationError
 from vnbroker.broker.security.credentials import TCBSCredentialConfig
-from vnbroker.broker.security.guards import write_gate
 from vnbroker.broker.session import BrokerSession
 from vnbroker.broker.tcbs.account import TCBSAccountService
 from vnbroker.broker.tcbs.auth import TCBSAuthService
@@ -72,7 +70,6 @@ class TCBSBrokerClient:
             base_url: Override base URL. Nếu None → đọc từ env hoặc dùng mặc định.
             custody_code: Mã lưu ký 105C format (tùy chọn). Nếu None → đọc từ env.
         """
-        from vnbroker.broker.security.credentials import TCBSCredentialConfig  # noqa: PLC0415
 
         self._config = TCBSCredentialConfig(
             api_key=api_key or _resolve_api_key(),

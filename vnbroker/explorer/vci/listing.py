@@ -2,9 +2,7 @@
 
 # Đồ thị giá, đồ thị dư mua dư bán, đồ thị mức giá vs khối lượng, thống kê hành vi thị tường
 from typing import Optional, List
-from datetime import datetime
-from .const import _GROUP_CODE, _TRADING_URL, _GRAPHQL_URL, _GROUP_CODE_MAPPING, _VCI_INDEX_MAPPING
-import requests
+from .const import _GROUP_CODE, _TRADING_URL, _GROUP_CODE_MAPPING, _VCI_INDEX_MAPPING
 import pandas as pd
 from vnbroker.core.utils.parser import camel_to_snake
 from vnbroker.core.utils.logger import get_logger

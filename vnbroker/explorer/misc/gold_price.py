@@ -1,8 +1,6 @@
 import requests
-import json
 import pandas as pd
 from datetime import datetime
-from bs4 import BeautifulSoup
 from vnbroker.core.utils.user_agent import get_headers
 from vnbroker.core.utils.execution import optimize_execution
 

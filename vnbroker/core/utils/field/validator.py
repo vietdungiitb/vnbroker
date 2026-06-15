@@ -6,7 +6,7 @@ and generating validation reports.
 """
 
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional
 from .mapper import FieldMapper
 
 logger = logging.getLogger(__name__)
@@ -143,7 +143,7 @@ class FieldValidator:
             avg_coverage = sum(v.get('coverage_pct', 0) for v in validations) / len(validations)
             report_lines.append(f"Average Coverage: {avg_coverage:.1f}%")
         
-        report_lines.append(f"\n--- Validation Details ---")
+        report_lines.append("\n--- Validation Details ---")
         
         for i, validation in enumerate(validations, 1):
             report_lines.append(f"\n{i}. {validation.get('report_type', 'Unknown')}")
@@ -379,7 +379,7 @@ class FieldMismatchDetector:
             for report_type, count in sorted(summary['report_type_counts'].items()):
                 report_lines.append(f"  {report_type}: {count}")
         
-        report_lines.append(f"\n--- Sample Mismatches (First 10) ---")
+        report_lines.append("\n--- Sample Mismatches (First 10) ---")
         for i, mismatch in enumerate(self.mismatches[:10]):
             report_lines.append(
                 f"{i+1}. {mismatch['symbol']} ({mismatch['report_type']}/{mismatch['period_type']}): "

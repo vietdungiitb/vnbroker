@@ -1,12 +1,11 @@
 """Financial module for KB Securities (KBS) data source."""
 
-import json
 import pandas as pd
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Optional, List, Dict, Union
 from enum import Enum
 from vnbroker.core.utils.execution import agg_execution
 from vnbroker.core.utils.logger import get_logger
-from vnbroker.core.utils.parser import get_asset_type, normalize_english_text_to_snake_case
+from vnbroker.core.utils.parser import get_asset_type
 from vnbroker.core.utils.field import FieldHandler
 from vnbroker.core.utils.client import send_request, ProxyConfig
 from vnbroker.core.utils.user_agent import get_headers
@@ -16,8 +15,6 @@ from vnbroker.explorer.kbs.const import (
     _BALANCE_SHEET_MAP,
     _CASH_FLOW_MAP,
     _FINANCIAL_RATIOS_MAP,
-    _FINANCIAL_REPORT_TYPE_MAP,
-    _FINANCIAL_PERIOD_TYPE_MAP,
 )
 
 logger = get_logger(__name__)

@@ -3,7 +3,6 @@ Unit tests S2: TCBSCredentialConfig, resolve_tcbs_credentials, Redactor.
 """
 import os
 import pytest
-from unittest.mock import patch
 
 from vnbroker.broker.security.credentials import (
     TCBSCredentialConfig,
@@ -11,7 +10,7 @@ from vnbroker.broker.security.credentials import (
     _ENV_PRIORITY,
     _DEFAULT_BASE_URL,
 )
-from vnbroker.broker.security.redaction import Redactor, SENSITIVE_KEYS
+from vnbroker.broker.security.redaction import Redactor
 
 
 # ─── TCBSCredentialConfig ────────────────────────────────────────────────────

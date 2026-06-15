@@ -36,7 +36,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -693,7 +693,7 @@ def main() -> int:
         else:
             print("  [SKIP] Bỏ qua auth — chạy public endpoints (có thể gặp 401).")
     elif jwt_token:
-        print(f"\n[Auth] Dùng JWT từ env (TCBS_AUTH_TOKEN)")
+        print("\n[Auth] Dùng JWT từ env (TCBS_AUTH_TOKEN)")
         # Pre-create broker client with injected token
         if api_key:
             try:
@@ -716,9 +716,9 @@ def main() -> int:
         print(f"  Interval    : {args.interval}")
         print(f"  Runs/level  : {args.runs}")
         print(f"  Concurrency : {concurrency_levels}")
-        print(f"  [NOTE] TCBS stock-insight domain (apiextaws.tcbs.com.vn) yêu cầu")
-        print(f"         session token riêng biệt — OpenAPI JWT không dùng được ở đây.")
-        print(f"         401 là expected nếu chỉ có OpenAPI key.")
+        print("  [NOTE] TCBS stock-insight domain (apiextaws.tcbs.com.vn) yêu cầu")
+        print("         session token riêng biệt — OpenAPI JWT không dùng được ở đây.")
+        print("         401 là expected nếu chỉ có OpenAPI key.")
         print()
 
         # Listing benchmark
@@ -749,14 +749,14 @@ def main() -> int:
                 default=None,
             )
             if best_rps:
-                print(f"\n  Best Quote throughput:")
+                print("\n  Best Quote throughput:")
                 print("  " + format_explorer_row(best_rps))
 
     # ──────────────────────────────────────────────────────────────────────────
     # BROKER LANE
     # ──────────────────────────────────────────────────────────────────────────
     if run_broker:
-        print(f"\n[Broker Lane]")
+        print("\n[Broker Lane]")
 
         api_key = _resolve_api_key()
         if not api_key:
@@ -845,7 +845,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     # Fix Unicode output on Windows (cp1252 → utf-8)
-    import io
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     if hasattr(sys.stderr, "reconfigure"):

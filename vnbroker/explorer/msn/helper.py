@@ -1,6 +1,5 @@
 import requests
 from datetime import datetime, timedelta
-from vnbroker.core.utils.user_agent import get_headers
 from vnbroker.explorer.msn.const import _CURRENCY_ID_MAP, _CRYPTO_ID_MAP, _GLOBAL_INDICES
 from vnbroker.core.utils.logger import get_logger
 

@@ -25,7 +25,6 @@ import requests
 from vnbroker.broker.exceptions import (
     BrokerAuthError,
     BrokerNetworkError,
-    BrokerPermissionError,
     BrokerRateLimitError,
     BrokerSessionExpiredError,
     BrokerValidationError,

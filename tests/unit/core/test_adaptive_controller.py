@@ -1,8 +1,6 @@
 """Unit tests for the shared AdaptiveController and GlobalPressure."""
 
-import os
 
-import pytest
 
 from vnbroker.core.adaptive_controller import (
     AdaptiveController,

@@ -4,15 +4,12 @@
 # hành vi thị tường
 import pandas as pd
 import requests
-from datetime import datetime
 from typing import Optional, Dict
 from vnbroker.core.utils.execution import optimize_execution
 from vnbroker.core.utils.transform import normalize_price_columns
-from vnbroker.core.types import TimeFrame
 from vnbroker.core.utils.interval import normalize_interval
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.user_agent import get_headers
-from vnbroker.explorer.msn.listing import Listing
 from vnbroker.explorer.msn.helper import msn_apikey
 from vnbroker.core.models import TickerModel
 from vnbroker.explorer.msn.helper import get_asset_type

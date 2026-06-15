@@ -9,7 +9,6 @@ RULE: request_id do caller generate (UUID4); store chỉ detect duplicate.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 
 class IdempotencyStore:

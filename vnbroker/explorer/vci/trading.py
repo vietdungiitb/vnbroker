@@ -1,7 +1,6 @@
 # Các thông tin về giao dịch, sở hữu của các bên (đối tượng tham gia thị trường)
 
-from typing import List, Dict, Optional, Union
-from datetime import datetime
+from typing import List, Optional, Union
 from .const import _TRADING_URL
 import json
 import pandas as pd

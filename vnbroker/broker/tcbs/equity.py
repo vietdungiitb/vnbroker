@@ -37,7 +37,6 @@ from vnbroker.broker.exceptions import (
 )
 from vnbroker.broker.security.credentials import TCBSCredentialConfig
 from vnbroker.broker.security.guards import write_gate
-from vnbroker.broker.security.redaction import Redactor
 from vnbroker.broker.session import BrokerSession
 from vnbroker.broker.tcbs.account import _validate_account_no
 

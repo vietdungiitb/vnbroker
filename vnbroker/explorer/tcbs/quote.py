@@ -1,6 +1,5 @@
 """History module for TCBS."""
 
-import requests
 import pandas as pd
 from typing import Dict, Optional, Union
 from datetime import datetime, timedelta

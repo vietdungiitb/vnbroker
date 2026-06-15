@@ -4,7 +4,7 @@ Module quản lý thông tin công ty từ nguồn dữ liệu VCI.
 
 import json
 import pandas as pd
-from typing import Dict, Optional, Union, List
+from typing import Dict, Optional, List
 from vnbroker.core.utils import client
 from vnbroker.core.utils.client import ProxyConfig
 from vnbroker.core.utils.logger import get_logger

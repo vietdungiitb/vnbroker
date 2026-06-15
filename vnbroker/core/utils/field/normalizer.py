@@ -5,9 +5,8 @@ Provides tools for converting field names to standardized formats
 including snake_case conversion and Vietnamese text handling.
 """
 
-import re
 from enum import Enum
-from typing import Dict, Optional, Tuple
+from typing import Dict
 
 # Import Vietnamese text normalization functions from parser module for consistency
 from vnbroker.core.utils.parser import VIETNAMESE_CHAR_MAP, normalize_vietnamese_text_to_snake_case, normalize_english_text_to_snake_case
