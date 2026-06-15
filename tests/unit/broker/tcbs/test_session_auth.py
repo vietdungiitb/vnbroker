@@ -155,9 +155,10 @@ class TestTCBSAuthServiceAuthenticate:
         service, session = _make_auth_service()
         mock_resp = MagicMock()
         mock_resp.status_code = 200
+        future_date = (datetime.now(tz=timezone.utc) + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
         mock_resp.json.return_value = {
             "token": "jwt.real-token",
-            "expiredTime": "2026-05-20T18:00:00Z",
+            "expiredTime": future_date,
         }
         with patch("requests.post", return_value=mock_resp):
             service.authenticate(otp="123456")

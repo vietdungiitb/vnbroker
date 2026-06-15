@@ -16,18 +16,7 @@ class Vnbroker:
         actual_class = _get_vnbroker()
         return actual_class(*args, **kwargs)
 
-# Sử dụng các lớp từ vnbroker tiêu chuẩn
-from .api.quote import Quote
-from .api.company import Company
-from .api.financial import Finance
-from .api.listing import Listing
-from .api.trading import Trading
-from .api.screener import Screener
-from .api.news import News
-from .api.snapshot import MarketSnapshot
-from .explorer.fmarket import Fund
-
-# Market constants
+# Market constants (read-only, no PAT needed)
 from .constants import (
     INDICES_INFO,
     INDICES_MAP,
@@ -58,14 +47,93 @@ def _ensure_explorer_modules_loaded():
         import warnings
         warnings.warn(f"Failed to load explorer modules: {e}", stacklevel=2)
 
+# ============================================================
+# PAT-Only Architecture: Direct API access is DEPRECATED
+# All data access MUST go through Vnbroker with valid PAT
+# ============================================================
+
+import warnings as _warnings
+
+def _deprecated_direct_access(class_name: str):
+    """Raise deprecation warning for direct low-level API access."""
+    _warnings.warn(
+        f"Direct access to '{class_name}' is DEPRECATED and will be removed in v2.0. "
+        f"All data access must go through Vnbroker with a valid PAT key. "
+        f"Use: Vnbroker(pat_key='vninvest_pat_...').stock('SYMBOL').{class_name.lower()}()",
+        DeprecationWarning,
+        stacklevel=3
+    )
+
+# Lazy deprecated proxies for backward compatibility (will be removed in v2.0)
+class _DeprecatedQuote:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("Quote")
+        from .api.quote import Quote as _Quote
+        return _Quote(*args, **kwargs)
+
+class _DeprecatedCompany:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("Company")
+        from .api.company import Company as _Company
+        return _Company(*args, **kwargs)
+
+class _DeprecatedFinance:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("Finance")
+        from .api.financial import Finance as _Finance
+        return _Finance(*args, **kwargs)
+
+class _DeprecatedListing:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("Listing")
+        from .api.listing import Listing as _Listing
+        return _Listing(*args, **kwargs)
+
+class _DeprecatedTrading:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("Trading")
+        from .api.trading import Trading as _Trading
+        return _Trading(*args, **kwargs)
+
+
+
+class _DeprecatedNews:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("News")
+        from .api.news import News as _News
+        return _News(*args, **kwargs)
+
+class _DeprecatedMarketSnapshot:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("MarketSnapshot")
+        from .api.snapshot import MarketSnapshot as _MarketSnapshot
+        return _MarketSnapshot(*args, **kwargs)
+
+class _DeprecatedFund:
+    def __new__(cls, *args, **kwargs):
+        _deprecated_direct_access("Fund")
+        from .explorer.fmarket import Fund as _Fund
+        return _Fund(*args, **kwargs)
+
+# Export deprecated classes with warning
+Quote = _DeprecatedQuote
+Company = _DeprecatedCompany
+Finance = _DeprecatedFinance
+Listing = _DeprecatedListing
+Trading = _DeprecatedTrading
+
+News = _DeprecatedNews
+MarketSnapshot = _DeprecatedMarketSnapshot
+Fund = _DeprecatedFund
+
 __all__ = [
-    "Vnbroker",
+    "Vnbroker",  # ONLY supported entry point
+    # Deprecated (will be removed in v2.0):
     "Quote",
     "Listing",
     "Company",
     "Finance",
     "Trading",
-    "Screener",
     "News",
     "MarketSnapshot",
     "Fund",

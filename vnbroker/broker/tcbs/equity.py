@@ -45,6 +45,7 @@ _logger = logging.getLogger("vnbroker.broker.tcbs.equity")
 _PATHS = {
     "orders": "/aion/v1/accounts/{accountNo}/orders",
     "order_detail": "/aion/v1/accounts/{accountNo}/orders/{orderID}",
+    "order_history": "/aion/v1/accounts/{accountNo}/orders/history",
     "matching_details": "/aion/v1/accounts/{accountNo}/matching-details",
     "se": "/aion/v1/accounts/{accountNo}/se",
     "place_order": "/akhlys/v1/accounts/{accountNo}/orders",
@@ -76,6 +77,7 @@ _EXECUTION_COLUMNS = {
     "quoteQtty": "quote_quantity",
     "quotePrice": "quote_price",
     "tradeId": "trade_id",
+    "executionId": "execution_id",
     "qtty": "executed_quantity",
     "price": "executed_price",
     "tradeDate": "trade_date",
@@ -92,6 +94,10 @@ _HOLDING_COLUMNS = {
     "t2": "t2",
     "t3": "t3",
     "mortgaged": "mortgaged",
+    "averageCost": "average_cost",
+    "currentPrice": "market_price",
+    "unrealizedPnl": "unrealized_pnl",
+    "unrealizedPnlPercent": "unrealized_pnl_pct",
 }
 
 
@@ -111,12 +117,16 @@ class TCBSEquityService:
     def get_orders(
         self,
         account_no: str,
+        size: int = 100,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
         GET /aion/v1/accounts/{accountNo}/orders
 
         Trả về sổ lệnh trong ngày. TCBS không hỗ trợ phân trang trên endpoint này.
+
+        Args:
+            size: Số lượng lệnh tối đa (mặc định 100).
 
         DataFrame columns (raw=False):
             order_id, symbol, side (category: NB/NS),
@@ -127,12 +137,59 @@ class TCBSEquityService:
         """
         _validate_account_no(account_no)
         path = _PATHS["orders"].format(accountNo=account_no)
-        data = self._get(path)
+        data = self._get(path, params={"size": size})
 
         if raw:
             return data
 
         # OrderSearchResponse: {object, pageSize, pageIndex, totalCount, data: [OrderInfo]}
+        records = data.get("data", []) if isinstance(data, dict) else data
+        df = _build_order_df(records)
+        return df
+
+    def get_order_history(
+        self,
+        account_no: str,
+        from_date: str = "",
+        to_date: str = "",
+        size: int = 100,
+        symbol: str = "",
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /aion/v1/accounts/{accountNo}/orders/history
+
+        Trả về lịch sử lệnh trong khoảng thời gian.
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            from_date: Ngày bắt đầu (YYYY-MM-DD).
+            to_date: Ngày kết thúc (YYYY-MM-DD).
+            size: Số lượng lệnh tối đa (mặc định 100).
+            symbol: Lọc theo mã chứng khoán (tùy chọn).
+            raw: True → trả về dict nguyên gốc.
+
+        DataFrame columns (raw=False):
+            order_id, symbol, side (category: NB/NS),
+            order_type (category: LO/ATO/ATC/MP…),
+            quantity (Int64), filled_quantity (Int64),
+            price (float64), status (category),
+            tx_date (str), tx_time (str)
+        """
+        _validate_account_no(account_no)
+        path = _PATHS["order_history"].format(accountNo=account_no)
+        params = {"size": size}
+        if from_date:
+            params["fromDate"] = from_date
+        if to_date:
+            params["toDate"] = to_date
+        if symbol:
+            params["symbol"] = symbol.upper()
+        data = self._get(path, params=params)
+
+        if raw:
+            return data
+
         records = data.get("data", []) if isinstance(data, dict) else data
         df = _build_order_df(records)
         return df
@@ -158,7 +215,14 @@ class TCBSEquityService:
         if raw:
             return data
 
-        records = data.get("data", []) if isinstance(data, dict) else ([data] if data else [])
+        # Handle both paginated response {data: [...]} and flat response {...}
+        if isinstance(data, dict) and "data" in data:
+            records = data.get("data", [])
+        else:
+            records = [data] if data else []
+        
+        if not records:
+            return pd.DataFrame(columns=list(_ORDER_COLUMNS.values()))
         df = _build_order_df(records)
         return df
 
@@ -173,11 +237,12 @@ class TCBSEquityService:
         GET /aion/v1/accounts/{accountNo}/matching-details
 
         DataFrame columns (raw=False):
-            order_id, trade_id, symbol,
+            order_id, trade_id, execution_id, symbol,
             side (category: B/S),
             quote_quantity (Int64), quote_price (float64),
             executed_quantity (Int64), executed_price (float64),
-            trade_date (str), trade_time (str)
+            trade_date (str), trade_time (str),
+            fee (float64)
         """
         _validate_account_no(account_no)
         path = _PATHS["matching_details"].format(accountNo=account_no)
@@ -189,11 +254,11 @@ class TCBSEquityService:
         # CommandMatchInformationResponse: {object, totalCount, pageSize, pageIndex, data: [...]}
         records = data.get("data", []) if isinstance(data, dict) else data
         if not records:
-            return pd.DataFrame(columns=list(_EXECUTION_COLUMNS.values()))
+            return pd.DataFrame(columns=list(_EXECUTION_COLUMNS.values()) + ["fee"])
 
         df = pd.DataFrame(records)
         df = df.rename(columns=_EXECUTION_COLUMNS)
-        df = _ensure_columns(df, _EXECUTION_COLUMNS.values())
+        df = _ensure_columns(df, list(_EXECUTION_COLUMNS.values()) + ["fee"])
         if "side" in df.columns:
             df["side"] = df["side"].astype("category")
         for col in ("quote_price", "executed_price"):
@@ -202,6 +267,9 @@ class TCBSEquityService:
         for col in ("quote_quantity", "executed_quantity"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+        if "fee" in df.columns:
+            df["fee"] = pd.to_numeric(df["fee"], errors="coerce").astype("int64")
+
         return df
 
     # ── Holdings ──────────────────────────────────────────────────────────────
@@ -222,7 +290,8 @@ class TCBSEquityService:
             symbol, sec_type (str),
             available_quantity (Int64), t0 (Int64), t1 (Int64), t2 (Int64), t3 (Int64),
             mortgaged (Int64),
-            [nếu enrich_prices=True] market_price (float64)
+            average_cost (float64), market_price (float64),
+            unrealized_pnl (float64), unrealized_pnl_pct (float64)
         """
         _validate_account_no(account_no)
         path = _PATHS["se"].format(accountNo=account_no)
@@ -243,6 +312,9 @@ class TCBSEquityService:
         for col in ("available_quantity", "t0", "t1", "t2", "t3", "mortgaged"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+        for col in ("average_cost", "market_price", "unrealized_pnl", "unrealized_pnl_pct"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
 
         if enrich_prices and not df.empty:
             symbols = ",".join(df["symbol"].dropna().tolist())
@@ -274,7 +346,9 @@ class TCBSEquityService:
         side: str,
         order_type: str,
         quantity: int,
-        price: int,
+        price: float,
+        pin_code: str,
+        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
@@ -284,7 +358,9 @@ class TCBSEquityService:
         Args:
             side: 'BUY' hoặc 'SELL' (được map sang 'NB'/'NS' theo spec).
             order_type: 'LO', 'ATO', 'ATC', 'MP', 'MTL', 'MOK', 'MAK', 'PLO'.
-            price: Giá tính theo đơn vị đồng (int).
+            price: Giá tính theo đơn vị đồng (float).
+            pin_code: Mã PIN giao dịch (bắt buộc theo TCBS spec).
+            request_id: ID idempotency key (bắt buộc theo TCBS spec).
             dry_run: True (default) → không gửi HTTP, trả về dry_run dict.
                      False → gửi thực. Yêu cầu session.enable_write() trước.
 
@@ -292,9 +368,9 @@ class TCBSEquityService:
             {'error': '0', 'message': '...', 'orderId': '...'} khi dry_run=False.
         """
         _validate_account_no(account_no)
-        _validate_order_input(symbol, side, order_type, quantity, price)
+        _validate_order_input(symbol, side, order_type, quantity, price, request_id)
         return self._gated_place_order(
-            account_no, symbol, side, order_type, quantity, price,
+            account_no, symbol, side, order_type, quantity, price, pin_code, request_id,
             dry_run=dry_run,
         )
 
@@ -306,7 +382,9 @@ class TCBSEquityService:
         side: str,
         order_type: str,
         quantity: int,
-        price: int,
+        price: float,
+        pin_code: str,
+        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
@@ -317,6 +395,8 @@ class TCBSEquityService:
             "priceType": order_type.upper(),
             "quantity": quantity,
             "price": int(price),
+            "pinCode": pin_code,
+            "requestId": request_id,
         }
         url = self._config.base_url.rstrip("/") + _PATHS["place_order"].format(accountNo=account_no)
         return self._post(url, payload)
@@ -326,7 +406,8 @@ class TCBSEquityService:
         account_no: str,
         order_id: str,
         quantity: int,
-        price: int,
+        price: float,
+        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
@@ -334,8 +415,9 @@ class TCBSEquityService:
         PUT /akhlys/v1/accounts/{accountNo}/orders/{orderId}
 
         Args:
-            price: Giá mới (int, đơn vị đồng).
+            price: Giá mới (float, đơn vị đồng).
             quantity: Khối lượng mới.
+            request_id: ID idempotency key (bắt buộc theo TCBS spec).
         """
         _validate_account_no(account_no)
         if not order_id or not order_id.strip():
@@ -353,7 +435,12 @@ class TCBSEquityService:
                 message="price phải >= 0.",
                 code="INVALID_PRICE",
             )
-        return self._gated_modify_order(account_no, order_id, quantity, price, dry_run=dry_run)
+        if not request_id or not request_id.strip():
+            raise BrokerValidationError(
+                message="request_id là bắt buộc cho write methods (idempotency key).",
+                code="MISSING_REQUEST_ID",
+            )
+        return self._gated_modify_order(account_no, order_id, quantity, price, request_id, dry_run=dry_run)
 
     @write_gate
     def _gated_modify_order(
@@ -361,11 +448,16 @@ class TCBSEquityService:
         account_no: str,
         order_id: str,
         quantity: int,
-        price: int,
+        price: float,
+        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
-        payload = {"quantity": quantity, "price": int(price)}
+        payload = {
+            "quantity": quantity,
+            "price": int(price),
+            "requestId": request_id,
+        }
         url = self._config.base_url.rstrip("/") + _PATHS["modify_order"].format(
             accountNo=account_no, orderId=order_id
         )
@@ -375,13 +467,14 @@ class TCBSEquityService:
         self,
         account_no: str,
         order_id: str,
+        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
         """
         PUT /akhlys/v1/accounts/{accountNo}/cancel-orders
 
-        Body: {ordersList: [{orderID: order_id}]}
+        Body: {ordersList: [{orderID: order_id}], requestId: request_id}
         Hỗ trợ huỷ nhiều lệnh: truyền list order_id qua cancel_orders().
         """
         _validate_account_no(account_no)
@@ -390,12 +483,18 @@ class TCBSEquityService:
                 message="order_id không được để trống.",
                 code="INVALID_ORDER_ID",
             )
-        return self._gated_cancel_order(account_no, [order_id], dry_run=dry_run)
+        if not request_id or not request_id.strip():
+            raise BrokerValidationError(
+                message="request_id là bắt buộc cho write methods (idempotency key).",
+                code="MISSING_REQUEST_ID",
+            )
+        return self._gated_cancel_order(account_no, [order_id], request_id, dry_run=dry_run)
 
     def cancel_orders(
         self,
         account_no: str,
         order_ids: list[str],
+        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
@@ -410,17 +509,26 @@ class TCBSEquityService:
                 message="order_ids không được rỗng.",
                 code="INVALID_ORDER_ID",
             )
-        return self._gated_cancel_order(account_no, order_ids, dry_run=dry_run)
+        if not request_id or not request_id.strip():
+            raise BrokerValidationError(
+                message="request_id là bắt buộc cho write methods (idempotency key).",
+                code="MISSING_REQUEST_ID",
+            )
+        return self._gated_cancel_order(account_no, order_ids, request_id, dry_run=dry_run)
 
     @write_gate
     def _gated_cancel_order(
         self,
         account_no: str,
         order_ids: list[str],
+        request_id: str,
         *,
         dry_run: bool = True,
     ) -> dict:
-        payload = {"ordersList": [{"orderID": oid} for oid in order_ids]}
+        payload = {
+            "ordersList": [{"orderID": oid} for oid in order_ids],
+            "requestId": request_id,
+        }
         url = self._config.base_url.rstrip("/") + _PATHS["cancel_orders"].format(accountNo=account_no)
         return self._put(url, payload)
 
@@ -607,7 +715,8 @@ def _validate_order_input(
     side: str,
     order_type: str,
     quantity: int,
-    price: int,
+    price: float,
+    request_id: str,
 ) -> None:
     """Validate đầu vào cho place_order theo TCBS iFlash spec."""
     if not symbol or not symbol.strip():
@@ -635,7 +744,7 @@ def _validate_order_input(
             message="price phải >= 0.",
             code="INVALID_PRICE",
         )
-    if False:  # noqa — sentinel để giữ hàm kết thúc đúng
+    if not request_id or not request_id.strip():
         raise BrokerValidationError(
             message="request_id là bắt buộc cho write methods (idempotency key).",
             code="MISSING_REQUEST_ID",

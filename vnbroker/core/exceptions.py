@@ -446,6 +446,116 @@ class TimeoutError(NetworkError):
 
 
 # ============================================================================
+# PAT AUTHENTICATION ERRORS
+# ============================================================================
+
+class AuthenticationError(vnbrokerError):
+    """Raised when PAT authentication fails (invalid/expired token)."""
+    
+    def __init__(
+        self,
+        message: str = "Authentication failed. Invalid or expired PAT token.",
+        error_code: str = "AUTH_001",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            details=details,
+        )
+
+
+class AuthorizationError(vnbrokerError):
+    """Raised when PAT token lacks required scope/permission."""
+    
+    def __init__(
+        self,
+        message: str = "Authorization failed. Token does not have required scope.",
+        required_scope: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if required_scope:
+            details["required_scope"] = required_scope
+        super().__init__(
+            message=message,
+            error_code="AUTH_002",
+            details=details,
+        )
+
+
+class QuotaExceededError(vnbrokerError):
+    """Raised when PAT quota is exceeded (daily/monthly limit)."""
+    
+    def __init__(
+        self,
+        message: str = "Quota exceeded. Daily/monthly call limit reached.",
+        quota_type: Optional[str] = None,
+        reset_time: Optional[str] = None,
+        error_code: str = "AUTH_003",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if quota_type:
+            details["quota_type"] = quota_type
+        if reset_time:
+            details["reset_time"] = reset_time
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            details=details,
+        )
+
+
+class InvalidPATFormatError(AuthenticationError):
+    """Raised when PAT token format is invalid."""
+    
+    def __init__(
+        self,
+        message: str = "Invalid PAT format. Token must start with 'vninvest_pat_'.",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code="AUTH_004",
+            details=details,
+        )
+
+
+class GatewayUnavailableError(NetworkError):
+    """Raised when Gateway is unreachable and fallback is triggered."""
+    
+    def __init__(
+        self,
+        message: str = "Gateway unavailable. Switching to emergency fallback mode.",
+        fallback_enabled: bool = True,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        details["fallback_enabled"] = fallback_enabled
+        super().__init__(
+            message=message,
+            details=details,
+        )
+
+
+class EmergencyQuotaExceededError(QuotaExceededError):
+    """Raised when emergency fallback quota (10 calls/day) is exceeded."""
+    
+    def __init__(
+        self,
+        message: str = "Emergency fallback quota exceeded (10 calls/day). Gateway may be down.",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            quota_type="emergency_fallback",
+            error_code="AUTH_005",
+            details=details,
+        )
+
+
+# ============================================================================
 # DEPRECATION WARNING
 # ============================================================================
 
@@ -476,6 +586,12 @@ ERROR_CODES = {
     "NETWORK_001": "Network request failed",
     "NETWORK_002": "Request temporarily throttled by provider",
     "NETWORK_003": "Request timeout",
+    # PAT Authentication errors
+    "AUTH_001": "Authentication failed - invalid/expired PAT",
+    "AUTH_002": "Authorization failed - insufficient scope",
+    "AUTH_003": "Quota exceeded - daily/monthly limit reached",
+    "AUTH_004": "Invalid PAT format",
+    "AUTH_005": "Emergency fallback quota exceeded",
 }
 
 

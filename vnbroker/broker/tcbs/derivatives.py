@@ -146,6 +146,7 @@ class TCBSDerivativesService:
         symbol: Optional[str] = None,
         page_no: int = 0,
         page_size: int = 50,
+        size: Optional[int] = None,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
         """
@@ -154,6 +155,7 @@ class TCBSDerivativesService:
         Args:
             account_id: Custody code (105C format).
             symbol: Lọc theo mã cụ thể (tùy chọn).
+            size: Alias cho page_size (để tương thích với test).
 
         DataFrame columns (raw=False): account_id, order_id, symbol, side (category),
             order_type (category), quantity (Int64), price (float64),
@@ -165,7 +167,9 @@ class TCBSDerivativesService:
                 message="account_id (custody code) không được để trống.",
                 code="INVALID_ACCOUNT_ID",
             )
-        params: dict = {"accountId": account_id, "pageNo": page_no, "pageSize": page_size}
+        # Support both page_size and size params
+        effective_page_size = size if size is not None else page_size
+        params: dict = {"accountId": account_id, "pageNo": page_no, "pageSize": effective_page_size}
         if symbol:
             params["symbol"] = symbol.upper()
 

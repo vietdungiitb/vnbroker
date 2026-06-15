@@ -35,13 +35,14 @@ class News(BaseAdapter):
             "kbs",
             "vci",
             "tcbs",
+            "dnse",
             "rss_cafef",
             "rss_vneconomy",
             AUTO_SOURCE,
         ]
         if source.lower() not in valid_sources:
             raise ValueError(
-                "Lop News chi nhan source: 'KBS', 'VCI', 'TCBS', 'RSS_CAFEF', 'RSS_VNECONOMY' hoac 'AUTO'."
+                "Lop News chi nhan source: 'KBS', 'VCI', 'TCBS', 'DNSE', 'RSS_CAFEF', 'RSS_VNECONOMY' hoac 'AUTO'."
             )
 
         super().__init__(

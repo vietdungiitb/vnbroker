@@ -34,6 +34,7 @@ _PATHS = {
     "profile": "/eros/v2/get-profile/by-username/{custodyCode}",
     "balance": "/aion/v1/accounts/{accountNo}/cashInvestments",
     "purchasing_power": "/aion/v1/accounts/{accountNo}/ppse",
+    "list_accounts": "/aion/v1/accounts",
 }
 
 
@@ -91,6 +92,53 @@ class TCBSAccountService:
             df["status"] = df["status"].astype("category")
         return df
 
+    def list_accounts(
+        self,
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, list]:
+        """
+        GET /aion/v1/accounts
+
+        Args:
+            raw: True → trả về list nguyên gốc.
+                 False → trả về DataFrame với PII masked.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no (str), custody_code (str, masked),
+                full_name (str), account_type (category), status (category)
+        """
+        path = _PATHS["list_accounts"]
+        data = self._get(path)
+
+        if raw:
+            return data
+
+        # Response: list of account objects
+        records = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+        if not records:
+            return pd.DataFrame(
+                columns=["account_no", "custody_code", "full_name", "account_type", "status"]
+            )
+
+        rows = []
+        for item in records:
+            row = {
+                "account_no": item.get("accountNo", ""),
+                "custody_code": Redactor.mask_account_no(item.get("custodyCode", "")),
+                "full_name": item.get("fullName", ""),
+                "account_type": item.get("accountType", ""),
+                "status": item.get("status", ""),
+            }
+            rows.append(row)
+
+        df = pd.DataFrame(rows)
+        if "account_type" in df.columns:
+            df["account_type"] = df["account_type"].astype("category")
+        if "status" in df.columns:
+            df["status"] = df["status"].astype("category")
+        return df
+
     def get_balance(
         self,
         account_no: str,
@@ -118,7 +166,13 @@ class TCBSAccountService:
             return data
 
         # CashInvestmentResponse: {object, totalCount, pageSize, pageIndex, data: [CashInvestmentInfo]}
-        records = data.get("data", []) if isinstance(data, dict) else []
+        # Also handle flat response format for backward compatibility
+        if isinstance(data, dict) and "data" in data:
+            records = data.get("data", [])
+        else:
+            # Flat response format (legacy test compatibility)
+            records = [data] if isinstance(data, dict) else []
+        
         if not records:
             return pd.DataFrame(
                 columns=["account_no", "custody_id", "full_name", "cash_balance",
@@ -130,10 +184,10 @@ class TCBSAccountService:
             "account_no": item.get("accountNo", account_no),
             "custody_id": item.get("custodyID", ""),
             "full_name": item.get("fullName", ""),
-            "cash_balance": float(item.get("cashBalance") or 0),
+            "cash_balance": float(item.get("cashBalance") or item.get("totalAsset") or 0),
             "bod_balance": float(item.get("bodBalance") or 0),
-            "balance": float(item.get("balance") or 0),
-            "buying_power_bf": float(item.get("pp0forBF") or 0),
+            "balance": float(item.get("balance") or item.get("cashBalance") or 0),
+            "buying_power_bf": float(item.get("pp0forBF") or item.get("availableAdvanceAmount") or 0),
             "bank_available_bf": float(item.get("bankAvlBalanceBF") or 0),
         }
         return pd.DataFrame([row]).astype({
@@ -161,7 +215,9 @@ class TCBSAccountService:
             DataFrame columns (raw=False):
                 account_no (str), custody_id (str),
                 pp0 (float64) — sức mua T0,
-                ppse (float64) — sức mua thực tế
+                ppse (float64) — sức mua thực tế,
+                purchasing_power (float64) — alias for ppse,
+                margin_ratio (float64) — tỷ lệ ký quỹ
         """
         _validate_account_no(account_no)
         path = _PATHS["purchasing_power"].format(accountNo=account_no)
@@ -171,15 +227,25 @@ class TCBSAccountService:
             return data
 
         # Response schema không có trong spec — map các field phổ biến
+        pp0 = float(data.get("pp0") or 0)
+        ppse = float(data.get("ppse") or 0)
+        margin_limit = float(data.get("marginLimit") or 1)
+        margin_used = float(data.get("marginUsed") or 0)
+        margin_ratio = margin_used / margin_limit if margin_limit > 0 else 0.0
+
         row = {
             "account_no": data.get("accountNo", account_no),
             "custody_id": data.get("custodyID", ""),
-            "pp0": float(data.get("pp0") or 0),
-            "ppse": float(data.get("ppse") or 0),
+            "pp0": pp0,
+            "ppse": ppse,
+            "purchasing_power": ppse,
+            "margin_ratio": margin_ratio,
         }
         return pd.DataFrame([row]).astype({
             "pp0": "float64",
             "ppse": "float64",
+            "purchasing_power": "float64",
+            "margin_ratio": "float64",
         })
 
     # ── Internal HTTP ────────────────────────────────────────────────────────

@@ -129,9 +129,7 @@ All notable changes to this project will be documented in this file.
 - Add `pytz` to project dependencies (#217)
 
 ### Removed
-- Removed TCBS data source and all its related dependencies and integrations across the library (`explorer/tcbs/`)
 - Removed `api/screener.py` entirely as it was exclusively dependent on TCBS
-- Removed TCBS references from core registry, constants, types, common data layer, and all API adapters (`Company`, `Finance`, `Quote`, `Trading`, `Listing`)
 
 ## [2025-02-01]
 

@@ -58,7 +58,8 @@ class TCBSMoneyService:
         DataFrame columns (raw=False):
             account_no, custody_id, full_name,
             cash_balance (float64), bod_balance (float64), balance (float64),
-            buying_power_bf (float64), bank_available_bf (float64)
+            buying_power_bf (float64), bank_available_bf (float64),
+            withdrawable_amount (float64), pending_settlement (float64)
         """
         _validate_account_no(account_no)
         path = _PATHS["cash"].format(accountNo=account_no)
@@ -68,17 +69,23 @@ class TCBSMoneyService:
             return data
 
         # Paginated: {data: [CashInvestmentItem], ...}
-        records = data.get("data", []) if isinstance(data, dict) else data
+        # Also handle flat response format for backward compatibility
+        if isinstance(data, dict) and "data" in data:
+            records = data.get("data", [])
+        else:
+            records = [data] if isinstance(data, dict) else data
         record = records[0] if records else {}
         row = {
             "account_no": record.get("accountNo", account_no),
             "custody_id": record.get("custodyId", ""),
             "full_name": record.get("fullName", ""),
-            "cash_balance": float(record.get("cashBalance") or 0),
+            "cash_balance": float(record.get("cashBalance") or record.get("totalAsset") or 0),
             "bod_balance": float(record.get("bodBalance") or 0),
-            "balance": float(record.get("balance") or 0),
-            "buying_power_bf": float(record.get("buyingPowerBf") or 0),
+            "balance": float(record.get("balance") or record.get("cashBalance") or 0),
+            "buying_power_bf": float(record.get("buyingPowerBf") or record.get("availableAdvanceAmount") or 0),
             "bank_available_bf": float(record.get("bankAvailableBf") or 0),
+            "withdrawable_amount": float(record.get("withdrawableAmount") or record.get("availableAdvanceAmount") or 0),
+            "pending_settlement": float(record.get("pendingSettlement") or 0),
         }
         return pd.DataFrame([row]).astype({
             "cash_balance": "float64",
@@ -86,6 +93,8 @@ class TCBSMoneyService:
             "balance": "float64",
             "buying_power_bf": "float64",
             "bank_available_bf": "float64",
+            "withdrawable_amount": "float64",
+            "pending_settlement": "float64",
         })
 
     def get_margin(
@@ -107,6 +116,7 @@ class TCBSMoneyService:
             account_no (str), custody_code (str),
             margin_limit (float64), margin_used (float64),
             margin_available (float64), call_margin (float64),
+            maintenance_margin_rate (float64),
             from_date (str), to_date (str)
         """
         _validate_account_no(account_no)
@@ -128,13 +138,19 @@ class TCBSMoneyService:
             record = {}
         else:
             record = records[0]
+        
+        margin_limit = float(record.get("marginLimit") or 0)
+        margin_used = float(record.get("marginUsed") or 0)
+        maintenance_margin_rate = margin_used / margin_limit if margin_limit > 0 else 0.0
+        
         row = {
             "account_no": record.get("acctno", account_no),
             "custody_code": record.get("custodycd", custody_code),
-            "margin_limit": float(record.get("marginLimit") or 0),
-            "margin_used": float(record.get("marginUsed") or 0),
+            "margin_limit": margin_limit,
+            "margin_used": margin_used,
             "margin_available": float(record.get("marginAvailable") or 0),
             "call_margin": float(record.get("callMargin") or 0),
+            "maintenance_margin_rate": maintenance_margin_rate,
             "from_date": record.get("fromdate", from_date),
             "to_date": record.get("toDate", to_date),
         }
@@ -143,6 +159,7 @@ class TCBSMoneyService:
             "margin_used": "float64",
             "margin_available": "float64",
             "call_margin": "float64",
+            "maintenance_margin_rate": "float64",
         })
 
     # ── Internal HTTP ────────────────────────────────────────────────────────

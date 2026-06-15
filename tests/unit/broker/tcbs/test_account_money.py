@@ -182,12 +182,16 @@ class TestAccountGetBalance:
         return TCBSAccountService(_make_config(), _make_session())
 
     _BALANCE_PAYLOAD = {
-        "accountNo": ACCOUNT_NO,
-        "totalAsset": 100_000_000,
-        "cashBalance": 20_000_000,
-        "stockValue": 80_000_000,
-        "debtBalance": 0,
-        "availableAdvanceAmount": 15_000_000,
+        "data": [{
+            "accountNo": ACCOUNT_NO,
+            "custodyID": "C123456",
+            "fullName": "NGUYEN VAN A",
+            "cashBalance": 20_000_000,
+            "bodBalance": 15_000_000,
+            "balance": 100_000_000,
+            "pp0forBF": 15_000_000,
+            "bankAvlBalanceBF": 10_000_000,
+        }]
     }
 
     def test_get_balance_returns_dataframe(self):
@@ -195,20 +199,24 @@ class TestAccountGetBalance:
             df = self._svc().get_balance(ACCOUNT_NO)
         assert isinstance(df, pd.DataFrame)
         assert list(df.columns) == [
-            "account_no", "total_asset", "cash_balance",
-            "stock_value", "debt_balance", "available_advance_amount",
+            "account_no", "custody_id", "full_name", "cash_balance",
+            "bod_balance", "balance", "buying_power_bf", "bank_available_bf",
         ]
 
     def test_get_balance_numeric_dtypes(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._BALANCE_PAYLOAD)):
             df = self._svc().get_balance(ACCOUNT_NO)
-        assert df["total_asset"].dtype == "float64"
         assert df["cash_balance"].dtype == "float64"
+        assert df["bod_balance"].dtype == "float64"
+        assert df["balance"].dtype == "float64"
+        assert df["buying_power_bf"].dtype == "float64"
+        assert df["bank_available_bf"].dtype == "float64"
 
     def test_get_balance_values_correct(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._BALANCE_PAYLOAD)):
             df = self._svc().get_balance(ACCOUNT_NO)
-        assert df["total_asset"].iloc[0] == 100_000_000.0
+        assert df["cash_balance"].iloc[0] == 20_000_000.0
+        assert df["balance"].iloc[0] == 100_000_000.0
 
     def test_get_balance_raw_true_returns_dict(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._BALANCE_PAYLOAD)):
@@ -228,28 +236,29 @@ class TestAccountGetPurchasingPower:
 
     _PP_PAYLOAD = {
         "accountNo": ACCOUNT_NO,
-        "purchasingPower": 12_000_000,
-        "marginPurchasingPower": 0,
-        "marginRatio": 0.0,
+        "custodyID": "C123456",
+        "pp0": 12_000_000,
+        "ppse": 10_000_000,
     }
 
     def test_get_purchasing_power_returns_dataframe(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._PP_PAYLOAD)):
             df = self._svc().get_purchasing_power(ACCOUNT_NO)
         assert isinstance(df, pd.DataFrame)
-        assert "purchasing_power" in df.columns
-        assert "margin_ratio" in df.columns
+        assert "pp0" in df.columns
+        assert "ppse" in df.columns
 
     def test_get_purchasing_power_numeric_dtypes(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._PP_PAYLOAD)):
             df = self._svc().get_purchasing_power(ACCOUNT_NO)
-        assert df["purchasing_power"].dtype == "float64"
-        assert df["margin_ratio"].dtype == "float64"
+        assert df["pp0"].dtype == "float64"
+        assert df["ppse"].dtype == "float64"
 
     def test_get_purchasing_power_value_correct(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._PP_PAYLOAD)):
             df = self._svc().get_purchasing_power(ACCOUNT_NO)
-        assert df["purchasing_power"].iloc[0] == 12_000_000.0
+        assert df["pp0"].iloc[0] == 12_000_000.0
+        assert df["ppse"].iloc[0] == 10_000_000.0
 
     def test_get_purchasing_power_raw_true_returns_dict(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._PP_PAYLOAD)):
@@ -268,10 +277,16 @@ class TestMoneyGetCash:
         return TCBSMoneyService(_make_config(), _make_session())
 
     _CASH_PAYLOAD = {
-        "accountNo": ACCOUNT_NO,
-        "withdrawableAmount": 10_000_000,
-        "pendingSettlement": 5_000_000,
-        "cashBalance": 20_000_000,
+        "data": [{
+            "accountNo": ACCOUNT_NO,
+            "custodyId": "C123456",
+            "fullName": "NGUYEN VAN A",
+            "cashBalance": 20_000_000,
+            "bodBalance": 15_000_000,
+            "balance": 100_000_000,
+            "buyingPowerBf": 15_000_000,
+            "bankAvailableBf": 10_000_000,
+        }]
     }
 
     def test_get_cash_returns_dataframe(self):
@@ -279,19 +294,27 @@ class TestMoneyGetCash:
             df = self._svc().get_cash(ACCOUNT_NO)
         assert isinstance(df, pd.DataFrame)
         assert list(df.columns) == [
-            "account_no", "withdrawable_amount", "pending_settlement", "cash_balance"
+            "account_no", "custody_id", "full_name", "cash_balance",
+            "bod_balance", "balance", "buying_power_bf", "bank_available_bf",
+            "withdrawable_amount", "pending_settlement",
         ]
 
     def test_get_cash_numeric_dtypes(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._CASH_PAYLOAD)):
             df = self._svc().get_cash(ACCOUNT_NO)
-        assert df["withdrawable_amount"].dtype == "float64"
         assert df["cash_balance"].dtype == "float64"
+        assert df["bod_balance"].dtype == "float64"
+        assert df["balance"].dtype == "float64"
+        assert df["buying_power_bf"].dtype == "float64"
+        assert df["bank_available_bf"].dtype == "float64"
+        assert df["withdrawable_amount"].dtype == "float64"
+        assert df["pending_settlement"].dtype == "float64"
 
     def test_get_cash_values_correct(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._CASH_PAYLOAD)):
             df = self._svc().get_cash(ACCOUNT_NO)
-        assert df["withdrawable_amount"].iloc[0] == 10_000_000.0
+        assert df["cash_balance"].iloc[0] == 20_000_000.0
+        assert df["balance"].iloc[0] == 100_000_000.0
 
     def test_get_cash_raw_true_returns_dict(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._CASH_PAYLOAD)):
@@ -314,11 +337,16 @@ class TestMoneyGetMargin:
         return TCBSMoneyService(_make_config(), _make_session())
 
     _MARGIN_PAYLOAD = {
-        "accountNo": ACCOUNT_NO,
-        "marginLimit": 50_000_000,
-        "marginUsed": 10_000_000,
-        "marginAvailable": 40_000_000,
-        "maintenanceMarginRate": 0.3,
+        "data": [{
+            "acctno": ACCOUNT_NO,
+            "custodycd": "C123456",
+            "marginLimit": 50_000_000,
+            "marginUsed": 10_000_000,
+            "marginAvailable": 40_000_000,
+            "callMargin": 5_000_000,
+            "fromdate": "2024-01-01",
+            "toDate": "2024-12-31",
+        }]
     }
 
     def test_get_margin_returns_dataframe(self):
@@ -326,20 +354,24 @@ class TestMoneyGetMargin:
             df = self._svc().get_margin(ACCOUNT_NO)
         assert isinstance(df, pd.DataFrame)
         assert list(df.columns) == [
-            "account_no", "margin_limit", "margin_used",
-            "margin_available", "maintenance_margin_rate",
+            "account_no", "custody_code", "margin_limit", "margin_used",
+            "margin_available", "call_margin", "maintenance_margin_rate",
+            "from_date", "to_date",
         ]
 
     def test_get_margin_numeric_dtypes(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._MARGIN_PAYLOAD)):
             df = self._svc().get_margin(ACCOUNT_NO)
         assert df["margin_limit"].dtype == "float64"
+        assert df["margin_used"].dtype == "float64"
+        assert df["margin_available"].dtype == "float64"
+        assert df["call_margin"].dtype == "float64"
         assert df["maintenance_margin_rate"].dtype == "float64"
 
     def test_get_margin_rate_value_correct(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._MARGIN_PAYLOAD)):
             df = self._svc().get_margin(ACCOUNT_NO)
-        assert df["maintenance_margin_rate"].iloc[0] == pytest.approx(0.3)
+        assert df["call_margin"].iloc[0] == 5_000_000.0
 
     def test_get_margin_raw_true_returns_dict(self):
         with patch("requests.get", return_value=_make_mock_resp(200, self._MARGIN_PAYLOAD)):

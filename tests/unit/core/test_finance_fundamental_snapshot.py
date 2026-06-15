@@ -21,7 +21,7 @@ class _DummyFinanceDataSource:
 
 def test_fundamental_snapshot_returns_standardized_rows(monkeypatch):
     monkeypatch.setattr(Finance, "_load_data_source", lambda self: _DummyFinanceDataSource())
-    finance = Finance(symbol="VCB", source="KBS")
+    finance = Finance(symbol="VCB", source="GATEWAY")
 
     out = finance.fundamental_snapshot(metrics=["roe", "pe"], period="quarter")
 
@@ -44,7 +44,7 @@ def test_fundamental_snapshot_returns_standardized_rows(monkeypatch):
 
 def test_fundamental_snapshot_auto_selects_numeric_metrics(monkeypatch):
     monkeypatch.setattr(Finance, "_load_data_source", lambda self: _DummyFinanceDataSource())
-    finance = Finance(symbol="VCB", source="KBS")
+    finance = Finance(symbol="VCB", source="GATEWAY")
 
     out = finance.fundamental_snapshot(period="quarter")
 
@@ -61,7 +61,7 @@ def test_fundamental_snapshot_empty_dataframe(monkeypatch):
             return pd.DataFrame()
 
     monkeypatch.setattr(Finance, "_load_data_source", lambda self: _EmptyFinanceDataSource())
-    finance = Finance(symbol="VCB", source="KBS")
+    finance = Finance(symbol="VCB", source="GATEWAY")
 
     out = finance.fundamental_snapshot(metrics=["roe"])
     assert out.empty

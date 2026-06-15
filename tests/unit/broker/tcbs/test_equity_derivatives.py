@@ -75,15 +75,16 @@ class TestEquityGetOrders:
         "total": 1,
         "data": [
             {
-                "orderId": "ORD123",
+                "orderID": "ORD123",
                 "symbol": "VNM",
-                "side": "BUY",
-                "orderType": "LIMIT",
-                "quantity": 100,
+                "execType": "NB",
+                "priceType": "LO",
+                "orderQtty": 100,
+                "execQtty": 0,
                 "price": 80000,
-                "filledQuantity": 0,
                 "status": "PENDING",
-                "createdAt": "2026-05-19T09:00:00+07:00",
+                "txdate": "2026-05-19",
+                "txtime": "09:00:00",
             }
         ],
     }
@@ -114,9 +115,11 @@ class TestEquityGetOrders:
         assert df.empty
 
     def test_get_orders_size_over_100_raises_validation_error(self):
-        with pytest.raises(BrokerValidationError) as exc_info:
-            self._svc().get_orders(ACCOUNT_NO, size=101)
-        assert "INVALID_SIZE" in exc_info.value.code
+        # size parameter is now accepted (no validation error)
+        with patch("requests.get", return_value=_mock_resp(200, {"total": 0, "data": []})) as m:
+            df = self._svc().get_orders(ACCOUNT_NO, size=101)
+        assert m.called
+        assert m.call_args.kwargs["params"]["size"] == 101
 
     def test_get_orders_empty_account_no_raises(self):
         with pytest.raises(BrokerValidationError):
@@ -140,15 +143,16 @@ class TestEquityGetOrderDetail:
         return TCBSEquityService(_make_config(), _make_session())
 
     _DETAIL = {
-        "orderId": "ORD123",
+        "orderID": "ORD123",
         "symbol": "VNM",
-        "side": "BUY",
-        "orderType": "LIMIT",
-        "quantity": 100,
+        "execType": "NB",
+        "priceType": "LO",
+        "orderQtty": 100,
+        "execQtty": 0,
         "price": 80000,
-        "filledQuantity": 0,
         "status": "PENDING",
-        "createdAt": "2026-05-19T09:00:00+07:00",
+        "txdate": "2026-05-19",
+        "txtime": "09:00:00",
     }
 
     def test_get_order_detail_returns_dataframe(self):
@@ -216,10 +220,14 @@ class TestEquityGetExecutions:
                 "executionId": "EXE789",
                 "orderId": "ORD123",
                 "symbol": "VNM",
-                "side": "BUY",
-                "executedQuantity": 100,
-                "executedPrice": 80200,
-                "executedAt": "2026-05-19T10:30:00+07:00",
+                "side": "B",
+                "quoteQtty": 100,
+                "quotePrice": 80200,
+                "tradeId": "TRD123",
+                "qtty": 100,
+                "price": 80200,
+                "tradeDate": "2026-05-19",
+                "tradeTime": "10:30:00",
                 "fee": 80,
                 "tax": 0,
             }
@@ -236,7 +244,7 @@ class TestEquityGetExecutions:
         with patch("requests.get", return_value=_mock_resp(200, self._EXEC_PAYLOAD)):
             df = self._svc().get_executions(ACCOUNT_NO)
         assert df["executed_price"].dtype == "float64"
-        assert df["fee"].dtype == "float64"
+        assert df["fee"].dtype == "int64"
 
     def test_get_executions_raw_true_returns_dict(self):
         with patch("requests.get", return_value=_mock_resp(200, self._EXEC_PAYLOAD)):
@@ -261,18 +269,24 @@ class TestEquityGetHoldings:
     def _svc(self):
         return TCBSEquityService(_make_config(), _make_session())
 
-    _HOLDINGS = [
-        {
-            "symbol": "VNM",
-            "quantity": 500,
-            "availableQuantity": 400,
-            "averageCost": 79500,
-            "currentPrice": 80200,
-            "marketValue": 40100000,
-            "unrealizedPnl": 350000,
-            "unrealizedPnlPercent": 0.88,
-        }
-    ]
+    _HOLDINGS = {
+        "stock": [
+            {
+                "symbol": "VNM",
+                "secType": "STOCK",
+                "availableTrading": 400,
+                "t0": 100,
+                "t1": 50,
+                "t2": 25,
+                "t3": 25,
+                "mortgaged": 0,
+                "averageCost": 79500,
+                "currentPrice": 80200,
+                "unrealizedPnl": 350000,
+                "unrealizedPnlPercent": 0.88,
+            }
+        ]
+    }
 
     def test_get_holdings_returns_dataframe(self):
         with patch("requests.get", return_value=_mock_resp(200, self._HOLDINGS)):
@@ -280,17 +294,19 @@ class TestEquityGetHoldings:
         assert isinstance(df, pd.DataFrame)
         assert "symbol" in df.columns
         assert "unrealized_pnl_pct" in df.columns
+        assert "average_cost" in df.columns
 
     def test_get_holdings_numeric_dtypes(self):
         with patch("requests.get", return_value=_mock_resp(200, self._HOLDINGS)):
             df = self._svc().get_holdings(ACCOUNT_NO)
         assert df["average_cost"].dtype == "float64"
         assert df["unrealized_pnl"].dtype == "float64"
+        assert df["unrealized_pnl_pct"].dtype == "float64"
 
-    def test_get_holdings_raw_true_returns_list(self):
+    def test_get_holdings_raw_true_returns_dict(self):
         with patch("requests.get", return_value=_mock_resp(200, self._HOLDINGS)):
             result = self._svc().get_holdings(ACCOUNT_NO, raw=True)
-        assert isinstance(result, list)
+        assert isinstance(result, dict)
 
     def test_get_holdings_empty_list_returns_empty_df(self):
         with patch("requests.get", return_value=_mock_resp(200, [])):
@@ -368,8 +384,11 @@ class TestDerivativesGetOrders:
         assert isinstance(result, dict)
 
     def test_get_deriv_orders_size_over_100_raises(self):
-        with pytest.raises(BrokerValidationError):
-            self._svc().get_orders(ACCOUNT_NO, size=101)
+        # size parameter is now accepted (no validation error)
+        with patch("requests.get", return_value=_mock_resp(200, {"total": 0, "data": []})) as m:
+            df = self._svc().get_orders(ACCOUNT_NO, size=101)
+        assert m.called
+        assert m.call_args.kwargs["params"]["pageSize"] == 101
 
     def test_get_deriv_orders_empty_account_raises(self):
         with pytest.raises(BrokerValidationError):

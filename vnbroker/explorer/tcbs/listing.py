@@ -351,3 +351,8 @@ class Listing:
         if not search_data:
             return []
         return search_data.get("pageContent") or []
+
+
+# Register provider
+from vnbroker.core.registry import ProviderRegistry
+ProviderRegistry.register("listing", "tcbs", Listing)

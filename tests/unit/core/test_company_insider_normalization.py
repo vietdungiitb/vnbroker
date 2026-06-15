@@ -87,7 +87,7 @@ class _DummyCompanyDataSource:
 
 def test_company_insider_deals_standardize_true(monkeypatch):
     monkeypatch.setattr(Company, "_load_data_source", lambda self: _DummyCompanyDataSource())
-    company = Company(symbol="VCB", source="KBS")
+    company = Company(symbol="VCB", source="GATEWAY")
 
     out = company.insider_deals()
 
@@ -98,7 +98,7 @@ def test_company_insider_deals_standardize_true(monkeypatch):
 
 def test_company_insider_deals_standardize_false(monkeypatch):
     monkeypatch.setattr(Company, "_load_data_source", lambda self: _DummyCompanyDataSource())
-    company = Company(symbol="VCB", source="KBS")
+    company = Company(symbol="VCB", source="GATEWAY")
 
     out = company.insider_deals(standardize=False)
 

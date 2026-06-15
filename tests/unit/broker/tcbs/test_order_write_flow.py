@@ -84,7 +84,7 @@ class TestPlaceOrderDryRun:
         svc = _svc(write_enabled=False)
         with patch("requests.request") as m:
             result = svc.place_order(
-                ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                 dry_run=True,
             )
         m.assert_not_called()
@@ -93,7 +93,7 @@ class TestPlaceOrderDryRun:
 
     def test_dry_run_contains_operation_name(self):
         result = _svc().place_order(
-            ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+            ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
             dry_run=True,
         )
         assert result["operation"] == "_gated_place_order"
@@ -101,7 +101,7 @@ class TestPlaceOrderDryRun:
     def test_dry_run_default_is_true(self):
         """Gọi không truyền dry_run → phải là dry_run=True mặc định."""
         result = _svc().place_order(
-            ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+            ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
         )
         assert result["dry_run"] is True
 
@@ -109,7 +109,7 @@ class TestPlaceOrderDryRun:
         """dry_run=True không cần session.enable_write()."""
         svc = _svc(write_enabled=False)
         result = svc.place_order(
-            ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+            ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
             dry_run=True,
         )
         assert result["dry_run"] is True
@@ -117,7 +117,7 @@ class TestPlaceOrderDryRun:
     def test_dry_run_pin_not_exposed_in_result(self):
         """Kết quả dry_run KHÔNG được chứa pin_code value."""
         result = _svc().place_order(
-            ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, "654321", REQUEST_ID,
+            ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, "654321", REQUEST_ID,
             dry_run=True,
         )
         result_str = str(result)
@@ -146,7 +146,7 @@ class TestPlaceOrderValidation:
             account_no=ACCOUNT_NO,
             symbol="VNM",
             side="BUY",
-            order_type="LIMIT",
+            order_type="LO",
             quantity=100,
             price=80000,
             pin_code=PIN,
@@ -209,7 +209,7 @@ class TestPlaceOrderLiveExecution:
     def test_place_order_live_calls_post(self):
         with patch("requests.request", return_value=_mock_resp(201, self._SUCCESS)) as m:
             result = self._live_svc().place_order(
-                ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                 dry_run=False,
             )
         assert m.called
@@ -220,7 +220,7 @@ class TestPlaceOrderLiveExecution:
         with patch("requests.request", return_value=_mock_resp(422, {"error": "OUT_OF_HOURS"})):
             with pytest.raises(BrokerOrderError) as exc_info:
                 self._live_svc().place_order(
-                    ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                    ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                     dry_run=False,
                 )
         assert exc_info.value.http_status == 422
@@ -231,7 +231,7 @@ class TestPlaceOrderLiveExecution:
         with patch("requests.request", return_value=_mock_resp(401, {})):
             with pytest.raises(BrokerAuthError):
                 svc.place_order(
-                    ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                    ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                     dry_run=False,
                 )
         assert session.state == SessionState.EXPIRED
@@ -240,7 +240,7 @@ class TestPlaceOrderLiveExecution:
         with patch("requests.request", return_value=_mock_resp(500, {})):
             with pytest.raises(BrokerNetworkError):
                 self._live_svc().place_order(
-                    ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                    ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                     dry_run=False,
                 )
 
@@ -248,7 +248,7 @@ class TestPlaceOrderLiveExecution:
         with patch("requests.request", side_effect=requests.exceptions.Timeout()):
             with pytest.raises(BrokerNetworkError) as exc_info:
                 self._live_svc().place_order(
-                    ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                    ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                     dry_run=False,
                 )
         assert "NETWORK_TIMEOUT" in exc_info.value.code
@@ -352,10 +352,10 @@ class TestCancelOrderLive:
     def _live_svc(self):
         return _svc(write_enabled=True)
 
-    def test_cancel_order_live_calls_delete(self):
+    def test_cancel_order_live_calls_put(self):
         with patch("requests.request", return_value=_mock_resp(200, {"message": "OK"})) as m:
             result = self._live_svc().cancel_order(ACCOUNT_NO, ORDER_ID, REQUEST_ID, dry_run=False)
-        assert m.call_args.args[0] == "DELETE"
+        assert m.call_args.args[0] == "PUT"
         assert "message" in result
 
     def test_cancel_order_live_422_raises_order_error(self):
@@ -378,7 +378,7 @@ class TestWriteGateIntegration:
         svc = _svc(write_enabled=False)
         with pytest.raises(BrokerPermissionError) as exc_info:
             svc.place_order(
-                ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                 dry_run=False,
             )
         assert exc_info.value.code == "WRITE_NOT_ENABLED"
@@ -399,7 +399,7 @@ class TestWriteGateIntegration:
         svc = _svc(write_enabled=True)
         with patch("requests.request", return_value=_mock_resp(201, {"orderId": "ORD1"})) as m:
             result = svc.place_order(
-                ACCOUNT_NO, "VNM", "BUY", "LIMIT", 100, 80000, PIN, REQUEST_ID,
+                ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                 dry_run=False,
             )
         assert m.called
