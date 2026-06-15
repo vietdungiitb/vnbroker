@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Default configuration
 DEFAULT_GATEWAY_URL = "http://localhost"  # Dev server default (port 80)
-DEFAULT_PAT = "vninvest_pat_dev_free_default_unregistered_key"
+DEFAULT_PAT = "vninvest_pat_vni_3muSIaBGvCs5eKjnpI2tLezcVtacnHfRbKPVr1B0AthYcBQogUyUf9O-agrwn-Qt"
 EMERGENCY_DAILY_LIMIT = 10
 GATEWAY_TIMEOUT = 5.0  # seconds
 
