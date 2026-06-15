@@ -62,14 +62,22 @@ Dự án yêu cầu Python `>=3.10`.
 ```python
 from vnbroker import Vnbroker
 
-# Cách 1: PAT Key tường minh (khuyên dùng)
-vn = Vnbroker(pat_key="vninvest_pat_your_token_here")
+# DEV: Gateway chạy local (http://localhost:8000)
+vn = Vnbroker(
+    pat_key="vninvest_pat_dev_free_default_unregistered_key",  # Default PAT
+    gateway_url="http://localhost:8000"
+)
 
-# Cách 2: Biến môi trường VNBROKER_PAT_KEY
-vn = Vnbroker()
+# PRODUCTION: Gateway production (https://saas.edusuccess.vn)
+vn = Vnbroker(
+    pat_key="vninvest_pat_your_production_token",  # PAT từ vninvest
+    gateway_url="https://saas.edusuccess.vn"
+)
 
-# Cách 3: Default PAT (free tier, hạn mức 100 req/ngày)
-vn = Vnbroker()  # Tự động dùng DEFAULT_PAT
+# Hoặc dùng biến môi trường:
+# export VNBROKER_PAT_KEY="vninvest_pat_..."
+# export VNBROKER_GATEWAY_URL="https://saas.edusuccess.vn"
+# vn = Vnbroker()
 
 acb = vn.stock("ACB")
 history = acb.quote.history(start="2024-01-01", end="2024-12-31")
@@ -79,6 +87,10 @@ news = acb.news.latest()
 ```
 
 > **Lưu ý:** Chỉ hỗ trợ `source="GATEWAY"` hoặc `source="AUTO"`. Các nguồn trực tiếp cũ (KBS, VCI, TCBS, DNSE, MSN) đã bị loại bỏ cho dữ liệu thị trường.
+> 
+> **Gateway URLs:**
+> - **Dev:** `http://localhost:8000` (mặc định)
+> - **Production:** `https://saas.edusuccess.vn`
 
 ### 2. Private Brokerage (Bypass Gateway — trực tiếp API Broker)
 

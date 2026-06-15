@@ -28,7 +28,7 @@ from vnbroker.core.exceptions import (
 logger = logging.getLogger(__name__)
 
 # Default configuration
-DEFAULT_GATEWAY_URL = "https://api.vnstocks.com"
+DEFAULT_GATEWAY_URL = "http://localhost:8000"  # Dev server default
 DEFAULT_PAT = "vninvest_pat_dev_free_default_unregistered_key"
 EMERGENCY_DAILY_LIMIT = 10
 GATEWAY_TIMEOUT = 5.0  # seconds
