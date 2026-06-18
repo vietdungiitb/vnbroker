@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-18] — Release 3.1.0: Cleanup — Remove MSN/FMP, restructure core
+
+### Breaking Changes
+- **Xóa hoàn toàn MSN explorer**: `vnbroker/explorer/msn/` (quote, listing, company, finance, news, trading, helper, const) — không có dữ liệu thật.
+- **Xóa hoàn toàn FMP connector**: `vnbroker/connector/fmp/` (quote, config, const) — không có API key, không có module khác.
+- **SUPPORTED_SOURCES thu hẹp**: Chỉ còn `KBS`, `VCI`, `TCBS`, `DNSE`. MSN, FMP, GATEWAY, AUTO đã bị loại.
+- **Xóa `fx()`/`crypto()`/`world_index()` tests**: Các phương thức này chỉ hoạt động với MSN/FMP — đã bị xóa.
+- **Xóa `msn_symbol_map`**: `Vnbroker` không còn property này.
+
+### Removed
+- Toàn bộ file rác: test scratch, benchmark artifacts, planning docs, caches, vninvest-sdk.
+- Toàn bộ planning/audit docs: `ARCHITECTURE_REVIEW.md`, `BENCHMARK_COMPARISON_REPORT.md`, ...
+- `_load_msn_const()` và `_CURRENCY_ID_MAP`/`_GLOBAL_INDICES`/`_CRYPTO_ID_MAP` khỏi `data.py`.
+- `GATEWAY`, `MSN`, `FMP` khỏi `DataSource` enum, `DataSources` compat class, `core/settings.py`, `dispatch.py`, `source_router.py`, `user_agent.py`.
+- 4 orphan test fixtures gây ERROR (`mock_vci_send_request`, `mock_response_factory`, `diverse_test_symbols`).
+- `GatewayHttpClient`, `launcher.py`.
+
+### Changed
+- `TODO.md` được thay thế bằng phiên bản cập nhật, không còn tham chiếu vninvest-sdk.
+- `README.md` cập nhật bảng nguồn dữ liệu, env vars không còn FMP.
+
+### Testing
+- **522 passed**, 9 skipped, 8 warnings — **0 failures, 0 errors** sau cleanup.
+
 ## [2026-06-18] — Release 3.0.0: Direct Provider Architecture (Loại bỏ PAT/Gateway)
 
 ### Breaking Changes

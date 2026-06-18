@@ -6,7 +6,7 @@ Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp v
 
 ## Tóm tắt
 
-vnbroker cung cấp một lớp truy cập thống nhất để lấy dữ liệu từ nhiều nguồn trực tiếp (VCI, KBS, TCBS, DNSE, MSN, FMP), chuẩn hóa đầu ra bằng `pandas` và giảm chi phí tích hợp cho ứng dụng phân tích, dashboard, backend và công cụ nghiên cứu.
+vnbroker cung cấp một lớp truy cập thống nhất để lấy dữ liệu từ nhiều nguồn trực tiếp (VCI, KBS, TCBS, DNSE), chuẩn hóa đầu ra bằng `pandas` và giảm chi phí tích hợp cho ứng dụng phân tích, dashboard, backend và công cụ nghiên cứu.
 
 **Điểm truy cập chính:** lớp `Vnbroker` (xem `vnbroker/common/client.py`).
 
@@ -38,9 +38,6 @@ vnbroker hỗ trợ truy cập trực tiếp tới các provider mà **không c�
 | `KBS` | Quote, Company, Finance, Listing, Trading | Không cần auth |
 | `TCBS` | Quote, Company, Finance, Listing, Trading, News | Không cần auth |
 | `DNSE` | Quote, Listing, Trading | Cần `DNSE_API_KEY` + `DNSE_API_SECRET` |
-| `MSN` | Quote, Listing, FX, Crypto, World Index | Không cần auth |
-| `FMP` | Quote, Listing, FX, Crypto, World Index | Cần `FMP_API_KEY` |
-| `BINANCE` | Crypto (scaffolded) | Reserved for future |
 | `SSI` | Broker (scaffolded) | Reserved for future |
 
 ### Private Brokerage (Direct Broker API)
@@ -95,13 +92,12 @@ acb_dnse = vn.stock("ACB", source="DNSE")  # Cần DNSE_API_KEY + DNSE_API_SECRE
 
 | Nhóm | Nguồn hỗ trợ |
 | --- | --- |
-| `Quote` | `VCI`, `KBS`, `TCBS`, `MSN`, `DNSE`, `FMP` |
-| `Company` | `VCI`, `KBS`, `TCBS`, `DNSE`, `MSN`, `FMP` |
-| `Finance` | `VCI`, `KBS`, `TCBS`, `DNSE`, `FMP` |
-| `Listing` | `VCI`, `KBS`, `TCBS`, `DNSE`, `FMP` |
+| `Quote` | `VCI`, `KBS`, `TCBS`, `DNSE` |
+| `Company` | `VCI`, `KBS`, `TCBS`, `DNSE` |
+| `Finance` | `VCI`, `KBS`, `TCBS`, `DNSE` |
+| `Listing` | `VCI`, `KBS`, `TCBS`, `DNSE` |
 | `Trading` | `VCI`, `KBS`, `TCBS`, `DNSE` |
 | `News` | `VCI`, `KBS`, `TCBS` |
-| `FX/Crypto/World Index` | `MSN`, `FMP` |
 | `Fund` | `FMARKET` |
 
 ### 3. Private Brokerage (trực tiếp API Broker)
@@ -141,24 +137,7 @@ bot = Messenger("telegram", "-1001234567890", "BOT_TOKEN")
 bot.send_message("ACB vượt ngưỡng cảnh báo")
 ```
 
-### 5. FX, Crypto, World Index
-
-```python
-from vnbroker import Vnbroker
-
-vn = Vnbroker(source="MSN")
-
-usd_vnd = vn.fx("USDVND")
-fx_history = usd_vnd.quote.history(start="2024-01-01", end="2024-12-31")
-
-btc = vn.crypto("BTC")
-btc_history = btc.quote.history(start="2024-01-01", end="2024-12-31")
-
-dji = vn.world_index("DJI")
-dji_history = dji.quote.history(start="2024-01-01", end="2024-12-31")
-```
-
-### 6. Fund (Quỹ mở)
+### 5. Fund (Quỹ mở)
 
 ```python
 from vnbroker import Vnbroker
@@ -174,12 +153,11 @@ all_funds = funds.listing()
 | --- | --- | --- |
 | `DNSE_API_KEY` | DNSE API Key | `your_dnse_key` |
 | `DNSE_API_SECRET` | DNSE API Secret | `your_dnse_secret` |
-| `FMP_API_KEY` | Financial Modeling Prep API Key | `your_fmp_key` |
 | `VNBROKER_BROKER_TCBS_API_KEY` | TCBS OpenAPI Key cho Broker Lane | `your_tcbs_key` |
 
 ## Lưu ý quan trọng
 
-- **Market Data:** Truy cập trực tiếp provider (VCI, KBS, TCBS, DNSE, MSN, FMP) — **không cần PAT/Gateway**.
+- **Market Data:** Truy cập trực tiếp provider (VCI, KBS, TCBS, DNSE) — **không cần PAT/Gateway**.
 - **Broker Lane:** Gọi trực tiếp API Broker với API Key + OTP.
 - Dữ liệu giá được chuẩn hóa theo contract riêng; kiểm tra `df.attrs["price_unit"]` trước khi lưu hay so sánh.
 - Một số nguồn live có thể bị giới hạn tốc độ hoặc thay đổi phía upstream; adapter của thư viện có retry và backoff.

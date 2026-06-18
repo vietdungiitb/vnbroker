@@ -1,9 +1,9 @@
 name: "Đề xuất tính năng"
-description: "Đề xuất ý tưởng và cải tiến cho Vnstock"
+description: "Đề xuất ý tưởng và cải tiến cho Vnbroker"
 title: "[Feature]: "
 labels:
   - enhancement
-projects: ["vietdungiitb/4"]      # ID của project Vnstock Ecosystem Roadmap
+projects: ["vietdungiitb/4"]      # ID của project Vnbroker Ecosystem Roadmap
 assignees:
   - vietdungiitb
 
@@ -11,7 +11,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Cảm ơn bạn đã dành thời gian đề xuất tính năng cho Vnstock!
+        Cảm ơn bạn đã dành thời gian đề xuất tính năng cho Vnbroker!
 
   - type: textarea
     id: feature-description
@@ -27,7 +27,7 @@ body:
     attributes:
       label: "Vấn đề liên quan (nếu có)"
       description: "Link đến issue liên quan nếu có ảnh hưởng đến đề xuất này."
-      placeholder: "https://github.com/vietdungiitb/vnstock/issues/..."
+      placeholder: "https://github.com/vietdungiitb/vnbroker/issues/..."
     validations:
       required: false
 

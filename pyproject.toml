@@ -12,7 +12,7 @@ authors = [
 ]
 license = { text = "Custom: Personal, research, non-commercial; contact support@vnstocks.com for other use" }
 requires-python = ">=3.10"
-keywords = ["vnbroker", "vnstock", "finance", "vietnam", "stock market", "analysis", "API", "DNSE", "broker"]
+keywords = ["vnbroker", "finance", "vietnam", "stock market", "analysis", "API", "DNSE", "broker"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

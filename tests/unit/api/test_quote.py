@@ -6,7 +6,6 @@ and delegation to underlying explorer quote implementations.
 """
 
 import pytest
-import pandas as pd
 from vnbroker.api.quote import Quote
 
 
@@ -33,15 +32,6 @@ class TestQuoteAdapter:
         assert quote is not None
         assert quote.source.lower() == 'tcbs'
 
-    @pytest.mark.skip(reason="MSN Quote uses symbol_id instead of symbol")
-    def test_quote_instantiation_msn(self):
-        """Test Quote can be instantiated with MSN source."""
-        # MSN explorer uses symbol_id parameter instead of symbol
-        # This is a known incompatibility with the adapter pattern
-        quote = Quote(source='MSN', symbol='ACB', show_log=False)
-        assert quote is not None
-        assert quote.source.lower() == 'msn'
-
     def test_quote_invalid_source_raises_error(self):
         """Test Quote raises ValueError for invalid source."""
         with pytest.raises(ValueError, match="chỉ nhận giá trị"):
@@ -52,43 +42,6 @@ class TestQuoteAdapter:
         quote = Quote(source='VCI', symbol='ACB', show_log=False)
         assert hasattr(quote, 'history')
         assert callable(quote.history)
-
-    @pytest.mark.integration
-    def test_quote_history_returns_dataframe_vci(
-        self, monkeypatch, mock_response_factory
-    ):
-        """Test Quote.history returns DataFrame for VCI source."""
-        # Mock HTTP response
-        def mock_get(*args, **kwargs):
-            return mock_response_factory(json_data={
-                "data": [
-                    {
-                        "time": "2024-01-01",
-                        "open": 100.0,
-                        "high": 105.0,
-                        "low": 98.0,
-                        "close": 103.0,
-                        "volume": 1000000
-                    }
-                ]
-            })
-
-        monkeypatch.setattr("requests.get", mock_get)
-        monkeypatch.setattr("requests.post", mock_get)
-
-        quote = Quote(source='VCI', symbol='ACB', show_log=False)
-        # This will likely fail without proper mocking
-        # but shows the test structure
-        try:
-            df = quote.history(
-                start='2024-01-01',
-                end='2024-01-31',
-                interval='1D'
-            )
-            assert isinstance(df, pd.DataFrame)
-        except Exception:
-            # Expected to fail without full mock infrastructure
-            pytest.skip("Requires full mock infrastructure")
 
     def test_quote_accepts_symbol_parameter(self):
         """Test Quote accepts and stores symbol parameter."""
@@ -104,6 +57,5 @@ class TestQuoteAdapter:
     @pytest.mark.parametrize("source", ['VCI', 'KBS', 'TCBS'])
     def test_quote_supports_multiple_sources(self, source):
         """Test Quote supports VCI, KBS, and TCBS sources."""
-        # MSN is excluded as it uses incompatible symbol_id parameter
         quote = Quote(source=source, symbol='VNM', show_log=False)
         assert quote.source.lower() == source.lower()

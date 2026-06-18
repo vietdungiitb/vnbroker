@@ -28,24 +28,24 @@ jobs:
     - name: Lint with flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        flake8 vnstock --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 vnbroker --count --select=E9,F63,F7,F82 --show-source --statistics
         # Exit-zero treats all errors as warnings
-        flake8 vnstock --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics --exclude=__pycache__,build,dist
+        flake8 vnbroker --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics --exclude=__pycache__,build,dist
       continue-on-error: true
     
     - name: Check code formatting with black
       run: |
-        black --check vnstock --diff
+        black --check vnbroker --diff
       continue-on-error: true
     
     - name: Check import sorting with isort
       run: |
-        isort --check-only vnstock --diff
+        isort --check-only vnbroker --diff
       continue-on-error: true
     
     - name: Type checking with mypy
       run: |
-        mypy vnstock --ignore-missing-imports --no-error-summary --show-column-numbers --no-strict-optional 2>&1 | head -100
+        mypy vnbroker --ignore-missing-imports --no-error-summary --show-column-numbers --no-strict-optional 2>&1 | head -100
       continue-on-error: true
 
   security:
@@ -66,7 +66,7 @@ jobs:
     
     - name: Run Bandit security scan
       run: |
-        bandit -r vnstock -f json -o bandit-report.json 2>&1 | head -50
+        bandit -r vnbroker -f json -o bandit-report.json 2>&1 | head -50
       continue-on-error: true
     
     - name: Check dependencies with Safety

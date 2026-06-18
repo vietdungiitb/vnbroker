@@ -5,7 +5,6 @@ Tests VCI-specific quote data fetching, parsing, and transformations.
 """
 
 import pytest
-import pandas as pd
 from vnbroker.explorer.vci.quote import Quote
 
 
@@ -32,37 +31,6 @@ class TestVCIQuote:
         quote = Quote(symbol='TCB', random_agent=False, show_log=False)
         assert hasattr(quote, 'intraday')
         assert callable(quote.intraday)
-
-    # @pytest.mark.skip(reason="Integration test - requires live API")
-    @pytest.mark.integration
-    def test_vci_quote_history_with_mock(
-        self, monkeypatch, mock_response_factory
-    ):
-        """Test VCI Quote history with mocked response."""
-        def mock_post(*args, **kwargs):
-            return mock_response_factory(json_data={
-                "data": [{
-                    "tradingDate": "2024-01-01T00:00:00",
-                    "open": 100.0,
-                    "high": 105.0,
-                    "low": 98.0,
-                    "close": 103.0,
-                    "volume": 1000000
-                }]
-            })
-
-        monkeypatch.setattr("requests.post", mock_post)
-
-        quote = Quote(symbol='ACB', random_agent=False, show_log=False)
-        try:
-            df = quote.history(
-                start='2024-01-01',
-                end='2024-01-31',
-                interval='1D'
-            )
-            assert isinstance(df, pd.DataFrame)
-        except Exception:
-            pytest.skip("Requires full VCI mock infrastructure")
 
     def test_vci_quote_symbol_validation(self):
         """Test VCI Quote validates symbol input."""

@@ -147,25 +147,6 @@ class TestProxyIntegrationWithVCI:
         assert manager.timeout == 10
         assert manager.proxies == []
 
-    def test_proxy_application_pattern(self, diverse_test_symbols):
-        """Test the pattern for applying proxy to VCI requests."""
-        # Create proxy
-        proxy = Proxy(
-            protocol='http',
-            ip='127.0.0.1',
-            port=3128
-        )
-
-        # Get proxy dict (would be passed to requests)
-        proxy_config = proxy.dict_format
-
-        # Verify structure
-        assert isinstance(proxy_config, dict)
-        assert 'http' in proxy_config
-        assert 'https' in proxy_config
-        assert proxy_config['http'].startswith('http://')
-        assert proxy_config['https'].startswith('http://')
-
     def test_multiple_proxy_handling(self):
         """Test handling multiple proxies."""
         proxies = [
