@@ -55,7 +55,8 @@ class Trading:
                      flatten_columns: Optional[bool] = False,
                      separator: Optional[str] = '_',
                      drop_levels: Optional[Union[int, List[int]]] = None,
-                     price_unit: Optional[str] = None) -> pd.DataFrame:
+                     price_unit: Optional[str] = None,
+                     get_all: Optional[bool] = False) -> pd.DataFrame:
         """
         Truy xuất thông tin bảng giá của các mã chứng khoán tuỳ chọn từ nguồn dữ liệu VCI.
         """

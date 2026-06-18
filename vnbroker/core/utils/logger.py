@@ -1,6 +1,57 @@
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 import os
+
+# Sensitive keys that should be redacted in logs
+SENSITIVE_KEYS = {
+    "apiKey", "api_key", "apikey",
+    "apiSecret", "api_secret", "apisecret",
+    "accessToken", "access_token", "accesstoken",
+    "refreshToken", "refresh_token", "refreshtoken",
+    "token", "secret", "password", "passwd", "pwd",
+    "username", "user", "login", "email",
+    "otp", "otp_code", "otpcode", "mfa", "totp",
+    "authorization", "auth", "bearer",
+    "privateKey", "private_key", "privatekey",
+    "secretKey", "secret_key", "secretkey",
+    "clientSecret", "client_secret", "clientsecret",
+    "appSecret", "app_secret", "appsecret",
+    "key", "credential", "credentials",
+}
+
+# Regex pattern to match sensitive key-value pairs in various formats
+SENSITIVE_PATTERN = re.compile(
+    r'("|\')?(' + '|'.join(re.escape(k) for k in SENSITIVE_KEYS) + r')("|\')?\s*[:=]\s*("|\')?([^"\',\s}]+)("|\')?',
+    re.IGNORECASE
+)
+
+def redact_sensitive_data(text: str) -> str:
+    """
+    Redact sensitive information from log messages.
+    
+    Args:
+        text: Log message that may contain sensitive data
+        
+    Returns:
+        String with sensitive values replaced by ***REDACTED***
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    return SENSITIVE_PATTERN.sub(r'\1\2\3: "***REDACTED***"', text)
+
+class SensitiveDataFilter(logging.Filter):
+    """Logging filter to redact sensitive data from log records."""
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        if hasattr(record, 'msg') and isinstance(record.msg, str):
+            record.msg = redact_sensitive_data(record.msg)
+        if hasattr(record, 'args') and record.args:
+            record.args = tuple(
+                redact_sensitive_data(arg) if isinstance(arg, str) else arg
+                for arg in record.args
+            )
+        return True
 
 def advanced_logger(name, 
                     level='DEBUG', 
@@ -52,6 +103,7 @@ def advanced_logger(name,
 
     # Set formatter and add handler to logger
     handler.setFormatter(formatter)
+    handler.addFilter(SensitiveDataFilter())
     logger.addHandler(handler)
 
     # Set the logging level

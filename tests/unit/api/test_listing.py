@@ -68,7 +68,7 @@ class TestListingAdapter:
         except Exception:
             pytest.skip("Requires full mock infrastructure")
 
-    @pytest.mark.parametrize("source", ['VCI', 'MSN'])
+    @pytest.mark.parametrize("source", ['VCI', 'KBS'])
     def test_listing_supports_multiple_sources(self, source):
         """Test Listing supports different sources."""
         listing = Listing(source=source, show_log=False)

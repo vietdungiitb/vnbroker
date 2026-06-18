@@ -59,9 +59,15 @@ class Trading:
             logger.setLevel('CRITICAL')
         
     @optimize_execution("TCBS")
-    def price_board(self, symbol_ls: List[str], std_columns: Optional[bool] = True, 
+    def price_board(self, symbols_list: List[str] = None, symbol_ls: List[str] = None, std_columns: Optional[bool] = True, 
                     show_log: bool = False,
-                    price_unit: Optional[str] = None) -> pd.DataFrame:
+                    price_unit: Optional[str] = None,
+                    get_all: Optional[bool] = False) -> pd.DataFrame:
+        # Accept both symbols_list and symbol_ls for compatibility
+        if symbols_list is not None:
+            symbol_ls = symbols_list
+        elif symbol_ls is None:
+            raise ValueError("Either symbols_list or symbol_ls must be provided")
         """
         Truy xuất thông tin bảng giá của các mã chứng khoán tuỳ chọn từ nguồn dữ liệu TCBS.
         
@@ -69,6 +75,7 @@ class Trading:
             - symbol_ls (List[str]): Danh sách các mã chứng khoán cần truy xuất thông tin.
             - std_columns (bool): Sử dụng danh sách cột tiêu chuẩn hoặc mở rộng. Mặc định là True.
             - show_log (bool): Hiển thị thông tin log hoặc không. Mặc định là False.
+            - get_all (bool): Compatibility parameter, ignored for TCBS.
             
         Returns:
             Thông tin bảng giá dưới dạng DataFrame.

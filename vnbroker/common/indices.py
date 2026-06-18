@@ -2,10 +2,10 @@
 Standardized indices, sectors, and market constants.
 
 Provides centralized reference for indices, sectors, and market constants
-used across all data sources (VCI, TCBS, MSN, etc.). This is shared
+used across all data sources (VCI, TCBS, etc.). This is shared
 infrastructure for all data source wrappers.
 
-All data sources (VCI, TCBS, MSN) use this module to provide a unified,
+All data sources (VCI, TCBS) use this module to provide a unified,
 consistent interface for index and sector lookups.
 """
 

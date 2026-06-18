@@ -60,10 +60,6 @@ HEADERS_MAPPING_SOURCE = {
         'Referer': 'https://trading.vietcap.com.vn/',
         'Origin': 'https://trading.vietcap.com.vn/'
     },
-    'MSN': {
-        'Referer': 'https://www.msn.com/',
-        'Origin': 'https://www.msn.com/'
-    },
     'FMARKET': {
         'Referer': 'https://fmarket.vn/',
         'Origin': 'https://fmarket.vn/'

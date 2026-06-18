@@ -8,6 +8,7 @@ class DNSEConfig:
     api_key: str
     api_secret: str
     base_url: str = "https://openapi.dnse.com.vn"
+    api_version: str = "2026-05-07"
     algorithm: str = "hmac-sha256"
     hmac_nonce_enabled: bool = True
     timeout_seconds: float = 30.0

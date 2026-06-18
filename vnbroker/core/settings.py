@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 class APIKeyConfig:
     """API keys for various providers."""
 
-    fmp: Optional[str] = None
     binance: Optional[str] = None
     dnse: Optional[str] = None
 
@@ -87,12 +86,12 @@ class vnbrokerConfig:
 
     Example:
         # From environment variables
-        export vnbroker_FMP_API_KEY="your_key"
+        export vnbroker_DNSE_API_KEY="your_key"
         export vnbroker_TIMEOUT=60
 
         # Or in code
         config = vnbrokerConfig(
-            api_keys=APIKeyConfig(fmp="your_key"),
+            api_keys=APIKeyConfig(dnse="your_key"),
             network=NetworkConfig(timeout=60)
         )
     """
@@ -121,8 +120,6 @@ class vnbrokerConfig:
     def _load_from_env(self):
         """Load configuration from environment variables."""
         # API Keys
-        if os.getenv("vnbroker_FMP_API_KEY") and not self.api_keys.fmp:
-            self.api_keys.fmp = os.getenv("vnbroker_FMP_API_KEY")
         if os.getenv("vnbroker_BINANCE_API_KEY") and not self.api_keys.binance:
             self.api_keys.binance = os.getenv("vnbroker_BINANCE_API_KEY")
         if os.getenv("vnbroker_DNSE_API_KEY") and not self.api_keys.dnse:
@@ -188,7 +185,6 @@ class vnbrokerConfig:
         """
         return {
             "api_keys": {
-                "fmp": self.api_keys.fmp,
                 "binance": self.api_keys.binance,
                 "dnse": self.api_keys.dnse,
             },

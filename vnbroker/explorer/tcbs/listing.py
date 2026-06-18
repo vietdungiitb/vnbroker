@@ -76,7 +76,7 @@ class Listing:
         Returns:
             DataFrame với 2 cột: symbol, organ_name.
         """
-        df = self.symbols_by_exchange(lang="vi", show_log=show_log)
+        df = self.symbols_by_exchange(show_log=show_log)
         if df.empty:
             return pd.DataFrame(columns=["symbol", "organ_name"])
         result = df[["symbol", "organ_name"]].copy()
@@ -86,7 +86,6 @@ class Listing:
     @optimize_execution("TCBS")
     def symbols_by_exchange(
         self,
-        lang: str = "vi",
         get_all: bool = False,
         show_log: Optional[bool] = False,
     ) -> pd.DataFrame:
@@ -94,7 +93,6 @@ class Listing:
         Truy xuất danh sách mã chứng khoán theo sàn giao dịch.
 
         Args:
-            lang: Ngôn ngữ tên công ty ('vi' hoặc 'en'). Mặc định 'vi'.
             get_all: Trả về tất cả cột từ API. Mặc định False.
             show_log: Hiển thị log. Mặc định False.
 
@@ -129,10 +127,8 @@ class Listing:
         keep = [c for c in ["symbol", "organ_name", "en_organ_name", "exchange", "type"] if c in df.columns]
         df = df[keep]
 
-        if lang != "vi" and "en_organ_name" in df.columns:
-            df = df.drop(columns=["organ_name"], errors="ignore")
-            df = df.rename(columns={"en_organ_name": "organ_name"})
-        elif "en_organ_name" in df.columns:
+        # Always use Vietnamese names (organ_name), drop English column
+        if "en_organ_name" in df.columns:
             df = df.drop(columns=["en_organ_name"])
 
         df.attrs["source"] = self.data_source
@@ -143,22 +139,17 @@ class Listing:
     @optimize_execution("TCBS")
     def symbols_by_industries(
         self,
-        lang: str = "vi",
         show_log: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Truy xuất danh sách mã theo ngành (TCBS industry classification).
 
         Args:
-            lang: Ngôn ngữ tên ngành ('vi' hoặc 'en'). Mặc định 'vi'.
             show_log: Hiển thị log. Mặc định False.
 
         Returns:
             DataFrame với các cột: symbol, organ_name, industry.
         """
-        if lang not in ("vi", "en"):
-            raise ValueError("Tham số lang phải là 'vi' hoặc 'en'.")
-
         raw = self._call_watchlist(
             filters=[{"key": "exchangeName", "value": "HOSE,HNX,UPCOM", "operator": "="}],
             size=10000,

@@ -32,6 +32,7 @@ import os
 import json
 import base64
 from typing import Union, Dict, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -391,8 +392,10 @@ class Messenger:
         Returns:
             Telegram API response
         """
+        # URL-encode the message to prevent query parameter injection
+        encoded_message = quote(message, safe='')
         url = (f'https://api.telegram.org/bot{self.token_key}/'
-               f'sendMessage?chat_id={self.channel}&text={message}')
+               f'sendMessage?chat_id={self.channel}&text={encoded_message}')
         response = requests.post(url)
         return response.json()
 

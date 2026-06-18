@@ -35,12 +35,9 @@ def test_exceptions_source_no_longer_contains_legacy_phrase():
     assert "temporarily throttled" in content
 
 
-def test_fmp_source_uses_throttled_message_instead_of_legacy_phrase():
-    fmp_config_file = _repo_root() / "vnbroker" / "connector" / "fmp" / "config.py"
-    content = _read_text(fmp_config_file)
-
-    assert "rate limit exceeded" not in content
-    assert "temporarily throttled requests" in content
+def test_fmp_source_is_removed():
+    fmp_dir = _repo_root() / "vnbroker" / "connector" / "fmp"
+    assert not fmp_dir.exists()
 
 
 def test_runtime_package_source_does_not_contain_guest_quota_text():

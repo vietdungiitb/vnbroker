@@ -6,18 +6,18 @@ import asyncio
 import os
 import random
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
 
+from vnbroker.config import Config
 from vnbroker.core.utils.client import ProxyMode
 from vnbroker.core.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# No client-side requests-per-minute cap is enforced.
-REQUESTS_PER_MINUTE = 0
 DEFAULT_MAX_CONNECTIONS = 200
 DEFAULT_MAX_KEEPALIVE = 100
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -31,17 +31,63 @@ ASYNC_STATS_ENABLED = os.getenv("vnbroker_ASYNC_STATS_ENABLED", "1").strip().low
 }
 
 
-class NoOpRateLimiter:
-    """Compatibility shim that keeps RATE_LIMITER import stable without throttling."""
-
-    async def __aenter__(self) -> "NoOpRateLimiter":
+class TokenBucketRateLimiter:
+    """
+    Token bucket rate limiter for async requests.
+    
+    Allows burst traffic up to bucket capacity while enforcing
+    a sustained rate limit (requests per minute).
+    """
+    
+    def __init__(self, rpm: int = 500):
+        """
+        Initialize rate limiter.
+        
+        Args:
+            rpm: Requests per minute (0 = disabled)
+        """
+        self.rpm = rpm
+        self._enabled = rpm > 0
+        if self._enabled:
+            # Token bucket: capacity = rpm, refill rate = rpm/60 per second
+            self._capacity = rpm
+            self._tokens = float(rpm)
+            self._refill_rate = rpm / 60.0
+            self._last_refill = time.monotonic()
+            self._lock = asyncio.Lock()
+    
+    async def __aenter__(self) -> "TokenBucketRateLimiter":
+        if not self._enabled:
+            return self
+        
+        async with self._lock:
+            await self._acquire_token()
         return self
-
+    
     async def __aexit__(self, exc_type, exc, tb) -> bool:
         return False
+    
+    async def _acquire_token(self) -> None:
+        """Wait until a token is available."""
+        while True:
+            self._refill()
+            if self._tokens >= 1.0:
+                self._tokens -= 1.0
+                return
+            # Calculate wait time for next token
+            wait_time = (1.0 - self._tokens) / self._refill_rate
+            await asyncio.sleep(min(wait_time, 1.0))  # Cap at 1 second to re-check
+    
+    def _refill(self) -> None:
+        """Refill tokens based on elapsed time."""
+        now = time.monotonic()
+        elapsed = now - self._last_refill
+        self._tokens = min(self._capacity, self._tokens + elapsed * self._refill_rate)
+        self._last_refill = now
 
 
-RATE_LIMITER = NoOpRateLimiter()
+# Initialize rate limiter from config (can be overridden by env var)
+RATE_LIMITER = TokenBucketRateLimiter(Config.RATE_LIMIT_RPM)
 
 
 @dataclass
@@ -379,9 +425,8 @@ __all__ = [
     "async_send_request",
     "fetch_multiple_requests",
     "AsyncClientManager",
-    "NoOpRateLimiter",
+    "TokenBucketRateLimiter",
     "RATE_LIMITER",
-    "REQUESTS_PER_MINUTE",
     "ASYNC_STATS_ENABLED",
     "get_async_request_stats",
     "reset_async_request_stats",

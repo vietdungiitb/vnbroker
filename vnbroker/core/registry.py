@@ -1,7 +1,7 @@
 """
 Provider Registry System for vnbroker.
 
-Hệ thống đăng ký cho phép các provider (VCI, TCBS, MSN, FMP, XNO, ...)
+Hệ thống đăng ký cho phép các provider (VCI, TCBS, DNSE, ...)
 tự đăng ký để trở thành available data source.
 
 Module này cho phép:
@@ -21,8 +21,8 @@ class ProviderRegistry:
     Registry for vnbroker data providers.
     
     Cho phép registration của các provider class từ các nguồn khác nhau:
-    - vnbroker.explorer.* (VCI, TCBS, MSN, ...) - Web scraping
-    - vnbroker.connector.* (FMP, XNO, Binance, ...) - REST API
+    - vnbroker.explorer.* (VCI, TCBS, ...) - Web scraping
+    - vnbroker.connector.* (DNSE, Binance, ...) - REST API
     """
     
     # Registry structure: {(provider_type, source_name_lower): provider_class}

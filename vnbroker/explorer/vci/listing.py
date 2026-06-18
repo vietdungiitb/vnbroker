@@ -11,6 +11,7 @@ from vnbroker.core.utils.client import send_request, ProxyConfig
 from vnbroker.core.utils.transform import drop_cols_by_pattern, reorder_cols
 from vnbroker.common import indices as market_indices
 from vnbroker.core.utils.execution import optimize_execution
+from vnbroker.core.utils.cache import cached_listing, cached_industry
 logger = get_logger(__name__)
 
 class Listing:
@@ -45,6 +46,7 @@ class Listing:
         if not show_log:
             logger.setLevel('CRITICAL')
 
+    @cached_listing()
     @optimize_execution("VCI")
     def all_symbols(self, show_log: Optional[bool] = False) -> pd.DataFrame:
         """Truy xuất danh sách toàn bộ mã và tên các cổ phiếu trên thị trường Việt Nam.
@@ -58,6 +60,7 @@ class Listing:
 
         return df
         
+    @cached_industry()
     @optimize_execution("VCI")
     def symbols_by_industries(self, lang: str = 'vi', show_log: Optional[bool] = False) -> pd.DataFrame:
         """
@@ -125,6 +128,7 @@ class Listing:
         df.source = "VCI"
         return df
 
+    @cached_listing()
     @optimize_execution("VCI")
     def symbols_by_exchange(self, lang: str = 'vi', show_log: Optional[bool] = False,
                             get_all: Optional[bool] = False) -> pd.DataFrame:
@@ -141,29 +145,49 @@ class Listing:
         url = self.base_url + '/price/symbols/getAll'
         
         # Use the send_request utility from api_client
-        json_data = send_request(
-            url=url,
-            headers=self.headers,
-            method="GET",
-            payload=None,
-            show_log=show_log,
-            proxy_list=self.proxy_config.proxy_list,
-            proxy_mode=self.proxy_config.proxy_mode,
-            request_mode=self.proxy_config.request_mode
-        )
+        try:
+            json_data = send_request(
+                url=url,
+                headers=self.headers,
+                method="GET",
+                payload=None,
+                show_log=show_log,
+                proxy_list=self.proxy_config.proxy_list,
+                proxy_mode=self.proxy_config.proxy_mode,
+                request_mode=self.proxy_config.request_mode
+            )
+        except ConnectionError as e:
+            # Handle case where API returns empty or invalid response
+            error_msg = str(e)
+            if "Expecting value" in error_msg or "JSON" in error_msg:
+                raise ValueError(f"VCI API returned empty or invalid response. URL: {url}. Error: {error_msg}")
+            raise
 
-        if not json_data:
+        # Handle case where API returns data wrapped in "data" key or directly as list
+        if json_data is None:
             raise ValueError("Không tìm thấy dữ liệu. Vui lòng kiểm tra lại.")
+        
+        # If response is a dict with "data" key, extract it
+        if isinstance(json_data, dict) and "data" in json_data:
+            json_data = json_data["data"]
+        
+        # If still a dict, it might be an error response
+        if isinstance(json_data, dict):
+            raise ValueError(f"Không nhận được dữ liệu (data) từ VCI. Response: {json_data}")
 
         if show_log:
             logger.info(f'Truy xuất dữ liệu thành công cho {len(json_data)} mã.')
 
         df = pd.DataFrame(json_data)
 
+        if df.empty:
+            df.source = "VCI"
+            return df
+
         df.columns = [camel_to_snake(col) for col in df.columns]
         df = df.rename(columns={'board': 'exchange'})
         df = reorder_cols(df, ['symbol', 'exchange', 'type'], position='first')
-        df = df.drop(columns=['id'])
+        df = df.drop(columns=['id'], errors='ignore')
 
         if get_all:
             df.source = "VCI"
@@ -172,7 +196,7 @@ class Listing:
         if lang == 'vi':
             df = drop_cols_by_pattern(df, ['en_'])
         else:
-            df = df.drop(columns=['organ_name', 'organ_short_name'])
+            df = df.drop(columns=['organ_name', 'organ_short_name'], errors='ignore')
             # rename columns for those contain 'en_' with 'en_' removed
             df.columns = [col.replace('en_', '') for col in df.columns]
 
@@ -180,6 +204,7 @@ class Listing:
         df.source = "VCI"
         return df
 
+    @cached_industry()
     @optimize_execution("VCI")
     def industries_icb(self, show_log: Optional[bool] = False) -> pd.DataFrame:
         """
@@ -330,7 +355,7 @@ class Listing:
     # STANDARDIZED MARKET INDICES (Wrapper functions)
     # =========================================================================
     # Provide access to standardized indices across all data sources
-    # (VCI, MSN, etc.). Sector indices include mapping to ICB
+    # (VCI, etc.). Sector indices include mapping to ICB
     # sector_id for industry filtering and analysis.
 
     def all_indices(self) -> pd.DataFrame:

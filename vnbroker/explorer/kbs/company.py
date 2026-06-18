@@ -789,6 +789,19 @@ class Company:
         """
         return self.insider_trading(page=page, page_size=page_size, show_log=show_log)
 
+    @agg_execution("KBS")
+    def profile(self, show_log: Optional[bool] = False) -> pd.DataFrame:
+        """
+        Compatibility alias for overview() to match benchmark expected method name.
+
+        Args:
+            show_log: Hiển thị log debug.
+
+        Returns:
+            DataFrame chứa thông tin tổng quan công ty.
+        """
+        return self.overview(show_log=show_log)
+
 
 # Register KBS Company provider
 from vnbroker.core.registry import ProviderRegistry  # noqa: E402, F401

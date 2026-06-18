@@ -23,10 +23,8 @@ class DataSources:
     "KBS" = _DataSource.KBS.value
     VCI = _DataSource.VCI.value
     TCBS = _DataSource.TCBS.value
-    MSN = _DataSource.MSN.value
     DNSE = _DataSource.DNSE.value
     BINANCE = _DataSource.BINANCE.value
-    FMP = _DataSource.FMP.value
     
     ALL_SOURCES = _DataSource.all_sources()
 

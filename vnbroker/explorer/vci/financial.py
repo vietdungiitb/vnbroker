@@ -553,7 +553,6 @@ class Finance:
     def balance_sheet(
         self,
         period: Optional[str] = None,
-        lang: Optional[str] = "en",
         dropna: Optional[bool] = True,
         show_log: Optional[bool] = False,
         display_mode=None,
@@ -563,7 +562,6 @@ class Finance:
 
         Tham số:
             - period (str): Kỳ báo cáo ('year' hoặc 'quarter'). Mặc định lấy theo cấu hình khởi tạo.
-            - lang (str): Ngôn ngữ ('vi' hoặc 'en'). Mặc định là 'en'.
             - dropna (bool): Loại bỏ các cột có tất cả giá trị bằng 0. Mặc định là True.
             - show_log (bool): Hiển thị thông tin log. Mặc định là False.
             - display_mode: Chế độ hiển thị cột (tương thích KBS FieldDisplayMode). Mặc định None.
@@ -574,7 +572,7 @@ class Finance:
         return self._get_financial_report(
             "balance_sheet",
             period=period,
-            lang=lang,
+            lang="en",  # Default to English, lang parameter removed per roadmap
             dropna=dropna,
             show_log=show_log,
             display_mode=display_mode,
@@ -584,7 +582,6 @@ class Finance:
     def income_statement(
         self,
         period: Optional[str] = None,
-        lang: Optional[str] = "en",
         dropna: Optional[bool] = True,
         show_log: Optional[bool] = False,
         display_mode=None,
@@ -594,7 +591,6 @@ class Finance:
 
         Tham số:
             - period (str): Kỳ báo cáo ('year' hoặc 'quarter').
-            - lang (str): Ngôn ngữ ('vi' hoặc 'en').
             - dropna (bool): Loại bỏ các cột 0.
             - show_log (bool): Hiển thị log.
             - display_mode: Chế độ hiển thị cột (tương thích KBS FieldDisplayMode).
@@ -605,7 +601,7 @@ class Finance:
         return self._get_financial_report(
             "income_statement",
             period=period,
-            lang=lang,
+            lang="en",  # Default to English, lang parameter removed per roadmap
             dropna=dropna,
             show_log=show_log,
             display_mode=display_mode,
@@ -615,7 +611,6 @@ class Finance:
     def cash_flow(
         self,
         period: Optional[str] = None,
-        lang: Optional[str] = "en",
         dropna: Optional[bool] = True,
         show_log: Optional[bool] = False,
         display_mode=None,
@@ -625,7 +620,6 @@ class Finance:
 
         Tham số:
             - period (str): Kỳ báo cáo ('year' hoặc 'quarter').
-            - lang (str): Ngôn ngữ ('vi' hoặc 'en').
             - dropna (bool): Loại bỏ các cột 0.
             - show_log (bool): Hiển thị log.
             - display_mode: Chế độ hiển thị cột (tương thích KBS FieldDisplayMode).
@@ -636,7 +630,7 @@ class Finance:
         return self._get_financial_report(
             "cash_flow",
             period=period,
-            lang=lang,
+            lang="en",  # Default to English, lang parameter removed per roadmap
             dropna=dropna,
             show_log=show_log,
             display_mode=display_mode,
@@ -646,7 +640,6 @@ class Finance:
     def ratio(
         self,
         period: Optional[str] = None,
-        lang: Optional[str] = "en",
         dropna: Optional[bool] = True,
         show_log: Optional[bool] = False,
         display_mode=None,
@@ -656,7 +649,6 @@ class Finance:
 
         Tham số:
             - period (str): Kỳ báo cáo ('year' hoặc 'quarter').
-            - lang (str): Ngôn ngữ ('vi' hoặc 'en').
             - dropna (bool): Loại bỏ các cột 0.
             - show_log (bool): Hiển thị log.
             - display_mode: Chế độ hiển thị cột (tương thích KBS FieldDisplayMode).
@@ -667,7 +659,7 @@ class Finance:
         return self._get_financial_report(
             "ratio",
             period=period,
-            lang=lang,
+            lang="en",  # Default to English, lang parameter removed per roadmap
             dropna=dropna,
             show_log=show_log,
             display_mode=display_mode,

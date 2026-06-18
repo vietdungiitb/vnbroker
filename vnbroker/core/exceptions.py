@@ -21,21 +21,12 @@ class vnbrokerError(Exception):
         error_code: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize vnbrokerError.
-
-        Args:
-            message: Human-readable error message
-            error_code: Machine-readable error code (e.g., 'PROVIDER_001')
-            details: Additional error details
-        """
         self.message = message
         self.error_code = error_code or "vnbroker_000"
         self.details = details or {}
         super().__init__(self.format_message())
 
     def format_message(self) -> str:
-        """Format error message with code and details."""
         msg = f"[{self.error_code}] {self.message}"
         if self.details:
             details_str = ", ".join(
@@ -48,7 +39,6 @@ class vnbrokerError(Exception):
         return self.format_message()
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert exception to dictionary for logging/debugging."""
         return {
             "error_code": self.error_code,
             "message": self.message,
@@ -71,15 +61,6 @@ class ProviderError(vnbrokerError):
         error_code: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize ProviderError.
-
-        Args:
-            message: Human-readable error message
-            provider: Provider name (e.g., 'vci', 'fmp')
-            error_code: Error code
-            details: Additional error details
-        """
         details = details or {}
         if provider:
             details["provider"] = provider
@@ -100,14 +81,6 @@ class UnsupportedProviderError(ProviderError):
         category: Optional[str] = None,
         available_providers: Optional[list] = None,
     ):
-        """
-        Initialize UnsupportedProviderError.
-
-        Args:
-            provider: The unsupported provider name
-            category: Data category (quote, company, etc.)
-            available_providers: List of available providers
-        """
         msg = f"Provider '{provider}' is not supported"
         if category:
             msg += f" for category '{category}'"
@@ -133,14 +106,6 @@ class UnsupportedMethodError(ProviderError):
         method: str,
         supported_methods: Optional[list] = None,
     ):
-        """
-        Initialize UnsupportedMethodError.
-
-        Args:
-            provider: Provider name
-            method: The unsupported method name
-            supported_methods: List of supported methods
-        """
         msg = f"Method '{method}' is not supported by provider '{provider}'"
 
         details = {}
@@ -164,14 +129,6 @@ class ProviderInitializationError(ProviderError):
         reason: str,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize ProviderInitializationError.
-
-        Args:
-            provider: Provider name
-            reason: Reason for initialization failure
-            details: Additional error details
-        """
         msg = f"Failed to initialize provider '{provider}': {reason}"
 
         super().__init__(
@@ -197,16 +154,6 @@ class DataFetchError(vnbrokerError):
         status_code: Optional[int] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize DataFetchError.
-
-        Args:
-            message: Error message
-            provider: Provider name
-            symbol: Stock symbol
-            status_code: HTTP status code (if applicable)
-            details: Additional error details
-        """
         details = details or {}
         if provider:
             details["provider"] = provider
@@ -232,19 +179,10 @@ class DataParsingError(vnbrokerError):
         raw_data: Optional[Any] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize DataParsingError.
-
-        Args:
-            message: Error message
-            provider: Provider name
-            raw_data: Raw data that failed to parse
-            details: Additional error details
-        """
         details = details or {}
         if provider:
             details["provider"] = provider
-        if raw_data and len(str(raw_data)) < 200:  # Only include if small
+        if raw_data and len(str(raw_data)) < 200:
             details["raw_data_preview"] = str(raw_data)[:200]
 
         super().__init__(
@@ -264,15 +202,6 @@ class DataValidationError(vnbrokerError):
         value: Optional[Any] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize DataValidationError.
-
-        Args:
-            message: Error message
-            field: Field name that failed validation
-            value: Invalid value
-            details: Additional error details
-        """
         details = details or {}
         if field:
             details["field"] = field
@@ -299,14 +228,6 @@ class ConfigurationError(vnbrokerError):
         config_key: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize ConfigurationError.
-
-        Args:
-            message: Error message
-            config_key: Configuration key that is invalid
-            details: Additional error details
-        """
         details = details or {}
         if config_key:
             details["config_key"] = config_key
@@ -326,13 +247,6 @@ class MissingAPIKeyError(ConfigurationError):
         provider: str,
         env_var: Optional[str] = None,
     ):
-        """
-        Initialize MissingAPIKeyError.
-
-        Args:
-            provider: Provider name that requires API key
-            env_var: Environment variable name for the API key
-        """
         msg = f"API key required for provider '{provider}'"
         if env_var:
             msg += f". Set environment variable '{env_var}' or pass api_key"
@@ -362,15 +276,6 @@ class NetworkError(vnbrokerError):
         status_code: Optional[int] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize NetworkError.
-
-        Args:
-            message: Error message
-            url: URL that failed
-            status_code: HTTP status code
-            details: Additional error details
-        """
         details = details or {}
         if url:
             details["url"] = url
@@ -393,14 +298,6 @@ class RateLimitError(NetworkError):
         retry_after: Optional[int] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize RateLimitError.
-
-        Args:
-            provider: Provider name
-            retry_after: Seconds to wait before retry
-            details: Additional error details
-        """
         msg = f"Provider '{provider}' temporarily throttled requests"
         if retry_after:
             msg += f". Retry after {retry_after} seconds"
@@ -425,14 +322,6 @@ class TimeoutError(NetworkError):
         timeout: float,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize TimeoutError.
-
-        Args:
-            provider: Provider name
-            timeout: Timeout value in seconds
-            details: Additional error details
-        """
         msg = f"Request to '{provider}' timed out after {timeout}s"
 
         details = details or {}
@@ -441,116 +330,6 @@ class TimeoutError(NetworkError):
 
         super().__init__(
             message=msg,
-            details=details,
-        )
-
-
-# ============================================================================
-# PAT AUTHENTICATION ERRORS
-# ============================================================================
-
-class AuthenticationError(vnbrokerError):
-    """Raised when PAT authentication fails (invalid/expired token)."""
-    
-    def __init__(
-        self,
-        message: str = "Authentication failed. Invalid or expired PAT token.",
-        error_code: str = "AUTH_001",
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code=error_code,
-            details=details,
-        )
-
-
-class AuthorizationError(vnbrokerError):
-    """Raised when PAT token lacks required scope/permission."""
-    
-    def __init__(
-        self,
-        message: str = "Authorization failed. Token does not have required scope.",
-        required_scope: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        details = details or {}
-        if required_scope:
-            details["required_scope"] = required_scope
-        super().__init__(
-            message=message,
-            error_code="AUTH_002",
-            details=details,
-        )
-
-
-class QuotaExceededError(vnbrokerError):
-    """Raised when PAT quota is exceeded (daily/monthly limit)."""
-    
-    def __init__(
-        self,
-        message: str = "Quota exceeded. Daily/monthly call limit reached.",
-        quota_type: Optional[str] = None,
-        reset_time: Optional[str] = None,
-        error_code: str = "AUTH_003",
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        details = details or {}
-        if quota_type:
-            details["quota_type"] = quota_type
-        if reset_time:
-            details["reset_time"] = reset_time
-        super().__init__(
-            message=message,
-            error_code=error_code,
-            details=details,
-        )
-
-
-class InvalidPATFormatError(AuthenticationError):
-    """Raised when PAT token format is invalid."""
-    
-    def __init__(
-        self,
-        message: str = "Invalid PAT format. Token must start with 'vninvest_pat_'.",
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            error_code="AUTH_004",
-            details=details,
-        )
-
-
-class GatewayUnavailableError(NetworkError):
-    """Raised when Gateway is unreachable and fallback is triggered."""
-    
-    def __init__(
-        self,
-        message: str = "Gateway unavailable. Switching to emergency fallback mode.",
-        fallback_enabled: bool = True,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        details = details or {}
-        details["fallback_enabled"] = fallback_enabled
-        super().__init__(
-            message=message,
-            details=details,
-        )
-
-
-class EmergencyQuotaExceededError(QuotaExceededError):
-    """Raised when emergency fallback quota (10 calls/day) is exceeded."""
-    
-    def __init__(
-        self,
-        message: str = "Emergency fallback quota exceeded (10 calls/day). Gateway may be down.",
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(
-            message=message,
-            quota_type="emergency_fallback",
-            error_code="AUTH_005",
             details=details,
         )
 
@@ -569,40 +348,21 @@ class DeprecationWarning(UserWarning):
 # ============================================================================
 
 ERROR_CODES = {
-    # General
     "vnbroker_000": "General vnbroker error",
-    # Provider errors
     "PROVIDER_000": "General provider error",
     "PROVIDER_001": "Unsupported provider",
     "PROVIDER_002": "Unsupported method",
     "PROVIDER_003": "Provider initialization failed",
-    # Data errors
     "DATA_001": "Data fetch failed",
     "DATA_002": "Data parsing failed",
     "DATA_003": "Data validation failed",
-    # Configuration errors
     "CONFIG_001": "Configuration error",
-    # Network errors
     "NETWORK_001": "Network request failed",
     "NETWORK_002": "Request temporarily throttled by provider",
     "NETWORK_003": "Request timeout",
-    # PAT Authentication errors
-    "AUTH_001": "Authentication failed - invalid/expired PAT",
-    "AUTH_002": "Authorization failed - insufficient scope",
-    "AUTH_003": "Quota exceeded - daily/monthly limit reached",
-    "AUTH_004": "Invalid PAT format",
-    "AUTH_005": "Emergency fallback quota exceeded",
 }
 
 
 def get_error_description(error_code: str) -> str:
-    """
-    Get description for an error code.
-
-    Args:
-        error_code: Error code string
-
-    Returns:
-        Error description or 'Unknown error code'
-    """
+    """Get description for an error code."""
     return ERROR_CODES.get(error_code, "Unknown error code")

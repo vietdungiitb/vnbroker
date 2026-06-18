@@ -30,7 +30,7 @@ def build_signature(
     date_value: str,
     algorithm: str,
     nonce: str | None = None,
-    header_name: str = "Date",
+    header_name: str = "X-Aux-Date",
 ) -> tuple[str, str]:
     header_key = header_name.lower()
     headers = f"(request-target) {header_key}"
@@ -57,7 +57,7 @@ def build_signature_header(
     path: str,
     algorithm: str = "hmac-sha256",
     hmac_nonce_enabled: bool = True,
-    date_header_name: str = "Date",
+    date_header_name: str = "X-Aux-Date",
 ) -> tuple[str, str]:
     date_value = format_date_header()
     nonce = uuid4().hex if hmac_nonce_enabled else None

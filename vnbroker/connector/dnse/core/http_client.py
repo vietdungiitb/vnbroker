@@ -36,13 +36,14 @@ class DNSEHttpClient:
             path=path,
             algorithm=self._config.algorithm,
             hmac_nonce_enabled=self._config.hmac_nonce_enabled,
-            date_header_name="Date",
+            date_header_name="X-Aux-Date",
         )
 
         req_headers = {
-            "Date": date_value,
+            "X-Aux-Date": date_value,
             "X-Signature": signature_header,
             "x-api-key": self._config.api_key,
+            "version": self._config.api_version,
         }
         if body is not None:
             req_headers["Content-Type"] = "application/json"

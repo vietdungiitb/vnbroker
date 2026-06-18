@@ -2,7 +2,7 @@
 Data validation models for vnbroker library.
 
 This module provides Pydantic BaseModel classes for data validation
-across all data sources (VCI, TCBS, MSN, etc.).
+across all data sources (VCI, TCBS, etc.).
 
 Consolidated from:
 - vnbroker/explorer/vci/models.py
@@ -25,7 +25,7 @@ class TickerModel(BaseModel):
     Used by:
     - VCI quote data fetching
     - TCBS quote data fetching
-    - MSN quote data fetching
+    - Quote data fetching
     """
     symbol: str
     start: str

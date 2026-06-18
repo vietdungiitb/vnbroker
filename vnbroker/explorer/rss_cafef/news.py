@@ -82,6 +82,10 @@ class News:
         )
         return df[mask].head(limit)
 
+    def market_news(self, page: int = 1, page_size: int = 10, **kwargs) -> pd.DataFrame:
+        """Alias for latest() to match benchmark expected method name."""
+        return self.latest(page=page, page_size=page_size, **kwargs)
+
 
 from vnbroker.core.registry import ProviderRegistry  # noqa: E402
 

@@ -44,8 +44,7 @@ class Screener:
     def stock(self, 
               params: Dict[str, Any] = {"exchangeName": "HOSE,HNX,UPCOM"}, 
               limit: int = 50, 
-              id: Optional[str] = None, 
-              lang: str = "vi") -> pd.DataFrame:
+              id: Optional[str] = None) -> pd.DataFrame:
         """
         Get stock screening insights from TCBS Stock Screener.
 
@@ -54,11 +53,10 @@ class Screener:
                            and values can be single values or (min, max) tuples.
             limit (int): Number of data points per page. Default is 50.
             id (str): Optional ID of the stock screener.
-            lang (str): Directive language for multi-language fields (e.g., "vi" or "en"). Default is "vi".
 
         Returns:
             pd.DataFrame: DataFrame containing the screened stock data with standardized column names,
-                          and cells processed to show the value for the directive language.
+                          and cells processed to show the value for the directive language (Vietnamese).
         
         Raises:
             ValueError: If API request fails or response format is unexpected.
@@ -164,10 +162,10 @@ class Screener:
             ]
             
             # Process the specified columns:
-            # If a cell is a dictionary with language keys, extract the value for the directive language.
+            # If a cell is a dictionary with language keys, extract the Vietnamese value.
             for col in cols_to_process:
                 if col in df.columns:
-                    df[col] = df[col].apply(lambda cell: cell.get(lang) if isinstance(cell, dict) and lang in cell else cell)
+                    df[col] = df[col].apply(lambda cell: cell.get("vi") if isinstance(cell, dict) and "vi" in cell else cell)
 
             # replace value HOSE to HSX for the column exchange
             try:

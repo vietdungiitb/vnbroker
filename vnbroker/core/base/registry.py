@@ -25,8 +25,8 @@ class ProviderRegistry:
         class VCIQuoteProvider(BaseProvider):
             ...
 
-        @ProviderRegistry.register(DataCategory.QUOTE, "fmp", ProviderType.API)  # noqa: E501
-        class FMPQuoteProvider(BaseProvider):
+        @ProviderRegistry.register(DataCategory.QUOTE, "dnse", ProviderType.API)  # noqa: E501
+        class DNSEQuoteProvider(BaseProvider):
             ...
 
         # Query providers
@@ -58,7 +58,7 @@ class ProviderRegistry:
 
         Args:
             category: Data category (QUOTE, COMPANY, etc.)
-            name: Provider name (lowercase, e.g., "vci", "fmp")
+            name: Provider name (lowercase, e.g., "vci", "kbs")
             provider_type: SCRAPING or API
 
         Returns:
@@ -187,19 +187,19 @@ class ProviderRegistry:
         Example:
             {
                 "quote": {
-                    "scraping": ["vci", "msn", "kbs"],
-                    "api": ["fmp"]
+                    "scraping": ["vci", "kbs"],
+                    "api": ["dnse"]
                 },
                 "company": {
                     "scraping": ["vci", "kbs"],
-                    "api": ["fmp"]
+                    "api": ["dnse"]
                 },
                 "financial": {
                     "scraping": ["vci", "kbs"],
-                    "api": ["fmp"]
+                    "api": ["dnse"]
                 },
                 "listing": {
-                    "scraping": ["vci", "msn", "kbs"],
+                    "scraping": ["vci", "kbs"],
                     "api": []
                 },
                 "trading": {

@@ -85,6 +85,7 @@ _INDEX_MAPPING = {'VNINDEX': 'VNINDEX', 'HNXINDEX': 'HNXIndex', 'UPCOMINDEX': 'H
 
 # ── New REST API endpoints (VCI migrated from GraphQL on Apr 26 2026) ──────────
 _VCIQ_URL = "https://iq.vietcap.com.vn/api/iq-insight-service"
+_VCI_COMPANY_URL = f"{_VCIQ_URL}/v1/company"
 
 _IQ_FINANCE_REPORT = {
     "balance_sheet": "BALANCE_SHEET",

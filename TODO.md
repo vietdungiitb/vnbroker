@@ -1,320 +1,358 @@
-﻿# TODO - Implementation Plan
+# TODO - Implementation Plan
 
 ## Project: vninvest-sdk / vnbroker
 
 **Generated:** 2025-06-17  
-**Based on:** ARCHITECTURE.md (updated), BENCHMARK_COMPARISON_REPORT.md
+**Aligned with:** ARCHITECTURE.md (vninvest Auth Resolve API)
 
 ---
 
-## Priority 1: Fix Critical Issues (Blocking)
+## Zero-Matrix: Deployment Mode × Feature Tier
 
-### 1.1 Bcrypt 72-byte limit (Issue #3) 🔴 Critical
-**Problem:** Token > 72 bytes bị cắt hoặc lỗi khi hash (PAT có thể dài tới 81 ký tự)
+### 1. Deployment Mode (chọn 1)
+| Mode | Mô tả | Use Case |
+|------|-------|----------|
+| **Gateway** | Gọi Core API (vninvest SaaS) | Production, multi-tenant, billing |
+| **Direct** | Gọi providers local qua vnbroker | Giảm tải Gateway, tránh rate-limit |
 
-**Solution:** Hash trước với SHA-256 thay vì bcrypt trực tiếp
+### 2. Feature Tier (mặc định Simple)
+| Tier | Dependencies | Features |
+|------|-------------|----------|
+| **Simple (default)** | 0 extra | Auth + Scope check + Local metering (memory) |
+| **Advanced (opt-in)** | Redis/SQLite optional | Quota enforce + Billing webhook + Persistent metering |
 
-```python
-# Thay vì:
-hash = bcrypt.hash(password[:72])
+### 3. Matrix kết hợp
 
-# Dùng:
-hash = bcrypt.hash(sha256(password.encode()).hexdigest()[:72])
+| | Gateway Simple | Gateway Advanced | Direct Simple | Direct Advanced |
+||-|:-:|:-:|:-:|:-:|
+| **Auth** | ✅ | ✅ | ✅ | ✅ |
+| **Scope** | ✅ | ✅ | ✅ | ✅ |
+| **Quota** | ❌ (read-only) | ✅ Enforce | ❌ (read-only) | ✅ Enforce |
+| **Metering** | Memory | SQLite + Webhook | Memory | SQLite + atexit |
+| **Billing** | ❌ | ✅ | ❌ | ✅ |
+
+### Quick Config
+```bash
+# Simple (default)
+VNINVEST_API_KEY=vninvest_pat_...
+VNINVEST_GATEWAY_ENABLED=true|false
+# Running immediately - no Redis/SQLite/webhook needed
+
+# Advanced (opt-in)
+VNINVEST_BILLING_ENABLED=true
+VNINVEST_BILLING_WEBHOOK_URL=https://...
+VNINVEST_QUOTA_BACKEND=redis
+VNINVEST_METERING_BACKEND=sqlite
 ```
 
-**Files to modify:**
-- `vninvest-sdk/vninvest/auth.py` - APIKeyAuth
-- `vninvest-sdk/vninvest/pat.py` - PATStorage
+---
 
-**Estimated:** 2 hours
+## Priority 0: Critical Security & Revenue Protection (Week 1) 🔴 P0
+
+### P0.1 AuthResolver Client Implementation 🔴
+**Problem:** Direct Mode cần validate PAT via vninvest `/core/v1/auth/resolve` với local caching (TTL 5 min). No JWT — server là source of truth.
+
+**Solution:** Implement `AuthResolver` class với in-memory cache, TTL, automatic refresh on cache miss/expiry/401.
+
+**Files:**
+- `vninvest-sdk/vninvest/auth.py` — Add `AuthResolver` class
+- `vninvest-sdk/vninvest/gateway_client.py` — Integrate AuthResolver
+
+**Status:** ✅ Done
 
 ---
 
-### 1.2 API Contract Endpoint Mismatch (Issue #2) 🔴 Critical
+### P0.2 SQLite Metering Backend + atexit Flush 🔴
+**Problem:** Short-lived scripts (backtesting, cron) lose metering events — 30s/100-event flush never triggers. Revenue leakage.
+
+**Solution:** `SQLiteMeteringBackend` persists events immediately to local `.vninvest_metering.db`, forces flush on `atexit` / context manager exit.
+
+**Files:**
+- `vninvest-sdk/vninvest/metering.py` — Add `SQLiteMeteringBackend` class
+- `vninvest-sdk/vninvest/backends/metering.py` — Backend protocol
+
+**Status:** ✅ Done
+
+---
+
+### P0.3 Bcrypt 72-byte Limit Fix 🔴
+**Problem:** PAT > 72 bytes truncated/error when hashed (PAT up to 81 chars).
+
+**Solution:** Pre-hash with SHA-256 before bcrypt.
+
+```python
+# Instead of: bcrypt.hash(password[:72])
+# Use: bcrypt.hash(sha256(password.encode()).hexdigest()[:72])
+```
+
+**Files:**
+- `vninvest-sdk/vninvest/auth.py` — APIKeyAuth
+- `vninvest-sdk/vninvest/pat.py` — PATStorage
+
+**Status:** ✅ Done
+
+---
+
+## Priority 1: API Contract Unification & PAT Enforcement (Week 1-2) 🔴 P1
+
+### P1.1 Unified Endpoint Mapping 🔴
 **Problem:** 
 - vnbroker: `/api/v1/quote/history`
 - vninvest-fastapi: `/api/v1/quote`
-- Django Gateway: `/core/v1/market-data/quotes/`
+- Django Gateway: `/core/v1/market/quote/history`
 
-**Solution:** Unified endpoint mapping
+**Solution:** Single source of truth = Django Gateway endpoints. Update all clients.
 
-**Files to modify:**
+**Files:**
 - `vnbroker/core/gateway_client.py`
 - `vninvest-sdk/vninvest/gateway_client.py`
 
-**Estimated:** 4 hours
+**Status:** ✅ Done
 
 ---
 
-### 1.3 Direct Mode PAT Requirement Design (Issue #1) 🟡 In Progress
-**Problem:** ARCHITECTURE.md says YES (bắt buộc), README.md says NO (optional cho VCI/KBS/TCBS/MSN)
+### P1.2 Vnbroker Client PAT Enforcement 🔴
+**Problem:** ARCHITECTURE.md says PAT required for Direct Mode, but code allows direct provider access without PAT.
 
-**Proposed Fix:** 
-- Direct Mode với VCI/KBS/TCBS/MSN: PAT **optional** (public APIs)
-- Direct Mode với DNSE/FMP: PAT **bắt buộc** (requires credentials)
-- Gateway Mode: PAT **bắt buộc**
+**Solution:** 
+- `Vnbroker.__init__` requires `pat_key` (and optional `gateway_url`)
+- Initialize `AuthResolver` + `GatewayHttpClient` (if gateway_url) or Direct backends
+- Deprecate `Quote()`, `Company()`, etc. direct instantiation
 
-**Files to modify:**
-- `vnbroker/common/client.py` - Vnbroker class
-- `vninvest-sdk/vninvest/auth.py` - PAT validation logic
-- `ARCHITECTURE.md` - Section 1 & 3
+**Files:**
+- `vnbroker/common/client.py` — Vnbroker class
+- `vninvest-sdk/vninvest/auth.py` — PAT validation logic
+- `ARCHITECTURE.md` — Section 1 & 3
 - `README.md`
 
-**Estimated:** 3 hours
+**Status:** ✅ Done (with broker_auth_bypass support)
 
 ---
 
-## Priority 2: Provider Resilience
+### P1.3 Direct Mode Public Tier Clarification 🟡
+**Decision:** Direct Mode with VCI/KBS/TCBS/MSN: PAT **required** (license enforcement). Public tier = separate documented rate-limited endpoints (not via SDK).
 
-### 2.1 Circuit Breaker for AUTO Mode (Issue #8) 🔴 High
-**Problem:** Provider AUTO routing lacks circuit breaker - cascade failure risk
+**Files:**
+- `ARCHITECTURE.md` — Section 1 table + notes
+- `README.md` — Clarify PAT requirement
 
-**Solution:** Implement ProviderCircuitBreaker
-
-```python
-class ProviderCircuitBreaker:
-    failure_threshold = 5
-    success_threshold = 3
-    cooldown_period = 60
-    
-    # States: CLOSED → OPEN → HALF_OPEN
-    def allow_request(self, provider: str) -> bool: ...
-    def record_success(self, provider: str) -> None: ...
-    def record_failure(self, provider: str) -> None: ...
-```
-
-**Files to create:**
-- `vnbroker/core/resilience.py`
-
-**Files to modify:**
-- `vnbroker/common/data.py` - StockComponents
-- `vnbroker/explorer/*/quote.py` - All quote providers
-
-**Estimated:** 6 hours
+**Status:** ✅ Done
 
 ---
 
-### 2.2 Provider Health Check
-**Problem:** Need health check for AUTO routing
+## Priority 2: Zero-Dependency Direct Mode & Provider Resilience (Week 2-3) 🔴 P2
 
-**Solution:** Implement lightweight health check per provider
+### P2.1 Zero-Dependency Backend Defaults 🔴
+**Problem:** Mandating Redis for local dev is a DX barrier.
 
-```python
-class ProviderHealthChecker:
-    async def check(self, provider: str) -> ProviderHealth:
-        # Use /health or /listing endpoint (fast)
-        # Check latency threshold: < 2s = healthy
-    
-    def is_healthy(self, provider: str) -> bool: ...
-```
+**Solution:** Default to in-memory/SQLite backends. Redis only for distributed deployments.
 
-**Files to modify:**
-- `vnbroker/core/registry.py`
-- `vnbroker/common/client.py`
+**Files:**
+- `vninvest-sdk/vninvest/backends/quota.py` — `QuotaBackend` protocol + `MemoryQuotaBackend`
+- `vninvest-sdk/vninvest/backends/cache.py` — `CacheBackend` protocol + `MemoryCacheBackend`
+- `vninvest-sdk/vninvest/backends/metering.py` — (from P0.2) `SQLiteMeteringBackend`, `MemoryMeteringBackend`
 
-**Estimated:** 4 hours
+**Status:** ✅ Done
 
 ---
 
-## Priority 3: Fix Failed Providers (Benchmark)
+### P2.2 Provider Circuit Breaker & Health Check 🔴
+**Problem:** AUTO routing lacks circuit breaker — cascade failure risk.
 
-### 3.1 DNSE - Missing Credentials
-**Issue:** DNSE requires API key/secret - all tests fail
+**Solution:** `ProviderCircuitBreaker` (CLOSED→OPEN→HALF_OPEN) + `ProviderHealthChecker` (lightweight `/health` or `/listing` check, <2s = healthy).
 
-**Solution:** Add DNSE credential configuration
+**Files:**
+- `vnbroker/core/resilience.py` — CircuitBreaker, HealthChecker
+- `vnbroker/common/data.py` — StockComponents routing
+- `vnbroker/explorer/*/quote.py` — All quote providers
 
-**Files to modify:**
-- `vnbroker/connector/dnse/core/config.py`
-- `vnbroker/connector/dnse/core/http_client.py`
-- Add environment variable setup: `DNSE_API_KEY`, `DNSE_API_SECRET`
-
-**Estimated:** 2 hours
+**Status:** ✅ Done (in codebase)
 
 ---
 
-### 3.2 News Providers - Method Not Found
-**Issue:** All News providers fail - "No `market_news` method"
+### P2.3 Fix Failed Providers (Benchmark) 🟢
+| Provider | Issue | Fix |
+|----------|-------|-----|
+| DNSE | Missing credentials | Add `DNSE_API_KEY`, `DNSE_API_SECRET` env + config |
+| News (KBS/VCI/TCBS) | No `market_news` method | Implement news method per provider |
+| Trading (KBS/TCBS/VCI) | Wrong param `symbols` vs `symbol_ls` | Fix parameter mapping |
+| TCBS Financial | Doesn't accept `lang` param | Remove `lang` from requests |
+| MSN | Expects `symbol_id` vs `symbol` | Add parameter mapping |
+| FMP | No API key configured | Add `FMP_API_KEY` env + config |
 
-**Solution:** Implement news method for each provider
+**Files:** `vnbroker/explorer/*/`, `vnbroker/connector/*/`
 
-**Files to create/modify:**
-- `vnbroker/explorer/kbs/news.py` - Add news method
-- `vnbroker/explorer/vci/news.py` - Add news method
-- `vnbroker/explorer/tcbs/news.py` - Add news method
-
-**Estimated:** 4 hours
-
----
-
-### 3.3 Trading/Price Board - Parameter Mismatch
-**Issue:** Wrong param - `symbols` vs `symbol_ls`
-
-**Solution:** Fix parameter mapping
-
-**Files to modify:**
-- `vnbroker/explorer/kbs/trading.py` - Fix `symbols` → `symbol_ls`
-- `vnbroker/explorer/tcbs/trading.py` - Fix `symbols` → `symbol_ls`
-- `vnbroker/explorer/vci/trading.py` - Fix parameter
-
-**Estimated:** 2 hours
+**Status:** 🟡 Partial (ongoing)
 
 ---
 
-### 3.4 TCBS Financial - Parameter Mismatch
-**Issue:** Financial doesn't accept `lang` parameter
+## Priority 3: Observability, Streaming & Versioning (Week 3-4) 🟡 P3
 
-**Solution:** Remove `lang` parameter from TCBS financial requests
+### P3.1 OpenTelemetry Tracing Complete 🟡
+**Problem:** `observability.py` partial — needs full integration.
 
-**Files to modify:**
-- `vnbroker/explorer/tcbs/financial.py`
+**Solution:** Traces for auth resolve, quota check, cache hit/miss, provider calls, metering flush.
 
-**Estimated:** 1 hour
+**Files:**
+- `vninvest-sdk/vninvest/observability.py`
 
----
-
-### 3.5 MSN - Parameter Mismatch
-**Issue:** MSN expects `symbol_id` vs `symbol`
-
-**Solution:** Add parameter mapping
-
-**Files to modify:**
-- `vnbroker/explorer/msn/quote.py`
-- `vnbroker/explorer/msn/listing.py`
-
-**Estimated:** 2 hours
+**Status:** ✅ Done
 
 ---
 
-### 3.6 FMP - No API Key Configured
-**Issue:** FMP требует FMP_API_KEY env var
+### P3.2 Unified StreamManager 🟡
+**Problem:** Gateway (WebSocket) vs Direct (Redis pub/sub) parity.
 
-**Solution:** Add FMP configuration
+**Solution:** Unified `StreamManager` interface with backend implementations.
 
-**Files to modify:**
-- `vnbroker/connector/fmp/config.py`
-- Add environment setup: `FMP_API_KEY`
-
-**Estimated:** 1 hour
-
----
-
-## Priority 4: Streaming & Versioning
-
-### 4.1 Unified StreamManager (Issue #9) 🔴 Medium
-**Problem:** Gateway (WebSocket) vs Direct (Redis pub/sub) parity
-
-**Solution:** Unified StreamManager interface
-
-**Files to modify:**
+**Files:**
 - `vninvest-sdk/vninvest/streaming.py`
 - `vnbroker/common/stream.py`
 
-**Estimated:** 6 hours
+**Status:** ✅ Done
 
 ---
 
-### 4.2 API Versioning Strategy (Issue #11) 🔴 Medium
-**Problem:** Core API `/core/v1/` - need multi-version support
+### P3.3 API Version Negotiation 🟡
+**Problem:** Core API `/core/v1/` — need multi-version support.
 
-**Solution:** Add version negotiation
+**Solution:** Client declares `api_version="v1"|"v2"|"auto"`, negotiates with Gateway.
 
-```python
-# Client side
-client = VninvestClient(
-    api_version="v2",  # or "v1", "auto"
-)
-```
-
-**Files to modify:**
+**Files:**
 - `vninvest-sdk/vninvest/gateway_client.py`
 - `vninvest-sdk/vninvest/config.py`
 
-**Estimated:** 4 hours
+**Status:** ✅ Done
 
 ---
 
-## Priority 5: Observability & Testing
+## Priority 4: Testing & Documentation (Week 4-5) 🟡 P4
 
-### 5.1 OpenTelemetry Tracing (Issue #10 Partial)
-**Problem:** observability.py needs complete implementation
+### P4.1 Test Isolation Fix 🟡
+**Problem:** Fixtures leak from `brokerplatform` project — pytest finds wrong `conftest.py`.
 
-**Solution:** Full OpenTelemetry integration
+**Solution:** Local `conftest.py` in `tests/`, `pytest.ini` with `pythonpath` pointing to current project.
 
-**Files to modify:**
-- `vninvest-sdk/vninvest/observability.py`
+**Files:**
+- `tests/conftest.py` — Shared mock fixtures
+- `pytest.ini` — `pythonpath = .`
 
-**Estimated:** 4 hours
-
----
-
-### 5.2 Testing Strategy (Issue #12) 🔴 Medium
-**Solution:** Document and implement testing strategy
-
-**Files to create:**
-- `tests/unit/` - Mock tests
-- `tests/integration/` - Real provider tests
-- `tests/contract/` - OpenAPI schema tests
-
-**Estimated:** 8 hours
+**Status:** ✅ Done
 
 ---
 
-## Priority 6: Documentation
+### P4.2 Testing Strategy Implementation 🟡
+**Structure:**
+```
+tests/
+├── unit/           # Mocked: client, auth, quota, cache, metering
+├── integration/    # Real providers (skipped w/o creds)
+└── contract/       # OpenAPI schema validation
+```
 
-### 6.1 README & Quickstart (Issue #14) 🔴 Low
-**Solution:** Complete documentation
+**Files:** Test files per above structure.
 
-**Files to modify:**
-- `README.md` - Overview, features, installation
-- `docs/QUICKSTART.md` - 5-minute tutorial
-- `docs/MIGRATION_GUIDE.md` - v0.1 → v0.2
+**Status:** ✅ Done
 
-**Estimated:** 6 hours
+---
+
+### P4.3 Documentation 🟢
+**Files:**
+- `README.md` — Overview, features, installation, PAT requirement
+- `docs/QUICKSTART.md` — 5-minute tutorial
+- `docs/MIGRATION_GUIDE.md` — v0.1 → v0.2
+- `docs/TROUBLESHOOTING.md` — Common errors
+
+**Status:** ✅ Done
 
 ---
 
 ## Summary
 
-| Priority | Issue | Status | Estimate |
-|----------|-------|--------|----------|
-| 🔴 1.1 | Bcrypt fix | Not Started | 2h |
-| 🔴 1.2 | API Contract | Not Started | 4h |
-| 🟡 1.3 | PAT Design | In Progress | 3h |
-| 🔴 2.1 | Circuit Breaker | Not Started | 6h |
-| 🔴 2.2 | Health Check | Not Started | 4h |
-| 🟢 3.1 | DNSE Creds | Not Started | 2h |
-| 🟢 3.2 | News Methods | Not Started | 4h |
-| 🟢 3.3 | Trading Params | Not Started | 2h |
-| 🟢 3.4 | TCBS Finance | Not Started | 1h |
-| 🟢 3.5 | MSN Params | Not Started | 2h |
-| 🟢 3.6 | FMP Config | Not Started | 1h |
-| 🔴 4.1 | StreamManager | Not Started | 6h |
-| 🔴 4.2 | Versioning | Not Started | 4h |
-| 🟡 5.1 | OpenTelemetry | Partial | 4h |
-| 🔴 5.2 | Testing | Not Started | 8h |
-| 🔴 6.1 | Docs | Not Started | 6h |
+| Priority | Task | Status |
+|----------|------|--------|
+| ✅ P0.1 | AuthResolver Client | Done |
+| ✅ P0.2 | SQLite Metering + atexit | Done |
+| ✅ P0.3 | Bcrypt SHA-256 Pre-hash | Done |
+| ✅ P1.1 | Unified Endpoints | Done |
+| ✅ P1.2 | Vnbroker PAT Enforcement | Done |
+| ✅ P1.3 | Public Tier Clarification | Done |
+| ✅ P2.1 | Zero-Dependency Backends | Done |
+| ✅ P2.2 | Circuit Breaker + Health Check | Done |
+| 🟡 P2.3 | Fix Failed Providers | Partial |
+| ✅ P3.1 | OpenTelemetry Complete | Done |
+| ✅ P3.2 | Unified StreamManager | Done |
+| ✅ P3.3 | API Versioning | Done |
+| ✅ P4.1 | Test Isolation Fix | Done |
+| ✅ P4.2 | Testing Strategy | Done |
+| ✅ P4.3 | Documentation | Done |
 
-**Total Estimate:** 59 hours
+**Status:** ✅ All Core Tasks Complete
 
 ---
 
-## Action Items
+## Action Items (Completed)
 
-1. **Immediate (This Week):**
-   - [ ] Fix Bcrypt 72-byte limit
-   - [ ] Fix DNSE credentials
-   - [ ] Complete PAT Design fix
+### P0 (Week 1): ✅
+- [x] P0.1 AuthResolver implementation
+- [x] P0.2 SQLite Metering Backend + atexit
+- [x] P0.3 Bcrypt fix
 
-2. **Next Week:**
-   - [ ] Circuit Breaker implementation
-   - [ ] News methods implementation
-   - [ ] Trading/Price Board fix
+### P1 (Week 1-2): ✅
+- [x] P1.1 Unified endpoints
+- [x] P1.2 Vnbroker PAT enforcement + broker_auth_bypass
+- [x] P1.3 Simple Mode default
 
-3. **Week 3-4:**
-   - [ ] Streaming parity
-   - [ ] API versioning
-   - [ ] OpenTelemetry complete
+### P2 (Week 2-3): ✅
+- [x] P2.1 Advanced Mode backends (optional)
+- [x] P2.2 Circuit breaker + health check
+- [x] P2.3 Fix failed providers (partial)
 
-4. **Week 5:**
-   - [ ] Testing strategy
-   - [ ] Documentation
+### P3 (Week 3-4): ✅
+- [x] P3.1 OpenTelemetry complete
+- [x] P3.2 StreamManager + Versioning
+- [x] P4.1 Test isolation + strategy
+
+### P4 (Week 4-5): ✅
+- [x] P4.3 Documentation
+
+---
+
+## Code Implementation Details
+
+### 15.1 Config — Feature Tier Flag
+```python
+class Settings(BaseSettings):
+    billing_enabled: bool = False    # Simple: no enforce
+    quota_backend: str = "memory"
+    metering_backend: str = "memory"  # No persistence in Simple
+    
+    billing_webhook_url: str | None = None
+```
+
+### 15.2 Quota — Conditional Enforce
+```python
+async def check_quota(self, tenant_id: str, scope: str, cost: int = 1) -> QuotaResult:
+    if not settings.billing_enabled:
+        return QuotaResult(allowed=True, remaining=999999)  # Simple: no enforce
+    return await self.backend.check_quota(tenant_id, scope, cost)
+```
+
+### 15.3 Metering — Simple vs Advanced
+```python
+class MemoryMeteringBackend:
+    # Simple: buffer in memory only
+    async def record_event(self, event):
+        self._buffer.append(event)  # Drop on overflow
+
+class SQLiteMeteringBackend:
+    # Advanced: persistent + atexit flush
+    async def record_event(self, event):
+        await self._persist(event)
+```
+
+## Note: Simple Mode as Default
+
+> **Important:** Simple Mode (auth only, no billing/SQLite/Redis) is the **default** recommendation for most users. This ensures zero friction - user can install and use immediately.
+
+Advanced Mode (metering/billing/quota) should be **opt-in** for production/commercial use.

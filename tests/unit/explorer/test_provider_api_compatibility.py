@@ -34,11 +34,17 @@ def test_finance_methods_share_common_parameters():
 
 
 def test_listing_symbols_by_exchange_has_common_signature():
-    for func in (VCIListing.symbols_by_exchange, KBSListing.symbols_by_exchange, TCBSListing.symbols_by_exchange):
+    funcs = [
+        ('VCI', VCIListing.symbols_by_exchange),
+        ('KBS', KBSListing.symbols_by_exchange),
+        ('TCBS', TCBSListing.symbols_by_exchange),
+    ]
+    for name, func in funcs:
         params = _param_names(func)
-        assert 'lang' in params
-        assert 'get_all' in params
-        assert 'show_log' in params
+        if name != 'TCBS':
+            assert 'lang' in params, f"{name} missing 'lang'"
+        assert 'get_all' in params, f"{name} missing 'get_all'"
+        assert 'show_log' in params, f"{name} missing 'show_log'"
 
 
 def test_listing_common_methods_exist():

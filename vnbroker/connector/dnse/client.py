@@ -21,6 +21,7 @@ class DNSEClient:
         api_key: str,
         api_secret: str,
         base_url: str = "https://openapi.dnse.com.vn",
+        api_version: str = "2026-05-07",
         algorithm: str = "hmac-sha256",
         hmac_nonce_enabled: bool = True,
         timeout_seconds: float = 30.0,
@@ -30,6 +31,7 @@ class DNSEClient:
             api_key=api_key,
             api_secret=api_secret,
             base_url=base_url,
+            api_version=api_version,
             algorithm=algorithm,
             hmac_nonce_enabled=hmac_nonce_enabled,
             timeout_seconds=timeout_seconds,
@@ -383,6 +385,65 @@ class DNSEClient:
                 index_name=index_name,
                 limit=limit,
                 page=page,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_close_price(self, symbol: str, dry_run: bool = False, raw: bool = False):
+        return self._resolve_output(
+            self._market.get_close_price(symbol=symbol, dry_run=dry_run), raw=raw
+        )
+
+    def get_latest_trade(self, symbol: str, dry_run: bool = False, raw: bool = False):
+        return self._resolve_output(
+            self._market.get_latest_trade(symbol=symbol, dry_run=dry_run), raw=raw
+        )
+
+    def get_working_dates(self, dry_run: bool = False, raw: bool = False):
+        return self._resolve_output(
+            self._market.get_working_dates(dry_run=dry_run), raw=raw
+        )
+
+    def get_corporate_action_history(
+        self,
+        account_no: str,
+        market_type: str,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ):
+        return self._resolve_output(
+            self._account.get_corporate_action_history(
+                account_no=account_no,
+                market_type=market_type,
+                from_date=from_date,
+                to_date=to_date,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def replace_order(
+        self,
+        account_no: str,
+        order_id: str,
+        market_type: str,
+        payload: dict,
+        trading_token: str,
+        order_category: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ):
+        return self._resolve_output(
+            self._order.replace_order(
+                account_no=account_no,
+                order_id=order_id,
+                market_type=market_type,
+                payload=payload,
+                trading_token=trading_token,
+                order_category=order_category,
                 dry_run=dry_run,
             ),
             raw=raw,

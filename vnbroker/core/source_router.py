@@ -20,12 +20,12 @@ AUTO_SOURCE = "auto"
 
 # Open providers only. Do not include providers that require auth/token.
 OPEN_SOURCE_CANDIDATES: Dict[str, List[str]] = {
-    "quote": ["vci", "kbs", "msn"],
+    "quote": ["vci", "kbs"],
     "company": ["vci", "kbs"],
     "news": ["vci", "kbs", "rss_cafef", "rss_vneconomy"],
     "financial": ["vci", "kbs"],
     "trading": ["kbs", "vci"],
-    "listing": ["kbs", "vci", "msn"],
+    "listing": ["kbs", "vci"],
 }
 
 # Primary pools used for throughput-oriented sharding.
@@ -39,7 +39,7 @@ PRIMARY_SOURCE_POOLS: Dict[str, List[str]] = {
     "news": ["vci", "kbs"],
     "financial": ["vci"],
     "trading": ["kbs"],
-    "listing": ["kbs", "vci", "msn"],
+    "listing": ["kbs", "vci"],
 }
 
 _health_lock = threading.Lock()

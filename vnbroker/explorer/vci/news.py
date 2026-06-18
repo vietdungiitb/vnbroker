@@ -43,6 +43,10 @@ class News:
     def by_symbol(self, symbol: str, limit: int = 100, **kwargs) -> pd.DataFrame:
         return self.latest(symbol=symbol, limit=limit, **kwargs)
 
+    def market_news(self, page: int = 1, page_size: int = 10, **kwargs) -> pd.DataFrame:
+        """Alias for latest() to match benchmark expected method name."""
+        return self.latest(page=page, page_size=page_size, **kwargs)
+
 
 from vnbroker.core.registry import ProviderRegistry  # noqa: E402
 

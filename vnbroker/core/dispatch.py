@@ -3,7 +3,7 @@ Emergency Fallback Dispatch Module for vnbroker.
 
 This module maps Gateway API endpoints to local explorer implementations
 when the SaaS Gateway is unavailable. It provides a limited but functional
-fallback using direct connections to data providers (VCI, KBS, TCBS, MSN).
+fallback using direct connections to data providers (VCI, KBS, TCBS).
 
 Usage:
     from vnbroker.core.dispatch import local_dispatch_fallback
@@ -20,46 +20,43 @@ logger = logging.getLogger(__name__)
 
 # Endpoint to local explorer mapping
 # Format: endpoint_path -> (module_path, function_name, required_params)
+# Updated to match Django Gateway /core/v1/market/* endpoints
 ENDPOINT_MAPPING = {
     # Quote endpoints
-    "/api/v1/quote/history": ("vnbroker.explorer.vci.quote", "history", ["symbol", "start", "end"]),
-    "/api/v1/quote/intraday": ("vnbroker.explorer.vci.quote", "intraday", ["symbol"]),
-    "/api/v1/quote/price_board": ("vnbroker.explorer.vci.quote", "price_board", ["symbols"]),
-    "/api/v1/quote/price_depth": ("vnbroker.explorer.vci.quote", "price_depth", ["symbol"]),
+    "/core/v1/market/quote/history": ("vnbroker.explorer.vci.quote", "history", ["symbol", "start", "end"]),
+    "/core/v1/market/quote/intraday": ("vnbroker.explorer.vci.quote", "intraday", ["symbol"]),
+    "/core/v1/market/quote/depth": ("vnbroker.explorer.vci.quote", "price_depth", ["symbol"]),
+    "/core/v1/market/snapshot/price-board": ("vnbroker.explorer.vci.quote", "price_board", ["symbols"]),
     
     # Company endpoints
-    "/api/v1/company/profile": ("vnbroker.explorer.vci.company", "profile", ["symbol"]),
-    "/api/v1/company/officers": ("vnbroker.explorer.vci.company", "officers", ["symbol"]),
-    "/api/v1/company/shareholders": ("vnbroker.explorer.vci.company", "shareholders", ["symbol"]),
-    "/api/v1/company/insider_deals": ("vnbroker.explorer.vci.company", "insider_deals", ["symbol"]),
-    "/api/v1/company/dividends": ("vnbroker.explorer.vci.company", "dividends", ["symbol"]),
-    "/api/v1/company/events": ("vnbroker.explorer.vci.company", "events", ["symbol"]),
-    "/api/v1/company/financial_ratios": ("vnbroker.explorer.vci.company", "financial_ratios", ["symbol"]),
+    "/core/v1/market/company/overview": ("vnbroker.explorer.vci.company", "profile", ["symbol"]),
+    "/core/v1/market/company/profile": ("vnbroker.explorer.vci.company", "profile", ["symbol"]),
+    "/core/v1/market/company/shareholders": ("vnbroker.explorer.vci.company", "shareholders", ["symbol"]),
+    "/core/v1/market/company/insiders": ("vnbroker.explorer.vci.company", "insider_deals", ["symbol"]),
+    "/core/v1/market/company/events": ("vnbroker.explorer.vci.company", "events", ["symbol"]),
+    "/core/v1/market/company/officers": ("vnbroker.explorer.vci.company", "officers", ["symbol"]),
+    "/core/v1/market/company/subsidiaries": ("vnbroker.explorer.vci.company", "profile", ["symbol"]),
     
     # Finance endpoints
-    "/api/v1/finance/income_statement": ("vnbroker.explorer.vci.financial", "income_statement", ["symbol", "period"]),
-    "/api/v1/finance/balance_sheet": ("vnbroker.explorer.vci.financial", "balance_sheet", ["symbol", "period"]),
-    "/api/v1/finance/cash_flow": ("vnbroker.explorer.vci.financial", "cash_flow", ["symbol", "period"]),
-    "/api/v1/finance/ratios": ("vnbroker.explorer.vci.financial", "ratios", ["symbol", "period"]),
+    "/core/v1/market/finance/report": ("vnbroker.explorer.vci.financial", "income_statement", ["symbol", "period"]),
     
     # Listing endpoints
-    "/api/v1/listing/all_symbols": ("vnbroker.explorer.vci.listing", "all_symbols", []),
-    "/api/v1/listing/industries": ("vnbroker.explorer.vci.listing", "industries", []),
+    "/core/v1/market/listing/symbols": ("vnbroker.explorer.vci.listing", "all_symbols", []),
+    "/core/v1/market/listing/groups": ("vnbroker.explorer.vci.listing", "industries", []),
     
-    # Trading endpoints
-    "/api/v1/trading/price_board": ("vnbroker.explorer.vci.trading", "price_board", ["symbols"]),
+    # Snapshot endpoints
+    "/core/v1/market/snapshot/heatmap": ("vnbroker.explorer.vci.quote", "price_board", ["symbols"]),
     
     # News endpoints
-    "/api/v1/news/market": ("vnbroker.explorer.vci.news", "market_news", ["limit"]),
-    "/api/v1/news/symbol": ("vnbroker.explorer.vci.news", "symbol_news", ["symbol", "limit"]),
+    "/core/v1/market/news/latest": ("vnbroker.explorer.vci.news", "market_news", ["limit"]),
+    "/core/v1/market/news/search": ("vnbroker.explorer.vci.news", "symbol_news", ["symbol", "limit"]),
 }
 
 # Alternative provider mappings (fallback chain)
 PROVIDER_FALLBACK_CHAIN = {
-    "vci": ["kbs", "tcbs", "msn"],
-    "kbs": ["vci", "tcbs", "msn"],
-    "tcbs": ["vci", "kbs", "msn"],
-    "msn": ["vci", "kbs", "tcbs"],
+    "vci": ["kbs", "tcbs"],
+    "kbs": ["vci", "tcbs"],
+    "tcbs": ["vci", "kbs"],
 }
 
 # Default provider for fallback
@@ -132,7 +129,7 @@ def local_dispatch_fallback(
     Maps Gateway endpoint to local explorer function and executes with fallback chain.
     
     Args:
-        endpoint: Gateway API endpoint (e.g., "/api/v1/quote/history")
+        endpoint: Gateway API endpoint (e.g., "/core/v1/market/quote/history")
         json_data: POST request payload
         params: GET query parameters
         provider: Preferred provider (defaults to VCI)
@@ -146,8 +143,8 @@ def local_dispatch_fallback(
     """
     # Normalize endpoint
     endpoint = endpoint.rstrip("/")
-    if not endpoint.startswith("/api/v1/"):
-        endpoint = "/api/v1" + endpoint
+    if not endpoint.startswith("/core/v1/market/"):
+        endpoint = "/core/v1/market" + endpoint
     
     # Merge json_data and params
     request_params = {}
@@ -229,8 +226,8 @@ def get_supported_fallback_endpoints() -> List[str]:
 def is_endpoint_supported_in_fallback(endpoint: str) -> bool:
     """Check if an endpoint is supported in fallback mode."""
     endpoint = endpoint.rstrip("/")
-    if not endpoint.startswith("/api/v1/"):
-        endpoint = "/api/v1" + endpoint
+    if not endpoint.startswith("/core/v1/market/"):
+        endpoint = "/core/v1/market" + endpoint
     return endpoint in ENDPOINT_MAPPING
 
 

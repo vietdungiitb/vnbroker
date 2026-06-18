@@ -5,7 +5,7 @@ Unified Quote adapter with dynamic method detection and parameter filtering.
 Module quản lý dữ liệu giá chứng khoán với phát hiện phương thức động và lọc tham số.
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Union, List
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 from vnbroker.config import Config
@@ -49,7 +49,7 @@ class Quote(BaseAdapter):
         Khởi tạo một đối tượng Quote.
 
         Args:
-            source (str): Data source (VCI, MSN). Nguồn dữ liệu (VCI, MSN).
+            source (str): Data source (VCI, KBS). Nguồn dữ liệu (VCI, KBS).
             symbol (str): Stock symbol. Mã chứng khoán.
             random_agent (bool): Use random user agent for requests. Sử dụng user agent ngẫu nhiên cho các yêu cầu.
             show_log (bool): Show log messages. Hiển thị thông báo nhật ký.
@@ -231,3 +231,104 @@ class Quote(BaseAdapter):
             if original_symbol:
                 self.symbol = original_symbol
                 self._update_provider()
+
+    @retry(
+        stop=stop_after_attempt(Config.RETRIES),
+        wait=wait_exponential(
+            multiplier=Config.BACKOFF_MULTIPLIER,
+            min=Config.BACKOFF_MIN,
+            max=Config.BACKOFF_MAX
+        )
+    )
+    def fetch_multiple(
+        self,
+        symbols: list[str],
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        interval: str = TimeResolutions.DAILY,
+        show_log: bool = False,
+        count_back: Optional[int] = None,
+        floating: int = 2,
+        length: Optional[Union[str, int]] = None,
+        max_concurrency: int = 24,
+        adaptive_concurrency: Optional[bool] = None,
+    ) -> list[pd.DataFrame]:
+        """
+        Fetch historical data for multiple symbols in parallel.
+        
+        Lấy dữ liệu lịch sử cho nhiều mã chứng khoán song song.
+        
+        This method uses the provider's native parallel fetching capability
+        (async for VCI, thread pool for KBS) for optimal performance.
+        
+        Args:
+            symbols: List of stock symbols to fetch
+            start: Start date (YYYY-MM-DD)
+            end: End date (YYYY-MM-DD)
+            interval: Data interval (1m, 5m, 15m, 30m, 1H, 1D, 1W, 1M)
+            show_log: Show log messages
+            count_back: Number of bars to fetch
+            floating: Decimal places for prices
+            length: Time period string (e.g., '1M', '3M') or number of days
+            max_concurrency: Maximum concurrent requests
+            adaptive_concurrency: Enable adaptive concurrency control
+            
+        Returns:
+            List of DataFrames, one per symbol (in same order as input)
+            
+        Examples:
+            >>> quote = Quote(source="vci")
+            >>> dfs = quote.fetch_multiple(["VNM", "VCB", "FPT"], start="2024-01-01", end="2024-12-31")
+            >>> for symbol, df in zip(["VNM", "VCB", "FPT"], dfs):
+            ...     print(f"{symbol}: {len(df)} rows")
+        """
+        if not symbols:
+            return []
+        
+        # Check if provider has fetch_multiple method
+        if not hasattr(self.provider, 'fetch_multiple'):
+            raise NotImplementedError(
+                f"Provider {self.source} does not support parallel multi-symbol fetching. "
+                f"Use VCI or KBS for this feature."
+            )
+        
+        # Call provider's fetch_multiple (handles both sync and async)
+        import asyncio
+        import inspect
+        
+        fetch_multiple = getattr(self.provider, 'fetch_multiple')
+        
+        if inspect.iscoroutinefunction(fetch_multiple):
+            # Async provider (VCI)
+            try:
+                return asyncio.run(fetch_multiple(
+                    symbols=symbols,
+                    start=start,
+                    end=end,
+                    interval=interval,
+                    show_log=show_log,
+                    count_back=count_back,
+                    floating=floating,
+                    length=length,
+                    max_concurrency=max_concurrency,
+                    adaptive_concurrency=adaptive_concurrency,
+                ))
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    "Cannot call async fetch_multiple inside an active event loop. "
+                    "Use await provider.fetch_multiple(...) directly."
+                ) from exc
+        else:
+            # Sync provider (KBS)
+            return fetch_multiple(
+                symbols=symbols,
+                start=start,
+                end=end,
+                interval=interval,
+                show_log=show_log,
+                count_back=count_back,
+                floating=floating,
+                length=length,
+                max_concurrency=max_concurrency,
+                adaptive_concurrency=adaptive_concurrency,
+            )

@@ -2,33 +2,20 @@
 Main entry point and orchestrator for vnbroker library.
 
 This module provides the vnbroker class which acts as the primary interface
-for accessing stock, forex, crypto, index, and fund data from various sources.
+for accessing stock, forex, crypto, index, and fund data from various providers.
 
-Architecture: PAT-Only with Hybrid Gateway + Emergency Fallback
-- All requests route through vninvest SaaS Gateway with PAT authentication
-- Emergency fallback to local explorers when Gateway is unavailable (10 calls/day)
+Architecture: Direct Provider Access Only
+- VCI, KBS, TCBS, DNSE: Direct provider access with own credentials
+- No PAT/Gateway required (v3.0+)
 """
 
 import logging
-import os
-from typing import Optional, Any, Dict
+from typing import Optional
 
 from vnbroker.core.utils.logger import get_logger
-from vnbroker.core.utils.gateway_client import GatewayHttpClient, DEFAULT_PAT
-from vnbroker.core.exceptions import (
-    AuthenticationError,
-    InvalidPATFormatError,
-    GatewayUnavailableError,
-    EmergencyQuotaExceededError,
-)
-from vnbroker.explorer.tcbs.auth import request_openapi_token
 from vnbroker.common.data import (
     StockComponents,
     Fund,
-    _load_msn_const,
-    _CURRENCY_ID_MAP,
-    _GLOBAL_INDICES,
-    _CRYPTO_ID_MAP,
 )
 
 logger = get_logger(__name__)
@@ -36,76 +23,51 @@ logger = get_logger(__name__)
 
 class Vnbroker:
     """
-    Main entry point for the vnbroker library (PAT-Only Architecture).
+    Main entry point for the vnbroker library (Direct Provider Architecture).
     
     Provides unified access to stock data, forex quotes, crypto prices,
-    world indices, and fund information via vninvest SaaS Gateway.
+    world indices, and fund information via direct provider access.
     
-    Authentication: Personal Access Token (PAT) required.
-    - Format: vninvest_pat_<token>
-    - Sources: Explicit parameter > VNBROKER_PAT_KEY env > Default PAT (free tier)
-    - Default PAT provides limited quota (100 req/day) for testing
-    
-    Architecture:
-    - Primary: Gateway API (caching, quota management, rate limiting)
-    - Fallback: Direct provider calls (VCI/KBS/TCBS/MSN) - max 10 calls/day
-    
-    Attributes:
-        SUPPORTED_SOURCES (list): List of supported data sources.
-        msn_symbol_map (dict): Mapping of MSN symbols.
+    Supported Sources:
+    - "KBS": Korea Investment (KIS) - default
+    - "VCI", "TCBS", "DNSE": Direct provider access
     
     Example:
-        >>> # With explicit PAT (recommended)
-        >>> vn = Vnbroker(pat_key="vninvest_pat_your_token_here")
-        >>> acb = vn.stock('ACB')
-        >>> history = acb.quote.history('2024-01-01', '2024-12-31')
-        
-        >>> # With environment variable (VNBROKER_PAT_KEY)
+        >>> # Direct provider mode (no PAT needed)
         >>> vn = Vnbroker()
-        >>> acb = vn.stock('ACB')
-        
-        >>> # Default PAT (free tier, limited quota)
-        >>> vn = Vnbroker()  # Uses DEFAULT_PAT automatically
+        >>> acb = vn.stock('ACB')  # Uses default KBS
+        >>> acb = vn.stock('ACB', source='VCI')  # Direct VCI access
+        >>> acb = vn.stock('ACB', source='DNSE')  # Direct DNSE access (requires DNSE_API_KEY + DNSE_API_SECRET)
     """
     
-    SUPPORTED_SOURCES = ["GATEWAY", "AUTO"]
-    DEFAULT_SOURCE = "GATEWAY"
+    SUPPORTED_SOURCES = ["KBS", "VCI", "TCBS", "DNSE"]
+    DEFAULT_SOURCE = "KBS"
 
     def __init__(
         self, 
         symbol: Optional[str] = None, 
-        source: str = "GATEWAY",
-        pat_key: Optional[str] = None,
-        gateway_url: Optional[str] = None,
-        show_log: bool = True
+        source: str = "KBS",
+        show_log: bool = True,
     ):
         """
-        Initialize vnbroker client with PAT authentication.
+        Initialize vnbroker client with direct provider support.
         
         Args:
             symbol (str, optional): Default symbol for stock queries.
                 Defaults to None.
             source (str): Default data source. 
-                - "GATEWAY": Route through vninvest SaaS Gateway (default, requires PAT)
-                - "AUTO": Automatic source selection via Gateway
-                Defaults to "GATEWAY".
-            pat_key (str, optional): Personal Access Token.
-                Format: vninvest_pat_<token>
-                Priority: explicit > VNBROKER_PAT_KEY env > DEFAULT_PAT (free tier)
-            gateway_url (str, optional): Gateway base URL.
-                Priority: explicit > VNBROKER_GATEWAY_URL env > https://api.vnstocks.com
+                - "KBS", "VCI", "TCBS": Direct provider access (no auth)
+                - "DNSE": Direct provider access (requires DNSE_API_KEY + DNSE_API_SECRET env vars)
+                Defaults to "KBS".
             show_log (bool): Whether to display log messages.
                 Defaults to True.
         
         Raises:
-            InvalidPATFormatError: If PAT format is invalid
             ValueError: If source is not in SUPPORTED_SOURCES
         """
         self.symbol = symbol
         self.source = source.upper()
         self.show_log = show_log
-        self._gateway_client: Optional[GatewayHttpClient] = None
-        self._use_gateway = True
         
         if self.source not in self.SUPPORTED_SOURCES:
             raise ValueError(
@@ -115,112 +77,28 @@ class Vnbroker:
         
         if not show_log:
             logger.setLevel(logging.CRITICAL)
-        
-        # Initialize Gateway client
-        self._init_gateway_client(pat_key, gateway_url)
     
-    def _init_gateway_client(self, pat_key: Optional[str], gateway_url: Optional[str]) -> None:
-        """Initialize Gateway HTTP client with PAT authentication."""
-        try:
-            self._gateway_client = GatewayHttpClient(
-                pat_key=pat_key,
-                base_url=gateway_url,
-                show_log=self.show_log,
-            )
-            if self.show_log:
-                logger.info("Gateway client initialized successfully")
-                logger.debug(f"PAT: {self._gateway_client.pat_key[:20]}...")
-        except InvalidPATFormatError as e:
-            if self.show_log:
-                logger.error(f"Invalid PAT format: {e}")
-            raise
-        except Exception as e:
-            if self.show_log:
-                logger.error(f"Failed to initialize Gateway client: {e}")
-            raise
-
-    @property
-    def gateway_client(self) -> GatewayHttpClient:
-        """Get or create Gateway HTTP client."""
-        if self._gateway_client is None:
-            self._init_gateway_client(None, None)
-        return self._gateway_client
-
-    @property
-    def msn_symbol_map(self):
-        """Lazy load MSN symbol map to avoid circular import."""
-        _load_msn_const()
-        return {
-            **_CURRENCY_ID_MAP,
-            **_GLOBAL_INDICES,
-            **_CRYPTO_ID_MAP,
-        }
-
-    def _gateway_request(
-        self,
-        endpoint: str,
-        method: str = "POST",
-        json_data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Execute request via Gateway with emergency fallback.
-        
-        This is the core method that implements the Hybrid Model:
-        1. Try Gateway first
-        2. On connection failure, activate emergency fallback
-        3. Track emergency quota (10 calls/day)
-        """
-        if not self._use_gateway:
-            raise RuntimeError("Gateway request called but client not in GATEWAY mode")
-        
-        try:
-            return self.gateway_client.request(endpoint, method, json_data, params)
-        except GatewayUnavailableError:
-            # Gateway down - try emergency fallback
-            if self.show_log:
-                logger.warning("Gateway unavailable, attempting emergency fallback...")
-            try:
-                return self.gateway_client._emergency_fallback(endpoint, json_data, params)
-            except EmergencyQuotaExceededError:
-                # Emergency quota exhausted
-                if self.show_log:
-                    logger.error("Emergency fallback quota exceeded (10 calls/day)")
-                raise
-        except (AuthenticationError, EmergencyQuotaExceededError):
-            # Re-raise auth and emergency quota errors
-            raise
-        except Exception as e:
-            # Other errors - try fallback as last resort
-            if self.show_log:
-                logger.warning(f"Gateway error: {e}. Attempting emergency fallback...")
-            try:
-                return self.gateway_client._emergency_fallback(endpoint, json_data, params)
-            except EmergencyQuotaExceededError:
-                raise
-
     def stock(self, symbol: Optional[str] = None,
               source: Optional[str] = None) -> StockComponents:
         """
         Get stock data components for a symbol.
         
-        All data requests route through the vninvest SaaS Gateway with PAT authentication.
-        
         Args:
             symbol (str, optional): Stock symbol (e.g., 'ACB', 'VNM').
                 Defaults to 'VN30F1M' if not specified.
             source (str, optional): Data source override.
-                Only "GATEWAY" or "AUTO" are supported.
+                - "KBS", "VCI", "TCBS", "DNSE": Direct provider access
                 Defaults to instance source if not specified.
         
         Returns:
             StockComponents: Object with quote, company, finance, etc.
         
         Example:
-            >>> vn = Vnbroker(pat_key="vninvest_pat_your_token")
-            >>> acb = vn.stock('ACB')
-            >>> history = acb.quote.history('2024-01-01', '2024-12-31')
-            >>> profile = acb.company.profile()
+            >>> # Direct provider mode
+            >>> vn = Vnbroker()
+            >>> acb = vn.stock('ACB')  # Uses default KBS
+            >>> acb = vn.stock('ACB', source='VCI')  # Direct VCI access
+            >>> acb = vn.stock('ACB', source='DNSE')  # Direct DNSE access (requires DNSE_API_KEY + DNSE_API_SECRET)
         """
         if symbol is None:
             symbol = 'VN30F1M'
@@ -229,139 +107,122 @@ class Vnbroker:
         else:
             self.symbol = symbol
 
-        # Determine effective source (only GATEWAY or AUTO allowed)
-        effective_source = source or self.source
+        # Determine effective source
+        effective_source = (source or self.source).upper()
         
-        if effective_source.upper() not in self.SUPPORTED_SOURCES:
+        if effective_source not in self.SUPPORTED_SOURCES:
             raise ValueError(
                 f"Source '{effective_source}' is not supported. "
-                f"Only GATEWAY and AUTO are allowed."
+                f"Supported: {', '.join(self.SUPPORTED_SOURCES)}"
             )
         
-        # Always use Gateway
         return StockComponents(
             self.symbol,
-            effective_source.upper(),
+            effective_source,
             show_log=self.show_log,
-            gateway_client=self.gateway_client,
-            gateway_request_func=self._gateway_request,
         )
 
     def fx(self, symbol: Optional[str] = 'EURUSD',
-            source: Optional[str] = "GATEWAY"):
+            source: Optional[str] = None):
         """
-        Get forex (currency) data via Gateway.
+        Get forex (currency) data.
         
         Args:
             symbol (str): Currency pair (e.g., 'EURUSD', 'GBPUSD').
                 Defaults to 'EURUSD'.
-            source (str): Data source. Only GATEWAY or AUTO supported.
-                Defaults to "GATEWAY".
+            source (str): Data source.
+                - "KBS", "VCI", "TCBS", "DNSE": Direct provider access
+                Defaults to instance source if not specified.
         
         Returns:
             Object with quote and listing components.
         
         Example:
-            >>> eurusd = stock.fx('EURUSD')
+            >>> vn = Vnbroker()
+            >>> eurusd = vn.fx('EURUSD', source='KBS')
             >>> history = eurusd.quote.history('2023-01-01', '2023-12-31')
         """
-        if source.upper() not in self.SUPPORTED_SOURCES:
+        effective_source = (source or self.source).upper()
+        if effective_source not in self.SUPPORTED_SOURCES:
             raise ValueError(
                 f"Source '{source}' is not supported. "
-                f"Only GATEWAY and AUTO are allowed."
+                f"Supported: {', '.join(self.SUPPORTED_SOURCES)}"
             )
-        
-        if symbol:
-            mapped_symbol = self.msn_symbol_map.get(symbol, symbol)
-            logger.debug(f"Mapped {symbol} -> {mapped_symbol}")
-        else:
-            mapped_symbol = symbol
 
-        # Return a simple object with quote and listing for forex
         from vnbroker.common.data import Quote, Listing
         return type('FXComponents', (), {
-            'quote': Quote(mapped_symbol, source, gateway_client=self.gateway_client, gateway_request_func=self._gateway_request),
-            'listing': Listing(source, gateway_client=self.gateway_client, gateway_request_func=self._gateway_request),
-            'symbol': mapped_symbol,
-            'source': source,
+            'quote': Quote(symbol, effective_source),
+            'listing': Listing(effective_source),
+            'symbol': symbol,
+            'source': effective_source,
         })()
 
     def crypto(self, symbol: Optional[str] = 'BTC',
-               source: Optional[str] = "GATEWAY"):
+               source: Optional[str] = None):
         """
-        Get cryptocurrency data via Gateway.
+        Get cryptocurrency data.
         
         Args:
             symbol (str): Crypto symbol (e.g., 'BTC', 'ETH').
                 Defaults to 'BTC'.
-            source (str): Data source. Only GATEWAY or AUTO supported.
-                Defaults to "GATEWAY".
+            source (str): Data source.
+                - "KBS", "VCI", "TCBS", "DNSE": Direct provider access
+                Defaults to instance source if not specified.
         
         Returns:
             Object with quote and listing components.
         
         Example:
-            >>> btc = stock.crypto('BTC')
-            >>> history = btc.quote.history('2023-01-01', '2023-12-31')
+            >>> vn = Vnbroker()
+            >>> btc = vn.crypto('BTC', source='KBS')
         """
-        if source.upper() not in self.SUPPORTED_SOURCES:
+        effective_source = (source or self.source).upper()
+        if effective_source not in self.SUPPORTED_SOURCES:
             raise ValueError(
                 f"Source '{source}' is not supported. "
-                f"Only GATEWAY and AUTO are allowed."
+                f"Supported: {', '.join(self.SUPPORTED_SOURCES)}"
             )
-        
-        if symbol:
-            mapped_symbol = self.msn_symbol_map.get(symbol, symbol)
-            logger.debug(f"Mapped {symbol} -> {mapped_symbol}")
-        else:
-            mapped_symbol = symbol
 
-        # Return a simple object with quote and listing for crypto
         from vnbroker.common.data import Quote, Listing
         return type('CryptoComponents', (), {
-            'quote': Quote(mapped_symbol, source, gateway_client=self.gateway_client, gateway_request_func=self._gateway_request),
-            'listing': Listing(source, gateway_client=self.gateway_client, gateway_request_func=self._gateway_request),
-            'symbol': mapped_symbol,
-            'source': source,
+            'quote': Quote(symbol, effective_source),
+            'listing': Listing(effective_source),
+            'symbol': symbol,
+            'source': effective_source,
         })()
 
     def world_index(self, symbol: Optional[str] = 'DJI',
-                    source: Optional[str] = "GATEWAY"):
+                  source: Optional[str] = None):
         """
-        Get world market index data via Gateway.
+        Get world market index data.
         
         Args:
             symbol (str): Index symbol (e.g., 'DJI', 'IXIC').
                 Defaults to 'DJI' (Dow Jones).
-            source (str): Data source. Only GATEWAY or AUTO supported.
-                Defaults to "GATEWAY".
+            source (str): Data source.
+                - "KBS", "VCI", "TCBS", "DNSE": Direct provider access
+                Defaults to instance source if not specified.
         
         Returns:
             Object with quote and listing components.
         
         Example:
-            >>> djia = stock.world_index('DJI')
-            >>> history = djia.quote.history('2023-01-01', '2023-12-31')
+            >>> vn = Vnbroker()
+            >>> djia = vn.world_index('DJI', source='KBS')
         """
-        if source.upper() not in self.SUPPORTED_SOURCES:
+        effective_source = (source or self.source).upper()
+        if effective_source not in self.SUPPORTED_SOURCES:
             raise ValueError(
                 f"Source '{source}' is not supported. "
-                f"Only GATEWAY and AUTO are allowed."
+                f"Supported: {', '.join(self.SUPPORTED_SOURCES)}"
             )
-        
-        if symbol:
-            mapped_symbol = self.msn_symbol_map.get(symbol, symbol)
-            logger.debug(f"Mapped {symbol} -> {mapped_symbol}")
-        else:
-            mapped_symbol = symbol
 
-        # Return a simple object with quote and listing for world indices
         from vnbroker.common.data import Quote, Listing
         return type('IndexComponents', (), {
-            'quote': Quote(mapped_symbol, source, gateway_client=self.gateway_client, gateway_request_func=self._gateway_request),
-            'listing': Listing(source, gateway_client=self.gateway_client, gateway_request_func=self._gateway_request),
-            'symbol': mapped_symbol,
-            'source': source,
+            'quote': Quote(symbol, effective_source),
+            'listing': Listing(effective_source),
+            'symbol': symbol,
+            'source': effective_source,
         })()
 
     def fund(self, source: str = "FMARKET") -> Fund:
@@ -380,32 +241,3 @@ class Vnbroker:
             >>> all_funds = funds.listing()
         """
         return Fund(source)
-
-    def broker(
-        self,
-        provider: str = "tcbs",
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-    ):
-        """
-        Trả về broker client để thực hiện giao dịch qua broker API.
-
-        Client trả về chưa authenticated — cần gọi .authenticate(otp=...) trước
-        khi dùng bất kỳ read/write method nào.
-
-        Args:
-            provider: Tên broker provider. Hiện tại chỉ hỗ trợ "tcbs".
-            api_key: API key (tùy chọn — đọc từ env VNBROKER_BROKER_TCBS_API_KEY nếu không truyền).
-            base_url: Override base URL (tùy chọn).
-
-        Returns:
-            BaseBrokerClient subclass tương ứng với provider.
-
-        Example:
-            >>> vn = Vnbroker()
-            >>> client = vn.broker(provider='tcbs', api_key='your-key')
-            >>> client.authenticate(otp='123456')
-            >>> balance = client.get_balance(account_no='0123456789')
-        """
-        from vnbroker.api.broker import get_broker  # noqa: PLC0415
-        return get_broker(provider=provider, api_key=api_key, base_url=base_url)

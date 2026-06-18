@@ -23,8 +23,29 @@ class MarketService:
 
     def get_ohlc(self, bar_type: str, query: dict | None = None, dry_run: bool = False):
         merged_query = dict(query or {})
-        merged_query["type"] = bar_type
+        # Allow user to specify type (STOCK, DERIVATIVE, INDEX), default to STOCK
+        if "type" not in merged_query:
+            merged_query["type"] = "STOCK"
+        # bar_type is the resolution (e.g., "1D", "D", "1", "5", "15", "30", "60")
+        merged_query["resolution"] = bar_type
         return self._http.request("GET", "/price/ohlc", query=merged_query, dry_run=dry_run)
+
+    def get_close_price(self, symbol: str, dry_run: bool = False):
+        """Get latest closing price for a symbol."""
+        return self._http.request("GET", f"/price/{symbol}/close", dry_run=dry_run)
+
+    def get_latest_trade(self, symbol: str, dry_run: bool = False):
+        """Get most recent trade for a symbol."""
+        # DNSE uses /price/{symbol}/trades/latest (not /latest-trade)
+        return self._http.request("GET", f"/price/{symbol}/trades/latest", dry_run=dry_run)
+
+    def get_working_dates(self, dry_run: bool = False):
+        """Get trading working dates.
+        
+        Note: DNSE OpenAPI does not have a dedicated working-dates endpoint.
+        Returns empty list - use instruments endpoint with date filtering if needed.
+        """
+        return ({"dates": []}, None)  # Return tuple (body, raw) for consistency
 
     def get_trades(
         self,

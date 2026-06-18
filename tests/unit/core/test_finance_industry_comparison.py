@@ -35,7 +35,7 @@ def test_industry_peers_returns_same_industry_symbols(monkeypatch):
     monkeypatch.setattr(Finance, "_load_data_source", lambda self: object())
     monkeypatch.setattr(Listing, "symbols_by_industries", _mock_symbols_by_industries)
 
-    finance = Finance(symbol="VCB", source="GATEWAY")
+    finance = Finance(symbol="VCB", source="KBS")
     out = finance.industry_peers(symbol="VCB")
 
     assert not out.empty
@@ -48,7 +48,7 @@ def test_industry_benchmark_computes_median_and_mean(monkeypatch):
     monkeypatch.setattr(Finance, "_get_financial_data", _mock_get_financial_data)
     monkeypatch.setattr(Listing, "symbols_by_industries", _mock_symbols_by_industries)
 
-    finance = Finance(symbol="VCB", source="GATEWAY")
+    finance = Finance(symbol="VCB", source="KBS")
     out = finance.industry_benchmark(symbol="VCB", metrics=["roe"], period="quarter")
 
     assert not out.empty
@@ -63,7 +63,7 @@ def test_industry_rank_computes_rank_percentile_zscore(monkeypatch):
     monkeypatch.setattr(Finance, "_get_financial_data", _mock_get_financial_data)
     monkeypatch.setattr(Listing, "symbols_by_industries", _mock_symbols_by_industries)
 
-    finance = Finance(symbol="VCB", source="GATEWAY")
+    finance = Finance(symbol="VCB", source="KBS")
     out = finance.industry_rank(symbol="VCB", metric="roe", period="quarter")
 
     assert not out.empty

@@ -1,7 +1,10 @@
 """History module for TCBS."""
 
 import pandas as pd
-from typing import Dict, Optional, Union
+import statistics
+import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Optional, Union, List
 from datetime import datetime, timedelta
 from vnbroker.core.utils.execution import optimize_execution
 from vnbroker.core.utils.interval import normalize_interval
@@ -18,8 +21,25 @@ from vnbroker.core.utils.validation import validate_symbol
 from vnbroker.core.utils import client, transform, validation
 from vnbroker.core.utils.lookback import get_start_date_from_lookback, interpret_lookback_length
 from .auth import get_tcbs_headers
+from vnbroker.core.adaptive_controller import (
+    AdaptiveController,
+    get_global_pressure,
+    _env_bool,
+    _env_float,
+    _env_int,
+)
 
 logger = get_logger(__name__)
+
+_TCBS_ADAPTIVE_ENABLED_ENV = "vnbroker_TCBS_ADAPTIVE_CONCURRENCY"
+_TCBS_ADAPTIVE_START_ENV = "vnbroker_TCBS_ADAPTIVE_START_CONCURRENCY"
+_TCBS_ADAPTIVE_MIN_ENV = "vnbroker_TCBS_ADAPTIVE_MIN_CONCURRENCY"
+_TCBS_ADAPTIVE_STEP_UP_ENV = "vnbroker_TCBS_ADAPTIVE_STEP_UP"
+_TCBS_ADAPTIVE_STEP_DOWN_ENV = "vnbroker_TCBS_ADAPTIVE_STEP_DOWN"
+_TCBS_ADAPTIVE_FAIL_THRESHOLD_ENV = "vnbroker_TCBS_ADAPTIVE_FAIL_THRESHOLD"
+_TCBS_ADAPTIVE_P95_HIGH_ENV = "vnbroker_TCBS_ADAPTIVE_P95_HIGH_SECONDS"
+_TCBS_ADAPTIVE_P95_LOW_ENV = "vnbroker_TCBS_ADAPTIVE_P95_LOW_SECONDS"
+
 
 # TimeFrame to interval key mapping
 # Standard format: m/1m=minute, h/1H=hour, d/1D=day, w/1W=week, M/1M=month
@@ -219,8 +239,12 @@ class Quote:
         _skip_long_check: bool = False,
         length: Optional[Union[str, int]] = None,
         proxy_mode: Optional[str] = None,
-        proxy_list: Optional[list] = None
-    ) -> pd.DataFrame:
+        proxy_list: Optional[list] = None,
+        parallel: bool = False,
+        symbols: Optional[List[str]] = None,
+        max_concurrency: int = 16,
+        adaptive_concurrency: Optional[bool] = None,
+    ) -> Union[pd.DataFrame, List[pd.DataFrame], str]:
         """
         Tham số:
             - start (tùy chọn): thời gian bắt đầu lấy dữ liệu.
@@ -237,6 +261,22 @@ class Quote:
             - _skip_long_check (tùy chọn): Bỏ qua kiểm tra thời
               gian dài để tránh đệ quy vô hạn. Mặc định là False.
         """
+        if parallel or symbols:
+            target_symbols = symbols or [self.symbol]
+            return Quote.fetch_multiple(
+                symbols=target_symbols,
+                start=start,
+                end=end,
+                interval=interval,
+                show_log=show_log,
+                count_back=count_back,
+                length=length,
+                proxy_mode=proxy_mode,
+                proxy_list=proxy_list,
+                max_concurrency=max_concurrency,
+                adaptive_concurrency=adaptive_concurrency,
+            )
+
         # Calculate start if not provided
         if start is None:
             # Check if length defines bars
@@ -406,6 +446,135 @@ class Quote:
             source=self.data_source,
             interval="1D"  # Default for long history
         )
+
+    @classmethod
+    def fetch_multiple(
+        cls,
+        symbols: List[str],
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        interval: Optional[str] = "1D",
+        show_log: Optional[bool] = False,
+        count_back: Optional[int] = None,
+        floating: Optional[int] = 2,
+        length: Optional[Union[str, int]] = None,
+        max_concurrency: int = 16,
+        adaptive_concurrency: Optional[bool] = None,
+        proxy_mode: Optional[str] = None,
+        proxy_list: Optional[list] = None,
+    ) -> List[pd.DataFrame]:
+        if not symbols:
+            return []
+
+        safe_max_workers = max(1, max_concurrency)
+        enable_adaptive = (
+            adaptive_concurrency
+            if adaptive_concurrency is not None
+            else _env_bool(_TCBS_ADAPTIVE_ENABLED_ENV, default=False)
+        )
+        min_workers = _env_int(_TCBS_ADAPTIVE_MIN_ENV, default=2, min_value=1)
+        min_workers = min(min_workers, safe_max_workers)
+        step_up = _env_int(_TCBS_ADAPTIVE_STEP_UP_ENV, default=1, min_value=1)
+        step_down = _env_int(_TCBS_ADAPTIVE_STEP_DOWN_ENV, default=2, min_value=1)
+        fail_threshold = _env_float(
+            _TCBS_ADAPTIVE_FAIL_THRESHOLD_ENV,
+            default=0.2,
+            min_value=0.0,
+            max_value=1.0,
+        )
+        p95_high_seconds = _env_float(
+            _TCBS_ADAPTIVE_P95_HIGH_ENV,
+            default=1.5,
+            min_value=0.01,
+            max_value=None,
+        )
+        p95_low_seconds = _env_float(
+            _TCBS_ADAPTIVE_P95_LOW_ENV,
+            default=0.5,
+            min_value=0.01,
+            max_value=None,
+        )
+        if p95_low_seconds > p95_high_seconds:
+            p95_low_seconds = p95_high_seconds
+
+        # Apply cross-provider pressure: halve cap when global stress is active.
+        pressure_mul = get_global_pressure().multiplier
+        safe_max_workers = max(min_workers, int(safe_max_workers * pressure_mul))
+        if enable_adaptive:
+            start_default = max(min_workers, safe_max_workers // 2)
+            worker_count = _env_int(
+                _TCBS_ADAPTIVE_START_ENV,
+                default=start_default,
+                min_value=min_workers,
+            )
+            worker_count = min(worker_count, safe_max_workers)
+        else:
+            worker_count = safe_max_workers
+
+        results: List[pd.DataFrame] = []
+        cursor = 0
+
+        def _run_one(symbol: str) -> tuple[Optional[pd.DataFrame], float]:
+            started = time.perf_counter()
+            quote = cls(
+                symbol=symbol,
+                show_log=show_log,
+                proxy_mode=proxy_mode,
+                proxy_list=proxy_list,
+            )
+            try:
+                frame = quote.history(
+                    start=start,
+                    end=end,
+                    interval=interval,
+                    show_log=show_log,
+                    count_back=count_back,
+                    length=length,
+                    proxy_mode=proxy_mode,
+                    proxy_list=proxy_list,
+                    _skip_long_check=False,
+                )
+                if isinstance(frame, pd.DataFrame):
+                    return frame, time.perf_counter() - started
+                return None, time.perf_counter() - started
+            except Exception:
+                return None, time.perf_counter() - started
+
+        while cursor < len(symbols):
+            batch_symbols = symbols[cursor:cursor + worker_count]
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                batch_results = list(executor.map(_run_one, batch_symbols))
+
+            success_items = [item for item, _ in batch_results if item is not None]
+            batch_latencies = [elapsed for _, elapsed in batch_results]
+            if len(batch_latencies) >= 2:
+                batch_p95_seconds = statistics.quantiles(batch_latencies, n=100)[94]
+            elif batch_latencies:
+                batch_p95_seconds = batch_latencies[0]
+            else:
+                batch_p95_seconds = 0.0
+
+            results.extend(success_items)
+            error_count = len(batch_symbols) - len(success_items)
+            get_global_pressure().record_batch(len(batch_symbols), error_count)
+
+            if enable_adaptive:
+                worker_count = AdaptiveController.compute(
+                    current=worker_count,
+                    batch_size=len(batch_symbols),
+                    success_count=len(success_items),
+                    max_concurrency=safe_max_workers,
+                    min_concurrency=min_workers,
+                    step_up=step_up,
+                    step_down=step_down,
+                    fail_threshold=fail_threshold,
+                    batch_p95_seconds=batch_p95_seconds,
+                    p95_high_seconds=p95_high_seconds,
+                    p95_low_seconds=p95_low_seconds,
+                )
+            cursor += len(batch_symbols)
+
+        return results
 
     @optimize_execution("TCBS")
     def intraday(

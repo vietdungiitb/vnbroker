@@ -50,3 +50,24 @@ class AccountService:
             },
             dry_run=dry_run,
         )
+
+    def get_corporate_action_history(
+        self,
+        account_no: str,
+        market_type: str,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        dry_run: bool = False,
+    ):
+        """Get corporate action history for an account."""
+        query = {"marketType": market_type}
+        if from_date:
+            query["from"] = from_date
+        if to_date:
+            query["to"] = to_date
+        return self._http.request(
+            "GET",
+            f"/accounts/{account_no}/corporate-actions",
+            query=query,
+            dry_run=dry_run,
+        )

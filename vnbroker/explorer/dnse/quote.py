@@ -18,17 +18,22 @@ from vnbroker.core.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Interval → DNSE bar_type mapping
+# Interval → DNSE resolution mapping
 # ---------------------------------------------------------------------------
-_INTERVAL_TO_BAR_TYPE: dict[str, str] = {
-    "1m": "1",        # 1-minute (DNSE dùng số cho intraday)
+# DNSE OpenAPI /price/ohlc uses (per docs):
+# - type: "STOCK" | "DERIVATIVE" | "INDEX"
+# - resolution: "1", "3", "5", "15", "30", "1h", "1D", "1W"
+_INTERVAL_TO_RESOLUTION: dict[str, str] = {
+    "1m": "1",
+    "3m": "3",
     "5m": "5",
     "15m": "15",
     "30m": "30",
-    "1H": "60",
-    "1D": "D",
-    "1W": "W",
-    "1M": "M",
+    "1h": "1h",
+    "1H": "1h",
+    "1D": "1D",
+    "1W": "1W",
+    # Monthly not supported per docs
 }
 
 # Alias phổ biến
@@ -39,12 +44,14 @@ _INTERVAL_ALIASES: dict[str, str] = {
     "w": "1W",
     "week": "1W",
     "weekly": "1W",
-    "m": "1M",
-    "month": "1M",
-    "monthly": "1M",
-    "h": "1H",
-    "hour": "1H",
-    "1h": "1H",
+    "h": "1h",
+    "hour": "1h",
+    "1h": "1h",
+    "1": "1",
+    "3": "3",
+    "5": "5",
+    "15": "15",
+    "30": "30",
 }
 
 # OHLC response key aliases - DNSE có thể trả về nhiều tên khác nhau
@@ -118,6 +125,9 @@ def _extract_ohlc_list(body: dict | list | None) -> list:
     if isinstance(body, list):
         return body
     if isinstance(body, dict):
+        # Check for columnar format (t, o, h, l, c, v arrays)
+        if all(key in body for key in ("t", "o", "h", "l", "c", "v")):
+            return [body]  # Return as single dict for columnar parsing
         if any(key in body for key in ("t", "time", "timestamp", "o", "open", "h", "high", "l", "low", "c", "close", "v", "volume")):
             return [body]
     for key in _OHLC_RESPONSE_KEYS:
@@ -132,7 +142,31 @@ def _parse_ohlc(records: list) -> pd.DataFrame:
     if not records:
         return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
 
-    df = pd.json_normalize(records)
+    # Handle columnar format: single dict with arrays t,o,h,l,c,v
+    if len(records) == 1 and isinstance(records[0], dict):
+        rec = records[0]
+        if all(key in rec for key in ("t", "o", "h", "l", "c", "v")):
+            # Columnar format - convert to row-wise
+            t_arr = rec["t"] or []
+            n = len(t_arr)
+            if n == 0:
+                return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
+            rows = []
+            for i in range(n):
+                rows.append({
+                    "time": t_arr[i],
+                    "open": (rec["o"] or [None]*n)[i],
+                    "high": (rec["h"] or [None]*n)[i],
+                    "low": (rec["l"] or [None]*n)[i],
+                    "close": (rec["c"] or [None]*n)[i],
+                    "volume": (rec["v"] or [None]*n)[i],
+                })
+            df = pd.DataFrame(rows)
+        else:
+            df = pd.json_normalize(records)
+    else:
+        df = pd.json_normalize(records)
+
     # Rename columns
     df.rename(columns={k: v for k, v in _OHLC_COLUMN_MAP.items() if k in df.columns}, inplace=True)
 
@@ -259,19 +293,20 @@ class DNSEQuote:
             end = datetime.now(_VN_TZ).strftime("%Y-%m-%d")
 
         normalized = _normalize_interval(interval)
-        bar_type = _INTERVAL_TO_BAR_TYPE.get(normalized, "D")
+        resolution = _INTERVAL_TO_RESOLUTION.get(normalized, "1D")
 
         from_ts = _to_unix_seconds(start)
         to_ts = _to_unix_seconds(end) + 86399  # đến cuối ngày end
 
         query = {
-            "symbol": sym,
+            "type": "STOCK",
+            "resolution": resolution,
             "from": from_ts,
             "to": to_ts,
         }
 
         try:
-            _, body = self._market.get_ohlc(bar_type=bar_type, query=query)
+            _, body = self._market.get_ohlc(bar_type=resolution, query=query)
         except Exception as exc:
             logger.warning("DNSE get_ohlc lỗi: %s", exc)
             return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
@@ -425,6 +460,77 @@ class DNSEQuote:
             _, body = self._market.get_security_definition(symbol=sym)
         except Exception as exc:
             logger.warning("DNSE get_security_definition lỗi: %s", exc)
+            return pd.DataFrame()
+
+        if body is None:
+            return pd.DataFrame()
+        if isinstance(body, dict):
+            return pd.json_normalize(body)
+        if isinstance(body, list):
+            return pd.json_normalize(body)
+        return pd.DataFrame()
+
+    def close_price(self, symbol: Optional[str] = None) -> pd.DataFrame:
+        """
+        Lấy giá đóng cửa mới nhất cho một mã chứng khoán.
+
+        Tham số:
+            symbol (str, tùy chọn): Mã CK. Mặc định là symbol khởi tạo.
+
+        Trả về:
+            pd.DataFrame với thông tin giá đóng cửa.
+        """
+        sym = (symbol or self.symbol).upper()
+        try:
+            _, body = self._market.get_close_price(symbol=sym)
+        except Exception as exc:
+            logger.warning("DNSE get_close_price lỗi: %s", exc)
+            return pd.DataFrame()
+
+        if body is None:
+            return pd.DataFrame()
+        if isinstance(body, dict):
+            return pd.json_normalize(body)
+        if isinstance(body, list):
+            return pd.json_normalize(body)
+        return pd.DataFrame()
+
+    def latest_trade(self, symbol: Optional[str] = None) -> pd.DataFrame:
+        """
+        Lấy giao dịch mới nhất cho một mã chứng khoán.
+
+        Tham số:
+            symbol (str, tùy chọn): Mã CK. Mặc định là symbol khởi tạo.
+
+        Trả về:
+            pd.DataFrame với thông tin giao dịch mới nhất.
+        """
+        sym = (symbol or self.symbol).upper()
+        try:
+            _, body = self._market.get_latest_trade(symbol=sym)
+        except Exception as exc:
+            logger.warning("DNSE get_latest_trade lỗi: %s", exc)
+            return pd.DataFrame()
+
+        if body is None:
+            return pd.DataFrame()
+        if isinstance(body, dict):
+            return pd.json_normalize(body)
+        if isinstance(body, list):
+            return pd.json_normalize(body)
+        return pd.DataFrame()
+
+    def working_dates(self) -> pd.DataFrame:
+        """
+        Lấy danh sách ngày giao dịch (working dates) từ DNSE.
+
+        Trả về:
+            pd.DataFrame với danh sách ngày giao dịch.
+        """
+        try:
+            _, body = self._market.get_working_dates()
+        except Exception as exc:
+            logger.warning("DNSE get_working_dates lỗi: %s", exc)
             return pd.DataFrame()
 
         if body is None:

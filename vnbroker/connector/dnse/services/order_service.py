@@ -141,3 +141,26 @@ class OrderService:
             headers={"trading-token": trading_token},
             dry_run=dry_run,
         )
+
+    def replace_order(
+        self,
+        account_no: str,
+        order_id: str,
+        market_type: str,
+        payload: dict,
+        trading_token: str,
+        order_category: str | None = None,
+        dry_run: bool = False,
+    ):
+        """Replace/modify an existing order."""
+        query = {"marketType": market_type}
+        if order_category:
+            query["orderCategory"] = order_category
+        return self._http.request(
+            "PATCH",
+            f"/accounts/{account_no}/orders/{order_id}",
+            query=query,
+            body=payload,
+            headers={"trading-token": trading_token},
+            dry_run=dry_run,
+        )

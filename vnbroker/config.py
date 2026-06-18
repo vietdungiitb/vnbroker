@@ -1,6 +1,7 @@
 # vnbroker/config.py
 
 import logging
+import os
 
 class Config:
     # -------------------------------------------------------------------------
@@ -18,10 +19,25 @@ class Config:
     BACKOFF_MAX: float = 10   # maximum wait between retries (seconds)
 
     # -------------------------------------------------------------------------
+    # Rate Limiting
+    # -------------------------------------------------------------------------
+    # Maximum requests per minute (0 = disabled)
+    # Can be overridden via vnbroker_RATE_LIMIT_RPM environment variable
+    RATE_LIMIT_RPM: int = int(os.getenv("vnbroker_RATE_LIMIT_RPM", "500"))
+
+    # -------------------------------------------------------------------------
     # Caching
     # -------------------------------------------------------------------------
     # Max entries for LRU‑cached methods
     CACHE_SIZE: int = 128
+    
+    # TTL for listing cache (seconds) - default 24 hours
+    # Can be overridden via vnbroker_LISTING_CACHE_TTL environment variable
+    LISTING_CACHE_TTL: int = int(os.getenv("vnbroker_LISTING_CACHE_TTL", "86400"))
+    
+    # TTL for industry/sector mapping cache (seconds) - default 24 hours
+    # Can be overridden via vnbroker_INDUSTRY_CACHE_TTL environment variable
+    INDUSTRY_CACHE_TTL: int = int(os.getenv("vnbroker_INDUSTRY_CACHE_TTL", "86400"))
 
     # -------------------------------------------------------------------------
     # Logging

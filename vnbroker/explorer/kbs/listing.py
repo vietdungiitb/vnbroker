@@ -10,6 +10,7 @@ from vnbroker.common import indices as market_indices
 from vnbroker.explorer.kbs.const import (
     _IIS_BASE_URL, _SEARCH_URL, _SECTOR_ALL_URL, _SECTOR_STOCK_URL, _INDEX_URL, _GROUP_CODE
 )
+from vnbroker.core.utils.cache import cached_listing, cached_industry
 
 logger = get_logger(__name__)
 
@@ -62,6 +63,7 @@ class Listing:
         if not show_log:
             logger.setLevel('CRITICAL')
 
+    @cached_listing()
     @agg_execution("KBS")
     def all_symbols(
         self,
@@ -116,6 +118,7 @@ class Listing:
         
         return df
 
+    @cached_listing()
     @agg_execution("KBS")
     def symbols_by_exchange(
         self,
@@ -184,6 +187,7 @@ class Listing:
         
         return df
 
+    @cached_industry()
     @agg_execution("KBS")
     def symbols_by_industries(
         self,
