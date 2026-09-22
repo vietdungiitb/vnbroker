@@ -1,0 +1,36 @@
+# SSI handover — security audit (2026-09-22, offline/mock)
+
+## 1. Secret scan (repo working tree)
+- Quét `vnbroker/broker/ssi/*.py`, `tests/unit/broker/ssi/*.py`,
+  `tests/fixtures/ssi/*.json` với pattern BEGIN PRIVATE KEY / PRIVATE KEY /
+  api-secret 16+ ký tự: **0 hit thật** (2 hit là chuỗi trong assert kiểm tra
+  fixture không chứa secret — `test_fixtures_valid_no_secrets`).
+- RSA keys trong tests sinh runtime bằng `cryptography` (1024-bit, test-only),
+  không lưu file, không commit.
+- Fixtures chỉ chứa giá trị `TEST_*` rõ ràng.
+- `.env` git-ignored (`git check-ignore .env` → ignored), không tracked.
+
+## 2. No-logging verification (tests, không chỉ review tay)
+- `test_no_secret_in_logs` (transport + auth, caplog DEBUG): OTP, apiSecret,
+  access token không xuất hiện trong log.
+- `SSICredentialConfig.__repr__` redact toàn bộ secret (test_repr_redacted).
+- `Redactor` mở rộng key SSI: apisecret/api_secret/privatekey/private_key/
+  transactionid/transaction_id/clientsecret/client_secret/accesstoken/
+  refreshtoken (test_ssi_keys_redacted, gồm nested + không mutate gốc).
+- `SSIBrokerClient.__repr__` chỉ in state.
+
+## 3. Write-gate audit
+- Mọi write SSI (`equity._gated_*`, `fco._gated_*`) qua `@write_gate`:
+  dry_run=True default → không HTTP; dry_run=False yêu cầu
+  `session.enable_write()` else `BrokerPermissionError` (test cả hai nhánh).
+- `private_key`/body/signature không log ở transport (chỉ log method/path/status).
+
+## 4. Dependencies
+- Không thêm runtime dependency: dùng `requests`, `websockets>=12.0` (bump từ 11.0,
+  pin trong requirements.txt + pyproject.toml), `cryptography`/`pandas` đã có.
+- Dev-only đã cài để đo kiểm: `types-requests`, `pandas-stubs`, `pytest-cov`
+  (không ảnh hưởng runtime, không cần commit).
+
+## 5. Kết luận
+- PASS offline. Live-gate (OTP + ký RSA thật + WS thật) thuộc live-checklist.md,
+  chạy tay khi có creds, không thuộc CI.

@@ -31,6 +31,14 @@ _logger = logging.getLogger("vnbroker.broker.tcbs.money")
 _PATHS = {
     "cash": "/aion/v1/accounts/{accountNo}/cashInvestments",
     "margin": "/erebos/v2/digital/margin-info",
+    # Phase 2 additional endpoints
+    "ppse_symbol": "/aion/v1/accounts/{accountNo}/ppse/{symbol}",
+    "ppse_symbol_price": "/aion/v1/accounts/{accountNo}/ppse/{symbol}/{price}",
+    "customer_accounts": "/aion/v1/customers/{custodyId}/accounts",
+    "hydros_risk": "/hydros/v1/account/{accountNo}/risk",
+    "margin_subscription": "/campaign-management/v1/margin/subscription/{accountNo}/addons/detail",
+    "loan_list": "/khaos/v1/loan/{accountNo}",
+    "cash_statements": "/erebos/v2/digital/trans-hist-cashStatements",
 }
 
 
@@ -161,6 +169,339 @@ class TCBSMoneyService:
             "call_margin": "float64",
             "maintenance_margin_rate": "float64",
         })
+
+    def get_purchasing_power_by_symbol(
+        self,
+        account_no: str,
+        symbol: str,
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /aion/v1/accounts/{accountNo}/ppse/{symbol}
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            symbol: Mã chứng khoán (VNM, HPG...).
+            raw: True → trả về dict nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no, symbol, ppse (float64),
+                max_quantity (Int64), margin_ratio (float64)
+        """
+        _validate_account_no(account_no)
+        if not symbol or not symbol.strip():
+            raise BrokerValidationError(
+                message="symbol không được để trống.",
+                code="INVALID_SYMBOL",
+            )
+        path = _PATHS["ppse_symbol"].format(accountNo=account_no, symbol=symbol.upper())
+        data = self._get(path)
+
+        if raw:
+            return data
+
+        row = {
+            "account_no": data.get("accountNo", account_no),
+            "symbol": symbol.upper(),
+            "ppse": float(data.get("ppse") or 0),
+            "max_quantity": int(data.get("maxQuantity") or 0),
+            "margin_ratio": float(data.get("marginRatio") or 0),
+        }
+        return pd.DataFrame([row]).astype({
+            "ppse": "float64",
+            "max_quantity": "Int64",
+            "margin_ratio": "float64",
+        })
+
+    def get_purchasing_power_by_symbol_price(
+        self,
+        account_no: str,
+        symbol: str,
+        price: float,
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /aion/v1/accounts/{accountNo}/ppse/{symbol}/{price}
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            symbol: Mã chứng khoán (VNM, HPG...).
+            price: Giá đặt lệnh.
+            raw: True → trả về dict nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no, symbol, price (float64),
+                max_quantity (Int64), ppse (float64)
+        """
+        _validate_account_no(account_no)
+        if not symbol or not symbol.strip():
+            raise BrokerValidationError(
+                message="symbol không được để trống.",
+                code="INVALID_SYMBOL",
+            )
+        price_str = str(int(price))
+        path = _PATHS["ppse_symbol_price"].format(accountNo=account_no, symbol=symbol.upper(), price=price_str)
+        data = self._get(path)
+
+        if raw:
+            return data
+
+        row = {
+            "account_no": data.get("accountNo", account_no),
+            "symbol": symbol.upper(),
+            "price": float(price),
+            "max_quantity": int(data.get("maxQuantity") or 0),
+            "ppse": float(data.get("ppse") or 0),
+        }
+        return pd.DataFrame([row]).astype({
+            "price": "float64",
+            "max_quantity": "Int64",
+            "ppse": "float64",
+        })
+
+    def get_customer_accounts(
+        self,
+        custody_id: str,
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, list]:
+        """
+        GET /aion/v1/customers/{custodyId}/accounts
+
+        Hạn mức margin theo customer.
+
+        Args:
+            custody_id: Mã lưu ký (105C format).
+            raw: True → trả về list nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no, custody_id, margin_limit (float64),
+                margin_used (float64), margin_available (float64),
+                status (category)
+        """
+        if not custody_id or not custody_id.strip():
+            raise BrokerValidationError(
+                message="custody_id không được để trống.",
+                code="INVALID_CUSTODY_ID",
+            )
+        path = _PATHS["customer_accounts"].format(custodyId=custody_id)
+        data = self._get(path)
+
+        if raw:
+            return data
+
+        records = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+        if not records:
+            return pd.DataFrame(columns=[
+                "account_no", "custody_id", "margin_limit", "margin_used",
+                "margin_available", "status"
+            ])
+
+        df = pd.DataFrame(records)
+        for col in ("margin_limit", "margin_used", "margin_available"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+        if "status" in df.columns:
+            df["status"] = df["status"].astype("category")
+        return df
+
+    def get_margin_risk(
+        self,
+        account_no: str,
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /hydros/v1/account/{accountNo}/risk
+
+        Tổng nợ gốc, Tổng nợ lãi, Rtt thực tế, Tỷ lệ ký quỹ ban đầu,
+        Tỷ lệ duy trì, Tỷ lệ cảnh báo.
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            raw: True → trả về dict nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no, total_principal_debt (float64),
+                total_interest_debt (float64), rtt_actual (float64),
+                initial_margin_ratio (float64), maintenance_margin_ratio (float64),
+                warning_margin_ratio (float64)
+        """
+        _validate_account_no(account_no)
+        path = _PATHS["hydros_risk"].format(accountNo=account_no)
+        data = self._get(path)
+
+        if raw:
+            return data
+
+        records = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+        if not records:
+            return pd.DataFrame(columns=[
+                "account_no", "total_principal_debt", "total_interest_debt",
+                "rtt_actual", "initial_margin_ratio", "maintenance_margin_ratio",
+                "warning_margin_ratio"
+            ])
+
+        row = records[0] if isinstance(records, list) else records
+        result = {
+            "account_no": row.get("accountNo", account_no),
+            "total_principal_debt": float(row.get("totalPrincipalDebt") or 0),
+            "total_interest_debt": float(row.get("totalInterestDebt") or 0),
+            "rtt_actual": float(row.get("rttActual") or 0),
+            "initial_margin_ratio": float(row.get("initialMarginRatio") or 0),
+            "maintenance_margin_ratio": float(row.get("maintenanceMarginRatio") or 0),
+            "warning_margin_ratio": float(row.get("warningMarginRatio") or 0),
+        }
+        return pd.DataFrame([result]).astype({
+            "total_principal_debt": "float64",
+            "total_interest_debt": "float64",
+            "rtt_actual": "float64",
+            "initial_margin_ratio": "float64",
+            "maintenance_margin_ratio": "float64",
+            "warning_margin_ratio": "float64",
+        })
+
+    def get_margin_subscription_detail(
+        self,
+        account_no: str,
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /campaign-management/v1/margin/subscription/{accountNo}/addons/detail
+
+        Gói vay bổ trợ.
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            raw: True → trả về dict nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                account_no, subscription_name (str),
+                interest_rate (float64), max_amount (float64),
+                status (category), start_date (str), end_date (str)
+        """
+        _validate_account_no(account_no)
+        path = _PATHS["margin_subscription"].format(accountNo=account_no)
+        data = self._get(path)
+
+        if raw:
+            return data
+
+        row = {
+            "account_no": data.get("accountNo", account_no),
+            "subscription_name": data.get("subscriptionName", ""),
+            "interest_rate": float(data.get("interestRate") or 0),
+            "max_amount": float(data.get("maxAmount") or 0),
+            "status": data.get("status", ""),
+            "start_date": data.get("startDate", ""),
+            "end_date": data.get("endDate", ""),
+        }
+        return pd.DataFrame([row]).astype({
+            "interest_rate": "float64",
+            "max_amount": "float64",
+        })
+
+    def get_loan_list(
+        self,
+        account_no: str,
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, list]:
+        """
+        GET /khaos/v1/loan/{accountNo}
+
+        Danh sách khoản vay.
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            raw: True → trả về list nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                loan_id, account_no, amount (float64),
+                interest_rate (float64), status (category),
+                start_date (str), due_date (str), remaining_amount (float64)
+        """
+        _validate_account_no(account_no)
+        path = _PATHS["loan_list"].format(accountNo=account_no)
+        data = self._get(path)
+
+        if raw:
+            return data
+
+        records = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+        if not records:
+            return pd.DataFrame(columns=[
+                "loan_id", "account_no", "amount", "interest_rate",
+                "status", "start_date", "due_date", "remaining_amount"
+            ])
+
+        df = pd.DataFrame(records)
+        for col in ("amount", "interest_rate", "remaining_amount"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+        if "status" in df.columns:
+            df["status"] = df["status"].astype("category")
+        return df
+
+    def get_cash_statements(
+        self,
+        account_no: str,
+        from_date: str,
+        to_date: str,
+        page: int = 0,
+        size: int = 25,
+        transaction_code: str = "",
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /erebos/v2/digital/trans-hist-cashStatements
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            from_date: Ngày bắt đầu (YYYY-MM-DD).
+            to_date: Ngày kết thúc (YYYY-MM-DD).
+            page: Trang (0-based).
+            size: Số lượng mỗi trang.
+            transaction_code: Mã giao dịch (tùy chọn).
+            raw: True → trả về dict nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                transaction_id, account_no, amount (float64),
+                transaction_code (str), description (str),
+                tx_date (str), tx_time (str), balance_after (float64)
+        """
+        _validate_account_no(account_no)
+        params: dict = {
+            "accountNo": account_no,
+            "fromDate": from_date,
+            "toDate": to_date,
+            "pageSize": size,
+            "pageIndex": page,
+        }
+        if transaction_code:
+            params["transactionCode"] = transaction_code
+
+        data = self._get(_PATHS["cash_statements"], params=params)
+
+        if raw:
+            return data
+
+        records = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        if not records:
+            return pd.DataFrame(columns=[
+                "transaction_id", "account_no", "amount", "transaction_code",
+                "description", "tx_date", "tx_time", "balance_after"
+            ])
+
+        df = pd.DataFrame(records)
+        for col in ("amount", "balance_after"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+        return df
 
     # ── Internal HTTP ────────────────────────────────────────────────────────
 

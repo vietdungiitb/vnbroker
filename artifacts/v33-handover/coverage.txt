@@ -1,0 +1,76 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.14, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\Pham Viet Dung\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\python.exe
+rootdir: C:\Mujoco Projects\vnbroker
+configfile: pytest.ini
+plugins: anyio-4.13.0, asyncio-1.4.0, cov-7.1.0, django-4.12.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 53 items
+
+tests/unit/common/test_retail.py::TestGoldSjc::test_ok PASSED            [  1%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_default_today PASSED [  3%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_bad_date PASSED      [  5%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_pre_min_date PASSED  [  7%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_bad_source PASSED    [  9%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_api_unsuccessful_empty PASSED [ 11%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_empty_data PASSED    [ 13%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_network_error PASSED [ 15%]
+tests/unit/common/test_retail.py::TestGoldSjc::test_non_200_suppressed PASSED [ 16%]
+tests/unit/common/test_retail.py::TestGoldBtmc::test_ok_ignores_date PASSED [ 18%]
+tests/unit/common/test_retail.py::TestGoldBtmc::test_network_error PASSED [ 20%]
+tests/unit/common/test_retail.py::TestGoldBtmc::test_empty_returns_empty_df PASSED [ 22%]
+tests/unit/common/test_retail.py::TestExchangeRate::test_ok PASSED       [ 24%]
+tests/unit/common/test_retail.py::TestExchangeRate::test_default_today_url PASSED [ 26%]
+tests/unit/common/test_retail.py::TestExchangeRate::test_bad_date PASSED [ 28%]
+tests/unit/common/test_retail.py::TestExchangeRate::test_non_200_suppressed PASSED [ 30%]
+tests/unit/common/test_retail.py::TestExchangeRate::test_network_error PASSED [ 32%]
+tests/unit/common/test_retail.py::TestVnbrokerRetail::test_factory PASSED [ 33%]
+tests/unit/common/test_retail.py::TestVnbrokerRetail::test_fixture_files_valid PASSED [ 35%]
+tests/unit/ui/test_unified.py::TestDelegate::test_market_equity PASSED   [ 37%]
+tests/unit/ui/test_unified.py::TestDelegate::test_market_default_source PASSED [ 39%]
+tests/unit/ui/test_unified.py::TestDelegate::test_reference_company PASSED [ 41%]
+tests/unit/ui/test_unified.py::TestDelegate::test_reference_listing PASSED [ 43%]
+tests/unit/ui/test_unified.py::TestDelegate::test_fundamental_equity PASSED [ 45%]
+tests/unit/ui/test_unified.py::TestDelegate::test_retail_is_common PASSED [ 47%]
+tests/unit/ui/test_unified.py::TestDelegate::test_bad_source_passthrough PASSED [ 49%]
+tests/unit/ui/test_unified.py::TestShowApi::test_snapshot PASSED         [ 50%]
+tests/unit/ui/test_unified.py::TestShowApi::test_show_api_stdout PASSED  [ 52%]
+tests/unit/ui/test_unified.py::TestShowApi::test_show_doc PASSED         [ 54%]
+tests/unit/ui/test_unified.py::TestShowApi::test_show_doc_unknown PASSED [ 56%]
+tests/unit/core/test_asset_type.py::TestMembers::test_exact_five_members PASSED [ 58%]
+tests/unit/core/test_asset_type.py::TestMembers::test_str_compat PASSED  [ 60%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[VNINDEX-index] PASSED [ 62%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[vnindex-index] PASSED [ 64%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[HNXINDEX-index] PASSED [ 66%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[VN30-index] PASSED [ 67%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[SSI-stock] PASSED [ 69%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[ACB-stock] PASSED [ 71%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[VN30F1M-derivative] PASSED [ 73%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[VN30F2606-derivative] PASSED [ 75%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[VN100F1M-derivative] PASSED [ 77%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[GB10F2024-bond] PASSED [ 79%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_values[CMSN2401-coveredWarr] PASSED [ 81%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_etf_quirk_locked PASSED [ 83%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_invalid_raises PASSED [ 84%]
+tests/unit/core/test_asset_type.py::TestBehavior::test_single_definition PASSED [ 86%]
+tests/unit/common/test_quote_kwargs.py::TestNarrow::test_unknown_dropped_with_debug PASSED [ 88%]
+tests/unit/common/test_quote_kwargs.py::TestNarrow::test_valid_passthrough PASSED [ 90%]
+tests/unit/common/test_quote_kwargs.py::TestVarKeyword::test_passthrough_all PASSED [ 92%]
+tests/unit/examples/test_retail_docs_snippets.py::test_snippet_sjc PASSED [ 94%]
+tests/unit/examples/test_retail_docs_snippets.py::test_snippet_btmc PASSED [ 96%]
+tests/unit/examples/test_retail_docs_snippets.py::test_snippet_vcb PASSED [ 98%]
+tests/unit/examples/test_retail_docs_snippets.py::test_snippet_unified_ui PASSED [100%]
+
+============================= 53 passed in 7.82s ==============================
+Name                            Stmts   Miss  Cover
+---------------------------------------------------
+tests\unit\ui\__init__.py           0      0   100%
+tests\unit\ui\test_unified.py      56      0   100%
+vnbroker\common\retail.py          88      3    97%
+vnbroker\ui\__init__.py             6      0   100%
+vnbroker\ui\fundamental.py          8      0   100%
+vnbroker\ui\market.py               8      0   100%
+vnbroker\ui\reference.py           10      0   100%
+vnbroker\ui\registry.py            27      0   100%
+vnbroker\ui\retail.py               4      0   100%
+---------------------------------------------------
+TOTAL                             207      3    99%

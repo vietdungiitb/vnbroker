@@ -39,12 +39,10 @@ def _mock_tcbs_history_response(*args, **kwargs):
     return {
         "data": [
             {
-                "tradingDate": "2024-04-01",
-                "open": 30343.8,
-                "high": 30500.0,
-                "low": 30010.0,
-                "close": 30400.0,
-                "volume": 123456,
+                "t": "09:30:00",
+                "p": 30400.0,
+                "v": 123456,
+                "a": "BU",
             }
         ]
     }

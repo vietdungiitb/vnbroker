@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-22] — Release 3.3.0: Retail + Unified UI
+
+### Added
+- **Retail facade** (`vnbroker/common/retail.py` + `Vnbroker.retail()`):
+  giá vàng SJC/BTMC, tỷ giá Vietcombank — validate fail-sớm, DataFrame đúng
+  schema + `source`, RuntimeError prefix nguồn khi lỗi mạng, chặn print legacy.
+- **Unified UI** (`vnbroker/ui/`): `Market/Reference/Fundamental/Retail`
+  delegate mỏng về `common.data`, `show_api()/show_doc()` + snapshot test.
+- **InstrumentType** (`str`-Enum lowercase) + dedup `get_asset_type`
+  (`core/utils/parser.py` còn 1 định nghĩa; khóa bug ETF-8-ký-tự bằng test).
+- **kwargs-filtering** ở `Quote.history/intraday/price_depth` theo signature
+  provider (passthrough khi có `**kwargs`, luôn giữ `show_log`).
+- Docs: `docs/RETAIL_USAGE.md`, `docs/ROADMAP_V33_PLAN.md`.
+
+### Testing
+- 53 tests mới (retail 19 + ui 11 + asset-type 16 + quote-kwargs 3 + snippets 4),
+  Retail coverage 96%, UI 100%, mypy/ruff sạch scope mới.
+
+## [2026-09-22] — Release 3.2.0: SSI broker lane (native FastConnect v3)
+
+### Added
+- **SSI broker lane đầy đủ, native, không dependency `ssi-sdk`**:
+  `vnbroker/broker/ssi/` (auth, account, money, equity, market, portfolio,
+  fco, stream, client + `_paths/_enums/_utils/_signing/_transport`).
+  - Auth: market-only (không OTP), OTP, Smart OTP push (poll 202/401114), refresh.
+  - Market data: OHLC 8 timeframe, index/board summary, securities info/summary,
+    master data trần/sàn/TC (tự gom pages).
+  - Brokerage: balance/positions equity + phái sinh, PPMMR full-columns,
+    maxBuySell, sổ lệnh, portfolio snapshot (map tường minh sang engine).
+  - Write ký RSA-SHA256 stdlib (nanoid idempotency), `dry_run=True` mặc định.
+  - 7 lệnh điều kiện FCO (GTD/Stop/Stop-Limit/Trailing/Trailing-Limit/OCO/BullBear)
+    + query vòng đời + order book.
+  - Streaming WebSocket native (`websockets>=12.0`): trade/quote/room/put/oddlot/
+    OHLCV + order/portfolio events, alias `subscribe_fco_order_status`.
+- `SSIBrokerClient` đăng ký `BrokerRegistry` (`vn.broker(provider="ssi")`).
+- `SSICredentialConfig` (`VNBROKER_BROKER_SSI_*`), mở rộng `Redactor` key SSI.
+- Docs: `docs/SSI_USAGE_GUIDE.md`, `docs/SSI_INTEGRATION_PLAN.md`, `.env.example`.
+
+### Changed
+- `websockets>=11.0` → `>=12.0` (sync client chỉ có từ 12.0).
+- `write_gate` ParamSpec-typed (giữ nguyên behavior, verified bởi suite TCBS).
+- `camel_to_snake` có type hints; `from_dict` credentials typed `dict[str, Any]`.
+
+### Testing
+- 171 SSI unit tests mới (mocked), SSI coverage 93%, mypy --strict + ruff sạch.
+- Live integration gated `vnbroker_RUN_LIVE_INTEGRATION=1` (manual, OTP người thật).
+
+## [2026-06-22] — Release 3.1.1: Cleanup — Remove SSI/VNDirect brokerage scaffolds
+
+### Breaking Changes
+- **Xóa hoàn toàn SSI brokerage scaffold**: `vnbroker/broker/ssi/` (auth, account, equity, market, money, portfolio, client) — chưa triển khai thực tế.
+- **Xóa hoàn toàn VNDirect brokerage scaffold**: `vnbroker/broker/vndirect/` (auth, account, equity, market, money, portfolio, client) — chưa triển khai thực tế.
+- **BrokerRegistry**: Chỉ còn `TCBS` provider. SSI, VNDirect đã bị loại khỏi registry.
+
+### Removed
+- Toàn bộ thư mục `vnbroker/broker/ssi/` và `vnbroker/broker/vndirect/`.
+- References SSI/VNDirect trong `README.md`, `CLAUDE.md`, `broker/__init__.py`.
+
+### Changed
+- `README.md`: Cập nhật bảng broker providers, xóa SSI.
+- `CLAUDE.md`: Cập nhật cấu trúc thư mục broker, xóa SSI/VNDirect khỏi roadmap.
+- `broker/__init__.py`: Chỉ export TCBS broker client.
+
 ## [2026-06-18] — Release 3.1.0: Cleanup — Remove MSN/FMP, restructure core
 
 ### Breaking Changes

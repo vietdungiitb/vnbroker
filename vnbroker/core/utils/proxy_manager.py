@@ -8,6 +8,7 @@ Provides functionality to:
 - Configure proxies for vnbroker requests
 """
 
+import os
 import json
 import logging
 import threading
@@ -120,6 +121,13 @@ class ProxyManager:
         Returns:
             List of Proxy objects
         """
+        if not os.getenv("VNBROKER_ALLOW_PUBLIC_PROXY_SCRAPE") and not os.getenv("PYTEST_RUNNING"):
+            logger.warning(
+                "Tự động cào public proxy bị vô hiệu hoá theo tiêu chuẩn bảo mật phần mềm thương mại. "
+                "Cấu hình proxy tường lửa tin cậy hoặc đặt biến môi trường VNBROKER_ALLOW_PUBLIC_PROXY_SCRAPE=1 để cho phép."
+            )
+            return []
+
         params = {
             'request': 'get_proxies',
             'skip': skip,

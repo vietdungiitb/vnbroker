@@ -1,0 +1,23 @@
+{
+  "accountNo": "TEST123",
+  "orderList": [
+    {
+      "clientRequestId": "TEST_REQ_001",
+      "orderId": "TEST_ORD_001",
+      "symbol": "SSI",
+      "side": "B",
+      "orderType": "LO",
+      "price": 25000.0,
+      "avgPrice": 0.0,
+      "quantity": 100,
+      "osQuantity": 100,
+      "filledQuantity": 0,
+      "cancelQuantity": 0,
+      "orderStatus": "QU",
+      "inputTime": "01/01/2026 09:15:00",
+      "modifiedTime": "",
+      "message": ""
+    }
+  ],
+  "totalRecord": 1
+}

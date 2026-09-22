@@ -1,3 +1,4 @@
+from vnbroker.config import Config
 import requests
 import json
 import pandas as pd
@@ -12,6 +13,7 @@ logger = get_logger(__name__)
 
 class Trade:
     BASE_URL = "https://api.dnse.com.vn"
+    TIMEOUT = Config.REQUEST_TIMEOUT
     
     def __init__(
         self,
@@ -61,7 +63,7 @@ class Trade:
         url = f"{self.BASE_URL}/auth-service/login"
         payload = json.dumps({'username': user_name, 'password': password})
         headers = {'Content-Type': 'application/json'}
-        response = requests.post(url, headers=headers, data=payload)
+        response = requests.post(url, headers=headers, data=payload, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Đăng nhập DNSE thành công")
             self.token = response.json().get('token')
@@ -83,7 +85,7 @@ class Trade:
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.token}'
         }
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Lấy hồ sơ tài khoản thành công")
             return pd.DataFrame(response.json(), index=[0])
@@ -101,7 +103,7 @@ class Trade:
         """
         url = f"{self.BASE_URL}/order-service/accounts"
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             result = response.json()
             return json_normalize(result.get('accounts', []))
@@ -122,7 +124,7 @@ class Trade:
         """
         url = f"{self.BASE_URL}/order-service/account-balances/{sub_account}"
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             result = response.json()
             return json_normalize(result)
@@ -139,7 +141,7 @@ class Trade:
         """
         url = f"{self.BASE_URL}/auth-service/api/email-otp"
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("OTP đã được gửi tới email")
         else:
@@ -165,7 +167,7 @@ class Trade:
             "Authorization": f"Bearer {self.token}",
             "smart-otp" if smart_otp else "otp": otp
         }
-        response = requests.post(url, headers=headers)
+        response = requests.post(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             trading_token = response.json().get("tradingToken")
             logger.info("Đã xác thực và nhận trading token")
@@ -218,7 +220,7 @@ class Trade:
             url += f"{sub_account}/derivative-loan-packages"
         
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             result = response.json()
             return json_normalize(result.get('loanPackages', []))
@@ -282,7 +284,7 @@ class Trade:
                 url += f"?{params_str}"
 
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
@@ -297,7 +299,7 @@ class Trade:
         quantity: int,
         price: float,
         order_type: str,
-        loan_package_id: Optional[int],
+        loan_package_id: Optional[int] = None,
         asset_type: str = 'stock'
     ) -> Optional[pd.DataFrame]:
         """
@@ -317,7 +319,15 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with order info if successful,
                 None otherwise.
         """
-        side_code = 'NB' if side == 'buy' else 'NS'
+        normalized_side = str(side).strip().lower()
+        if normalized_side in ("buy", "nb", "b", "mua"):
+            side_code = "NB"
+        elif normalized_side in ("sell", "ns", "s", "ban", "bán"):
+            side_code = "NS"
+        else:
+            raise ValueError(
+                f"Giá trị side '{side}' không hợp lệ. Vui lòng sử dụng 'buy' hoặc 'sell'."
+            )
 
         if asset_type == 'stock':
             url = f"{self.BASE_URL}/order-service/v2/orders"
@@ -337,7 +347,7 @@ class Trade:
             'orderType': order_type,
             "loanPackageId": loan_package_id
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=self.TIMEOUT)
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
@@ -368,7 +378,7 @@ class Trade:
             url += f"?accountNo={sub_account}"
         
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Lấy danh sách lệnh thành công")
             return json_normalize(response.json().get('orders', []))
@@ -402,7 +412,7 @@ class Trade:
             url += f"{order_id}?accountNo={sub_account}"
         
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
@@ -438,7 +448,7 @@ class Trade:
             "Authorization": f"Bearer {self.token}",
             "Trading-Token": self.trading_token
         }
-        response = requests.delete(url, headers=headers)
+        response = requests.delete(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Huỷ lệnh thành công")
             return json_normalize(response.json())
@@ -470,7 +480,7 @@ class Trade:
             url += f'?accountNo={sub_account}'
         
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Lấy danh sách deal thành công")
             return json_normalize(response.json().get('data', []))
@@ -511,7 +521,7 @@ class Trade:
             "Authorization": f"Bearer {self.token}",
             "Trading-Token": self.trading_token
         }
-        response = requests.post(url, headers=headers, json=config)
+        response = requests.post(url, headers=headers, json=config, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Thiết lập PnL config cho deal thành công")
             return json_normalize(response.json())
@@ -550,7 +560,7 @@ class Trade:
             "Authorization": f"Bearer {self.token}",
             "Trading-Token": self.trading_token
         }
-        response = requests.patch(url, headers=headers, json=config)
+        response = requests.patch(url, headers=headers, json=config, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Thiết lập PnL config cho tài khoản thành công")
             return json_normalize(response.json())
@@ -574,7 +584,7 @@ class Trade:
             "Authorization": f"Bearer {self.token}",
             "Trading-Token": self.trading_token
         }
-        response = requests.post(url, headers=headers)
+        response = requests.post(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Đóng deal thành công")
             return json_normalize(response.json())
@@ -618,7 +628,7 @@ class Trade:
             "amount": amount,
             "via": via
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Nạp margin thành công")
             return json_normalize(response.json())
@@ -662,7 +672,7 @@ class Trade:
             "amount": amount,
             "via": via
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Rút margin thành công")
             return json_normalize(response.json())
@@ -698,7 +708,7 @@ class Trade:
             "Authorization": f"Bearer {self.token}",
             "accept": "application/json, text/plain,/"
         }
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
@@ -728,7 +738,7 @@ class Trade:
         url = f"{self.BASE_URL}/derivative-core/ppse"
         url += f"?loanPackageId={loan_package_id}&accountNo={account_no}"
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
@@ -781,7 +791,7 @@ class Trade:
             "category": category,
             "timeInForce": time_in_force
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Đặt conditional order thành công")
             return json_normalize(response.json())
@@ -839,7 +849,7 @@ class Trade:
         if symbol:
             params["symbol"] = symbol
 
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(url, headers=headers, params=params, timeout=self.TIMEOUT)
         if response.status_code == 200:
             result = response.json()
             return json_normalize(result.get('content', []))
@@ -863,7 +873,7 @@ class Trade:
         """
         url = f"{self.BASE_URL}/conditional-order-api/v1/orders/{order_id}"
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             return json_normalize(response.json())
         else:
@@ -887,7 +897,7 @@ class Trade:
         url = f"{self.BASE_URL}/conditional-order-api/v1/orders/"
         url += f"{order_id}/cancel"
         headers = {"Authorization": f"Bearer {self.token}"}
-        response = requests.patch(url, headers=headers)
+        response = requests.patch(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
             logger.info("Huỷ conditional order thành công")
             return json_normalize(response.json())

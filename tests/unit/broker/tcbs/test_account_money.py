@@ -410,7 +410,7 @@ class TestHTTPErrorHandling:
             with pytest.raises(BrokerAuthError) as exc_info:
                 svc.get_balance(ACCOUNT_NO)
         assert exc_info.value.http_status == 401
-        assert session.state == SessionState.EXPIRED
+        assert session.state == SessionState.REVOKED
 
     def test_401_raises_auth_error_and_revokes_session_money(self):
         session = _make_session()
@@ -418,7 +418,7 @@ class TestHTTPErrorHandling:
         with patch("requests.get", return_value=_make_mock_resp(401, {})):
             with pytest.raises(BrokerAuthError):
                 svc.get_cash(ACCOUNT_NO)
-        assert session.state == SessionState.EXPIRED
+        assert session.state == SessionState.REVOKED
 
     def test_403_raises_permission_error(self):
         with patch("requests.get", return_value=_make_mock_resp(403, {})):
@@ -442,7 +442,7 @@ class TestHTTPErrorHandling:
     def test_expired_session_raises_session_expired_error(self):
         session = _make_session()
         # Đặt expires_at về quá khứ
-        session._token_expires_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        session.token_expires_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
         svc = self._account_svc(session)
         with pytest.raises(BrokerSessionExpiredError):
             svc.get_balance(ACCOUNT_NO)

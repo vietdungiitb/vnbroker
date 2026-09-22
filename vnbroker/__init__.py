@@ -29,6 +29,7 @@ from .constants import (
 
 # Load connector modules to register providers
 from . import connector
+from . import analytics
 
 # Load explorer modules to register providers (lazy to avoid deadlock)
 _explorer_modules_loaded = False
@@ -40,7 +41,7 @@ def _ensure_explorer_modules_loaded():
     if _explorer_modules_loaded:
         return
     try:
-        from .explorer import vci, tcbs, msn, kbs, rss_cafef, rss_vneconomy  # noqa: F401
+        from .explorer import vci, tcbs, kbs, rss_cafef, rss_vneconomy  # noqa: F401
         from .explorer import dnse  # noqa: F401 - DNSE provider registration
         _explorer_modules_loaded = True
     except Exception as e:
@@ -52,6 +53,7 @@ def _ensure_explorer_modules_loaded():
 __all__ = [
     "Vnbroker",
     "connector",
+    "analytics",
     "UnifiedRegistry",
     "INDICES_INFO",
     "INDICES_MAP",
@@ -63,9 +65,11 @@ __all__ = [
 # Unified Registry
 from .core.unified_registry import UnifiedRegistry
 
-# Lazy check for dependency compatibility (non-blocking, compact output)
-try:
-    from vnbroker.core.utils.upgrade import update_notice
-    update_notice(verbose=False)
-except Exception:
-    pass
+# Check for updates only if explicitly enabled via environment variable
+import os
+if os.getenv("VNBROKER_CHECK_UPDATES") == "1" and not os.getenv("PYTEST_RUNNING"):
+    try:
+        from vnbroker.core.utils.upgrade import update_notice
+        update_notice(verbose=False)
+    except Exception:
+        pass

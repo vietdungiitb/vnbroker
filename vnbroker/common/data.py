@@ -11,7 +11,8 @@ import inspect
 from typing import Optional, Any, Dict
 from functools import lru_cache
 import pandas as pd
-from tenacity import retry, stop_after_attempt, wait_exponential
+import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from pandas.api.types import is_numeric_dtype
 
 from vnbroker.core.utils.logger import get_logger
@@ -201,7 +202,6 @@ class BaseComponent:
 
     SUPPORTED_SOURCES = []
     FALLBACK_MAP: dict = {}
-    _fallback_cache: dict = {}
 
     def __init__(self, symbol: Optional[str] = None,
                  source: str = Config.DEFAULT_SOURCE):
@@ -217,6 +217,7 @@ class BaseComponent:
         """
         self.symbol = symbol.upper() if symbol else None
         self.source = source.upper()
+        self._fallback_cache: dict = {}
         self._validate_source()
         self.data_source = self._load_data_source()
 
@@ -236,15 +237,13 @@ class BaseComponent:
 
     def _load_fallback_provider(self, fb_source: str):
         """Load a fallback provider for the given source."""
-        cache_key = f"fallback_{fb_source}"
+        cache_key = f"{self.__class__.__name__}_{self.symbol}_{fb_source.upper()}"
         if cache_key in self._fallback_cache:
             return self._fallback_cache[cache_key]
         old_source = self.source
         self.source = fb_source.upper()
         provider = self._load_data_source()
         self.source = old_source
-        if len(self._fallback_cache) > 16:
-            self._fallback_cache.clear()
         self._fallback_cache[cache_key] = provider
         return provider
 
@@ -414,30 +413,68 @@ class Quote(BaseComponent):
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def history(self, symbol: Optional[str] = None, **kwargs):
         """Fetch historical price data."""
         self._update_data_source(symbol)
-        return self.data_source.history(**kwargs)
+        method = self.data_source.history
+        return method(**_filter_kwargs(method, kwargs))
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def intraday(self, symbol: Optional[str] = None, **kwargs):
         """Fetch intraday trading data."""
         self._update_data_source(symbol)
-        return self.data_source.intraday(**kwargs)
+        method = self.data_source.intraday
+        return method(**_filter_kwargs(method, kwargs))
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
         """Fetch order book depth data."""
         self._update_data_source(symbol)
-        return self.data_source.price_depth(**kwargs)
+        method = self.data_source.price_depth
+        return method(**_filter_kwargs(method, kwargs))
+
+
+def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Lọc kwargs theo signature của provider method (pattern vnstock 4.0.4).
+
+    - Provider có VAR_KEYWORD (**kwargs) → passthrough toàn bộ.
+    - Không → chỉ giữ param có trong signature; kwargs lạ bị bỏ + logger.debug.
+    - Luôn giữ `show_log` khi caller truyền (không filter mất).
+    - Không inject thêm gì (giữ nguyên behavior khi caller không truyền).
+    """
+    try:
+        params = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        return dict(kwargs)
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return dict(kwargs)
+    allowed = set(params)
+    filtered: Dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if key in allowed:
+            filtered[key] = value
+        else:
+            logger.debug(
+                "Quote: bỏ kwarg không hỗ trợ %r cho %s.",
+                key,
+                getattr(method, "__name__", method),
+            )
+    return filtered
 
 
 class Listing(BaseComponent):
@@ -574,7 +611,9 @@ class Trading(BaseComponent):
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def price_board(self, symbols_list: list, **kwargs):
         """Fetch price board for multiple symbols."""
@@ -1306,7 +1345,9 @@ class Screener(BaseComponent):
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def stock(self, **kwargs):
         """Screen stocks with criteria."""

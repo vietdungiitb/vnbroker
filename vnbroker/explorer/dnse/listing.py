@@ -12,6 +12,7 @@ from typing import Optional
 import pandas as pd
 
 from vnbroker.core.utils.logger import get_logger
+from vnbroker.core.utils.cache import cached_listing
 
 logger = get_logger(__name__)
 
@@ -226,9 +227,15 @@ class DNSEListing:
             logger.info("DNSE industries_icb fallback to empty DataFrame")
         return pd.DataFrame()
 
+    @cached_listing(ttl_seconds=86400)
     def all_future_indices(self, show_log: Optional[bool] = None) -> pd.DataFrame:
-        """Compatibility fallback to indices()."""
-        return self.indices(show_log=show_log)
+        """Lấy danh sách hợp đồng tương lai phái sinh từ DNSE OpenAPI."""
+        df = self._fetch_instruments()
+        if not df.empty and "security_group" in df.columns:
+            df = df[df["security_group"] == "FU"].reset_index(drop=True)
+        if show_log or self.show_log:
+            logger.info("DNSE all_future_indices: %d hợp đồng", len(df))
+        return df
 
     def all_covered_warrant(self, show_log: Optional[bool] = None) -> pd.DataFrame:
         """Compatibility fallback: DNSE không có covered warrant riêng trong scope này."""

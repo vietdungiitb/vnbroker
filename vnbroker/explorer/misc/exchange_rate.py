@@ -4,24 +4,28 @@ import pandas as pd
 import base64
 import datetime
 import warnings
+from typing import Optional
 from vnbroker.core.utils.execution import optimize_execution
-warnings.filterwarnings("ignore", message="Workbook contains no default style, apply openpyxl's default")
+
+warnings.filterwarnings(
+    "ignore", message="Workbook contains no default style, apply openpyxl's default"
+)
 from vnbroker.core.utils.parser import camel_to_snake
 
 
-@optimize_execution('MISC')
-def vcb_exchange_rate(date='2023-12-26'):
+@optimize_execution("MISC")
+def vcb_exchange_rate(date: str = "2023-12-26") -> Optional[pd.DataFrame]:
     """
     Get exchange rate from Vietcombank for a specific date.
-    
+
     Parameters:
         date (str): Date in format YYYY-MM-DD. If left blank, the current date will be used.
     """
-    if date == '':
-        date = datetime.datetime.now().strftime('%Y-%m-%d')
+    if date == "":
+        date = datetime.datetime.now().strftime("%Y-%m-%d")
     else:
         try:
-            datetime.datetime.strptime(date, '%Y-%m-%d')
+            datetime.datetime.strptime(date, "%Y-%m-%d")
         except ValueError:
             print("Error: Incorrect date format. Should be YYYY-MM-DD.")
 
@@ -30,11 +34,11 @@ def vcb_exchange_rate(date='2023-12-26'):
     if response.status_code == 200:
         json_data = response.json()
         excel_data = base64.b64decode(json_data["Data"])  # Decode base64 data
-        columns = ['CurrencyCode', 'CurrencyName', 'Buy Cash', 'Buy Transfer', 'Sell' ]
-        df = pd.read_excel(BytesIO(excel_data), sheet_name='ExchangeRate')
+        columns = ["CurrencyCode", "CurrencyName", "Buy Cash", "Buy Transfer", "Sell"]
+        df = pd.read_excel(BytesIO(excel_data), sheet_name="ExchangeRate")
         df.columns = columns
         df = df.iloc[2:-4]
-        df['date'] = date
+        df["date"] = date
         df.columns = [camel_to_snake(col) for col in df.columns]
         return df
     else:

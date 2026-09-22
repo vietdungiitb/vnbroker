@@ -338,9 +338,13 @@ class TimeoutError(NetworkError):
 # DEPRECATION WARNING
 # ============================================================================
 
-class DeprecationWarning(UserWarning):
+class vnbrokerDeprecationWarning(UserWarning):
     """Warning for deprecated features."""
     pass
+
+
+# Backward compatibility alias
+DeprecationWarning = vnbrokerDeprecationWarning
 
 
 # ============================================================================

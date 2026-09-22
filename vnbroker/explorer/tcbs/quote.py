@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from vnbroker.core.utils.execution import optimize_execution
 from vnbroker.core.utils.interval import normalize_interval
 from .const import (
-    _BASE_URL, _STOCKS_URL, _FUTURE_URL, _INTERVAL_MAP,
-    _OHLC_MAP, _OHLC_DTYPE, _INTRADAY_MAP, _INTRADAY_DTYPE,
+    _BASE_URL, NYX_PATH, TARTARUS_PATH, _INTERVAL_MAP,
+    _OHLC_MAP, _OHLC_DTYPE, _INTRADAY_MAP, _INTRADAY_COLUMNS, _INTRADAY_DTYPE,
     _INDEX_MAPPING
 )
 from vnbroker.core.models import TickerModel
@@ -333,6 +333,24 @@ class Quote:
 
         days = (end_time - start_time).days
 
+        # Normalize interval for API endpoint selection
+        timeframe = normalize_interval(ticker.interval)
+        interval_key = _TIMEFRAME_MAP.get(timeframe.value)
+        if interval_key is None:
+            raise ValueError(
+                f"Invalid timeframe value: {timeframe.value}"
+            )
+
+        # TCBS iFlash OpenAPI does not support multi-day daily OHLC bars
+        if interval_key in ["1D", "1W", "1M"] and days > 0:
+            raise NotImplementedError(
+                "TCBS iFlash OpenAPI does not support historical multi-day daily/weekly/monthly OHLC bars. "
+                "TCBS OpenAPI only provides intraday tick data for the current session. "
+                "For historical daily/weekly/monthly OHLC data, please use source='VCI' or source='KBS' "
+                "(e.g., vn.quote(symbol, source='VCI').history(...)). "
+                "For intraday data on TCBS, use interval='1m', '5m', or quote.intraday()."
+            )
+
         # Only check for long date ranges if not explicitly skipped
         if not _skip_long_check and days > 365:
             return self._long_history(start, end, show_log, asset_type)
@@ -341,82 +359,20 @@ class Quote:
                 end_stamp = int(datetime.now().timestamp())
             else:
                 end_stamp = int(end_time.timestamp())
-
-            # Normalize interval for API endpoint selection
-            timeframe = normalize_interval(ticker.interval)
             
-            # Map TimeFrame enum value to interval key (e.g., D -> 1D)
-            interval_key = _TIMEFRAME_MAP.get(timeframe.value)
-            if interval_key is None:
-                raise ValueError(
-                    f"Invalid timeframe value: {timeframe.value}"
-                )
-            
+            # For the new iFlash OpenAPI, OHLC bars endpoint is not available
+            # We can only compute single-session OHLC from intraday data
             if interval_key in ["1D", "1W", "1M"]:
-                end_point = "bars-long-term"
+                if show_log:
+                    logger.info(f"Computing single session OHLC from intraday data for {self.symbol}")
+                return self._compute_ohlc_from_intraday(start, end, interval_key, show_log)
             elif interval_key in ["1m", "5m", "15m", "30m", "1H"]:
-                end_point = "bars"
+                # For intraday intervals, return the raw intraday data
+                if show_log:
+                    logger.info(f"Fetching intraday data for {self.symbol}")
+                return self.intraday(page_size=count_back, show_log=show_log)
             else:
-                end_point = "bars"
-
-            # Translate the interval to TCBS format
-            interval_value = self.interval_map[interval_key]
-
-            # Construct the URL for fetching data
-            if asset_type == "derivative":
-                url = (
-                    f"{self.base_url}/{_FUTURE_URL}/v2/stock/{end_point}"
-                    f"?resolution={interval_value}&ticker={self.symbol}"
-                    f"&type={asset_type}&to={end_stamp}&countBack={count_back}"
-                )
-            else:
-                url = (
-                    f"{self.base_url}/{_STOCKS_URL}/v2/stock/{end_point}"
-                    f"?resolution={interval_value}&ticker={self.symbol}"
-                    f"&type={asset_type}&to={end_stamp}&countBack={count_back}"
-                )
-
-            if interval_value in ["1", "5", "15", "30", "60"]:
-                # replace 'bars-long-term' with 'bars' in the url
-                url = url.replace("bars-long-term", "bars")
-
-            if show_log:
-                logger.info(f"Tải dữ liệu từ {url}")
-
-            # Send a request to fetch the data using client wrapper
-            # Use instance defaults if not overridden
-            req_mode = client.RequestMode.DIRECT 
-            p_mode = proxy_mode or self.proxy_mode
-            p_list = proxy_list or self.proxy_list
-            
-            if p_mode == "auto" or (p_list is not None and len(p_list) > 0):
-                req_mode = client.RequestMode.PROXY
-                
-            response_json = client.send_request(
-                url=url,
-                headers=self.headers,
-                show_log=show_log and False, # Reduce noise, we logged above
-                request_mode=req_mode,
-                proxy_mode=p_mode,
-                proxy_list=p_list
-            )
-
-            # client.send_request returns the json payload directly
-            json_data = response_json.get('data')
-            if json_data is None:
-                 # Try fallback if structure differs or check for error
-                 # But TCBS usually returns 'data' key on 200
-                 pass
-
-            if show_log:
-                msg = (
-                    f'Truy xuất thành công dữ liệu {ticker.symbol} '
-                    f'từ {ticker.start} đến {ticker.end}, '
-                    f'khung thời gian {ticker.interval}.'
-                )
-                logger.info(msg)
-
-            df = self._as_df(json_data, asset_type)
+                raise ValueError(f"Unsupported interval: {interval_key}")
 
         df.attrs['symbol'] = self.symbol
         df.category = self.asset_type
@@ -446,6 +402,165 @@ class Quote:
             source=self.data_source,
             interval="1D"  # Default for long history
         )
+
+    def _compute_ohlc_from_intraday(
+        self,
+        start: str,
+        end: str,
+        interval_key: str,
+        show_log: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Compute single-session OHLC data from intraday tick data using /nyx/v1/intraday endpoint.
+        
+        Since TCBS iFlash OpenAPI does not provide daily OHLC bars directly,
+        this method computes a single session's bar from current intraday tick data.
+        
+        Args:
+            start: Start date (YYYY-MM-DD)
+            end: End date (YYYY-MM-DD)
+            interval_key: Interval key (1D, 1W, 1M)
+            show_log: Whether to show log messages.
+            
+        Returns:
+            DataFrame with OHLC data.
+        """
+        start_date = datetime.strptime(start, "%Y-%m-%d")
+        end_date = datetime.strptime(end, "%Y-%m-%d")
+        if start_date != end_date:
+            raise NotImplementedError(
+                "TCBS iFlash OpenAPI does not support multi-day historical daily/weekly/monthly OHLC bars. "
+                "TCBS OpenAPI only provides intraday tick data for the current session. "
+                "For historical daily/weekly/monthly OHLC data, please use source='VCI' or source='KBS' "
+                "(e.g., vn.quote(symbol, source='VCI').history(...)). "
+                "For intraday data on TCBS, use interval='1m', '5m', or quote.intraday()."
+            )
+
+        if interval_key not in ["1D", "1W", "1M"]:
+            if show_log:
+                logger.warning(f"OHLC computation for interval {interval_key} not implemented, using 1D")
+        
+        all_intraday = []
+        date_str = start_date.strftime("%Y-%m-%d")
+        try:
+            page = 0
+            day_data = []
+            while True:
+                params = {
+                    'page': page,
+                    'size': 100,
+                    'headIndex': -1
+                }
+                url = f"{self.base_url}{NYX_PATH}/intraday/{self.symbol}/his/paging"
+                
+                response = client.send_request(
+                    url=url,
+                    headers=self.headers,
+                    method="GET",
+                    params=params,
+                    show_log=show_log,
+                )
+                
+                records = response.get("data", []) if isinstance(response, dict) else response
+                if not records:
+                    break
+                
+                for record in records:
+                    record_time = record.get("t")
+                    if record_time:
+                        try:
+                            time_obj = pd.to_datetime(record_time, format='%H:%M:%S').time()
+                            dt = pd.Timestamp.combine(start_date.date(), time_obj)
+                            record["_date"] = start_date.date()
+                            day_data.append(record)
+                        except Exception as e:
+                            if show_log:
+                                logger.debug(f"Error parsing time '{record_time}': {e}")
+                            pass
+                
+                if len(records) < 100:
+                    break
+                page += 1
+            
+            all_intraday.extend(day_data)
+            
+        except Exception as exc:
+            if show_log:
+                logger.error(f"Error fetching intraday for {date_str}: {exc}")
+            if "401" in str(exc) or "Unauthorized" in str(exc):
+                raise ConnectionError(
+                    "TCBS iFlash OpenAPI requires valid JWT token. "
+                    "Get JWT token by exchanging API key + OTP via "
+                    "POST /gaia/v1/oauth2/openapi/token, then set "
+                    "TCBS_AUTH_TOKEN=<JWT> environment variable."
+                )
+            raise
+        
+        if not all_intraday:
+            if show_log:
+                logger.warning(f"No intraday data found for {self.symbol} from {start} to {end}")
+            return pd.DataFrame()
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(all_intraday)
+        df = df.rename(columns=_INTRADAY_COLUMNS)
+        
+        # Convert data types
+        for col in ("price", "volume"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        
+        if "time" in df.columns:
+            # TCBS intraday time format is 'HH:MM:SS' - combine with date from filtering
+            df["time"] = pd.to_datetime(df["time"], format='%H:%M:%S', errors="coerce")
+        
+        # Drop rows with invalid data
+        df = df.dropna(subset=["time", "price"])
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Use the stored date for grouping (added during filtering)
+        if "_date" in df.columns:
+            df["date"] = df["_date"]
+        else:
+            # Fallback: use time date
+            df["date"] = df["time"].dt.date
+        
+        ohlc_df = df.groupby("date").agg(
+            open=("price", "first"),
+            high=("price", "max"),
+            low=("price", "min"),
+            close=("price", "last"),
+            volume=("volume", "sum")
+        ).reset_index()
+        
+        # Rename date to time for consistency
+        ohlc_df = ohlc_df.rename(columns={"date": "time"})
+        
+        # Convert time to datetime string format
+        ohlc_df["time"] = pd.to_datetime(ohlc_df["time"]).dt.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Normalize price columns
+        source_price_unit = "VND"
+        if self.asset_type in ["index", "derivative"]:
+            from vnbroker.core.utils.transform import _resolve_target_price_unit
+            source_price_unit = _resolve_target_price_unit()
+            
+        ohlc_df = transform.normalize_price_columns(
+            ohlc_df,
+            columns=["open", "high", "low", "close"],
+            source_unit=source_price_unit,
+        )
+        
+        # Add metadata
+        ohlc_df.attrs['symbol'] = self.symbol
+        ohlc_df.attrs['source'] = self.data_source
+        ohlc_df.attrs['interval'] = interval_key
+        
+        if show_log:
+            logger.info(f"Computed {len(ohlc_df)} OHLC bars from intraday data for {self.symbol}")
+        
+        return ohlc_df
 
     @classmethod
     def fetch_multiple(
@@ -628,7 +743,7 @@ class Quote:
         for i in range(total_pages):
             current_size = min(100, page_size - 100 * i)
             url = (
-                f'{self.base_url}/{_STOCKS_URL}/v1/intraday/'
+                f'{self.base_url}{NYX_PATH}/intraday/'
                 f'{self.symbol}/his/paging'
             )
             params = {
@@ -638,13 +753,24 @@ class Quote:
             }
 
             # Make request
-            response = client.send_request(
-                url=url,
-                headers=self.headers,
-                method="GET",
-                params=params,
-                show_log=show_log
-            )
+            try:
+                response = client.send_request(
+                    url=url,
+                    headers=self.headers,
+                    method="GET",
+                    params=params,
+                    show_log=show_log
+                )
+            except Exception as exc:
+                # Check for 401 Unauthorized - need valid JWT token
+                if "401" in str(exc) or "Unauthorized" in str(exc):
+                    raise ConnectionError(
+                        "TCBS iFlash OpenAPI requires valid JWT token. "
+                        "Get JWT token by exchanging API key + OTP via "
+                        "POST /gaia/v1/oauth2/openapi/token, then set "
+                        "TCBS_AUTH_TOKEN=<JWT> environment variable."
+                    )
+                raise
 
             data = response.get('data', [])
             combined_data.extend(data)

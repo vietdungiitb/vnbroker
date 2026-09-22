@@ -14,13 +14,15 @@ import pandas as pd
 from vnbroker.core.utils import client
 from vnbroker.core.utils.execution import optimize_execution
 from vnbroker.core.utils.logger import get_logger
+from vnbroker.core.utils.cache import cached_listing
 from vnbroker.core.utils.parser import camel_to_snake
 from .auth import get_tcbs_headers
-from .const import _BASE_URL
+from .const import _BASE_URL, TARTARUS_PATH, LIGO_PATH
 
 logger = get_logger(__name__)
 
-_WATCHLIST_URL = f"{_BASE_URL}/ligo/v1/watchlist/preview"
+_WATCHLIST_URL = f"{_BASE_URL}{LIGO_PATH}/watchlist/preview"
+_DERIVATIVES_URL = f"{_BASE_URL}{TARTARUS_PATH}/derivatives"
 
 _GROUP_CODE: Dict[str, str] = {
     "VN30": "VN30",
@@ -248,9 +250,31 @@ class Listing:
         return s
 
     @optimize_execution("TCBS")
+    @cached_listing(ttl_seconds=86400)
     def all_future_indices(self, show_log: Optional[bool] = False) -> pd.Series:
-        """Truy xuất danh sách mã phái sinh hợp đồng tương lai."""
-        return self.symbols_by_group(group="FU_INDEX", show_log=show_log)
+        """Truy xuất danh sách mã phái sinh hợp đồng tương lai qua /tartarus/v1/derivatives."""
+        try:
+            response = client.send_request(
+                url=_DERIVATIVES_URL,
+                headers=self.headers,
+                method="GET",
+                show_log=show_log,
+            )
+        except Exception as exc:
+            if show_log:
+                logger.error(f"TCBS derivatives fetch failed: {exc}")
+            return pd.Series([], name="symbol", dtype="object")
+
+        records = response if isinstance(response, list) else response.get("data", [])
+        if not records:
+            return pd.Series([], name="symbol", dtype="object")
+
+        symbols = [r.get("symbol") or r.get("t") for r in records if r.get("symbol") or r.get("t")]
+        s = pd.Series(sorted(set(symbols)), name="symbol")
+        s.attrs["source"] = self.data_source
+        if show_log:
+            logger.info(f"TCBS derivatives: {len(s)} symbols.")
+        return s
 
     @optimize_execution("TCBS")
     def all_covered_warrant(self, show_log: Optional[bool] = False) -> pd.Series:

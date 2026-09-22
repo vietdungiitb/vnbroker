@@ -34,7 +34,7 @@ Nếu bạn vi phạm bất kỳ điều khoản nào ở đây, quyền sử d�
 
 ## 6. Liên hệ cấp phép
 
-Để xin phép sử dụng thương mại hoặc thỏa thuận cấp phép khác, hãy liên hệ: support@vnstocks.com
+Để xin phép sử dụng thương mại hoặc thỏa thuận cấp phép khác, hãy liên hệ: vietdungiitb@gmail.com
 
 ## English summary
 

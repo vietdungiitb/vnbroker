@@ -14,6 +14,7 @@ from typing import Optional, Tuple
 import pandas as pd
 
 from vnbroker.core.utils.logger import get_logger
+from vnbroker.core.utils.parser import get_asset_type
 
 logger = get_logger(__name__)
 
@@ -298,8 +299,16 @@ class DNSEQuote:
         from_ts = _to_unix_seconds(start)
         to_ts = _to_unix_seconds(end) + 86399  # đến cuối ngày end
 
+        asset_type = get_asset_type(sym)
+        type_param = "STOCK"
+        if asset_type == "derivative":
+            type_param = "DERIVATIVE"
+        elif asset_type == "index":
+            type_param = "INDEX"
+
         query = {
-            "type": "STOCK",
+            "symbol": sym,
+            "type": type_param,
             "resolution": resolution,
             "from": from_ts,
             "to": to_ts,

@@ -23,7 +23,7 @@ class Config:
     # -------------------------------------------------------------------------
     # Maximum requests per minute (0 = disabled)
     # Can be overridden via vnbroker_RATE_LIMIT_RPM environment variable
-    RATE_LIMIT_RPM: int = int(os.getenv("vnbroker_RATE_LIMIT_RPM", "500"))
+    RATE_LIMIT_RPM: int = int(os.getenv("vnbroker_RATE_LIMIT_RPM", "300"))
 
     # -------------------------------------------------------------------------
     # Caching
@@ -59,7 +59,7 @@ class Config:
 # Define minimum required versions for each vnbroker version
 # Format: "X.Y.Z": {"package_name": "min_version", ...}
 VERSION_REQUIREMENTS = {
-    "3.4.0": {
+    "3.1.0": {
         "vnii": ">=0.1.5",
         
         # # Core dependencies - required for vnbroker to work
@@ -76,8 +76,8 @@ VERSION_REQUIREMENTS = {
 
 # Version-specific notices for user
 VERSION_NOTICES = {
-    "3.4.0": {
-        "title": "vnbroker 3.4.0 - Major Update",
+    "3.1.0": {
+        "title": "vnbroker 3.1.0 - Cleanup Release",
         "release_url": "https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban",
         "critical_notices": [],
         "warnings": [],
@@ -86,6 +86,6 @@ VERSION_NOTICES = {
 
 # Python version compatibility matrix
 PYTHON_VERSION_SUPPORT = {
-    "3.4.0": ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    "3.1.0": ["3.10", "3.11", "3.12", "3.13", "3.14"]
 }
 
