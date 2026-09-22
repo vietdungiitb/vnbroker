@@ -1,0 +1,52 @@
+=== TCBS iFlash OpenAPI - All Endpoints ===
+
+POST   | authen                              | /gaia/v1/oauth2/openapi/token                                | 2.1.1. Trao ─æß╗òi API Key ─æß╗â lß║Ñy JWT Token
+POST   | order_stock_normal                  | /akhlys/v1/accounts/{accountNo}/orders                       | 5.1.1. ─É─â╠út l├¬╠únh th╞░ß╗¥ng
+PUT    | update_order_stock_normal           | /akhlys/v1/accounts/{accountNo}/orders/{orderId}             | 5.2.1. S╞░╠ëa l├¬╠únh th╞░ß╗¥ng
+PUT    | cancel_order_stock_normal           | /akhlys/v1/accounts/{accountNo}/cancel-orders                | 5.3.1. Huy╠ë l├¬╠únh th╞░ß╗¥ng
+GET    | get_order_stock_normal              | /aion/v1/accounts/{accountNo}/orders                         | 5.4.1. L├ó╠üy s├┤╠ë l├¬╠únh
+GET    | get_order_stock_normal              | /aion/v1/accounts/{accountNo}/orders/{orderID}               | 5.4.2. L├ó╠üy s├┤╠ë l├¬╠únh theo Order ID
+GET    | get_order_stock_normal              | /aion/v1/accounts/{accountNo}/matching-details               | 5.4.3. L├ó╠üy th├┤ng tin khß╗¢p lß╗çnh
+GET    | get_order_stock_normal              | /ws/aither                                                   | 5.4.4. L├ó╠üy th├┤ng tin khß╗¢p lß╗çnh (realtime)
+GET    | purchasing_power_stock_normal       | /aion/v1/accounts/{accountNo}/ppse                           | 5.5.1. L├ó╠üy sß╗⌐c mua
+GET    | purchasing_power_stock_normal       | /aion/v1/accounts/{accountNo}/ppse/{symbol}                  | 5.5.2. L├ó╠üy sß╗⌐c mua theo m├ú
+GET    | purchasing_power_stock_normal       | /aion/v1/accounts/{accountNo}/ppse/{symbol}/{price}          | 5.5.3. L├ó╠üy sß╗⌐c mua theo m├ú, gi├í
+GET    | purchasing_power_stock_normal       | /aion/v1/customers/{custodyId}/accounts                      | 5.5.4. Hß║ín mß╗⌐c margin
+GET    | purchasing_power_stock_normal       | /hydros/v1/account/{accountNo}/risk                          | 5.5.5. Tß╗òng nß╗ú gß╗æc, Tß╗òng nß╗ú l├úi, Rtt thß╗▒c tß║┐, Tß╗╖ lß╗ç k├╜ quß╗╣ ban ─æß║ºu, Tß╗╖ lß╗ç duy tr├¼, Tß╗╖ lß╗ç cß║únh b├ío
+GET    | purchasing_power_stock_normal       | /campaign-management/v1/margin/subscription/{accountNo}/addons/detail | 5.5.6. G├│i vay bß╗ò trß╗ú
+GET    | purchasing_power_stock_normal       | /khaos/v1/loan/{accountNo}                                   | 5.5.7. Danh s├ích khoß║ún vay
+GET    | get_asset_stock_normal              | /aion/v1/accounts/{accountNo}/se                             | 5.6.1. Tra cß╗⌐u t├ái sß║ún cß╗ò phiß║┐u theo tiß╗âu khoß║ún
+GET    | get_asset_stock_normal              | /aion/v1/accounts/{accountNo}/cashInvestments                | 5.6.2. L├ó╠üy th├┤ng tin sß╗æ d╞░ tiß╗ün
+GET    | get_asset_stock_normal              | /erebos/v2/digital/trans-hist-cashStatements                 | 5.6.3. Th├┤ng tin sao k├¬ tiß╗ün
+GET    | get_asset_stock_normal              | /erebos/v2/digital/margin-info                               | 5.6.4. Tra cß╗⌐u nß╗ú
+GET    | account                             | /eros/v2/get-profile/by-username/{custodyCode}               | 3.1.1. L├ó╠üy th├┤ng tin tiß╗âu khoß║ún
+GET    | total_cash_derivative               | /khronos/v1/account/status                                   | 6.1.1. Tß╗òng quan tiß╗ün, k├╜ quß╗╣ cß╗ºa ph├íi sinh
+GET    | asset_derivative                    | /khronos/v1/account/portfolio/position/close                 | 6.2.1. T├ái sß║ún, vß╗ï thß║┐ ─æ├│ng
+GET    | asset_derivative                    | /khronos/v1/account/portfolio/status                         | 6.2.2. T├ái sß║ún, vß╗ï thß║┐ mß╗ƒ
+GET    | get_order_derivative                | /khronos/v1/order/in-day                                     | 6.3.1. Tra cß╗⌐u sß╗ò lß╗çnh th╞░ß╗¥ng
+GET    | get_order_derivative                | /khronos/v1/order/condition/detail                           | 6.3.2. Tra cß╗⌐u sß╗ò lß╗çnh ─æiß╗üu kiß╗çn
+GET    | get_order_derivative                | /ws/nesoi                                                    | 6.3.3. L├ó╠üy th├┤ng tin khß╗¢p lß╗çnh (realtime)
+POST   | order_derivative                    | /khronos/v1/order/place                                      | 6.4.1. ─Éß║╖t lß╗çnh th╞░ß╗¥ng
+POST   | order_derivative                    | /khronos/v1/order/condition/place                            | 6.4.2. ─Éß║╖t lß╗çnh ─æiß╗üu kiß╗çn
+POST   | edit_order_derivative               | /khronos/v1/order/change                                     | 6.5.1. Sß╗¡a lß╗çnh th╞░ß╗¥ng
+POST   | edit_order_derivative               | /khronos/v2/order/condition/change                           | 6.5.2. Sß╗¡a lß╗çnh ─æiß╗üu kiß╗çn
+POST   | edit_order_derivative               | /khronos/v1/order/cancel                                     | 6.5.3. Hß╗ºy lß╗çnh
+POST   | order_stock_normal                  | /erebos/v2/order/stop-limit                                  | 5.1.2 - ─Éß║╖t lß╗çnh ─æiß╗üu kiß╗çn
+GET    | order_stock_normal                  | /erebos/v2/order/stop-limit/orders                           | 5.4.5 - Lß║Ñy sß╗ò lß╗çnh ─æiß╗üu kiß╗çn
+PUT    | order_stock_normal                  | /erebos/v2/order/stop-limit/{orderId}/cancel                 | 5.3.2 - Hß╗ºy lß╗çnh ─æiß╗üu kiß╗çn
+PUT    | order_stock_normal                  | /erebos/v2/order/stop-limit/{orderId}                        | 5.2.2 - Sß╗¡a lß╗çnh ─æiß╗üu kiß╗çn
+GET    | account                             | /erebos/v1/account/asset                                     | 3.1.2. Lß║Ñy th├┤ng tin t├ái sß║ún
+GET    | account                             | /erebos/v1/account/available-balance                         | 3.1.3. Lß║Ñy th├┤ng tin sß╗æ d╞░ khß║ú dß╗Ñng
+GET    | account                             | /erebos/v1/portfolio-asset                                   | 3.1.4. Lß║Ñy th├┤ng tin danh mß╗Ñc t├ái sß║ún
+GET    | account                             | /erebos/v1/portfolio-asset/token                             | 3.1.5. Lß║Ñy th├┤ng tin danh mß╗Ñc chß╗⌐ng kho├ín ph├íi sinh v├á chß╗⌐ng quyß╗ün
+GET    | account                             | /erebos/v1/portfolio/stock/{accountNo}/statistic             | 3.1.6. Thß╗æng k├¬ danh mß╗Ñc
+GET    | account                             | /erebos/v2/accounts/{accountNo}/asset                        | 3.1.7. Th├┤ng tin t├ái sß║ún
+GET    | account                             | /erebos/v2/accounts/{accountNo}/available-balance            | 3.1.8. Th├┤ng tin sß╗æ d╞░ khß║ú dß╗Ñng
+GET    | account                             | /erebos/v2/accounts/{accountNo}/stock-statistic              | 3.1.9. Thß╗æng k├¬ danh mß╗Ñc
+GET    | account                             | /erebos/v2/accounts/{accountNo}/orders/history               | 3.1.10. Lß╗ïch sß╗¡ lß╗çnh
+GET    | account                             | /erebos/v2/accounts/{accountNo}/orders/matching              | 3.1.11. Lß╗ïch sß╗¡ khß╗¢p lß╗çnh
+GET    | account                             | /erebos/v2/accounts/{accountNo}/withdraw                     | 3.1.12. Lß╗ïch sß╗¡ r├║t tiß╗ün
+GET    | account                             | /erebos/v2/accounts/{accountNo}/deposit                      | 3.1.13. Lß╗ïch sß╗¡ nß╗Öp tiß╗ün
+GET    | account                             | /erebos/v2/accounts/{accountNo}/dividend                     | 3.1.14. Lß╗ïch sß╗¡ cß╗ò tß╗⌐c
+
+Total endpoints: 48
