@@ -2,7 +2,7 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
-> **v3.3.0** — Direct Provider Architecture, không phụ thuộc PAT/Gateway. Cleanup: MSN/FMP removed.
+> **v3.4.0** — SSI swap parity (P0–P4): SSI dùng qua lại với KBS/VCI + indices/securities/screener/live + AUTO credential-aware.
 
 ## Tóm tắt
 

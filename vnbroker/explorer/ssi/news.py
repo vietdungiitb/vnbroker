@@ -16,7 +16,6 @@ import pandas as pd
 
 from vnbroker.core.registry import ProviderRegistry  # noqa: E402, F401
 from vnbroker.core.utils.logger import get_logger
-from vnbroker.explorer.ssi._auth import resolve_credentials
 
 logger = get_logger(__name__)
 
@@ -57,8 +56,11 @@ class SSINews:
     ) -> None:
         self.symbol = (symbol or "").upper() if symbol else None
         self.show_log = show_log
-        # Fail fast on missing credentials (consistent with native providers).
-        resolve_credentials(api_key, api_secret)
+        # No SSI news endpoints exist, so credentials are never used here.
+        # Do NOT fail fast: keep init lazy (W4) so facade fallback works
+        # even when no SSI key is configured.
+        self._api_key = api_key
+        self._api_secret = api_secret
         if self.show_log:
             logger.info("SSINews initialized (fallback mode - no SSI news endpoints)")
 

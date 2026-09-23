@@ -140,6 +140,13 @@ class SSIExplorerSession:
         self.ensure_token()
         return SSIMarketService(self._config, self._session, self._transport)
 
+    def stream_manager(self) -> "SSIStreamManager":
+        """Build a WS stream manager bound to this session (P2 live lane)."""
+        from vnbroker.broker.ssi.stream import SSIStreamManager
+
+        self.ensure_token()
+        return SSIStreamManager(self._config, self._session)
+
 
 _shared_lock = threading.Lock()
 _shared_sessions: Dict[Tuple[str, str], SSIExplorerSession] = {}

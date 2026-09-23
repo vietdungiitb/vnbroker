@@ -48,9 +48,17 @@ PRIMARY_SOURCE_POOLS: Dict[str, List[str]] = {
     "listing": ["kbs", "vci"],
 }
 
-_health_lock = threading.Lock()
+_health_lock = threading.RLock()  # RLock: build_source_order holds the lock
+# while _is_in_cooldown -> _ensure_store_loaded re-acquires it (cold-start
+# deadlock with Lock; found by P3 SSI AUTO tests on a fresh process).
 _health_state: Dict[Tuple[str, str], Dict[str, float]] = {}
 _module_counters: Dict[str, "itertools.count[int]"] = {}
+
+# Persist debounce (P4c): batch SQLite writes instead of fsync per request.
+_PERSIST_DEBOUNCE_SEC = 1.0
+_PERSIST_EVERY_N = 10
+_persist_pending = 0
+_last_persist_mono = 0.0
 
 # Persistent store singleton (lazy). Restart-safe: failure counters and
 # cooldown-remaining are reloaded from disk on first use.
@@ -103,7 +111,26 @@ def _ensure_store_loaded() -> None:
         _store_loaded = True
 
 
-def _persist_state() -> None:
+def _persist_state(force: bool = False) -> None:
+    """Persist health snapshot with debounce (P4c).
+
+    Every ``record_*`` used to fsync SQLite per request (thousands of
+    fsync/s at 24 concurrency). Now flush at most once per
+    ``_PERSIST_DEBOUNCE_SEC`` or every ``_PERSIST_EVERY_N`` events;
+    ``force=True`` flushes immediately (shutdown/tests).
+    """
+    global _persist_pending, _last_persist_mono
+    now = time.monotonic()
+    with _health_lock:
+        _persist_pending += 1
+        if (
+            not force
+            and _persist_pending < _PERSIST_EVERY_N
+            and now - _last_persist_mono < _PERSIST_DEBOUNCE_SEC
+        ):
+            return
+        _persist_pending = 0
+        _last_persist_mono = now
     try:
         store = _get_store()
         mono_now = time.monotonic()
@@ -131,6 +158,32 @@ def _get_trading_primary_override() -> str | None:
     return None
 
 
+# SSI extras for AUTO: only modules with native SSI data (empty-fallback
+# modules company/financial/news are excluded — an empty DF would record
+# a false success). SSI joins as failover; opt-in primary via
+# vnbroker_SSI_AUTO_PRIMARY=1 (quota 10rps — never default primary).
+SSI_AUTO_CANDIDATES: Dict[str, List[str]] = {
+    "quote": ["ssi"],
+    "listing": ["ssi"],
+    "trading": ["ssi"],
+}
+
+
+def has_ssi_credentials() -> bool:
+    """True when SSI market credentials are configured (no network)."""
+    return bool(
+        (os.getenv("VNBROKER_BROKER_SSI_API_KEY") or "").strip()
+        and (os.getenv("VNBROKER_BROKER_SSI_API_SECRET") or "").strip()
+    )
+
+
+def _ssi_primary_enabled() -> bool:
+    return (
+        str(os.getenv("vnbroker_SSI_AUTO_PRIMARY", "")).strip().lower()
+        in {"1", "true", "yes"}
+    )
+
+
 def is_auto_source(source: str | None) -> bool:
     return str(source or "").strip().lower() == AUTO_SOURCE
 
@@ -141,6 +194,9 @@ def get_auto_candidates(module_name: str) -> List[str]:
         override = _get_trading_primary_override()
         if override in candidates:
             return [override] + [source for source in candidates if source != override]
+    for extra in SSI_AUTO_CANDIDATES.get(module_name, []):
+        if extra not in candidates and has_ssi_credentials():
+            candidates.append(extra)
     return candidates
 
 
@@ -192,6 +248,10 @@ def build_source_order(module_name: str, symbol: str | None = None) -> List[str]
         override = _get_trading_primary_override()
         if override in ordered_pool:
             primary_candidates = [override]
+    if _ssi_primary_enabled() and "ssi" in ordered_pool:
+        primary_candidates = ["ssi"] + [
+            s for s in primary_candidates if s != "ssi"
+        ]
 
     # Half-open probes go first: a source whose cooldown just expired
     # gets a single trial request before full traffic is restored.
@@ -328,10 +388,18 @@ def annotate_result_source(result: Any, source: str) -> Any:
 
 
 def reset_router_state() -> None:
+    global _persist_pending, _last_persist_mono
     with _health_lock:
         _health_state.clear()
         _module_counters.clear()
+        _persist_pending = 0
+        _last_persist_mono = 0.0
     try:
         _get_store().clear()
     except Exception:
         pass
+
+
+def flush_router_state() -> None:
+    """Force-flush pending health state to disk (shutdown/tests)."""
+    _persist_state(force=True)

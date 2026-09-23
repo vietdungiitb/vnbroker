@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-23] — Release 3.4.0: SSI Swap Parity (P0–P4)
+
+### Added
+- **SSI swap parity**: `source="SSI"` dùng qua lại với KBS/VCI cho
+  `quote.history` (mở `30m`, cửa sổ `HH:MM:SS`, `fetch_multiple` batch),
+  `listing`, `trading.price_board` (`trading_date` + concurrent).
+- **SSI T2 mới**: `explorer/ssi/{indices,securities,screener}.py`
+  (index list/members/summary/history, securities summary/master/foreign-room,
+  screener lọc local) + TTL phân tầng (symbols 6h, indexSummary 5m, master 60s).
+- **SSI T3 realtime**: `explorer/ssi/live.py` (`intraday_ticks`,
+  `depth_snapshot`, `session_snapshot`, `session_flags`) + `market.*`
+  subscribe trong `SSIStreamManager`.
+- **AUTO credential-aware**: SSI vào candidates quote/listing/trading khi có key
+  (failover cuối), opt-in primary `vnbroker_SSI_AUTO_PRIMARY=1`;
+  persist debounce (10 events/1s) + `flush_router_state()`.
+
+### Fixed
+- **Deadlock cold-start** `build_source_order` (`Lock` → `RLock`,
+  `core/source_router.py`) — treo vĩnh viễn trên process tươi.
+- `Trading.FALLBACK_MAP` trùng dòng làm mất SSI fallback; bổ sung map cho
+  Quote/Listing (1 chiều SSI→KBS,VCI); `_call_with_fallback` bắt thêm
+  `UnsupportedMethodError`; lazy-auth cho SSI company/finance/news.
+
+### Testing
+- 40 tests mới (parity 16 + indices/securities 8 + screener 6 + live 10 +
+  router SSI/debounce 8 + fetch_multiple 3 + live-gated 7, mock-only);
+  full `tests/unit`: 909 passed, 5 skipped (live-gated).
+
 ## [2026-09-22] — Release 3.3.0: Retail + Unified UI
 
 ### Added

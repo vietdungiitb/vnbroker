@@ -8,6 +8,7 @@ _PRICE_BOARD_STANDARD_COLUMNS subset (no bid/ask: SSI REST has none).
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -94,15 +95,39 @@ class SSITrading:
             return pd.DataFrame()
         return frame
 
-    def price_board(self, symbols_list: List[str], **kwargs: Any) -> pd.DataFrame:
+    @staticmethod
+    def _normalize_trading_date(value: Optional[str]) -> str:
+        """Accept ``YYYY/MM/DD`` or ``YYYY-MM-DD``; default today (SSI wire)."""
+        if value is None:
+            return date.today().strftime("%Y/%m/%d")
+        text = value.strip().replace("-", "/")
+        parts = text.split("/")
+        if len(parts) != 3 or not all(p.isdigit() for p in parts):
+            raise ValueError(
+                "trading_date phải định dạng YYYY/MM/DD hoặc YYYY-MM-DD. "
+                f"Nhận: {value!r}"
+            )
+        return text
+
+    def price_board(
+        self,
+        symbols_list: List[str],
+        trading_date: Optional[str] = None,
+        max_concurrency: int = 8,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
         """
         Realtime board for a symbol list (SSI-native loop).
 
         Cost: N ``securities_summary`` requests + 1 cached ``master_data``
         request. Batches > 20 log a warning (10 rps quota — use KBS instead).
+        Summaries are fetched concurrently (``max_concurrency`` workers,
+        order of ``symbols_list`` preserved).
 
         Args:
             symbols_list: Stock symbols (e.g. ``["ACB", "VNM"]``).
+            trading_date: ``YYYY/MM/DD`` (or ``YYYY-MM-DD``); default today.
+            max_concurrency: Parallel summary requests (default 8).
 
         Returns:
             DataFrame with the 17 KBS-compatible columns (no bid/ask).
@@ -117,18 +142,26 @@ class SSITrading:
                 len(symbols),
             )
         service = self._market()
-        today = date.today().strftime("%Y/%m/%d")
-        master = self._master_frame(today)
+        day = self._normalize_trading_date(trading_date)
+        master = self._master_frame(day)
         master_by_symbol: Dict[str, Any] = {}
         if not master.empty:
             for _, row in master.iterrows():
                 master_by_symbol[str(row.get("symbol", ""))] = row
 
-        rows: List[Dict[str, Any]] = []
-        for symbol in symbols:
-            summary = service.get_securities_summary(
-                symbol=symbol, from_date=today, to_date=today
+        workers = max(1, min(int(max_concurrency), len(symbols)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            summaries = list(
+                pool.map(
+                    lambda sym: service.get_securities_summary(
+                        symbol=sym, from_date=day, to_date=day
+                    ),
+                    symbols,
+                )
             )
+
+        rows: List[Dict[str, Any]] = []
+        for symbol, summary in zip(symbols, summaries):
             if not isinstance(summary, pd.DataFrame) or summary.empty:
                 continue
             last = summary.iloc[-1]

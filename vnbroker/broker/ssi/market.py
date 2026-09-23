@@ -1,7 +1,7 @@
 """
 vnbroker.broker.ssi.market — SSIMarketService: OHLC, index, securities, master data.
 
-  GET /api/v3/data/ohlc             → get_ohlc (gom 13 biến thể SDK theo timeframe)
+  GET /api/v3/data/ohlc             → get_ohlc (gom 14 biến thể SDK theo timeframe)
   GET /api/v3/data/indexList        → get_indexes
   GET /api/v3/data/indexSummary     → get_index_summary/get_board_summary
   GET /api/v3/data/securitiesByBoard → get_securities_info
@@ -31,6 +31,7 @@ from vnbroker.broker.ssi._utils import (
     to_int,
     today_date_str,
     validate_ssi_date,
+    validate_ssi_datetime,
 )
 
 _logger = logging.getLogger("vnbroker.broker.ssi.market")
@@ -130,6 +131,18 @@ _MASTER_COLUMNS = [
 ]
 
 
+def _validate_ssi_from_to(value: str, name: str) -> str:
+    """Accept ``YYYY/MM/DD`` (daily) or ``YYYY/MM/DD HH:MM:SS`` (intraday, W5).
+
+    Intraday OHLC windows need time precision to match the SSI wire format;
+    daily callers keep passing plain dates unchanged.
+    """
+    try:
+        return validate_ssi_datetime(value, name)
+    except BrokerValidationError:
+        return validate_ssi_date(value, name)
+
+
 class SSIMarketService:
     """Read-only market data cho SSI broker."""
 
@@ -159,7 +172,7 @@ class SSIMarketService:
         Nến OHLCV: gom 13 biến thể SDK (1m/3m/5m/15m/1h intraday + 8 historical).
 
         Args:
-            timeframe: "1m"|"3m"|"5m"|"15m"|"1h"|"1d"|"1w"|"1M".
+            timeframe: "1m"|"3m"|"5m"|"15m"|"30m"|"1h"|"1d"|"1w"|"1M".
             from_date/to_date: None → hôm nay (intraday).
         """
         symbol = require_non_empty(symbol, "symbol").upper()
@@ -167,13 +180,13 @@ class SSIMarketService:
         if tf is None:
             raise BrokerValidationError(
                 message=f"timeframe không hỗ trợ: {timeframe!r}. "
-                "Dùng 1m/3m/5m/15m/1h/1d/1w/1M.",
+                "Dùng 1m/3m/5m/15m/30m/1h/1d/1w/1M.",
                 code="INVALID_TIMEFRAME",
                 http_status=400,
             )
         today = today_date_str()
-        from_date = validate_ssi_date(from_date, "from_date") if from_date else today
-        to_date = validate_ssi_date(to_date, "to_date") if to_date else today
+        from_date = _validate_ssi_from_to(from_date, "from_date") if from_date else today
+        to_date = _validate_ssi_from_to(to_date, "to_date") if to_date else today
         _ = self._session.token
         data = self._transport.request(
             "GET",
@@ -411,8 +424,8 @@ class SSIMarketService:
                 http_status=400,
             )
         today = today_date_str()
-        from_date = validate_ssi_date(from_date, "from_date") if from_date else today
-        to_date = validate_ssi_date(to_date, "to_date") if to_date else today
+        from_date = _validate_ssi_from_to(from_date, "from_date") if from_date else today
+        to_date = _validate_ssi_from_to(to_date, "to_date") if to_date else today
         _ = self._session.token
         params: Dict[str, Any] = {"from": from_date, "to": to_date}
         if symbol:

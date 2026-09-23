@@ -11,6 +11,7 @@ NotImplementedError with guidance (fallback lanes or broker stream).
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
@@ -44,6 +45,7 @@ _INTERVAL_MAP: Dict[str, str] = {
     "3m": "3m",
     "5m": "5m",
     "15m": "15m",
+    "30m": "30m",
 }
 
 _HISTORY_COLUMNS = ["time", "open", "high", "low", "close", "volume"]
@@ -58,16 +60,33 @@ _UNSUPPORTED_MESSAGE = (
 )
 
 
+def _parse_bound(value: str) -> datetime:
+    """Parse a validated ``YYYY-MM-DD[ HH:MM:SS]`` bound for comparison."""
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Ngày không hợp lệ: {value!r}")  # pragma: no cover
+
+
 def _validate_date(value: str, name: str) -> str:
-    """Strict YYYY-MM-DD validation in the explorer (never leak broker errors)."""
+    """Validate ``YYYY-MM-DD`` or ``YYYY-MM-DD HH:MM:SS`` (intraday windows).
+
+    Intraday ranges need time precision to match SSI
+    ``YYYY/MM/DD HH:mm:ss`` wire format (W5).
+    """
     text = (value or "").strip()
-    try:
-        datetime.strptime(text, "%Y-%m-%d")
-    except ValueError:
-        raise ValueError(
-            f"{name} phải định dạng YYYY-MM-DD. Nhận: {value!r}"
-        ) from None
-    return text
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            datetime.strptime(text, fmt)
+            return text
+        except ValueError:
+            continue
+    raise ValueError(
+        f"{name} phải định dạng YYYY-MM-DD hoặc YYYY-MM-DD HH:MM:SS. "
+        f"Nhận: {value!r}"
+    ) from None
 
 
 class SSIQuote:
@@ -116,10 +135,6 @@ class SSIQuote:
     def _resolve_timeframe(self, interval: str) -> str:
         """Map standard interval to SSI timeframe (pre-validated, no leakage)."""
         token = (interval or "").strip()
-        if token == "30m":
-            raise NotImplementedError(
-                "SSI không hỗ trợ interval 30m; dùng 15m hoặc source KBS/VCI."
-            )
         mapped = _INTERVAL_MAP.get(token)
         if mapped is None:
             raise ValueError(
@@ -144,9 +159,10 @@ class SSIQuote:
         Fetch OHLCV history normalized to ``[time, open, high, low, close, volume]``.
 
         Args:
-            start: Start date ``YYYY-MM-DD`` (default: end − 365 days, or ``length``).
-            end: End date ``YYYY-MM-DD`` (default: today).
-            interval: Standard interval (``30m`` raises ``NotImplementedError``).
+            start: Start ``YYYY-MM-DD`` (or ``YYYY-MM-DD HH:MM:SS`` for
+                intraday windows; default: end − 365 days, or ``length``).
+            end: End ``YYYY-MM-DD[ HH:MM:SS]`` (default: today).
+            interval: Standard interval (``1m/3m/5m/15m/30m/1H/1D/1W/1M``).
             to_df: ``False`` returns a JSON string of records.
             count_back: Keep only the last N rows.
             floating: Price rounding decimals.
@@ -158,18 +174,19 @@ class SSIQuote:
         """
         timeframe = self._resolve_timeframe(interval)
         end_norm = _validate_date(end, "end") if end else date.today().strftime("%Y-%m-%d")
+        end_day = end_norm[:10]
         if start:
             start_norm = _validate_date(start, "start")
         elif length is not None:
             start_norm = get_start_date_from_lookback(
-                lookback_length=length, end_date=end_norm
+                lookback_length=length, end_date=end_day
             )
         else:
             start_norm = (
-                datetime.strptime(end_norm, "%Y-%m-%d").date()
+                datetime.strptime(end_day, "%Y-%m-%d").date()
                 - timedelta(days=_DEFAULT_LOOKBACK_DAYS)
             ).strftime("%Y-%m-%d")
-        if start_norm > end_norm:
+        if _parse_bound(start_norm) > _parse_bound(end_norm):
             raise ValueError(
                 f"start ({start_norm}) phải <= end ({end_norm})."
             )
@@ -253,6 +270,65 @@ class SSIQuote:
     def price_depth(self, **kwargs: Any) -> pd.DataFrame:
         """Order-book depth is not available via SSI REST (use VCI or broker stream)."""
         raise NotImplementedError(_UNSUPPORTED_MESSAGE.format(method="price_depth"))
+
+    def fetch_multiple(
+        self,
+        symbols_list: List[str],
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        interval: str = "1D",
+        max_concurrency: int = 8,
+        **kwargs: Any,
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Batch OHLC history for many symbols (P4b, order-preserving).
+
+        One shared service (single token, 10rps transport throttle);
+        per-symbol failures are isolated into empty typed frames with
+        ``attrs["error"]`` instead of aborting the batch.
+
+        Args:
+            symbols_list: Symbols (e.g. ``["ACB", "VNM"]``).
+            start/end/interval: Same as :meth:`history`.
+            max_concurrency: Parallel workers (default 8, ≤ SSI 10rps).
+
+        Returns:
+            Dict keyed by upper-cased symbol (insertion = input order).
+        """
+        symbols = [str(s).strip().upper() for s in symbols_list if str(s).strip()]
+        if not symbols:
+            return {}
+        service = self._market()
+        workers = max(1, min(int(max_concurrency), len(symbols)))
+
+        def _run_one(symbol: str) -> pd.DataFrame:
+            quote = SSIQuote(
+                symbol,
+                api_key=self._api_key,
+                api_secret=self._api_secret,
+                show_log=self.show_log,
+                _service=service,
+            )
+            try:
+                return quote.history(
+                    start=start, end=end, interval=interval, **kwargs
+                )
+            except Exception as exc:
+                empty = pd.DataFrame(columns=_HISTORY_COLUMNS)
+                empty.attrs.update(
+                    {
+                        "symbol": symbol,
+                        "source": "SSI",
+                        "source_used": "SSI",
+                        "interval": interval,
+                        "error": str(exc),
+                    }
+                )
+                return empty
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            frames = list(pool.map(_run_one, symbols))
+        return dict(zip(symbols, frames))
 
 
 ProviderRegistry.register("quote", "ssi", SSIQuote)

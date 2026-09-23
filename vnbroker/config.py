@@ -62,7 +62,10 @@ class Config:
 VERSION_REQUIREMENTS = {
     "3.3.0": {
         "vnii": ">=0.1.5",
-    }
+    },
+    "3.4.0": {
+        "vnii": ">=0.1.5",
+    },
 }
 
 # Version-specific notices for user
@@ -73,10 +76,17 @@ VERSION_NOTICES = {
         "critical_notices": [],
         "warnings": [],
     },
+    "3.4.0": {
+        "title": "vnbroker 3.4.0 - SSI Swap Parity Release",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.4.0",
+        "critical_notices": [],
+        "warnings": [],
+    },
 }
 
 # Python version compatibility matrix
 PYTHON_VERSION_SUPPORT = {
-    "3.3.0": ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    "3.3.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
+    "3.4.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
 }
 

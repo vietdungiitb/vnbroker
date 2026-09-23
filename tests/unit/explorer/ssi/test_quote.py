@@ -117,12 +117,11 @@ class TestSSIQuoteHistory:
         q.history(start="2024-01-01", end="2024-01-31", interval="3m")
         assert fake.calls[-1]["timeframe"] == "3m"
 
-    def test_interval_30m_not_implemented_without_service_call(self) -> None:
+    def test_interval_30m_supported(self) -> None:
+        # W1: 30m is a native SSI timeframe — must reach the service.
         q, fake = _quote(self._ROWS)
-        with pytest.raises(NotImplementedError, match="30m"):
-            q.history(start="2024-01-01", end="2024-01-31", interval="30m")
-        assert fake.calls == []
-
+        q.history(start="2024-01-01", end="2024-01-31", interval="30m")
+        assert fake.calls[-1]["timeframe"] == "30m"
     def test_invalid_interval_prevalidated(self) -> None:
         """No BrokerValidationError may escape: validate in explorer (AC-Q1.2)."""
         q, fake = _quote(self._ROWS)
@@ -206,3 +205,40 @@ class TestSSIQuoteUnsupported:
             q.price_depth()
         for token in ("KBS", "VCI", "stream"):
             assert token in str(exc.value)
+
+
+class TestSSIQuoteFetchMultiple:
+    """P4b: batch history isolates per-symbol failures, preserves order."""
+
+    def test_batch_order_and_keys(self) -> None:
+        rows = [
+            {"symbol": "X", "trading_date": "2024-01-02", "open": 1.0,
+             "high": 1.0, "low": 1.0, "close": 1.0, "volume": 10, "value": 10.0}
+        ]
+        q = SSIQuote("ACB", api_key="test-ssi-key", api_secret="test-ssi-secret",
+                     _service=_FakeMarket(pages={1: rows}))  # type: ignore[arg-type]
+        out = q.fetch_multiple(["ACB", "VNM"], start="2024-01-02", end="2024-01-03")
+        assert list(out.keys()) == ["ACB", "VNM"]
+        assert len(out["ACB"]) == 1
+
+    def test_empty_list(self) -> None:
+        q, _ = _quote([])
+        assert q.fetch_multiple([]) == {}
+
+    def test_failure_isolated(self) -> None:
+        class _Boom:
+            def get_ohlc(self, **kwargs: Any) -> Any:
+                if kwargs.get("symbol") == "BAD":
+                    raise ConnectionError("boom")
+                return _service_df([
+                    {"symbol": kwargs.get("symbol"), "trading_date": "2024-01-02",
+                     "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0,
+                     "volume": 10, "value": 10.0}
+                ])
+
+        q = SSIQuote("ACB", api_key="test-ssi-key", api_secret="test-ssi-secret",
+                     _service=_Boom())  # type: ignore[arg-type]
+        out = q.fetch_multiple(["ACB", "BAD"], start="2024-01-02", end="2024-01-03")
+        assert len(out["ACB"]) == 1
+        assert out["BAD"].empty
+        assert out["BAD"].attrs["error"] == "boom"

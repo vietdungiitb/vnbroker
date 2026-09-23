@@ -45,3 +45,69 @@ class TestSSILive:
         assert len(df) == 3
         assert "ceiling_price" in df.columns
         assert df.attrs.get("source_used") == "SSI"
+
+
+class TestSSIP4Live:
+    """P4 live evidence: 30m, datetime windows, indices, securities, screener."""
+
+    def test_history_30m(self) -> None:
+        from vnbroker.explorer.ssi.quote import SSIQuote
+
+        q = SSIQuote("ACB", api_key=_API_KEY, api_secret=_API_SECRET)
+        df = q.history(start="2024-01-02", end="2024-01-05", interval="30m")
+        assert len(df) > 0
+        assert df.attrs.get("source_used") == "SSI"
+
+    def test_history_intraday_datetime_window(self) -> None:
+        from vnbroker.explorer.ssi.quote import SSIQuote
+
+        q = SSIQuote("ACB", api_key=_API_KEY, api_secret=_API_SECRET)
+        df = q.history(
+            start="2024-01-02 09:00:00",
+            end="2024-01-02 15:00:00",
+            interval="15m",
+        )
+        assert list(df.columns)[:6] == ["time", "open", "high", "low", "close", "volume"]
+
+    def test_fetch_multiple(self) -> None:
+        from vnbroker.explorer.ssi.quote import SSIQuote
+
+        q = SSIQuote("ACB", api_key=_API_KEY, api_secret=_API_SECRET)
+        out = q.fetch_multiple(["ACB", "VNM"], start="2024-01-02", end="2024-01-05")
+        assert set(out) == {"ACB", "VNM"}
+        assert len(out["ACB"]) > 0
+
+    def test_indices_and_securities(self) -> None:
+        from vnbroker.explorer.ssi.indices import SSIIndices
+        from vnbroker.explorer.ssi.securities import SSISecurities
+
+        idx = SSIIndices(api_key=_API_KEY, api_secret=_API_SECRET)
+        members = idx.index_members("VN30")
+        assert len(members) > 0
+        sec = SSISecurities(api_key=_API_KEY, api_secret=_API_SECRET)
+        room = sec.foreign_room(symbol="ACB", start="2024-01-02", end="2024-01-05")
+        assert "remain_foreign_room" in room.columns
+
+    def test_screener_smoke(self) -> None:
+        from vnbroker.explorer.ssi.screener import SSIScreener
+
+        s = SSIScreener(api_key=_API_KEY, api_secret=_API_SECRET)
+        df = s.stock(params={"indexName": "VN30"}, limit=5)
+        assert len(df) > 0
+
+    def test_session_snapshot(self) -> None:
+        from vnbroker.explorer.ssi.live import SSILive
+
+        live = SSILive("ACB", api_key=_API_KEY, api_secret=_API_SECRET)
+        df = live.session_snapshot(["ACB", "VNM"])
+        assert "ref" in df.columns
+
+    def test_ws_ticks_tolerant(self) -> None:
+        """WS evidence: columns only (empty outside market hours is OK)."""
+        from vnbroker.explorer.ssi.live import SSILive
+
+        live = SSILive("ACB", api_key=_API_KEY, api_secret=_API_SECRET)
+        df = live.intraday_ticks(timeout=10.0)
+        assert list(df.columns) == ["time", "price", "volume", "side"]
+        depth = live.depth_snapshot(timeout=10.0)
+        assert list(depth.columns) == ["side", "price", "volume"]

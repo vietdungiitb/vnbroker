@@ -15,11 +15,11 @@ _EXPECTED = [
 class TestSSINewsInit:
     """Credential tests."""
 
-    def test_raises_without_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_lazy_init_without_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # W4: fallback modules must init without keys so facade can fall back.
         monkeypatch.delenv("VNBROKER_BROKER_SSI_API_KEY", raising=False)
         monkeypatch.delenv("VNBROKER_BROKER_SSI_API_SECRET", raising=False)
-        with pytest.raises(ValueError, match="SSI cần api_key và api_secret"):
-            SSINews()
+        assert SSINews().latest().empty
 
 
 class TestSSINewsMethods:

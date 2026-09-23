@@ -261,7 +261,7 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
 - Version defined in `pyproject.toml` (single source of truth)
 - `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
 - Upgrade notice checks GitHub release tags (not PyPI)
-- Current version: **3.3.0** (`v3.4-dev` on `dev` branch; `scripts/check_version_sync.py` enforces doc sync in CI)
+- Current version: **3.4.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
 - Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
 
 ## Deprecated/Removed (v3.1.0)

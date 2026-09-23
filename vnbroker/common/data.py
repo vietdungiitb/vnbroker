@@ -16,6 +16,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from pandas.api.types import is_numeric_dtype
 
 from vnbroker.core.utils.logger import get_logger
+from vnbroker.core.exceptions import UnsupportedMethodError
 
 logger = get_logger(__name__)
 
@@ -273,7 +274,7 @@ class BaseComponent:
                         empty_result = result
                     continue
                 return result
-            except (NotImplementedError, AttributeError) as e:
+            except (NotImplementedError, AttributeError, UnsupportedMethodError) as e:
                 last_error = e
                 continue
             except Exception as e:
@@ -375,6 +376,8 @@ class Quote(BaseComponent):
     """Historical and real-time price data."""
 
     SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # One-way only: SSI needs a key/quota, so KBS/VCI never fall back into SSI (W2).
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
     def __init__(self, symbol: str, source: str = "KBS",
                  auth_token: Optional[str] = None,
@@ -490,6 +493,8 @@ class Listing(BaseComponent):
     """Symbol listing and grouping data."""
 
     SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # One-way only: SSI needs a key/quota, so KBS/VCI never fall back into SSI (W2).
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
     def __init__(self, source: str = "KBS",
                  api_key: Optional[str] = None,
@@ -577,8 +582,8 @@ class Trading(BaseComponent):
     """Real-time trading data and market board information."""
 
     SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # One-way only (W2): line 581 duplicated this map and dropped SSI — removed.
     FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
-    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"]}
 
     def __init__(self, symbol: Optional[str] = 'VN30F1M',
                  source: str = "KBS",

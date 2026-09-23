@@ -25,6 +25,8 @@ logger = get_logger(__name__)
 _STOCK_BOARDS = ("HOSE", "HNX", "UPCOM")
 _ALL_SYMBOLS_COLUMNS = ["symbol", "organ_name"]
 
+_ALL_SYMBOLS_TTL = 21600  # 6h — listing universe changes slowly (P1 tiered TTL)
+
 
 class SSIListing:
     """
@@ -78,7 +80,7 @@ class SSIListing:
         )
         return out
 
-    @cached_listing()
+    @cached_listing(ttl_seconds=_ALL_SYMBOLS_TTL)
     def all_symbols(
         self, include_derivatives: bool = False, **kwargs: Any
     ) -> pd.DataFrame:

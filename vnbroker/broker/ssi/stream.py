@@ -544,6 +544,17 @@ class SSIStreamManager:
             _CHANNEL_DATA,
         )
 
+    def subscribe_symbol_market_status(
+        self, symbols: List[str], on_response: Optional[MessageHandler] = None
+    ) -> None:
+        """Subscribe session flags (``market.<SYM>`` — no interval, P4a)."""
+        self._require_connected()
+        self._send(
+            _topics_msg("subscribe", _CHANNEL_DATA, "market", symbols),
+            on_response,
+            _CHANNEL_DATA,
+        )
+
     def subscribe_symbol_ohlcv(
         self,
         symbols: List[str],
@@ -610,6 +621,10 @@ class SSIStreamManager:
     def unsubscribe_symbol_odd_lot(self, symbols: List[str]) -> None:
         self._require_connected()
         self._raw_send(_topics_msg("unsubscribe", _CHANNEL_DATA, "oddlot", symbols))
+
+    def unsubscribe_symbol_market_status(self, symbols: List[str]) -> None:
+        self._require_connected()
+        self._raw_send(_topics_msg("unsubscribe", _CHANNEL_DATA, "market", symbols))
 
     def unsubscribe_symbol_ohlcv(
         self, symbols: List[str], interval: str = "1m"
