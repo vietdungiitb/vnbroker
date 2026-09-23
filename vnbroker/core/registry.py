@@ -112,7 +112,7 @@ class ProviderRegistry:
         Returns:
             Dict[str, List[str]]: {provider_type: [source_names]}
         """
-        result = {}
+        result: Dict[str, List[str]] = {}
         for ptype, source in cls._registry:
             if ptype not in result:
                 result[ptype] = []

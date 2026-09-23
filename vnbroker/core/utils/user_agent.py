@@ -226,7 +226,7 @@ def get_headers(
     source_config = HEADERS_MAPPING_SOURCE.get(data_source.upper(), {})
 
     # Step 3: Add source-specific headers (if any)
-    source_headers = source_config.get('headers', {})
+    source_headers: dict = dict(source_config.get('headers', {}))
     if source_headers:
         headers.update(source_headers)
 

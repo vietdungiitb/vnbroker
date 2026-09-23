@@ -98,6 +98,57 @@ def normalize_price_columns(
     df.attrs['price_unit'] = target
     return df
 
+
+def normalize_ohlc_prices(
+    df: pd.DataFrame,
+    asset_type: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    floating: Optional[int] = None,
+    target_unit: Optional[str] = None,
+) -> pd.DataFrame:
+    """Single entry point for OHLC price normalization.
+
+    Centralizes the asset-type rule in one place so explorers
+    (VCI/KBS/TCBS/DNSE) don't duplicate unit logic:
+    - stock (default): source prices are VND, convert to target unit.
+    - index/derivative: points/contracts are unitless, keep raw values
+      (no scaling) but still stamp ``df.attrs['price_unit']``.
+    """
+    cols = columns or ["open", "high", "low", "close"]
+    raw_asset = getattr(asset_type, "value", asset_type) or "stock"
+    normalized_asset = str(raw_asset).strip().lower()
+    if normalized_asset in {"index", "derivative"}:
+        target = _resolve_target_price_unit()
+        if target_unit is not None:
+            target = _parse_price_unit(target_unit)
+        df.attrs["price_unit"] = target
+        return df
+    return normalize_price_columns(
+        df,
+        columns=cols,
+        source_unit=_PRICE_UNIT_VND,
+        floating=floating,
+        target_unit=target_unit,
+    )
+
+
+def normalize_intraday_prices(
+    df: pd.DataFrame,
+    asset_type: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    floating: Optional[int] = 2,
+    target_unit: Optional[str] = None,
+) -> pd.DataFrame:
+    """Single entry point for intraday (tick) price normalization."""
+    cols = columns or ["price"]
+    return normalize_ohlc_prices(
+        df,
+        asset_type=asset_type,
+        columns=cols,
+        floating=floating,
+        target_unit=target_unit,
+    )
+
 # Vietnam timezone
 vietnam_tz = pytz.timezone('Asia/Ho_Chi_Minh')
 
@@ -287,14 +338,11 @@ def ohlc_to_df(
             # TCBS and others might use string formats
             df['time'] = pd.to_datetime(df['time'], errors='coerce')
     
-    # Normalize price columns into configured target unit.
-    source_price_unit = _PRICE_UNIT_VND
-    if asset_type in ["index", "derivative"]:
-        source_price_unit = _resolve_target_price_unit()
-    df = normalize_price_columns(
+    # Normalize via single entry point (asset-type rule lives in one place).
+    df = normalize_ohlc_prices(
         df,
+        asset_type=asset_type,
         columns=["open", "high", "low", "close"],
-        source_unit=source_price_unit,
         floating=floating,
     )
 
@@ -720,7 +768,7 @@ def clean_html_dict(data: Dict[str, Any], html_keys: Optional[List[str]] = None)
                 text = text.replace('- ', '\n- ')  # Preserve list formatting
                 
                 result[key] = text
-            except:
+            except Exception:
                 pass  # Keep original if processing fails
     
     return result

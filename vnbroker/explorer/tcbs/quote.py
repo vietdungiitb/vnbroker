@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from vnbroker.core.utils.execution import optimize_execution
 from vnbroker.core.utils.interval import normalize_interval
 from .const import (
-    _BASE_URL, NYX_PATH, TARTARUS_PATH, _INTERVAL_MAP,
+    _BASE_URL, NYX_PATH, _INTERVAL_MAP,
     _OHLC_MAP, _OHLC_DTYPE, _INTRADAY_MAP, _INTRADAY_COLUMNS, _INTRADAY_DTYPE,
     _INDEX_MAPPING
 )
@@ -355,11 +355,6 @@ class Quote:
         if not _skip_long_check and days > 365:
             return self._long_history(start, end, show_log, asset_type)
         else:
-            if end is None:
-                end_stamp = int(datetime.now().timestamp())
-            else:
-                end_stamp = int(end_time.timestamp())
-            
             # For the new iFlash OpenAPI, OHLC bars endpoint is not available
             # We can only compute single-session OHLC from intraday data
             if interval_key in ["1D", "1W", "1M"]:
@@ -373,12 +368,6 @@ class Quote:
                 return self.intraday(page_size=count_back, show_log=show_log)
             else:
                 raise ValueError(f"Unsupported interval: {interval_key}")
-
-        df.attrs['symbol'] = self.symbol
-        df.category = self.asset_type
-        df.source = self.data_source
-        
-        return df
         
     def _as_df(
         self,
@@ -469,8 +458,8 @@ class Quote:
                     record_time = record.get("t")
                     if record_time:
                         try:
-                            time_obj = pd.to_datetime(record_time, format='%H:%M:%S').time()
-                            dt = pd.Timestamp.combine(start_date.date(), time_obj)
+                            # Validate time format; grouping date comes from start_date
+                            pd.to_datetime(record_time, format='%H:%M:%S').time()
                             record["_date"] = start_date.date()
                             day_data.append(record)
                         except Exception as e:
@@ -499,7 +488,16 @@ class Quote:
         if not all_intraday:
             if show_log:
                 logger.warning(f"No intraday data found for {self.symbol} from {start} to {end}")
-            return pd.DataFrame()
+            empty_df = pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
+            empty_df = transform.normalize_ohlc_prices(
+                empty_df,
+                asset_type=self.asset_type,
+                columns=["open", "high", "low", "close"],
+            )
+            empty_df.attrs["symbol"] = self.symbol
+            empty_df.attrs["source"] = self.data_source
+            empty_df.attrs["interval"] = interval_key
+            return empty_df
         
         # Convert to DataFrame
         df = pd.DataFrame(all_intraday)
@@ -540,16 +538,11 @@ class Quote:
         # Convert time to datetime string format
         ohlc_df["time"] = pd.to_datetime(ohlc_df["time"]).dt.strftime("%Y-%m-%d %H:%M:%S")
         
-        # Normalize price columns
-        source_price_unit = "VND"
-        if self.asset_type in ["index", "derivative"]:
-            from vnbroker.core.utils.transform import _resolve_target_price_unit
-            source_price_unit = _resolve_target_price_unit()
-            
-        ohlc_df = transform.normalize_price_columns(
+        # Normalize via single entry point (asset-type rule in transform).
+        ohlc_df = transform.normalize_ohlc_prices(
             ohlc_df,
+            asset_type=self.asset_type,
             columns=["open", "high", "low", "close"],
-            source_unit=source_price_unit,
         )
         
         # Add metadata
@@ -652,8 +645,18 @@ class Quote:
                 if isinstance(frame, pd.DataFrame):
                     return frame, time.perf_counter() - started
                 return None, time.perf_counter() - started
-            except Exception:
+            except Exception as exc:
+                logger.debug("fetch_multiple %s failed: %s", symbol, exc)
                 return None, time.perf_counter() - started
+
+        # Fast path: single pool for all symbols when adaptive is off
+        # (avoids create/destroy executor per batch).
+        if not enable_adaptive:
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                batch_results = list(executor.map(_run_one, symbols))
+            results = [item for item, _ in batch_results if item is not None]
+            get_global_pressure().record_batch(len(symbols), len(symbols) - len(results))
+            return results
 
         while cursor < len(symbols):
             batch_symbols = symbols[cursor:cursor + worker_count]

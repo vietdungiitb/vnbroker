@@ -72,6 +72,13 @@ class TestBrokerRegistry:
         """Dọn registry trước mỗi test để tránh pollution."""
         BrokerRegistry.clear()
 
+    def teardown_method(self):
+        """Khôi phục provider mặc định (register-once ở import)."""
+        from vnbroker.broker.ssi.client import SSIBrokerClient
+        from vnbroker.broker.tcbs.client import TCBSBrokerClient
+        BrokerRegistry.register("tcbs", TCBSBrokerClient)
+        BrokerRegistry.register("ssi", SSIBrokerClient)
+
     def test_register_and_get_provider(self):
         BrokerRegistry.register("fake", ConcreteBroker)
         retrieved = BrokerRegistry.get("fake")

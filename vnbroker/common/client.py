@@ -157,22 +157,33 @@ class Vnbroker:
 
     def crypto(self, symbol: Optional[str] = "BTC", source: Optional[str] = None):
         """
-        Get cryptocurrency data.
+        Get cryptocurrency data (Binance spot, public, no API key needed).
 
         Args:
-            symbol (str): Crypto symbol (e.g., 'BTC', 'ETH').
+            symbol (str): Crypto symbol (e.g., 'BTC', 'ETH', 'BTCUSDT').
                 Defaults to 'BTC'.
-            source (str): Data source (not used - crypto not supported).
+            source (str): Data source. Only 'BINANCE' is currently supported.
+                Defaults to 'BINANCE'.
 
-        Raises:
-            NotImplementedError: Cryptocurrency data is not supported by current providers
-                (KBS, VCI, TCBS, DNSE). These providers only cover Vietnamese equities.
+        Returns:
+            BinanceClient: Bound client with ``history()`` / ``intraday()``
+                returning OHLCV DataFrames priced in USDT
+                (``df.attrs["price_unit"] == "USDT"``).
+
+        Example:
+            >>> vn = Vnbroker()
+            >>> btc = vn.crypto("BTC")
+            >>> df = btc.history(start="2024-01-01", end="2024-12-31", interval="1D")
         """
-        raise NotImplementedError(
-            "Cryptocurrency data is not supported by current Vietnamese market data providers "
-            "(KBS, VCI, TCBS, DNSE). These providers only cover Vietnamese equities. "
-            "Crypto support requires integration with dedicated providers (planned for future release)."
-        )
+        from vnbroker.connector.binance import BinanceClient
+
+        src = (source or "BINANCE").upper()
+        if src != "BINANCE":
+            raise ValueError(
+                f"Crypto source '{source}' is not supported. "
+                f"Available: ['BINANCE']."
+            )
+        return BinanceClient(symbol=symbol or "BTC", show_log=self.show_log)
 
     def world_index(self, symbol: Optional[str] = "DJI", source: Optional[str] = None):
         """
@@ -249,13 +260,10 @@ class Vnbroker:
             >>> ssi = vn.broker(provider="ssi", api_key="...", api_secret="...")
             >>> ssi.authenticate()  # market-data-only, không OTP
         """
-        from vnbroker.broker.registry import BrokerRegistry
-        from vnbroker.broker.tcbs.client import TCBSBrokerClient
-        from vnbroker.broker.ssi.client import SSIBrokerClient
+        # Registration happens once at import (vnbroker.broker.__init__);
+        # lookup goes through the UnifiedRegistry single entry point.
+        import vnbroker.broker  # noqa: F401 - ensures register-once at import
+        from vnbroker.core.unified_registry import UnifiedRegistry
 
-        if not BrokerRegistry.is_registered("tcbs"):
-            BrokerRegistry.register("tcbs", TCBSBrokerClient)
-        if not BrokerRegistry.is_registered("ssi"):
-            BrokerRegistry.register("ssi", SSIBrokerClient)
-
-        return BrokerRegistry.create(provider, **kwargs)
+        client_class = UnifiedRegistry.get_broker(provider)
+        return client_class(**kwargs)

@@ -20,7 +20,7 @@ class DeprecationRegistry:
     This allows centralized management of deprecation notices and version tracking.
     """
     
-    _registry = {}
+    _registry: dict[str, dict[str, object]] = {}
     
     @classmethod
     def register(

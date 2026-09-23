@@ -62,3 +62,29 @@ packages = { find = {} }
 
 [tool.setuptools.package-data]
 vnbroker = ["docs/*.txt", "docs/*.csv"]
+
+[tool.mypy]
+# Canonical mypy config (pyproject.toml.testing holds legacy test/lint extras).
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_optional = true
+ignore_missing_imports = true
+
+# NOTE: global --strict is NOT enabled here. The legacy strict-error surface
+# (~550 errors, expiry 2026-12-31) is tracked via
+# artifacts/v3.4-roadmap/mypy-baseline.txt and enforced by
+# `python scripts/check_mypy_baseline.py`, which fails CI on NEW
+# `mypy vnbroker --strict` errors. Fix-then-shrink the baseline; do not
+# add new strict errors outside it.
+[[tool.mypy.overrides]]
+module = [
+    "vnbroker.core.health_store",
+    "vnbroker.connector.binance.*",
+    "vnbroker.explorer.tcbs.websocket",
+    "vnbroker.explorer.tcbs.ws_models",
+]
+strict = true

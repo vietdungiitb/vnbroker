@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -85,5 +85,5 @@ class StreamMessage:
     """Parsed WebSocket message envelope."""
     channel: str  # ohlc, orderbook, ticker, trade, matching
     symbol: str
-    data: OHLC | OrderBook | Ticker | Trade | MatchingEvent | dict
+    data: OHLC | OrderBook | Ticker | Trade | MatchingEvent | dict[str, Any]
     timestamp: datetime = field(default_factory=datetime.now)

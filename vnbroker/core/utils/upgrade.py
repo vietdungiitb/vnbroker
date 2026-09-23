@@ -66,8 +66,8 @@ def _check_dependency_compatibility():
     """
     from packaging.specifiers import SpecifierSet
     
-    critical_issues = []
-    warnings_list = []
+    critical_issues: list = []
+    warnings_list: list = []
     priority_packages = ["vnii"]  # Always check and display first
     
     try:
@@ -215,7 +215,7 @@ def _get_current_github_channel_version():
     follow GitHub only, compare against the version declared in the codebase
     rather than the wheel/sdist metadata.
     """
-    candidates = set()
+    candidates: set = set()
 
     for mapping in (VERSION_REQUIREMENTS, VERSION_NOTICES, PYTHON_VERSION_SUPPORT):
         if isinstance(mapping, dict):

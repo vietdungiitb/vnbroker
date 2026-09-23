@@ -4,7 +4,9 @@ Broker registry for provider lookup.
 Singleton registry to manage broker provider implementations.
 """
 
-from typing import Dict, Type, Optional
+import threading
+
+from typing import Any, Dict, Type, Optional
 from vnbroker.broker.base import BaseBrokerClient
 
 
@@ -13,10 +15,15 @@ class BrokerRegistry:
     Registry for broker providers.
 
     Provides lookup and instantiation of broker clients by provider name.
+
+    Registration happens once at import (see ``vnbroker.broker.__init__``);
+    all methods are guarded by a lock so concurrent lookup/register
+    from multiple threads cannot race.
     """
 
     _instance: Optional["BrokerRegistry"] = None
     _providers: Dict[str, Type[BaseBrokerClient]] = {}
+    _lock: threading.Lock = threading.Lock()
 
     def __new__(cls) -> "BrokerRegistry":
         if cls._instance is None:
@@ -32,7 +39,8 @@ class BrokerRegistry:
             name: Provider name (e.g., 'TCBS')
             client_class: Broker client class implementing BaseBrokerClient
         """
-        cls._providers[name.lower()] = client_class
+        with cls._lock:
+            cls._providers[name.lower()] = client_class
 
     @classmethod
     def get(cls, name: str) -> Type[BaseBrokerClient]:
@@ -48,9 +56,10 @@ class BrokerRegistry:
         Raises:
             KeyError: If provider not registered
         """
-        provider = cls._providers.get(name.lower())
+        with cls._lock:
+            provider = cls._providers.get(name.lower())
+            available = ", ".join(sorted(cls._providers.keys()))
         if provider is None:
-            available = ", ".join(cls._providers.keys())
             raise KeyError(
                 f"Broker provider '{name}' chưa được đăng ký. "
                 f"Danh sách khả dụng: {available}"
@@ -58,7 +67,7 @@ class BrokerRegistry:
         return provider
 
     @classmethod
-    def create(cls, name: str, **kwargs) -> BaseBrokerClient:
+    def create(cls, name: str, **kwargs: Any) -> BaseBrokerClient:
         """
         Create broker client instance.
 
@@ -75,14 +84,17 @@ class BrokerRegistry:
     @classmethod
     def list_providers(cls) -> list[str]:
         """List all registered provider names."""
-        return list(cls._providers.keys())
+        with cls._lock:
+            return list(cls._providers.keys())
 
     @classmethod
     def is_registered(cls, name: str) -> bool:
         """Check if provider is registered."""
-        return name.lower() in cls._providers
+        with cls._lock:
+            return name.lower() in cls._providers
 
     @classmethod
     def clear(cls) -> None:
         """Clear all registered providers (for testing)."""
-        cls._providers.clear()
+        with cls._lock:
+            cls._providers.clear()

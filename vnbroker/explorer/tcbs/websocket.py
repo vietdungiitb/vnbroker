@@ -17,7 +17,9 @@ import logging
 import time
 from datetime import datetime, timezone
 from enum import Enum
-from typing import AsyncGenerator, Callable, Optional
+from typing import Any, AsyncGenerator, Optional
+
+import websockets
 
 from vnbroker.explorer.tcbs.ws_models import (
     MatchingEvent,
@@ -81,12 +83,12 @@ class TCBSWebSocketClient:
         self._reconnect_base_delay = reconnect_base_delay
         self._reconnect_max_delay = reconnect_max_delay
 
-        self._ws = None
+        self._ws: Optional[Any] = None
         self._connected = False
-        self._subscriptions: list[dict] = []
-        self._message_queue: asyncio.Queue = asyncio.Queue()
-        self._heartbeat_task: Optional[asyncio.Task] = None
-        self._receive_task: Optional[asyncio.Task] = None
+        self._subscriptions: list[dict[str, Any]] = []
+        self._message_queue: asyncio.Queue[Optional[StreamMessage]] = asyncio.Queue()
+        self._heartbeat_task: Optional[asyncio.Task[None]] = None
+        self._receive_task: Optional[asyncio.Task[None]] = None
         self._reconnect_attempt = 0
         self._last_message_time = 0.0
 
@@ -97,8 +99,6 @@ class TCBSWebSocketClient:
         Args:
             stream_type: Which stream to connect to (ouranos, aither, nesoi).
         """
-        import websockets  # noqa: PLC0415
-
         endpoints = _WS_ENDPOINTS_SIT if self._use_sit else _WS_ENDPOINTS
         url = endpoints[stream_type.value]
 
@@ -170,7 +170,7 @@ class TCBSWebSocketClient:
         }
         self._subscriptions.append(sub_msg)
 
-        await self._ws.send(json.dumps(sub_msg))
+        await self._require_ws().send(json.dumps(sub_msg))
         _logger.info("Subscribed to symbols=%s channels=%s", symbols, channels)
 
     async def unsubscribe(self, symbols: list[str], channels: list[str]) -> None:
@@ -189,7 +189,7 @@ class TCBSWebSocketClient:
             "symbols": symbols,
             "channels": channels,
         }
-        await self._ws.send(json.dumps(unsub_msg))
+        await self._require_ws().send(json.dumps(unsub_msg))
         _logger.info("Unsubscribed from symbols=%s channels=%s", symbols, channels)
 
     async def messages(self) -> AsyncGenerator[StreamMessage, None]:
@@ -220,12 +220,18 @@ class TCBSWebSocketClient:
         except asyncio.CancelledError:
             pass
 
+    def _require_ws(self) -> Any:
+        """Return the live connection or raise if not connected."""
+        if self._ws is None:
+            raise RuntimeError("Not connected. Call connect() first.")
+        return self._ws
+
     async def _message_handler_loop(self) -> None:
         """Receive and parse WebSocket messages."""
         try:
             while self._connected:
                 try:
-                    raw = await asyncio.wait_for(self._ws.recv(), timeout=30.0)
+                    raw = await asyncio.wait_for(self._require_ws().recv(), timeout=30.0)
                     self._last_message_time = time.time()
                     msg = self._parse_message(raw)
                     if msg:
@@ -267,7 +273,7 @@ class TCBSWebSocketClient:
             timestamp=timestamp,
         )
 
-    def _parse_channel_data(self, channel: str, data: dict) -> Optional[object]:
+    def _parse_channel_data(self, channel: str, data: dict[str, Any]) -> Any:
         """Parse channel-specific data into typed objects."""
         if channel in ("ohlc", "candle"):
             return self._parse_ohlc(data)
@@ -281,7 +287,7 @@ class TCBSWebSocketClient:
             return self._parse_matching(data)
         return None
 
-    def _parse_ohlc(self, data: dict) -> Optional[OHLC]:
+    def _parse_ohlc(self, data: dict[str, Any]) -> Optional[OHLC]:
         """Parse OHLC data."""
         try:
             return OHLC(
@@ -297,7 +303,7 @@ class TCBSWebSocketClient:
         except (ValueError, TypeError):
             return None
 
-    def _parse_orderbook(self, data: dict) -> Optional[OrderBook]:
+    def _parse_orderbook(self, data: dict[str, Any]) -> Optional[OrderBook]:
         """Parse OrderBook data."""
         try:
             bids = [
@@ -317,7 +323,7 @@ class TCBSWebSocketClient:
         except (ValueError, TypeError, IndexError):
             return None
 
-    def _parse_ticker(self, data: dict) -> Optional[Ticker]:
+    def _parse_ticker(self, data: dict[str, Any]) -> Optional[Ticker]:
         """Parse Ticker data."""
         try:
             return Ticker(
@@ -337,7 +343,7 @@ class TCBSWebSocketClient:
         except (ValueError, TypeError):
             return None
 
-    def _parse_trade(self, data: dict) -> Optional[Trade]:
+    def _parse_trade(self, data: dict[str, Any]) -> Optional[Trade]:
         """Parse Trade data."""
         try:
             return Trade(
@@ -350,7 +356,7 @@ class TCBSWebSocketClient:
         except (ValueError, TypeError):
             return None
 
-    def _parse_matching(self, data: dict) -> Optional[MatchingEvent]:
+    def _parse_matching(self, data: dict[str, Any]) -> Optional[MatchingEvent]:
         """Parse MatchingEvent data (Aither/Nesoi streams)."""
         try:
             return MatchingEvent(
@@ -387,7 +393,7 @@ class TCBSWebSocketClient:
             await self.connect()
             # Re-subscribe to previous subscriptions
             for sub in self._subscriptions:
-                await self._ws.send(json.dumps(sub))
+                await self._require_ws().send(json.dumps(sub))
             _logger.info("Re-subscribed to %d subscriptions", len(self._subscriptions))
         except Exception as exc:
             _logger.error("Reconnect failed: %s", exc)
@@ -397,7 +403,7 @@ class TCBSWebSocketClient:
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.disconnect()
 
     @property
