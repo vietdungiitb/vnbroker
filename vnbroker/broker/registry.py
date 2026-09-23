@@ -1,50 +1,100 @@
 """
-BrokerRegistry — Singleton registry ánh xạ provider name → client class.
+Broker registry for provider lookup.
 
-Tách hoàn toàn khỏi ProviderRegistry của explorer lane.
+Singleton registry to manage broker provider implementations.
 """
-from __future__ import annotations
 
-from typing import Type, Dict, TYPE_CHECKING
+import threading
 
-if TYPE_CHECKING:
-    from vnbroker.broker.base import BaseBrokerClient
+from typing import Any, Dict, Type, Optional
+from vnbroker.broker.base import BaseBrokerClient
 
 
 class BrokerRegistry:
     """
-    Registry singleton cho broker clients.
+    Registry for broker providers.
 
-    Cách dùng:
-        BrokerRegistry.register("tcbs", TCBSBrokerClient)
-        cls = BrokerRegistry.get("tcbs")
+    Provides lookup and instantiation of broker clients by provider name.
+
+    Registration happens once at import (see ``vnbroker.broker.__init__``);
+    all methods are guarded by a lock so concurrent lookup/register
+    from multiple threads cannot race.
     """
 
-    _registry: Dict[str, Type["BaseBrokerClient"]] = {}
+    _instance: Optional["BrokerRegistry"] = None
+    _providers: Dict[str, Type[BaseBrokerClient]] = {}
+    _lock: threading.Lock = threading.Lock()
+
+    def __new__(cls) -> "BrokerRegistry":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     @classmethod
-    def register(cls, name: str, client_class: Type["BaseBrokerClient"]) -> None:
-        """Đăng ký broker client class theo tên (lowercase)."""
-        cls._registry[name.lower()] = client_class
-
-    @classmethod
-    def get(cls, name: str) -> Type["BaseBrokerClient"]:
+    def register(cls, name: str, client_class: Type[BaseBrokerClient]) -> None:
         """
-        Lấy broker client class theo tên.
+        Register a broker provider.
+
+        Args:
+            name: Provider name (e.g., 'TCBS')
+            client_class: Broker client class implementing BaseBrokerClient
+        """
+        with cls._lock:
+            cls._providers[name.lower()] = client_class
+
+    @classmethod
+    def get(cls, name: str) -> Type[BaseBrokerClient]:
+        """
+        Get broker client class by name.
+
+        Args:
+            name: Provider name
+
+        Returns:
+            Broker client class
 
         Raises:
-            KeyError: Nếu provider chưa được đăng ký.
+            KeyError: If provider not registered
         """
-        key = name.lower()
-        if key not in cls._registry:
-            available = list(cls._registry.keys())
+        with cls._lock:
+            provider = cls._providers.get(name.lower())
+            available = ", ".join(sorted(cls._providers.keys()))
+        if provider is None:
             raise KeyError(
                 f"Broker provider '{name}' chưa được đăng ký. "
-                f"Hiện có: {available}"
+                f"Danh sách khả dụng: {available}"
             )
-        return cls._registry[key]
+        return provider
+
+    @classmethod
+    def create(cls, name: str, **kwargs: Any) -> BaseBrokerClient:
+        """
+        Create broker client instance.
+
+        Args:
+            name: Provider name
+            **kwargs: Arguments passed to client constructor
+
+        Returns:
+            Broker client instance
+        """
+        client_class = cls.get(name)
+        return client_class(**kwargs)
 
     @classmethod
     def list_providers(cls) -> list[str]:
-        """Trả về danh sách tên provider đã đăng ký."""
-        return list(cls._registry.keys())
+        """List all registered provider names."""
+        with cls._lock:
+            return list(cls._providers.keys())
+
+    @classmethod
+    def is_registered(cls, name: str) -> bool:
+        """Check if provider is registered."""
+        with cls._lock:
+            return name.lower() in cls._providers
+
+    @classmethod
+    def clear(cls) -> None:
+        """Clear all registered providers (for testing)."""
+        with cls._lock:
+            cls._providers.clear()

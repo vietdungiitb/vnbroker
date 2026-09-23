@@ -1,0 +1,11 @@
+vnbroker.ui
+├── Market
+│   └── equity(symbol) -> Quote: Giá cổ phiếu: history/intraday/price_depth.
+├── Reference
+│   └── company(symbol) -> Company: Hồ sơ doanh nghiệp: profile/shareholders/....
+│   └── listing() -> Listing: Danh sách mã: all_symbols/symbols_by_....
+├── Fundamental
+│   └── equity(symbol) -> Finance: Tài chính: balance_sheet/income_statement/cash_flow/ratio.
+└── Retail
+    └── gold(source, date) -> DataFrame: Giá vàng SJC/BTMC.
+    └── exchange_rate(date) -> DataFrame: Tỷ giá Vietcombank.

@@ -83,7 +83,7 @@ class TestBrokerSessionTransitions:
         s = BrokerSession()
         s.set_token("jwt.abc")
         s.revoke()
-        assert s.state == SessionState.EXPIRED
+        assert s.state == SessionState.REVOKED
         assert s._token is None
 
     def test_lock_sets_locked_state(self):
@@ -195,7 +195,7 @@ class TestTCBSAuthServiceAuthenticate:
                 service.authenticate(otp="000000")
         assert exc.value.code == "INVALID_OTP"
         assert exc.value.http_status == 401
-        assert session.state == SessionState.EXPIRED  # Revoked on failure
+        assert session.state == SessionState.REVOKED  # Revoked on failure
 
     def test_authenticate_network_timeout_raises_broker_network_error(self):
         service, session = _make_auth_service()
@@ -203,7 +203,7 @@ class TestTCBSAuthServiceAuthenticate:
             with pytest.raises(BrokerNetworkError) as exc:
                 service.authenticate(otp="123456")
         assert exc.value.code == "NETWORK_TIMEOUT"
-        assert session.state == SessionState.EXPIRED
+        assert session.state == SessionState.REVOKED
 
     def test_authenticate_request_exception_raises_broker_network_error(self):
         service, _ = _make_auth_service()
@@ -259,7 +259,7 @@ class TestTCBSAuthServiceRevoke:
         service, session = _make_auth_service()
         session.set_token("jwt.abc")
         service.revoke()
-        assert session.state == SessionState.EXPIRED
+        assert session.state == SessionState.REVOKED
 
 
 class TestTCBSExceptionsReExport:

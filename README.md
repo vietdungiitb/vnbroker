@@ -2,7 +2,7 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
-> **v3.0.0** — Direct Provider Architecture, không phụ thuộc PAT/Gateway.
+> **v3.4.0** — SSI swap parity (P0–P4): SSI dùng qua lại với KBS/VCI + indices/securities/screener/live + AUTO credential-aware.
 
 ## Tóm tắt
 
@@ -24,7 +24,7 @@ vnbroker cung cấp một lớp truy cập thống nhất để lấy dữ liệ
 | `MarketSnapshot` | Snapshot thị trường cho heatmap và dashboard danh mục |
 | `Fund` | Dữ liệu quỹ từ FMarket |
 | `Messenger` | Gửi cảnh báo qua Slack, Telegram, Discord, Lark |
-| `Broker` | **Giao dịch tài khoản cá nhân (Private Brokerage) — Direct Broker API: TCBS, DNSE, SSI** |
+| `Broker` | **Giao dịch tài khoản cá nhân (Private Brokerage) — Direct Broker API: TCBS, SSI, DNSE** |
 
 ## Nguồn dữ liệu (Data Sources)
 
@@ -38,12 +38,27 @@ vnbroker hỗ trợ truy cập trực tiếp tới các provider mà **không c�
 | `KBS` | Quote, Company, Finance, Listing, Trading | Không cần auth |
 | `TCBS` | Quote, Company, Finance, Listing, Trading, News | Không cần auth |
 | `DNSE` | Quote, Listing, Trading | Cần `DNSE_API_KEY` + `DNSE_API_SECRET` |
-| `SSI` | Broker (scaffolded) | Reserved for future |
+| `SSI` | Quote, Listing, Trading | Cần `VNBROKER_BROKER_SSI_API_KEY` + `VNBROKER_BROKER_SSI_API_SECRET` |
+
+
+> **Lưu ý:** DNSE/SSI không có Company/Finance/News endpoints ở upstream — provider trả
+> DataFrame rỗng đúng schema và **facade tự fallback sang KBS/VCI**
+> (`Finance` fallback cứng sang KBS; `Company` bỏ qua DF rỗng). Kiểm tra nguồn thật qua
+> `df.attrs["source_used"]` / `source_requested`, đừng tin `source` yêu cầu.
 
 ### Private Brokerage (Direct Broker API)
 - `TCBS`: Đặt/hủy/sửa lệnh, số dư, sức mua, vị thế nắm giữ, portfolio — **trực tiếp TCBS iFlash OpenAPI v1.0.0**
+- `SSI`: Market data (OHLC 8 timeframe, master data), số dư/vị thế equity + phái sinh, đặt/hủy/sửa lệnh (ký RSA), **7 loại lệnh điều kiện FCO**, streaming WebSocket — **native FastConnect v3, không cần `ssi-sdk`** (xem `docs/SSI_USAGE_GUIDE.md`)
 - `DNSE`: Đặt/hủy/sửa lệnh, số dư, vị thế — **trực tiếp VNDirect API**
-- `SSI`: (Sắp ra mắt) Giao dịch chứng khoán — **trực tiếp SSI API**
+
+```python
+from vnbroker import Vnbroker
+
+vn = Vnbroker()
+ssi = vn.broker(provider="ssi", api_key="...", api_secret="...")
+ssi.authenticate()  # market-data-only, không OTP
+ohlc = ssi.get_ohlc("SSI", timeframe="1d")
+```
 
 ## Cài đặt
 
@@ -76,6 +91,24 @@ finance = acb.finance.ratio()
 news = acb.news.latest()
 ```
 
+### 1b. Retail & Unified UI (không cần biết source)
+
+```python
+from vnbroker import Vnbroker
+
+retail = Vnbroker().retail()
+sjc = retail.gold(source="sjc", date="2026-01-15")  # hoặc source="btmc"
+fx = retail.exchange_rate()  # tỷ giá Vietcombank hôm nay
+
+from vnbroker.ui import Fundamental, Market, Reference, show_api
+
+mkt = Market()  # default KBS
+hist = mkt.equity("SSI").history(start="2026-01-01")
+prof = Reference().company("SSI").profile()
+bs = Fundamental().equity("SSI").balance_sheet(period="year")
+show_api()
+```
+
 ### 2. Chọn provider cụ thể
 
 ```python
@@ -102,12 +135,17 @@ acb_dnse = vn.stock("ACB", source="DNSE")  # Cần DNSE_API_KEY + DNSE_API_SECRE
 
 ### 3. Private Brokerage (trực tiếp API Broker)
 
+vnbroker cung cấp **hai lane brokerage riêng biệt** cho TCBS:
+
+#### 3a. TCBS iFlash OpenAPI v1.0.0 (Official - `vnbroker.broker.tcbs`)
+API chính thức của TCBS, production-ready, test coverage đầy đủ.
+
 ```python
 from vnbroker import Vnbroker
 
 vn = Vnbroker()
 
-# TCBS Broker Client
+# TCBS Official OpenAPI Client
 client = vn.broker(provider="tcbs", api_key="your_tcbs_openapi_key")
 client.authenticate(otp="123456")
 
@@ -126,6 +164,32 @@ order = client.place_order(
     price=25000,
     request_id="unique-idempotency-key"
 )
+```
+
+#### 3b. TCBS Private API (Advanced - `vnbroker.brokerage.tcbs`)
+API private của TCBS với HMAC-SHA256 + WebSocket streaming, dành cho advanced users.
+
+```python
+from vnbroker.brokerage.tcbs import TCBSClient
+
+client = TCBSClient(
+    api_key="your_api_key",
+    secret="your_base64_secret",
+    account_no="0123456789",
+    otp_handler=lambda otp_type: input(f"Enter {otp_type} OTP: ")
+)
+
+balance = client.get_balance()
+positions = client.get_positions()
+orders = client.get_orders()
+
+# Real-time streaming
+async for tick in client.intratick_stream(["ACB", "VNM"]):
+    print(f"{tick.symbol}: {tick.price} @ {tick.volume}")
+
+# WebSocket order updates
+async for order_update in client.order_updates_stream():
+    print(f"Order {order_update.order_id}: {order_update.status}")
 ```
 
 ### 4. Gửi cảnh báo bot
@@ -151,9 +215,11 @@ all_funds = funds.listing()
 
 | Biến | Mô tả | Ví dụ |
 | --- | --- | --- |
-| `DNSE_API_KEY` | DNSE API Key | `your_dnse_key` |
-| `DNSE_API_SECRET` | DNSE API Secret | `your_dnse_secret` |
-| `VNBROKER_BROKER_TCBS_API_KEY` | TCBS OpenAPI Key cho Broker Lane | `your_tcbs_key` |
+| `DNSE_API_KEY` | DNSE API Key (HMAC OpenAPI) | `your_dnse_key` |
+| `DNSE_API_SECRET` | DNSE API Secret (HMAC OpenAPI) | `your_dnse_secret` |
+| `DNSE_USERNAME` | DNSE Username (JWT Trading) | `your_dnse_username` |
+| `DNSE_PASSWORD` | DNSE Password (JWT Trading) | `your_dnse_password` |
+| `VNBROKER_BROKER_TCBS_API_KEY` | TCBS OpenAPI Key cho Broker Lane (iFlash) | `your_tcbs_key` |
 
 ## Lưu ý quan trọng
 
@@ -161,6 +227,25 @@ all_funds = funds.listing()
 - **Broker Lane:** Gọi trực tiếp API Broker với API Key + OTP.
 - Dữ liệu giá được chuẩn hóa theo contract riêng; kiểm tra `df.attrs["price_unit"]` trước khi lưu hay so sánh.
 - Một số nguồn live có thể bị giới hạn tốc độ hoặc thay đổi phía upstream; adapter của thư viện có retry và backoff.
+- **FX/Crypto/World Index:** Không được hỗ trợ bởi các provider hiện tại (KBS, VCI, TCBS, DNSE). Các phương thức `fx()`, `crypto()`, `world_index()` sẽ raise `NotImplementedError` trong phiên bản tới.
+
+## Phiên bản 3.1.0 (2026-06-18) — Cleanup Release
+
+### Breaking Changes
+- **Xóa hoàn toàn MSN explorer**: Không có dữ liệu thật.
+- **Xóa hoàn toàn FMP connector**: Thiếu API key, không có module khác.
+- **SUPPORTED_SOURCES thu hẹp**: Chỉ còn `KBS`, `VCI`, `TCBS`, `DNSE`. MSN, FMP, GATEWAY, AUTO đã bị loại.
+- **Xóa `fx()`/`crypto()`/`world_index()` tests**: Các phương thức này chỉ hoạt động với MSN/FMP — đã bị xóa.
+
+### Removed
+- Toàn bộ file rác: test scratch, benchmark artifacts, planning docs, caches, vninvest-sdk.
+- Toàn bộ planning/audit docs cũ.
+- `GATEWAY`, `MSN`, `FMP` khỏi `DataSource` enum, `core/settings.py`, `dispatch.py`, `source_router.py`, `user_agent.py`.
+- 4 orphan test fixtures gây ERROR.
+- `GatewayHttpClient`, `launcher.py`.
+
+### Testing
+- **522 passed**, 9 skipped, 8 warnings — **0 failures, 0 errors** sau cleanup.
 
 ## Đóng góp và hỗ trợ
 

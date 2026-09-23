@@ -1,0 +1,35 @@
+# v3.3.0 release notes (2026-09-22)
+
+## Retail + Unified UI
+- `Vnbroker.retail()` → `gold(source="sjc"|"btmc")`, `exchange_rate()` (VCB).
+- `vnbroker.ui`: `Market/Reference/Fundamental/Retail`, `show_api()/show_doc()`.
+- `InstrumentType` (str-Enum lowercase) + dedup `get_asset_type` (còn 1 định nghĩa).
+- kwargs-filtering ở `Quote.history/intraday/price_depth` (passthrough khi có
+  **kwargs như DNSE, luôn giữ `show_log`, không inject).
+
+## Verify
+- Full suite: 753 passed, 5 skipped, 0 failure (baseline 700).
+- v3.3 mới: 53 tests; Retail coverage 96%, UI 100%.
+- mypy --strict sạch scope mới; parser.py/data.py legacy: 0 lỗi mới
+  (parser 22 < HEAD 24; data 127 == HEAD 127; F811/format legacy giữ nguyên).
+- ruff check + format sạch toàn bộ file mới/sửa (trừ format nguyên-file legacy
+  data.py/parser.py — cố ý không động để tránh noise).
+
+## Deviations so với plan (đã ghi trong code/report)
+1. R3 không inject `show_log` (chỉ filter, giữ behavior) — thay đổi logging mặc
+   định của provider sẽ là breaking change ngầm.
+2. (ĐÃ ĐÓNG sau review — chọn phương án a): BTMC rỗng gây KeyError ở explorer
+   sort → facade bắt riêng KeyError ở nhánh BTMC, trả DataFrame rỗng đúng schema
+   (nhất quán SJC/VCB, đúng hợp đồng §2). Mọi exception khác vẫn RuntimeError.
+3. Snapshot `api_tree.txt` sửa tay + lý do commit (không flag tự động).
+4. Không chạy `ruff format` nguyên-file `common/data.py`/`core/utils/parser.py`
+   (legacy chưa format — format sẽ gây noise hàng trăm dòng).
+
+## Tooling incident (minh bạch)
+- Trong R2, edit tool với pattern chứa ký tự regex (`\d`, `[MQ]`, `$`) đã phá
+  `parser.py` (ăn dòng + nhân bản khối, vỡ cú pháp). Đã phục hồi bằng rebuild
+   deterministic từ HEAD + tái áp thay đổi (script assert từng bước), diff cuối
+   gọn +27/-76, behavior spot-check OK. File backup bản hỏng:
+  (đã xóa sau verify — xem báo cáo).
+- Quy tắc mới: cấm pattern regex trong edit oldString; file >1000 dòng dùng
+  script + assert count; verify `git diff --numstat` sau mỗi edit vào file lớn.

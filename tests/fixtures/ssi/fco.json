@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "fcoId": "TEST_FCO_001",
+      "username": "TEST_USER",
+      "accountNo": "TEST123",
+      "quantity": 100,
+      "price": "25000",
+      "priceSlip": 0,
+      "symbol": "SSI",
+      "type": "gtd",
+      "from": "01/01/2026 00:00:00",
+      "to": "08/01/2026 23:00:00",
+      "matchedQuantity": 0,
+      "isPlaceOrder": false,
+      "status": "WAIT",
+      "detail": ""
+    }
+  ],
+  "pageIndex": 1,
+  "pageSize": 10,
+  "itemsCount": 1,
+  "pagesCount": 1
+}

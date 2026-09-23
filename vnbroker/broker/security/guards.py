@@ -5,15 +5,19 @@ RULE: Mọi write method trong broker lane PHẢI được decorate với @write
       Không có exception; không được bypass bằng cách truyền dry_run=False
       khi session chưa is_write_enabled.
 """
+
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable
+from typing import Any, Callable, Dict, ParamSpec, TypeVar
 
 from vnbroker.broker.exceptions import BrokerPermissionError
 
+P = ParamSpec("P")
+R = TypeVar("R")
 
-def write_gate(fn: Callable) -> Callable:
+
+def write_gate(fn: Callable[P, R]) -> Callable[P, R]:
     """
     Decorator bắt buộc trên mọi write method của broker service.
 
@@ -38,9 +42,10 @@ def write_gate(fn: Callable) -> Callable:
     """
 
     @functools.wraps(fn)
-    def wrapper(self: Any, *args: Any, dry_run: bool = True, **kwargs: Any) -> Any:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        dry_run = kwargs.get("dry_run", True)
         if dry_run:
-            return {
+            result: Dict[str, Any] = {
                 "dry_run": True,
                 "operation": fn.__name__,
                 "message": (
@@ -50,9 +55,9 @@ def write_gate(fn: Callable) -> Callable:
                 "args_count": len(args),
                 "kwargs_keys": list(kwargs.keys()),
             }
-
-        # Kiểm tra session write permission
-        session = getattr(self, "_session", None)
+            return result  # type: ignore[return-value]  # dry-run envelope, R ở nhánh thực
+        self_obj = args[0] if args else None
+        session = getattr(self_obj, "_session", None)
         if session is None or not session.is_write_enabled:
             raise BrokerPermissionError(
                 message=(
@@ -63,6 +68,6 @@ def write_gate(fn: Callable) -> Callable:
                 http_status=403,
             )
 
-        return fn(self, *args, dry_run=dry_run, **kwargs)
+        return fn(*args, **kwargs)
 
     return wrapper

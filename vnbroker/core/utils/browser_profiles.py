@@ -107,7 +107,7 @@ MOBILE_BROWSERS = {
 }
 
 # Combine all browser profiles
-USER_AGENTS = {}
+USER_AGENTS: dict[str, dict[str, str]] = {}
 
 for browser_dict in [DESKTOP_BROWSERS, MOBILE_BROWSERS]:
     for browser, platforms in browser_dict.items():

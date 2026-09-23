@@ -1,0 +1,19 @@
+# v3.3 handover — security audit (2026-09-22, offline/mock)
+
+## 1. Secret scan
+- Fixtures `tests/fixtures/retail/*.json` + `tests/fixtures/ui/api_tree.txt`:
+  giá trị mẫu thuần túy, không secret (SJC/BTMC/VCB là API public, không key).
+- Key BTMC cứng trong default param `explorer/misc/gold_price.py:78` là key
+  public của upstream (giữ nguyên như nguồn, documented trong RETAIL_USAGE.md);
+  cấm thêm key riêng vào repo.
+- Quét `vnbroker/common/retail.py vnbroker/ui/ tests/unit/common/test_retail.py
+  tests/unit/ui/`: không chuỗi base64 khả nghi, không token.
+
+## 2. No-print / no-leak verification (tests)
+- `capsys` assert stdout rỗng trên mọi nhánh lỗi facade (validation + suppression
+  print legacy explorer + non-200 SJC/VCB).
+- Output explorer bị chặn chuyển sang `logger.debug` (không mất thông tin debug).
+- `df.attrs["source"]` + cột `source` — không lộ gì thêm.
+
+## 3. Kết luận
+- PASS offline. Retail dùng endpoint public, không auth, không secret lifecycle.

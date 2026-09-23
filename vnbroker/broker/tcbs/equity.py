@@ -53,6 +53,11 @@ _PATHS = {
     "cancel_orders": "/akhlys/v1/accounts/{accountNo}/cancel-orders",
     # market enrichment (dùng trong get_holdings)
     "ticker_commons": "/tartarus/v1/tickerCommons",
+    # Stop-limit order endpoints (Phase 3.4)
+    "stop_limit_place": "/erebos/v2/order/stop-limit",
+    "stop_limit_orders": "/erebos/v2/order/stop-limit/orders",
+    "stop_limit_cancel": "/erebos/v2/order/stop-limit/{orderId}/cancel",
+    "stop_limit_modify": "/erebos/v2/order/stop-limit/{orderId}",
 }
 
 # OrderInfo schema từ /aion/v1/accounts/{accountNo}/orders
@@ -530,6 +535,229 @@ class TCBSEquityService:
             "requestId": request_id,
         }
         url = self._config.base_url.rstrip("/") + _PATHS["cancel_orders"].format(accountNo=account_no)
+        return self._put(url, payload)
+
+    # ── Stop-Limit Order methods (Phase 3.4) ─────────────────────────────────
+
+    def place_stop_limit_order(
+        self,
+        account_no: str,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: int,
+        price: float,
+        stop_price: float,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        POST /erebos/v2/order/stop-limit
+
+        Args:
+            side: 'BUY' hoặc 'SELL' (được map sang 'NB'/'NS').
+            order_type: 'LO', 'ATO', 'ATC', 'MP'.
+            price: Giá đặt lệnh.
+            stop_price: Giá kích hoạt lệnh điều kiện.
+            request_id: ID idempotency key (bắt buộc).
+            dry_run: True (default) → không gửi HTTP.
+        """
+        _validate_account_no(account_no)
+        _validate_order_input(symbol, side, order_type, quantity, price, request_id)
+        if stop_price < 0:
+            raise BrokerValidationError(
+                message="stop_price phải >= 0.",
+                code="INVALID_STOP_PRICE",
+            )
+        return self._gated_place_stop_limit_order(
+            account_no, symbol, side, order_type, quantity, price, stop_price, request_id,
+            dry_run=dry_run,
+        )
+
+    @write_gate
+    def _gated_place_stop_limit_order(
+        self,
+        account_no: str,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: int,
+        price: float,
+        stop_price: float,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        exec_type = "NB" if side.upper() == "BUY" else "NS"
+        payload = {
+            "symbol": symbol.upper(),
+            "execType": exec_type,
+            "priceType": order_type.upper(),
+            "quantity": quantity,
+            "price": int(price),
+            "stopPrice": int(stop_price),
+            "requestId": request_id,
+        }
+        url = self._config.base_url.rstrip("/") + _PATHS["stop_limit_place"]
+        return self._post(url, payload)
+
+    def get_stop_limit_orders(
+        self,
+        account_no: str,
+        status: str = "",
+        raw: bool = False,
+    ) -> Union[pd.DataFrame, dict]:
+        """
+        GET /erebos/v2/order/stop-limit/orders
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            status: Lọc theo trạng thái (tùy chọn).
+            raw: True → trả về dict nguyên gốc.
+
+        Returns:
+            DataFrame columns (raw=False):
+                order_id, symbol, side (category), order_type (category),
+                quantity (Int64), price (float64), stop_price (float64),
+                status (category), tx_date (str), tx_time (str)
+        """
+        _validate_account_no(account_no)
+        params: dict = {"accountNo": account_no}
+        if status:
+            params["status"] = status
+
+        data = self._get(_PATHS["stop_limit_orders"], params=params)
+
+        if raw:
+            return data
+
+        records = data.get("data", []) if isinstance(data, dict) else data
+        if not records:
+            return pd.DataFrame(columns=[
+                "order_id", "symbol", "side", "order_type",
+                "quantity", "price", "stop_price", "status", "tx_date", "tx_time"
+            ])
+
+        df = pd.DataFrame(records)
+        for col in ("quantity",):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+        for col in ("price", "stop_price"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+        for col in ("side", "order_type", "status"):
+            if col in df.columns:
+                df[col] = df[col].astype("category")
+        return df
+
+    def cancel_stop_limit_order(
+        self,
+        order_id: str,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        PUT /erebos/v2/order/stop-limit/{orderId}/cancel
+
+        Args:
+            order_id: ID lệnh điều kiện cần hủy.
+            request_id: ID idempotency key (bắt buộc).
+            dry_run: True (default) → không gửi HTTP.
+        """
+        if not order_id or not order_id.strip():
+            raise BrokerValidationError(
+                message="order_id không được để trống.",
+                code="INVALID_ORDER_ID",
+            )
+        if not request_id or not request_id.strip():
+            raise BrokerValidationError(
+                message="request_id là bắt buộc cho write methods (idempotency key).",
+                code="MISSING_REQUEST_ID",
+            )
+        return self._gated_cancel_stop_limit_order(order_id, request_id, dry_run=dry_run)
+
+    @write_gate
+    def _gated_cancel_stop_limit_order(
+        self,
+        order_id: str,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        payload = {"requestId": request_id}
+        url = self._config.base_url.rstrip("/") + _PATHS["stop_limit_cancel"].format(orderId=order_id)
+        return self._put(url, payload)
+
+    def modify_stop_limit_order(
+        self,
+        order_id: str,
+        quantity: int,
+        price: float,
+        stop_price: float,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        PUT /erebos/v2/order/stop-limit/{orderId}
+
+        Args:
+            order_id: ID lệnh điều kiện cần sửa.
+            quantity: Khối lượng mới.
+            price: Giá mới.
+            stop_price: Giá kích hoạt mới.
+            request_id: ID idempotency key (bắt buộc).
+            dry_run: True (default) → không gửi HTTP.
+        """
+        if not order_id or not order_id.strip():
+            raise BrokerValidationError(
+                message="order_id không được để trống.",
+                code="INVALID_ORDER_ID",
+            )
+        if quantity <= 0:
+            raise BrokerValidationError(
+                message="quantity phải > 0.",
+                code="INVALID_QUANTITY",
+            )
+        if price < 0:
+            raise BrokerValidationError(
+                message="price phải >= 0.",
+                code="INVALID_PRICE",
+            )
+        if stop_price < 0:
+            raise BrokerValidationError(
+                message="stop_price phải >= 0.",
+                code="INVALID_STOP_PRICE",
+            )
+        if not request_id or not request_id.strip():
+            raise BrokerValidationError(
+                message="request_id là bắt buộc cho write methods (idempotency key).",
+                code="MISSING_REQUEST_ID",
+            )
+        return self._gated_modify_stop_limit_order(
+            order_id, quantity, price, stop_price, request_id, dry_run=dry_run
+        )
+
+    @write_gate
+    def _gated_modify_stop_limit_order(
+        self,
+        order_id: str,
+        quantity: int,
+        price: float,
+        stop_price: float,
+        request_id: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict:
+        payload = {
+            "quantity": quantity,
+            "price": int(price),
+            "stopPrice": int(stop_price),
+            "requestId": request_id,
+        }
+        url = self._config.base_url.rstrip("/") + _PATHS["stop_limit_modify"].format(orderId=order_id)
         return self._put(url, payload)
 
     # ── Internal HTTP ────────────────────────────────────────────────────────

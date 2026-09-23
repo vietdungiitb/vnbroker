@@ -147,7 +147,6 @@ class TestVCIFinanceComprehensive:
         
         df = finance.balance_sheet(
             period=period,
-            lang=lang,
             dropna=True
         )
         
@@ -171,7 +170,6 @@ class TestVCIFinanceComprehensive:
         
         df = finance.income_statement(
             period=period,
-            lang=lang,
             dropna=True
         )
         
@@ -207,7 +205,7 @@ class TestVCIFinanceComprehensive:
             show_log=False
         )
         
-        df = finance.ratio(period=period, lang=lang, dropna=True)
+        df = finance.ratio(period=period, dropna=True)
         
         assert isinstance(df, pd.DataFrame)
 

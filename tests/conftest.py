@@ -13,3 +13,9 @@ except ImportError:
 
 # Ensure test environment
 os.environ.setdefault("PYTEST_RUNNING", "1")
+
+# Load fixtures and enhancements plugins
+pytest_plugins = [
+    "tests.fixtures",
+    "tests.conftest_enhancements",
+]

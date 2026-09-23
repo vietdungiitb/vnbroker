@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "data": [
+    {
+      "TypeName": "Vàng SJC 1L",
+      "BranchName": "Hồ Chí Minh",
+      "BuyValue": 100.0,
+      "SellValue": 102.0
+    },
+    {
+      "TypeName": "Vàng SJC 5C",
+      "BranchName": "Hà Nội",
+      "BuyValue": 99.5,
+      "SellValue": 101.5
+    }
+  ]
+}

@@ -15,8 +15,7 @@ Features:
 
 from __future__ import annotations
 
-import asyncio
-from typing import AsyncGenerator, List, Optional, Union
+from typing import AsyncGenerator, List, Optional
 
 import pandas as pd
 

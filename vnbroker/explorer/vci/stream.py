@@ -30,7 +30,6 @@ from vnbroker.core.utils.validation import validate_symbol
 from vnbroker.core.utils.transform import intraday_to_df
 from vnbroker.core.utils.parser import convert_time_flexible
 from vnbroker.explorer.vci.const import _INTRADAY_URL, _TRADING_URL, _INTRADAY_MAP, _INTRADAY_DTYPE
-from vnbroker.core.utils.execution import optimize_execution
 
 logger = get_logger(__name__)
 

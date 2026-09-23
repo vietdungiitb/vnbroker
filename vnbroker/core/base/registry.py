@@ -208,7 +208,7 @@ class ProviderRegistry:
                 }
             }
         """
-        result = {}
+        result: Dict[str, Any] = {}
 
         categories = (
             [category] if category else list(cls._registry.keys())
@@ -296,7 +296,7 @@ class ProviderRegistry:
         Returns:
             List of unique provider names
         """
-        names = set()
+        names: set = set()
         for category in cls._registry.values():
             names.update(category.keys())
         return list(names)

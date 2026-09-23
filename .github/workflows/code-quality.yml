@@ -43,10 +43,13 @@ jobs:
         isort --check-only vnbroker --diff
       continue-on-error: true
     
-    - name: Type checking with mypy
+    - name: Type baseline check (fail on new mypy --strict errors)
       run: |
-        mypy vnbroker --ignore-missing-imports --no-error-summary --show-column-numbers --no-strict-optional 2>&1 | head -100
-      continue-on-error: true
+        python scripts/check_mypy_baseline.py
+    
+    - name: Version sync check (docs must match pyproject.toml)
+      run: |
+        python scripts/check_version_sync.py
 
   security:
     runs-on: ubuntu-latest

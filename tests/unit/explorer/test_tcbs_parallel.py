@@ -8,17 +8,12 @@ from vnbroker.core.adaptive_controller import get_global_pressure
 
 @pytest.mark.unit
 def test_tcbs_fetch_multiple_basic(monkeypatch):
-    # Mock response
     mock_response = {
         "data": [
-            {
-                "tradingDate": "2024-01-01T00:00:00.000Z",
-                "open": 100.0,
-                "high": 105.0,
-                "low": 98.0,
-                "close": 103.0,
-                "volume": 1000000
-            }
+            {"t": "09:15:00", "p": 100.0, "v": 200000, "a": "BU"},
+            {"t": "09:30:00", "p": 105.0, "v": 300000, "a": "BU"},
+            {"t": "10:00:00", "p": 98.0, "v": 100000, "a": "BU"},
+            {"t": "14:30:00", "p": 103.0, "v": 400000, "a": "BU"},
         ]
     }
 
@@ -33,7 +28,7 @@ def test_tcbs_fetch_multiple_basic(monkeypatch):
     results = TCBSQuote.fetch_multiple(
         symbols=["ACB", "TCB", "VNM"],
         start="2024-01-01",
-        end="2024-01-02",
+        end="2024-01-01",
         interval="1D",
         max_concurrency=4
     )
@@ -92,17 +87,12 @@ def test_tcbs_fetch_multiple_adaptive(monkeypatch):
     monkeypatch.setenv("vnbroker_TCBS_ADAPTIVE_MIN_CONCURRENCY", "1")
     monkeypatch.setenv("vnbroker_TCBS_ADAPTIVE_FAIL_THRESHOLD", "0.1")
 
-    # Mock response
     mock_response = {
         "data": [
-            {
-                "tradingDate": "2024-01-01T00:00:00.000Z",
-                "open": 200.0,
-                "high": 205.0,
-                "low": 198.0,
-                "close": 203.0,
-                "volume": 500000
-            }
+            {"t": "09:15:00", "p": 200.0, "v": 100000, "a": "BU"},
+            {"t": "09:30:00", "p": 205.0, "v": 200000, "a": "BU"},
+            {"t": "10:00:00", "p": 198.0, "v": 50000, "a": "BU"},
+            {"t": "14:30:00", "p": 203.0, "v": 150000, "a": "BU"},
         ]
     }
 
@@ -116,7 +106,7 @@ def test_tcbs_fetch_multiple_adaptive(monkeypatch):
     results = TCBSQuote.fetch_multiple(
         symbols=["ACB", "TCB", "VNM", "HPG", "VJC"],
         start="2024-01-01",
-        end="2024-01-02",
+        end="2024-01-01",
         interval="1D",
         max_concurrency=4,
         adaptive_concurrency=True

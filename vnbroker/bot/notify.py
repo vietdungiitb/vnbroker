@@ -396,7 +396,7 @@ class Messenger:
         encoded_message = quote(message, safe='')
         url = (f'https://api.telegram.org/bot{self.token_key}/'
                f'sendMessage?chat_id={self.channel}&text={encoded_message}')
-        response = requests.post(url)
+        response = requests.post(url, timeout=self.TIMEOUT)
         return response.json()
 
     def _discord_message(self, message: str) -> Dict:
@@ -531,7 +531,7 @@ class Messenger:
         if payload is None:
             payload = {'message': message}
 
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=self.TIMEOUT)
         return response.json()
 
     def _lark_file(self, message: str, file_path: str,
@@ -579,7 +579,7 @@ class Messenger:
                 }
             }
 
-            response = requests.post(url, json=payload)
+            response = requests.post(url, json=payload, timeout=self.TIMEOUT)
             return response.json()
 
         except (FileNotFoundError, IOError) as e:

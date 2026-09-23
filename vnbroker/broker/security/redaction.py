@@ -4,34 +4,47 @@ vnbroker.broker.security.redaction — Redactor cho mọi dữ liệu nhạy c�
 RULE: Bất kỳ dict nào đi vào log, error message hay audit record
       PHẢI được chạy qua redact_dict() hoặc redact_headers() trước.
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 # Tập hợp key nhạy cảm — so sánh lowercase, phủ cả camelCase và snake_case
-SENSITIVE_KEYS: frozenset[str] = frozenset({
-    "apikey",
-    "api_key",
-    "otp",
-    "pincode",
-    "pin_code",
-    "authorization",
-    "token",
-    "auth_token",
-    "password",
-    "secret",
-    "accountno",
-    "account_no",
-    "custodycode",
-    "custody_code",
-    "idno",
-    "id_no",
-    "phone",
-    "email",
-    "access_token",
-    "refresh_token",
-    "bearer",
-})
+SENSITIVE_KEYS: frozenset[str] = frozenset(
+    {
+        "apikey",
+        "api_key",
+        "otp",
+        "pincode",
+        "pin_code",
+        "authorization",
+        "token",
+        "auth_token",
+        "password",
+        "secret",
+        "accountno",
+        "account_no",
+        "custodycode",
+        "custody_code",
+        "idno",
+        "id_no",
+        "phone",
+        "email",
+        "access_token",
+        "accesstoken",
+        "refresh_token",
+        "refreshtoken",
+        "bearer",
+        "apisecret",
+        "api_secret",
+        "privatekey",
+        "private_key",
+        "transactionid",
+        "transaction_id",
+        "clientsecret",
+        "client_secret",
+    }
+)
 
 
 class Redactor:
@@ -72,7 +85,8 @@ class Redactor:
             elif isinstance(v, list):
                 result[k] = [
                     Redactor.redact_dict(item, keys, _depth + 1, _max_depth)
-                    if isinstance(item, dict) else item
+                    if isinstance(item, dict)
+                    else item
                     for item in v
                 ]
             else:

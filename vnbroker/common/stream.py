@@ -9,7 +9,6 @@ Provides a common interface for streaming tick data from multiple providers
 
 from __future__ import annotations
 
-import asyncio
 from typing import AsyncGenerator, List, Optional, Dict, Any
 from abc import ABC, abstractmethod
 

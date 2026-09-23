@@ -234,7 +234,7 @@ class TestPlaceOrderLiveExecution:
                     ACCOUNT_NO, "VNM", "BUY", "LO", 100, 80000, PIN, REQUEST_ID,
                     dry_run=False,
                 )
-        assert session.state == SessionState.EXPIRED
+        assert session.state == SessionState.REVOKED
 
     def test_place_order_live_500_raises_network_error(self):
         with patch("requests.request", return_value=_mock_resp(500, {})):

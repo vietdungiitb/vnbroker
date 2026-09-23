@@ -21,6 +21,18 @@ class ConcreteBroker(BaseBrokerClient):
     def revoke(self) -> None:
         pass
 
+    def is_authenticated(self) -> bool:
+        return True
+
+    def get_account_list(self) -> list:
+        return []
+
+    def get_account_balance(self, account_no: str) -> dict:
+        return {}
+
+    def close(self) -> None:
+        pass
+
 
 # ─── BaseBrokerClient ─────────────────────────────────────────────────────────
 
@@ -58,7 +70,14 @@ class TestBaseBrokerClientABC:
 class TestBrokerRegistry:
     def setup_method(self):
         """Dọn registry trước mỗi test để tránh pollution."""
-        BrokerRegistry._registry.clear()
+        BrokerRegistry.clear()
+
+    def teardown_method(self):
+        """Khôi phục provider mặc định (register-once ở import)."""
+        from vnbroker.broker.ssi.client import SSIBrokerClient
+        from vnbroker.broker.tcbs.client import TCBSBrokerClient
+        BrokerRegistry.register("tcbs", TCBSBrokerClient)
+        BrokerRegistry.register("ssi", SSIBrokerClient)
 
     def test_register_and_get_provider(self):
         BrokerRegistry.register("fake", ConcreteBroker)
@@ -96,6 +115,10 @@ class TestBrokerRegistry:
             def provider_name(self): return "another"
             def authenticate(self, **kwargs): pass
             def revoke(self): pass
+            def is_authenticated(self): return True
+            def get_account_list(self): return []
+            def get_account_balance(self, account_no): return {}
+            def close(self): pass
 
         BrokerRegistry.register("fake", ConcreteBroker)
         BrokerRegistry.register("fake", AnotherBroker)

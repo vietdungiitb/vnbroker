@@ -10,7 +10,7 @@ import functools
 from typing import Optional, Callable, Type
 from datetime import datetime
 
-from vnbroker.core.exceptions import DeprecationWarning as vnbrokerDeprecationWarning
+from vnbroker.core.exceptions import vnbrokerDeprecationWarning
 
 
 class DeprecationRegistry:
@@ -20,7 +20,7 @@ class DeprecationRegistry:
     This allows centralized management of deprecation notices and version tracking.
     """
     
-    _registry = {}
+    _registry: dict[str, dict[str, object]] = {}
     
     @classmethod
     def register(

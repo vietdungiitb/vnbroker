@@ -1,4 +1,4 @@
-﻿"""
+"""
 Integration tests for vnbroker main client interface.
 
 Tests end-to-end workflows using the vnbroker class.
@@ -73,20 +73,17 @@ class TestvnbrokerClient:
     def test_vnbroker_fx_method(self):
         """Test vnbroker.fx() method for forex data."""
         stock = Vnbroker(show_log=False)
-        fx = stock.fx('ACB', source='KBS')
-        assert fx is not None
-        assert hasattr(fx, 'quote')
+        with pytest.raises(NotImplementedError):
+            stock.fx('ACB', source='KBS')
 
     def test_vnbroker_crypto_method(self):
         """Test vnbroker.crypto() method."""
         stock = Vnbroker(show_log=False)
-        btc = stock.crypto('BTC', source='KBS')
-        assert btc is not None
-        assert hasattr(btc, 'quote')
+        with pytest.raises(NotImplementedError):
+            stock.crypto('BTC', source='KBS')
 
     def test_vnbroker_world_index_method(self):
         """Test vnbroker.world_index() method."""
         stock = Vnbroker(show_log=False)
-        dji = stock.world_index('DJI', source='KBS')
-        assert dji is not None
-        assert hasattr(dji, 'quote')
+        with pytest.raises(NotImplementedError):
+            stock.world_index('DJI', source='KBS')

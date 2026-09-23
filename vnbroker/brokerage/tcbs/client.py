@@ -11,9 +11,9 @@ import hashlib
 import hmac
 import json
 import time
-import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
+import asyncio
 import httpx
 import websockets
 
@@ -28,7 +28,6 @@ from vnbroker.brokerage.base import (
     OrderType,
     Position,
     TickData,
-    TimeInForce,
 )
 
 
@@ -168,9 +167,6 @@ class TCBSClient(BrokerageBase):
             self._tasks: List[asyncio.Task] = []
         
         async def connect(self):
-            import asyncio
-            import websockets
-            
             url = self.client._get_ws_url()
             headers = {
                 "X-TCBS-APIKEY": self.client.api_key,
@@ -190,7 +186,6 @@ class TCBSClient(BrokerageBase):
             return response.json()["token"]
         
         async def _message_loop(self):
-            import asyncio
             try:
                 async for message in self.websocket:
                     data = json.loads(message)

@@ -360,6 +360,19 @@ DataSource.TCBS    # "tcbs"
 
 ---
 
+## Vận hành HealthStore (circuit-breaker persistent)
+
+Trạng thái failover của router (số failures, cooldown) được persist để sống sót restart
+(`vnbroker/core/health_store.py`):
+
+- **Default:** SQLite tại `~/.vnbroker/router_health.sqlite3` (stdlib, WAL mode).
+- **Override:** env `vnbroker_ROUTER_HEALTH_DB=/path/to/router_health.sqlite3`
+  (trỏ sang volume persistent trong container). `PYTEST_RUNNING=1` → dùng memory (volatile).
+- **Không có backend Redis** — chỉ `MemoryHealthStore` (volatile) và `SQLiteHealthStore`.
+- Cooldown backoff: 5s → 10s → 20s → 40s … max 90s (`source_router.record_failure`).
+- Chạy container: mount volume cho file sqlite (hoặc set env), nếu không mỗi restart
+  mất hết health state và router học lại từ đầu.
+
 ## Xem thêm
 
 - [PERFORMANCE_PROFILES.md](PERFORMANCE_PROFILES.md) — Profiles và auto-tuning concurrency

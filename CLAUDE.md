@@ -1,12 +1,11 @@
-# vninvest-sdk - Project Instructions
+# vnbroker - Project Instructions
 
 ## Tech Stack
-- Language: Python 3.11+
-- Framework: FastAPI (vninvest_fastapi), asyncio
-- Auth: PAT-only (bcrypt), 8 scopes
-- Cache: Redis + in-memory fallback, CacheWarmer
-- Streaming: WebSocket, vnbroker integration
-- Testing: pytest, 36 core tests passing
+- Language: Python 3.10+
+- Core: requests, pandas, beautifulsoup4, pydantic, tenacity
+- Testing: pytest, pytest-cov, pytest-timeout
+- Type checking: mypy (strict)
+- Linting: ruff, flake8
 
 ## Code Style
 - snake_case cho functions/variables
@@ -14,37 +13,278 @@
 - Type hints bắt buộc (mypy strict)
 - Immutability: prefer dataclasses/frozen, spread over mutation
 - File size: 200-400 lines typical, 800 max
+- Docstrings: Google style cho public APIs
 
-## Testing (tuân thủ ~/.blackbox/rules/common/testing.md)
-- Run tests: `pytest -v` (core), `pytest tests/test_integration_pat.py` (integration)
-- TDD mandatory: write test first (RED), implement (GREEN), refactor
-- Coverage target: 80%+
-- Edge cases: null PAT, invalid format, expired token, rate limit, Redis down
+## Architecture: Direct Provider Architecture (v3.0+)
 
-## Security (tuân thủ ~/.blackbox/rules/common/security.md)
-- PAT format: `vninvest_pat_<base64url>`
-- Scopes: quote:read, company:read, finance:read, news:read, stream:price, stream:depth, stream:trade, admin:tenant
-- Quota headers: X-Quota-Limit, X-Quota-Remaining, X-Quota-Reset
-- Error responses: {error: string, code: string, details?: object}
-- No hardcoded secrets, all in env vars
+### Core Principles
+- **No PAT/Gateway**: Direct access to provider APIs (VCI, KBS, TCBS, DNSE)
+- **Adapter Pattern**: `BaseAdapter` with dynamic method delegation to provider-specific explorers
+- **Provider Registry**: Centralized provider discovery via `ProviderRegistry`
+- **Source Router**: Health-based failover with cooldown, exponential backoff, per-module primary pools
+- **Lazy Loading**: Circular import avoidance via `_ensure_explorer_modules_loaded()`
 
-## Project Structure
-vninvest/
-├── auth.py          # PAT resolution, bcrypt verify, scope enforcement
-├── client.py        # Sync/async client, quota headers
-├── cache.py         # CacheWarmer, TTL, invalidation
-├── metering.py      # Usage tracking
-├── streaming.py     # WebSocket client
-├── quota.py         # Sliding window quota
-├── models.py        # Pydantic models
-└── exceptions.py    # Custom exceptions
+### Project Structure
+```
+vnbroker/
+├── __init__.py           # Main entry: Vnbroker class, lazy imports
+├── base.py               # BaseAdapter, dynamic_method, ProviderRegistry
+├── config.py             # Config, VERSION_REQUIREMENTS, upgrade notices
+├── constants.py          # Market constants (indices, sectors, exchanges)
+├── common/
+│   ├── client.py         # Vnbroker main class, StockComponents, Fund
+│   └── data.py           # BaseComponent, Quote, Company, Finance, Listing, Trading, News, Screener, Fund
+├── core/
+│   ├── registry.py       # ProviderRegistry
+│   ├── source_router.py  # AUTO source, health-based failover
+│   ├── dispatch.py       # Legacy Gateway fallback (deprecated, removable)
+│   ├── exceptions.py     # Custom exceptions
+│   └── utils/            # Logger, parser, upgrade checker
+├── explorer/             # Market data providers (Direct Provider)
+│   ├── vci/              # Viet Capital Securities
+│   ├── kbs/              # KIS Vietnam Securities
+│   ├── tcbs/             # Techcombank Securities
+│   ├── dnse/             # Định Nghĩa Securities (HMAC auth)
+│   ├── rss_cafef/        # RSS news source
+│   ├── rss_vneconomy/    # RSS news source
+│   └── fmarket/          # Fund data
+├── ui/                   # Unified UI (Market/Reference/Fundamental/Retail/show_api)
+├── common/
+│   └── retail.py         # Retail facade (SJC/BTMC gold, VCB exchange rate)
+├── broker/               # Brokerage Lane - Official OpenAPI
+│   ├── tcbs/             # TCBS iFlash OpenAPI v1.0.0
+│   ├── ssi/              # SSI FastConnect v3 native (auth/account/money/equity/
+│   │                      #   market/portfolio/fco/stream/client, ký RSA, WS)
+│   ├── base.py           # BaseBrokerClient
+│   ├── registry.py       # BrokerRegistry (tcbs + ssi)
+│   └── session.py        # BrokerSession, SessionState
+├── brokerage/            # Brokerage Lane - Private APIs
+│   ├── tcbs/             # TCBS Private API (HMAC-SHA256 + WebSocket)
+│   └── base.py           # BrokerageBase (abstract)
+├── connector/            # Low-level broker connectors
+│   └── dnse/             # DNSE HMAC OpenAPI + JWT Trade client
+├── analytics/            # Technical indicators (TODO: implement)
+│   └── indicators.py     # Currently empty
+├── bot/
+│   └── notify.py         # Messenger (Slack, Telegram, Discord, Lark)
+└── news/                 # News normalization, dedup, filtering
+    ├── normalize.py
+    ├── dedup.py
+    └── filtering.py
+```
 
-vninvest_fastapi/
-├── middleware/auth.py    # FastAPI auth middleware
-└── routes/               # API routes
+### Key Components
 
-## Global Agents/Skills Available
-- @vn-sdk-reviewer (global agent)
-- skill(skill_name="gen-test-data") (global skill)
-- @code-reviewer, @security-reviewer, @planner, @architect, @tdd-guide (ECC agents)
-- /code-review, /security-scan, /plan, /skill-stocktake (ECC commands)
+#### Vnbroker (Main Entry)
+```python
+from vnbroker import Vnbroker
+
+vn = Vnbroker(source="KBS")  # Default: KBS
+acb = vn.stock("ACB")        # StockComponents with quote, company, finance, etc.
+history = acb.quote.history(start="2024-01-01", end="2024-12-31")
+overview = acb.company.overview()
+finance = acb.finance.ratio()
+news = acb.news.latest()
+```
+
+#### Supported Sources (Market Data)
+| Source | Quote | Company | Finance | Listing | Trading | News | Auth |
+|--------|-------|---------|---------|---------|---------|------|------|
+| VCI    | ✅    | ✅      | ✅      | ✅      | ✅      | ✅   | None |
+| KBS    | ✅    | ✅      | ✅      | ✅      | ✅      | ✅   | None |
+| TCBS   | ✅    | ✅      | ✅      | ✅      | ✅      | ✅   | None |
+| DNSE   | ✅    | ❌ NotImpl | ❌ NotImpl | ✅      | ✅      | ❌   | HMAC |
+
+#### Brokerage (Private API) — Two TCBS Implementations
+
+**Option 1: TCBS iFlash OpenAPI v1.0.0 (Official - `vnbroker.broker.tcbs`)**
+- Production-ready, comprehensive test coverage (522 tests)
+- Auth: OTP + API Key
+- Endpoints: `/tartarus/v1/...`, `/erebos/v1/...`
+- Features: Full account, money, equity, derivatives, portfolio, market data
+
+```python
+from vnbroker import Vnbroker
+
+vn = Vnbroker()
+client = vn.broker(provider="tcbs", api_key="your_tcbs_openapi_key")
+client.authenticate(otp="123456")
+balance = client.get_balance("0123456789")
+holdings = client.get_holdings("0123456789")
+```
+
+**Option 2: TCBS Private API (Advanced - `vnbroker.brokerage.tcbs`)**
+- HMAC-SHA256 + WebSocket streaming
+- Auth: API Key + Secret + OTP
+- Endpoints: `/api/v1/...`
+- Features: Balance, positions, orders, margin, real-time tick/order streaming
+
+```python
+from vnbroker.brokerage.tcbs import TCBSClient
+
+client = TCBSClient(
+    api_key="your_api_key",
+    secret="your_base64_secret",
+    account_no="0123456789",
+    otp_handler=lambda otp_type: input(f"Enter {otp_type} OTP: ")
+)
+
+balance = client.get_balance()
+positions = client.get_positions()
+
+# Real-time streaming
+async for tick in client.intratick_stream(["ACB", "VNM"]):
+    print(f"{tick.symbol}: {tick.price}")
+
+async for order_update in client.order_updates_stream():
+    print(f"Order {order_update.order_id}: {order_update.status}")
+```
+
+**DNSE VNDirect (HMAC + JWT)**
+```python
+from vnbroker.connector.dnse import DNSEClient, Trade
+
+# Market data + orders (HMAC)
+dnse = DNSEClient(api_key="...", api_secret="...")
+
+# Account + trading (JWT)
+trade = Trade(username="...", password="...")
+trade.login_and_get_trading_session(username, password, otp)
+```
+
+### Data Flow: Market Data
+```
+Vnbroker.stock(symbol, source="KBS")
+    → StockComponents(symbol, source)
+        → Quote/Company/Finance/Listing/Trading/News adapters (BaseAdapter)
+            → ProviderRegistry.get(module, source)
+                → Explorer implementation (vci/kbs/tcbs/dnse)
+```
+
+### Data Flow: Brokerage
+```
+Vnbroker.broker(provider="tcbs", api_key="...")
+    → BrokerRegistry.create("TCBS", ...)
+        → TCBSBrokerClient (iFlash OpenAPI)
+            → AuthService → AccountService → MoneyService → EquityService → DerivativesService → MarketService
+            → PortfolioEngine (pure compute)
+```
+
+### Source Router (AUTO mode)
+- **Health-based failover** with exponential backoff cooldown (5s, 10s, 20s, 40s, max 90s)
+- **Per-module primary pools**: VCI for quote/company/finance, KBS for trading
+- **Hash-based sharding** for symbol-level affinity
+- **Thread-safe** in-memory health state
+
+## Testing
+```bash
+# Unit tests (522 passing)
+pytest tests/unit -v
+
+# Integration tests (require live credentials)
+vnbroker_RUN_LIVE_INTEGRATION=1 pytest tests/integration -v
+
+# Specific test suites
+pytest tests/unit/api/test_quote_price_unit_consistency.py -v
+pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
+```
+
+### Test Organization
+- `tests/unit/` — Mock-based unit tests (fast, no credentials needed)
+- `tests/integration/` — Live API tests (gated by `vnbroker_RUN_LIVE_INTEGRATION=1`)
+- `conftest.py` — Shared fixtures, loads `.env` for integration tests
+
+## Security
+- **Zero-knowledge**: Credentials never leave client process
+- **No logging** of API keys, OTPs, tokens, secrets
+- **dry_run=True** default for all write operations
+- **Redaction** in logs for sensitive fields
+- **Direct connections** — no intermediary Gateway
+
+## Environment Variables
+
+### Market Data
+| Variable | Purpose | Required For |
+|----------|---------|--------------|
+| `DNSE_API_KEY` | DNSE HMAC OpenAPI Key | DNSE market data |
+| `DNSE_API_SECRET` | DNSE HMAC OpenAPI Secret | DNSE market data |
+
+### Brokerage - TCBS (iFlash OpenAPI)
+| Variable | Purpose |
+|----------|---------|
+| `VNBROKER_BROKER_TCBS_API_KEY` | TCBS OpenAPI Key |
+| `VNBROKER_BROKER_TCBS_BASE_URL` | Override base URL (optional) |
+| `VNBROKER_BROKER_TCBS_CUSTODY_CODE` | Custody code 105C format (optional) |
+
+### Brokerage - DNSE (VNDirect)
+| Variable | Purpose |
+|----------|---------|
+| `DNSE_API_KEY` | DNSE HMAC OpenAPI Key |
+| `DNSE_API_SECRET` | DNSE HMAC OpenAPI Secret |
+| `DNSE_USERNAME` | DNSE trading username |
+| `DNSE_PASSWORD` | DNSE trading password |
+
+### Optional
+| Variable | Purpose |
+|----------|---------|
+| `vnbroker_RATE_LIMIT_RPM` | Rate limit (default 500) |
+| `vnbroker_LISTING_CACHE_TTL` | Listing cache TTL (default 86400) |
+| `vnbroker_INDUSTRY_CACHE_TTL` | Industry cache TTL (default 86400) |
+| `vnbroker_TRADING_AUTO_PRIMARY` | Override trading primary source (kbs/vci) |
+
+## Development Workflow
+1. **TDD mandatory**: Write test first (RED), implement (GREEN), refactor
+2. **Run tests before commit**: `pytest tests/unit -v`
+3. **Type check**: `mypy vnbroker --strict`
+4. **Lint**: `ruff check vnbroker`
+5. **Format**: `ruff format vnbroker`
+6. **Dev tools**: `pip install -e .[test,lint]` (mypy/ruff come from the `lint` extra).
+   Offline fallback (no PyPI): `python -m py_compile` touched files + grep checklist
+   (no `print(`, no `core.utils.client` import in explorers, no secrets in logs) —
+   **record the substitution in the PR so CI runs the real gates**.
+
+## Common Patterns
+
+### Adding New Provider
+1. Create `vnbroker/explorer/<provider>/` with modules: `quote.py`, `company.py`, `financial.py`, `listing.py`, `trading.py`, `news.py`
+2. Implement classes with standard methods: `history()`, `intraday()`, `price_depth()`, `profile()`, `shareholders()`, `income_statement()`, `all_symbols()`, `industries()`, `price_board()`, `market_news()`, `symbol_news()`
+3. Register with `@ProviderRegistry.register("module", "PROVIDER")` decorator
+4. Add to `SUPPORTED_SOURCES` in `Vnbroker` and `OPEN_SOURCE_CANDIDATES` in `source_router.py`
+
+### Adding New Brokerage
+1. Extend `BrokerageBase` in `vnbroker/brokerage/<broker>/client.py`
+2. Implement abstract methods: `get_balance()`, `get_positions()`, `get_orders()`, `place_order()`, `cancel_order()`, `modify_order()`
+3. Register in `BrokerRegistry` (or create new registry entry)
+4. Add authentication flow (HMAC, JWT, OAuth, etc.)
+
+## Version Management
+- Version defined in `pyproject.toml` (single source of truth)
+- `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
+- Upgrade notice checks GitHub release tags (not PyPI)
+- Current version: **3.4.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
+- Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
+
+## Deprecated/Removed (v3.1.0)
+- ❌ MSN explorer (no real data)
+- ❌ FMP connector (no API key)
+- ❌ PAT/Gateway architecture (vninvest-sdk)
+- ❌ GATEWAY, AUTO, MSN, FMP from SUPPORTED_SOURCES
+- ❌ GatewayHttpClient, launcher.py
+- ❌ fx()/crypto()/world_index() tests (only worked with MSN/FMP)
+- ❌ Legacy dispatch.py (Gateway fallback)
+
+## Completed in v3.1.1
+- ✅ fx()/crypto()/world_index() now raise NotImplementedError with clear guidance
+- ✅ analytics/indicators.py implemented (SMA, EMA, RSI, MACD, Bollinger Bands, ATR, Stochastic, Williams %R, CCI)
+- ✅ Broker lane differentiation documented
+
+## Future Roadmap (v3.2+)
+- [ ] FX/Crypto/World Index via new providers (Binance, TwelveData, etc.)
+- [ ] DNSE Company/Finance: align to NotImplementedError consistently
+- [ ] DNSE brokerage implementation (extend BrokerageBase)
+- [ ] Async support for brokerage write operations
+- [ ] Circuit breaker pattern for provider failover
+- [ ] Type stubs (.pyi) for IDE support
+- [ ] API reference documentation
+- [ ] DNSE News/Stream support
+- [ ] Unified DNSE client with dual auth modes

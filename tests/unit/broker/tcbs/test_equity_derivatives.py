@@ -409,14 +409,14 @@ class TestEquityDerivHTTPErrors:
         with patch("requests.get", return_value=_mock_resp(401, {})):
             with pytest.raises(BrokerAuthError):
                 self._equity(session).get_orders(ACCOUNT_NO)
-        assert session.state == SessionState.EXPIRED
+        assert session.state == SessionState.REVOKED
 
     def test_401_raises_auth_error_revokes_session_deriv(self):
         session = _make_session()
         with patch("requests.get", return_value=_mock_resp(401, {})):
             with pytest.raises(BrokerAuthError):
                 self._deriv(session).get_positions(ACCOUNT_NO)
-        assert session.state == SessionState.EXPIRED
+        assert session.state == SessionState.REVOKED
 
     def test_429_raises_rate_limit_error(self):
         with patch("requests.get", return_value=_mock_resp(429, {})):
@@ -440,6 +440,6 @@ class TestEquityDerivHTTPErrors:
 
     def test_expired_session_raises_session_expired_error(self):
         session = _make_session()
-        session._token_expires_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        session.token_expires_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
         with pytest.raises(BrokerSessionExpiredError):
             self._equity(session).get_orders(ACCOUNT_NO)

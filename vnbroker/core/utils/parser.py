@@ -8,7 +8,25 @@ from pytz import timezone
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import Dict, Union, Literal, Any, Optional
+from enum import Enum
 from vnbroker.core.utils.logger import get_logger
+
+
+class InstrumentType(str, Enum):
+    """
+    Loai cong cu tai chinh. Value lowercase khop chuoi ma get_asset_type
+    van tra tu truoc (tuong thich moi so sanh string hien co trong repo).
+
+    Chi gom 5 gia tri ham thuc tra ve — cam them member khi chua co logic sinh.
+    """
+
+    STOCK = "stock"
+    INDEX = "index"
+    DERIVATIVE = "derivative"
+    BOND = "bond"
+    COVERED_WARRANT = "coveredWarr"
+
+_KRX_DERIVATIVE_PATTERN = re.compile(r'^4[12][A-Z0-9]{2}[0-9A-HJ-NP-TV-W][1-9A-C]\d{3}$')
 
 logger = get_logger(__name__)
 
@@ -32,7 +50,7 @@ def _get_ua():
         _UA = _ua
     return _UA
 
-def get_asset_type(symbol: str) -> str:
+def get_asset_type(symbol: str) -> InstrumentType:
     """
     Determine asset type based on provided security code.
     Supports both legacy code format and new KRX format.
@@ -56,21 +74,20 @@ def get_asset_type(symbol: str) -> str:
     known_indices = market_indices.union(indices_info.keys())
 
     if symbol in known_indices:
-        return 'index'
+        return InstrumentType.INDEX
     
     # Stock symbols (assumed to have 3 characters)
     elif len(symbol) == 3:
-        return 'stock'
+        return InstrumentType.STOCK
     
     # New KRX derivative format (e.g., 41I1F4000)
-    krx_derivative_pattern = re.compile(r'^4[12][A-Z0-9]{2}[0-9A-HJ-NP-TV-W][1-9A-C]\d{3}$')
-    if krx_derivative_pattern.match(symbol):
-        return 'derivative'
+    if _KRX_DERIVATIVE_PATTERN.match(symbol):
+        return InstrumentType.DERIVATIVE
 
     # VN100 derivative patterns (e.g., VN100F1M, VN100F2M, VN100F1Q, VN100F2Q)
     vn100_derivative_pattern = re.compile(r'^VN100F\d{1,2}[MQ]$')
     if vn100_derivative_pattern.match(symbol):
-        return 'derivative'
+        return InstrumentType.DERIVATIVE
     
     # For symbols that could be derivative or bond (length 7 or 9)
     elif len(symbol) in [7, 9]:
@@ -85,15 +102,15 @@ def get_asset_type(symbol: str) -> str:
         comp_bond_pattern = re.compile(r'^(?!VN30F)[A-Z]{3}\d{6}$')
         
         if gov_bond_pattern.match(symbol) or comp_bond_pattern.match(symbol):
-            return 'bond'
+            return InstrumentType.BOND
         elif fm_pattern.match(symbol) or ym_pattern.match(symbol):
-            return 'derivative'
+            return InstrumentType.DERIVATIVE
         else:
             raise ValueError('Invalid derivative or bond symbol. Symbol must be in format of VN30F1M, VN30F2024, GB10F2024, or for company bonds, e.g., BAB122032')
     
     # Covered warrant symbols (assumed to have 8 characters)
     elif len(symbol) == 8:
-        return 'coveredWarr'
+        return InstrumentType.COVERED_WARRANT
     
     else:
         raise ValueError('Invalid symbol. Your symbol format is not recognized!')
@@ -195,72 +212,6 @@ def localize_timestamp (
     
     return vietnam_series
 
-def get_asset_type(symbol: str) -> str:
-    """
-    Determine asset type based on provided security code.
-    Supports both legacy code format and new KRX format.
-    
-    Parameters:
-        - symbol (str): Security code or index symbol.
-    
-    Returns:
-        - 'index' if security code is an index symbol.
-        - 'stock' if security code is a stock symbol.
-        - 'derivative' if security code is a futures or options contract.
-        - 'bond' if security code is a government or corporate bond.
-        - 'coveredWarr' if security code is a covered warrant.
-    """
-    symbol = symbol.upper()
-    
-    # Standard market indices and HOSE managed indices
-    market_indices = {'VNINDEX', 'HNXINDEX', 'UPCOMINDEX', 'HNX30'}
-    # Combine with indices from constants
-    indices_info = _get_indices_info()
-    known_indices = market_indices.union(indices_info.keys())
-
-    if symbol in known_indices:
-        return 'index'
-    
-    # Stock symbols (assumed to have 3 characters)
-    elif len(symbol) == 3:
-        return 'stock'
-    
-    # New KRX derivative format (e.g., 41I1F4000)
-    krx_derivative_pattern = re.compile(r'^4[12][A-Z0-9]{2}[0-9A-HJ-NP-TV-W][1-9A-C]\d{3}$')
-    if krx_derivative_pattern.match(symbol):
-        return 'derivative'
-
-    # VN100 derivative patterns (e.g., VN100F1M, VN100F2M, VN100F1Q, VN100F2Q)
-    vn100_derivative_pattern = re.compile(r'^VN100F\d{1,2}[MQ]$')
-    if vn100_derivative_pattern.match(symbol):
-        return 'derivative'
-    
-    # For symbols that could be derivative or bond (length 7 or 9)
-    elif len(symbol) in [7, 9]:
-        # VN30 derivative patterns:
-        fm_pattern = re.compile(r'^VN30F\d{1,2}[MQ]$')
-        ym_pattern = re.compile(r'^VN30F\d{4}$')
-        
-        # Bond patterns:
-        # Government bond: e.g., GB05F2506 or GB10F2024
-        gov_bond_pattern = re.compile(r'^GB\d{2}F\d{4}$')
-        # Company bond: e.g., BAB122032; exclude those starting with VN30F.
-        comp_bond_pattern = re.compile(r'^(?!VN30F)[A-Z]{3}\d{6}$')
-        
-        if gov_bond_pattern.match(symbol) or comp_bond_pattern.match(symbol):
-            return 'bond'
-        elif fm_pattern.match(symbol) or ym_pattern.match(symbol):
-            return 'derivative'
-        else:
-            raise ValueError('Invalid derivative or bond symbol. Symbol must be in format of VN30F1M, VN30F2024, GB10F2024, or for company bonds, e.g., BAB122032')
-    
-    # Covered warrant symbols (assumed to have 8 characters)
-    elif len(symbol) == 8:
-        return 'coveredWarr'
-    
-    else:
-        raise ValueError('Invalid symbol. Your symbol format is not recognized!')
-
 def camel_to_snake(name):
     """
     Convert variable name from CamelCase to snake_case.
@@ -333,39 +284,14 @@ def remove_vietnamese_accents(text: str, use_map: bool = True) -> str:
         return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
 
 
-def normalize_vietnamese_text_to_snake_case(
+def _normalize_vietnamese_text_to_snake_case_legacy(
     text: str,
     keep_numbers: bool = True,
     max_length: Optional[int] = None,
     remove_common_words: bool = False,
     preserve_acronyms: bool = False
 ) -> str:
-    """
-    Convert Vietnamese text to ASCII-compatible snake_case identifier.
-    Robust normalization for Vietnamese financial line items and field names.
-    
-    Args:
-        text: Vietnamese or English text to normalize
-        keep_numbers: Whether to keep numeric digits (default: True)
-        max_length: Maximum length of output (default: None/unlimited)
-        remove_common_words: Remove Vietnamese stop words like 'của', 'và', 'các' (default: False)
-        preserve_acronyms: Try to preserve acronyms in uppercase before conversion
-        
-    Returns:
-        Snake_case identifier suitable for database column names
-        
-    Examples:
-        >>> normalize_vietnamese_text_to_snake_case("1. Doanh thu")
-        'doanh_thu'
-        >>> normalize_vietnamese_text_to_snake_case("Doanh thu bán hàng và cung cấp dịch vụ")
-        'doanh_thu_ban_hang_va_cung_cap_dich_vu'
-        >>> normalize_vietnamese_text_to_snake_case("Chi phí (2023-2024)")
-        'chi_phi_2023_2024'
-        >>> normalize_vietnamese_text_to_snake_case("Lợi nhuận sau thuế", remove_common_words=True)
-        'loi_nhuan_sau_thue'
-        >>> normalize_vietnamese_text_to_snake_case("EBITDA (Lãi trước thuế)")
-        'ebitda_lai_truoc_thue'
-    """
+    """Deprecated legacy variant kept for backward-compat; use normalize_vietnamese_text_to_snake_case()."""
     if not text or not text.strip():
         return ""
     

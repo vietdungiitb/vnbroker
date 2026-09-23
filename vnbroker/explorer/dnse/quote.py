@@ -14,6 +14,8 @@ from typing import Optional, Tuple
 import pandas as pd
 
 from vnbroker.core.utils.logger import get_logger
+from vnbroker.core.utils.parser import get_asset_type
+from vnbroker.core.utils.transform import normalize_ohlc_prices, normalize_intraday_prices
 
 logger = get_logger(__name__)
 
@@ -118,6 +120,26 @@ def _to_vn_day_bounds(date_str: str) -> Tuple[int, int]:
     return int(day_start.timestamp()), int(day_end.timestamp())
 
 
+_FAILOVER_MARKERS = (
+    "401", "403", "429", "timeout", "timed out", "connection",
+    "unauthorized", "forbidden", "rate limit", "too many requests",
+    "service unavailable", "temporarily unavailable",
+)
+
+
+def _raise_for_failover(exc: Exception, context: str) -> None:
+    """Re-raise auth/network errors as ConnectionError for source_router failover.
+
+    Data-empty cases (404 empty, no data) return empty DF upstream;
+    only transient/auth errors should failover.
+    """
+    msg = str(exc).lower()
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        raise ConnectionError(f"DNSE {context} lỗi mạng: {exc}") from exc
+    if any(m in msg for m in _FAILOVER_MARKERS):
+        raise ConnectionError(f"DNSE {context} lỗi: {exc}") from exc
+
+
 def _extract_ohlc_list(body: dict | list | None) -> list:
     """Tìm list OHLC bên trong response body."""
     if body is None:
@@ -143,9 +165,13 @@ def _parse_ohlc(records: list) -> pd.DataFrame:
         return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
 
     # Handle columnar format: single dict with arrays t,o,h,l,c,v
+    # (scalar single-row dicts must NOT take this branch)
     if len(records) == 1 and isinstance(records[0], dict):
         rec = records[0]
-        if all(key in rec for key in ("t", "o", "h", "l", "c", "v")):
+        if (
+            all(key in rec for key in ("t", "o", "h", "l", "c", "v"))
+            and isinstance(rec.get("t"), (list, tuple))
+        ):
             # Columnar format - convert to row-wise
             t_arr = rec["t"] or []
             n = len(t_arr)
@@ -170,11 +196,13 @@ def _parse_ohlc(records: list) -> pd.DataFrame:
     # Rename columns
     df.rename(columns={k: v for k, v in _OHLC_COLUMN_MAP.items() if k in df.columns}, inplace=True)
 
-    # Convert timestamp → datetime (DNSE dùng Unix seconds)
+    # Convert timestamp → datetime (DNSE dùng Unix seconds, chuẩn hóa về giờ VN naive
+    # để nhất quán với VCI/KBS; trước đây tz_localize(None) ngay sau UTC gây lệch 7h)
     if "time" in df.columns:
         if pd.api.types.is_numeric_dtype(df["time"]):
             df["time"] = (
                 pd.to_datetime(df["time"], unit="s", utc=True)
+                .dt.tz_convert("Asia/Ho_Chi_Minh")
                 .dt.tz_localize(None)
                 .astype("datetime64[ns]")
             )
@@ -209,6 +237,7 @@ def _parse_trades(records: list) -> pd.DataFrame:
         if pd.api.types.is_numeric_dtype(df["time"]):
             df["time"] = (
                 pd.to_datetime(df["time"], unit="s", utc=True)
+                .dt.tz_convert("Asia/Ho_Chi_Minh")
                 .dt.tz_localize(None)
                 .astype("datetime64[ns]")
             )
@@ -298,8 +327,16 @@ class DNSEQuote:
         from_ts = _to_unix_seconds(start)
         to_ts = _to_unix_seconds(end) + 86399  # đến cuối ngày end
 
+        asset_type = get_asset_type(sym)
+        type_param = "STOCK"
+        if asset_type == "derivative":
+            type_param = "DERIVATIVE"
+        elif asset_type == "index":
+            type_param = "INDEX"
+
         query = {
-            "type": "STOCK",
+            "symbol": sym,
+            "type": type_param,
             "resolution": resolution,
             "from": from_ts,
             "to": to_ts,
@@ -308,11 +345,20 @@ class DNSEQuote:
         try:
             _, body = self._market.get_ohlc(bar_type=resolution, query=query)
         except Exception as exc:
+            _raise_for_failover(exc, "get_ohlc")
             logger.warning("DNSE get_ohlc lỗi: %s", exc)
             return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
 
         records = _extract_ohlc_list(body)
         df = _parse_ohlc(records)
+        df = normalize_ohlc_prices(
+            df,
+            asset_type=get_asset_type(sym),
+            columns=["open", "high", "low", "close"],
+        )
+        df.attrs["symbol"] = sym
+        df.attrs["source"] = "DNSE"
+        df.attrs["interval"] = normalized
         if self.show_log:
             logger.info("DNSE history: %s rows, symbol=%s, %s→%s", len(df), sym, start, end)
         return df
@@ -402,6 +448,13 @@ class DNSEQuote:
                     next_page_token=next_token,
                 )
             except Exception as exc:
+                # Failover cho lỗi mạng/auth; 404 empty (live trades chưa ổn định)
+                # vẫn trả empty best-effort để không fail cứng.
+                try:
+                    _raise_for_failover(exc, "get_trades")
+                except ConnectionError:
+                    if not all_records:
+                        raise
                 logger.warning("DNSE get_trades lỗi: %s", exc)
                 break
 
@@ -431,6 +484,13 @@ class DNSEQuote:
                 break
 
         df = _parse_trades(all_records)
+        df = normalize_intraday_prices(
+            df,
+            asset_type=get_asset_type(sym),
+            columns=["price"],
+        )
+        df.attrs["symbol"] = sym
+        df.attrs["source"] = "DNSE"
         if _show:
             logger.info(
                 "DNSE tape: %s records, symbol=%s, from=%s, to=%s",

@@ -385,6 +385,7 @@ class Listing:
         return df
 
     @agg_execution("KBS")
+    @cached_listing(ttl_seconds=86400)
     def all_future_indices(
         self,
         show_log: Optional[bool] = False,

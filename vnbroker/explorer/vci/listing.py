@@ -142,7 +142,7 @@ class Listing:
         if lang not in ['vi', 'en']:
             raise ValueError("Tham số lang phải là 'vi' hoặc 'en'.")
 
-        url = self.base_url + '/price/symbols/getAll'
+        url = self.base_url.rstrip('/') + '/price/symbols/getAll'
         
         # Use the send_request utility from api_client
         try:
@@ -301,6 +301,7 @@ class Listing:
         return df['symbol']
 
     @optimize_execution("VCI")
+    @cached_listing(ttl_seconds=86400)
     def all_future_indices(self, show_log: Optional[bool] = False) -> pd.Series:
         return self.symbols_by_group(group='FU_INDEX', show_log=show_log)
 

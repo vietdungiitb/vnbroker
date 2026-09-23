@@ -1,0 +1,9 @@
+{
+  "equity": {
+    "accountNo": "TEST123",
+    "accountBalance": 100000000.0,
+    "withdrawable": 80000000.0,
+    "totalDebt": 0.0
+  },
+  "derivative": null
+}

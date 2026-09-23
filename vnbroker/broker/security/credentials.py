@@ -1,131 +1,201 @@
 """
-vnbroker.broker.security.credentials — Credential configs for broker lanes.
+Credential resolution for TCBS broker.
 
-TCBS Env priority (theo TCBS_BROKER_SPEC.md §2.1):
-  1. Tham số trực tiếp
-  2. VNBROKER_BROKER_TCBS_API_KEY
-  3. vnbroker_TCBS_OPENAPI_API_KEY
-  4. TCBS_OPENAPI_API_KEY
-  5. TCBS_API_KEY
-
-SSI Env priority:
-  1. Tham số trực tiếp
-  2. VNBROKER_BROKER_SSI_CONSUMER_ID / VNBROKER_BROKER_SSI_CONSUMER_SECRET
-  3. SSI_CONSUMER_ID / SSI_CONSUMER_SECRET
-
-KHÔNG LOG credentials ở bất kỳ nơi nào trong module này.
+Handles secure credential loading from environment variables
+with proper namespace separation from explorer/public lane.
 """
-from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
-# TCBS
-_TCBS_ENV_PRIORITY: tuple[str, ...] = (
+
+_ENV_PRIORITY = (
     "VNBROKER_BROKER_TCBS_API_KEY",
-    "vnbroker_TCBS_OPENAPI_API_KEY",
+    "VNBROKER_TCBS_OPENAPI_API_KEY",
     "TCBS_OPENAPI_API_KEY",
     "TCBS_API_KEY",
 )
 
-_TCBS_DEFAULT_BASE_URL = "https://openapi.tcbs.com.vn"
-
-# Backward compatibility
-_ENV_PRIORITY = _TCBS_ENV_PRIORITY
-_DEFAULT_BASE_URL = _TCBS_DEFAULT_BASE_URL
-
-# SSI
-_SSI_ENV_PRIORITY_ID: tuple[str, ...] = (
-    "VNBROKER_BROKER_SSI_CONSUMER_ID",
-    "SSI_CONSUMER_ID",
-)
-
-_SSI_ENV_PRIORITY_SECRET: tuple[str, ...] = (
-    "VNBROKER_BROKER_SSI_CONSUMER_SECRET",
-    "SSI_CONSUMER_SECRET",
-)
-
-_SSI_DEFAULT_BASE_URL = "https://iboard.ssi.com.vn"
-
-# VNDirect
-_VNDIRECT_ENV_PRIORITY: tuple[str, ...] = (
-    "VNBROKER_BROKER_VNDIRECT_API_KEY",
-    "VNDIRECT_API_KEY",
-)
-
-_VNDIRECT_DEFAULT_BASE_URL = "https://openapi.vndirect.com.vn"
+_DEFAULT_BASE_URL = "https://openapi.tcbs.com.vn"
+_DEFAULT_TIMEOUT_SECONDS = 30.0
 
 
-@dataclass
+@dataclass(frozen=True)
 class TCBSCredentialConfig:
     """
-    Cấu hình kết nối cho TCBS OpenAPI broker lane.
+    TCBS Broker credential configuration.
 
-    WARNING: KHÔNG truyền instance này vào logger — chứa api_key dạng plain text.
+    Uses dedicated namespace VNBROKER_BROKER_TCBS_* to avoid
+    conflicts with explorer/public provider credentials.
     """
-    api_key: str                              # Bắt buộc — KHÔNG log
-    base_url: str = _TCBS_DEFAULT_BASE_URL
-    timeout_seconds: float = 30.0
-    auth_token: Optional[str] = field(default=None, repr=False)  # JWT nếu inject sẵn
-    custody_code: Optional[str] = None       # 105C format, dùng cho get_profile + derivatives
+
+    api_key: str
+    base_url: str = _DEFAULT_BASE_URL
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS
+    auth_token: Optional[str] = None
 
     def __repr__(self) -> str:
-        """Override repr để che api_key trong log/debug."""
+        """Repr that redacts sensitive fields."""
         return (
-            f"TCBSCredentialConfig("
-            f"api_key=***REDACTED***, "
+            f"TCBSCredentialConfig(api_key=REDACTED, "
             f"base_url={self.base_url!r}, "
-            f"timeout_seconds={self.timeout_seconds}"
-            f")"
+            f"timeout_seconds={self.timeout_seconds!r}, "
+            f"auth_token=REDACTED)"
+        )
+
+    @classmethod
+    def from_env(cls) -> "TCBSCredentialConfig":
+        """
+        Load credentials from environment variables.
+
+        Priority order:
+        1. VNBROKER_BROKER_TCBS_API_KEY (standard namespace)
+        2. VNBROKER_TCBS_OPENAPI_API_KEY (compat from explorer)
+        3. TCBS_OPENAPI_API_KEY (legacy)
+        4. TCBS_API_KEY (legacy final)
+
+        Returns:
+            TCBSCredentialConfig instance
+
+        Raises:
+            ValueError: If required credentials not found
+        """
+        api_key = (
+            os.getenv("VNBROKER_BROKER_TCBS_API_KEY")
+            or os.getenv("VNBROKER_TCBS_OPENAPI_API_KEY")
+            or os.getenv("TCBS_OPENAPI_API_KEY")
+            or os.getenv("TCBS_API_KEY")
+        )
+
+        if not api_key or not api_key.strip():
+            raise ValueError(
+                "Missing TCBS API key. Set one of: "
+                "VNBROKER_BROKER_TCBS_API_KEY, "
+                "VNBROKER_TCBS_OPENAPI_API_KEY, "
+                "TCBS_OPENAPI_API_KEY, "
+                "TCBS_API_KEY"
+            )
+
+        base_url = (
+            os.getenv("VNBROKER_BROKER_TCBS_BASE_URL")
+            or os.getenv("TCBS_OPENAPI_BASE_URL")
+            or _DEFAULT_BASE_URL
+        ).rstrip("/")
+
+        timeout_seconds = float(
+            os.getenv("VNBROKER_BROKER_TCBS_TIMEOUT_SECONDS")
+            or _DEFAULT_TIMEOUT_SECONDS
+        )
+
+        auth_token = os.getenv("VNBROKER_BROKER_TCBS_AUTH_TOKEN") or os.getenv(
+            "TCBS_AUTH_TOKEN"
+        )
+
+        return cls(
+            api_key=api_key,
+            base_url=base_url,
+            timeout_seconds=timeout_seconds,
+            auth_token=auth_token,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TCBSCredentialConfig":
+        """Create from dictionary (for testing)."""
+        return cls(
+            api_key=data.get("api_key", ""),
+            base_url=data.get("base_url", _DEFAULT_BASE_URL),
+            timeout_seconds=data.get("timeout_seconds", _DEFAULT_TIMEOUT_SECONDS),
+            auth_token=data.get("auth_token"),
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class SSICredentialConfig:
     """
-    Cấu hình kết nối cho SSI FastConnect broker lane.
+    SSI Broker credential configuration (native FastConnect v3).
 
-    WARNING: KHÔNG truyền instance này vào logger — chứa consumer_secret dạng plain text.
+    Namespace VNBROKER_BROKER_SSI_* tách biệt lane khác.
+    api_key + api_secret bắt buộc (kể cả market-data-only);
+    client_id cần cho balance/positions; private_key cần cho write ký RSA.
     """
-    consumer_id: str                          # Bắt buộc — KHÔNG log
-    consumer_secret: str                      # Bắt buộc — KHÔNG log
-    base_url: str = _SSI_DEFAULT_BASE_URL
-    timeout_seconds: float = 30.0
-    auth_token: Optional[str] = field(default=None, repr=False)  # OAuth2 access token
+
+    api_key: str
+    api_secret: str
+    client_id: str = ""
+    private_key: str = ""
+    api_url: str = "https://api.ssi.com.vn"
+    stream_url: str = "wss://stream.ssi.com.vn/ws/v3"
+    device_id: str = "A1:B2:C3:D4:E5:F6"
+    timeout_seconds: float = 60.0
+    rate_limit_rps: float = 10.0
+    max_retries: int = 5
 
     def __repr__(self) -> str:
-        """Override repr để che credentials trong log/debug."""
+        """Repr redact toàn bộ secret."""
         return (
-            f"SSICredentialConfig("
-            f"consumer_id=***REDACTED***, "
-            f"consumer_secret=***REDACTED***, "
-            f"base_url={self.base_url!r}, "
-            f"timeout_seconds={self.timeout_seconds}"
-            f")"
+            "SSICredentialConfig(api_key=REDACTED, api_secret=REDACTED, "
+            f"client_id={self.client_id!r}, private_key=REDACTED, "
+            f"api_url={self.api_url!r}, stream_url={self.stream_url!r}, "
+            f"device_id={self.device_id!r}, "
+            f"timeout_seconds={self.timeout_seconds!r}, "
+            f"rate_limit_rps={self.rate_limit_rps!r}, "
+            f"max_retries={self.max_retries!r})"
         )
 
+    @classmethod
+    def from_env(cls) -> "SSICredentialConfig":
+        """
+        Load từ biến môi trường VNBROKER_BROKER_SSI_*.
 
-@dataclass
-class VNDirectCredentialConfig:
-    """
-    Cấu hình kết nối cho VNDirect OpenAPI broker lane.
+        Raises:
+            ValueError: Nếu thiếu api_key hoặc api_secret.
+        """
+        api_key = os.getenv("VNBROKER_BROKER_SSI_API_KEY") or ""
+        api_secret = os.getenv("VNBROKER_BROKER_SSI_API_SECRET") or ""
+        if not api_key.strip() or not api_secret.strip():
+            raise ValueError(
+                "Missing SSI credentials. Set VNBROKER_BROKER_SSI_API_KEY "
+                "and VNBROKER_BROKER_SSI_API_SECRET"
+            )
+        return cls(
+            api_key=api_key,
+            api_secret=api_secret,
+            client_id=os.getenv("VNBROKER_BROKER_SSI_CLIENT_ID") or "",
+            private_key=os.getenv("VNBROKER_BROKER_SSI_PRIVATE_KEY") or "",
+            api_url=(
+                os.getenv("VNBROKER_BROKER_SSI_API_URL") or "https://api.ssi.com.vn"
+            ).rstrip("/"),
+            stream_url=(
+                os.getenv("VNBROKER_BROKER_SSI_STREAM_URL")
+                or "wss://stream.ssi.com.vn/ws/v3"
+            ),
+            device_id=(
+                os.getenv("VNBROKER_BROKER_SSI_DEVICE_ID") or "A1:B2:C3:D4:E5:F6"
+            ),
+            timeout_seconds=float(
+                os.getenv("VNBROKER_BROKER_SSI_TIMEOUT_SECONDS") or 60.0
+            ),
+            rate_limit_rps=float(
+                os.getenv("VNBROKER_BROKER_SSI_RATE_LIMIT_RPS") or 10.0
+            ),
+            max_retries=int(os.getenv("VNBROKER_BROKER_SSI_MAX_RETRIES") or 5),
+        )
 
-    WARNING: KHÔNG truyền instance này vào logger — chứa api_key dạng plain text.
-    """
-    api_key: str                              # Bắt buộc — KHÔNG log
-    base_url: str = _VNDIRECT_DEFAULT_BASE_URL
-    timeout_seconds: float = 30.0
-    auth_token: Optional[str] = field(default=None, repr=False)
-
-    def __repr__(self) -> str:
-        """Override repr để che api_key trong log/debug."""
-        return (
-            f"VNDirectCredentialConfig("
-            f"api_key=***REDACTED***, "
-            f"base_url={self.base_url!r}, "
-            f"timeout_seconds={self.timeout_seconds}"
-            f")"
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SSICredentialConfig":
+        """Create from dictionary (for testing)."""
+        return cls(
+            api_key=data.get("api_key", ""),
+            api_secret=data.get("api_secret", ""),
+            client_id=data.get("client_id", ""),
+            private_key=data.get("private_key", ""),
+            api_url=data.get("api_url", "https://api.ssi.com.vn"),
+            stream_url=data.get("stream_url", "wss://stream.ssi.com.vn/ws/v3"),
+            device_id=data.get("device_id", "A1:B2:C3:D4:E5:F6"),
+            timeout_seconds=data.get("timeout_seconds", 60.0),
+            rate_limit_rps=data.get("rate_limit_rps", 10.0),
+            max_retries=data.get("max_retries", 5),
         )
 
 
@@ -133,120 +203,70 @@ def resolve_tcbs_credentials(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     auth_token: Optional[str] = None,
+    timeout_seconds: Optional[float] = None,
 ) -> TCBSCredentialConfig:
     """
-    Tạo TCBSCredentialConfig theo thứ tự ưu tiên:
-      1. Tham số trực tiếp (api_key)
-      2. Env vars theo _TCBS_ENV_PRIORITY
+    Resolve TCBS credentials with explicit params taking priority over env.
+
+    Args:
+        api_key: Explicit API key (overrides env)
+        base_url: Explicit base URL (overrides env)
+        auth_token: Explicit auth token (overrides env)
+        timeout_seconds: Explicit timeout (overrides env)
+
+    Returns:
+        Resolved TCBSCredentialConfig
 
     Raises:
-        ValueError: Nếu không tìm thấy api_key ở bất kỳ nguồn nào.
-
-    Security: Không log api_key ở đây hay bất kỳ caller nào.
+        ValueError: If no api_key provided via params or env
     """
-    resolved_key = api_key or _resolve_tcbs_from_env()
-
-    if not resolved_key:
-        raise ValueError(
-            "Không tìm thấy TCBS API key. "
-            "Truyền trực tiếp qua get_broker(api_key=...) hoặc set env var "
-            f"{_TCBS_ENV_PRIORITY[0]}."
+    # If explicit api_key provided, build config directly
+    if api_key:
+        if base_url:
+            return TCBSCredentialConfig(
+                api_key=api_key,
+                base_url=base_url,
+                timeout_seconds=timeout_seconds or _DEFAULT_TIMEOUT_SECONDS,
+                auth_token=auth_token,
+            )
+        # Need to check env for base_url
+        env_base_url = (
+            os.getenv("VNBROKER_BROKER_TCBS_BASE_URL")
+            or os.getenv("TCBS_OPENAPI_BASE_URL")
+            or _DEFAULT_BASE_URL
+        ).rstrip("/")
+        env_timeout = float(
+            os.getenv("VNBROKER_BROKER_TCBS_TIMEOUT_SECONDS")
+            or _DEFAULT_TIMEOUT_SECONDS
+        )
+        env_auth_token = os.getenv("VNBROKER_BROKER_TCBS_AUTH_TOKEN") or os.getenv(
+            "TCBS_AUTH_TOKEN"
+        )
+        return TCBSCredentialConfig(
+            api_key=api_key,
+            base_url=base_url or env_base_url,
+            timeout_seconds=timeout_seconds or env_timeout,
+            auth_token=auth_token or env_auth_token,
         )
 
-    return TCBSCredentialConfig(
-        api_key=resolved_key,
-        base_url=base_url or _TCBS_DEFAULT_BASE_URL,
-        auth_token=auth_token,
-    )
-
-
-def resolve_ssi_credentials(
-    consumer_id: Optional[str] = None,
-    consumer_secret: Optional[str] = None,
-    base_url: Optional[str] = None,
-    auth_token: Optional[str] = None,
-) -> SSICredentialConfig:
-    """
-    Tạo SSICredentialConfig theo thứ tự ưu tiên:
-      1. Tham số trực tiếp (consumer_id, consumer_secret)
-      2. Env vars
-
-    Raises:
-        ValueError: Nếu không tìm thấy credentials ở bất kỳ nguồn nào.
-
-    Security: Không log credentials ở đây hay bất kỳ caller nào.
-    """
-    resolved_id = consumer_id or _resolve_ssi_from_env(_SSI_ENV_PRIORITY_ID)
-    resolved_secret = consumer_secret or _resolve_ssi_from_env(_SSI_ENV_PRIORITY_SECRET)
-
-    if not resolved_id or not resolved_secret:
+    # No explicit api_key - try from_env
+    try:
+        config = TCBSCredentialConfig.from_env()
+    except ValueError as e:
         raise ValueError(
-            "Không tìm thấy SSI credentials. "
-            "Truyền trực tiếp qua get_broker(consumer_id=..., consumer_secret=...) "
-            f"hoặc set env vars {_SSI_ENV_PRIORITY_ID[0]} và {_SSI_ENV_PRIORITY_SECRET[0]}."
+            "Missing TCBS API key. Set one of: "
+            "VNBROKER_BROKER_TCBS_API_KEY, "
+            "VNBROKER_TCBS_OPENAPI_API_KEY, "
+            "TCBS_OPENAPI_API_KEY, "
+            "TCBS_API_KEY"
+        ) from e
+
+    if base_url or timeout_seconds or auth_token:
+        return TCBSCredentialConfig(
+            api_key=config.api_key,
+            base_url=base_url or config.base_url,
+            timeout_seconds=timeout_seconds or config.timeout_seconds,
+            auth_token=auth_token if auth_token is not None else config.auth_token,
         )
 
-    return SSICredentialConfig(
-        consumer_id=resolved_id,
-        consumer_secret=resolved_secret,
-        base_url=base_url or _SSI_DEFAULT_BASE_URL,
-        auth_token=auth_token,
-    )
-
-
-def _resolve_tcbs_from_env() -> Optional[str]:
-    """Thử lần lượt các env var TCBS theo thứ tự ưu tiên. Trả về None nếu không tìm thấy."""
-    for var in _TCBS_ENV_PRIORITY:
-        value = os.environ.get(var)
-        if value and value.strip():
-            return value.strip()
-    return None
-
-
-def _resolve_ssi_from_env(priority_vars: tuple[str, ...]) -> Optional[str]:
-    """Thử lần lượt các env var SSI theo thứ tự ưu tiên. Trả về None nếu không tìm thấy."""
-    for var in priority_vars:
-        value = os.environ.get(var)
-        if value and value.strip():
-            return value.strip()
-    return None
-
-
-def _resolve_vndirect_from_env() -> Optional[str]:
-    """Thử lần lượt các env var VNDirect theo thứ tự ưu tiên. Trả về None nếu không tìm thấy."""
-    for var in _VNDIRECT_ENV_PRIORITY:
-        value = os.environ.get(var)
-        if value and value.strip():
-            return value.strip()
-    return None
-
-
-def resolve_vndirect_credentials(
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
-    auth_token: Optional[str] = None,
-) -> VNDirectCredentialConfig:
-    """
-    Tạo VNDirectCredentialConfig theo thứ tự ưu tiên:
-      1. Tham số trực tiếp (api_key)
-      2. Env vars
-
-    Raises:
-        ValueError: Nếu không tìm thấy api_key ở bất kỳ nguồn nào.
-
-    Security: Không log api_key ở đây hay bất kỳ caller nào.
-    """
-    resolved_key = api_key or _resolve_vndirect_from_env()
-
-    if not resolved_key:
-        raise ValueError(
-            "Không tìm thấy VNDirect API key. "
-            "Truyền trực tiếp qua get_broker(api_key=...) hoặc set env var "
-            f"{_VNDIRECT_ENV_PRIORITY[0]}."
-        )
-
-    return VNDirectCredentialConfig(
-        api_key=resolved_key,
-        base_url=base_url or _VNDIRECT_DEFAULT_BASE_URL,
-        auth_token=auth_token,
-    )
+    return config

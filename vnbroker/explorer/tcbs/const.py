@@ -1,7 +1,10 @@
-_BASE_URL = "https://apiextaws.tcbs.com.vn" # 'https://apipubaws.tcbs.com.vn'
-_STOCKS_URL = 'stock-insight'
-_FUTURE_URL = 'futures-insight'
-_ANALYSIS_URL = 'tcanalysis'
+_BASE_URL = "https://openapi.tcbs.com.vn"
+TARTARUS_PATH = "/tartarus/v1"
+NYX_PATH = "/nyx/v1"
+LIGO_PATH = "/ligo/v1"
+_ANALYSIS_URL = "tcanalysis"
+_STOCKS_URL = "stock-insight"
+_FUTURE_URL = "futures-insight"
 
 # TCBS API interval mapping
 # Note: 'ME' (month-end) is the pandas 2.2+ format. For older pandas versions,
@@ -43,6 +46,8 @@ _INTRADAY_MAP = {
             "v": 'volume',
             "a": "match_type",
         }
+
+_INTRADAY_COLUMNS = _INTRADAY_MAP.copy()
 
 _INTRADAY_DTYPE = {
                     "price": "float64",

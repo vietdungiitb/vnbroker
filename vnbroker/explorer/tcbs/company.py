@@ -144,16 +144,16 @@ class Company:
             try:
                 df[col] = df[col].apply(lambda x: BeautifulSoup(x, 'html.parser').get_text())
                 df[col] = df[col].str.replace('\n', ' ')
-            except:
+            except Exception:
                 pass
-                    
+
         # Add symbol column
         df['symbol'] = self.symbol
-        
+
         # Drop unnecessary columns
         try:
             df.drop(columns=['id', 'ticker'], inplace=True, errors='ignore')
-        except:
+        except Exception:
             pass
         
         # Convert column names to snake_case

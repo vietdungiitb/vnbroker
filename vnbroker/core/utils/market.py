@@ -29,7 +29,6 @@ def trading_hours(market: str = "HOSE", custom_time: Optional[datetime.datetime]
             - market (str): Market being checked or "general" if market is None
     """
     # Validate market parameter
-    valid_markets = ["HOSE", "HNX", "UPCOM", "Futures", None]
     if market is not None and market not in ["HOSE", "HNX", "UPCOM", "Futures"]:
         raise ValueError(f"Unknown market: {market}. Valid markets: HOSE, HNX, UPCOM, Futures, None")
     

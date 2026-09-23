@@ -2,7 +2,9 @@ from typing import Optional
 import inspect
 from abc import ABC
 from functools import wraps
-from tenacity import retry, stop_after_attempt, wait_exponential
+import pandas as pd
+import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from vnbroker.config import Config
 from vnbroker.core.registry import ProviderRegistry
 from vnbroker.core.source_router import (
@@ -120,6 +122,15 @@ class BaseAdapter(ABC):
         self._resolved_source = target_source
         return self._provider
 
+    def _normalize_derivative_listing(self, result, method_name: str):
+        if method_name != "all_future_indices":
+            return result
+        if isinstance(result, pd.Series):
+            df = result.to_frame("symbol")
+            df["exchange"] = "HNX"
+            return df
+        return result
+
     def _invoke_provider_method(self, method_name: str, *args, **kwargs):
         if not hasattr(self._provider, method_name):
             raise NotImplementedError(
@@ -128,7 +139,8 @@ class BaseAdapter(ABC):
         provider_method = getattr(self._provider, method_name)
         sig = inspect.signature(provider_method)
         filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
-        return provider_method(*args, **filtered)
+        result = provider_method(*args, **filtered)
+        return self._normalize_derivative_listing(result, method_name)
 
     def _call_provider_method(self, method_name: str, *args, **kwargs):
         if not is_auto_source(self._requested_source):
@@ -174,7 +186,9 @@ class BaseAdapter(ABC):
             multiplier=Config.BACKOFF_MULTIPLIER,
             min=Config.BACKOFF_MIN,
             max=Config.BACKOFF_MAX
-        )
+        ),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def history(self, *args, **kwargs):
         # Generic retry wrapper for any .history() calls

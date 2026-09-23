@@ -1,16 +1,30 @@
+import logging
+import os
 import requests
 import pandas as pd
 from datetime import datetime
+from typing import Optional
+from vnbroker.config import Config
 from vnbroker.core.utils.user_agent import get_headers
 from vnbroker.core.utils.execution import optimize_execution
 
-@optimize_execution('MISC')
-def sjc_gold_price(date=None):
+_logger = logging.getLogger(__name__)
+
+_BTMC_DEFAULT_KEY = "3kd8ub1llcg9t45hnoh8hmn7t5kc2v"
+
+
+def _btmc_default_url() -> str:
+    key = os.getenv("BTMC_API_KEY", _BTMC_DEFAULT_KEY)
+    return f"http://api.btmc.vn/api/BTMCAPI/getpricebtmc?key={key}"
+
+
+@optimize_execution("MISC")
+def sjc_gold_price(date: Optional[str] = None) -> Optional[pd.DataFrame]:
     """
     Truy xuất giá vàng từ trang chủ SJC.
 
     Args:
-        - date: Ngày tra cứu, mặc định là None để lấy ngày hiện tại. 
+        - date: Ngày tra cứu, mặc định là None để lấy ngày hiện tại.
                 Nhập giá trị tùy chọn, định dạng YYYY-mm-dd, ví dụ 2025-01-15.
                 Dữ liệu có sẵn từ ngày 2/1/2016.
 
@@ -32,28 +46,32 @@ def sjc_gold_price(date=None):
             if input_date < min_date:
                 raise ValueError("Ngày tra cứu phải từ 2/1/2016 trở đi.")
         except ValueError:
-            raise ValueError("Định dạng ngày không hợp lệ. Vui lòng nhập theo định dạng YYYY-mm-dd.")
+            raise ValueError(
+                "Định dạng ngày không hợp lệ. Vui lòng nhập theo định dạng YYYY-mm-dd."
+            )
 
     # Format date for the API request
     formatted_date = input_date.strftime("%d/%m/%Y")
 
     # Prepare request payload and headers
     payload = f"method=GetSJCGoldPriceByDate&toDate={formatted_date}"
-    headers = get_headers(data_source='SJC', random_agent=False)
+    headers = get_headers(data_source="SJC", random_agent=False)
 
     # Send request
-    response = requests.post(url, headers=headers, data=payload)
+    response = requests.post(
+        url, headers=headers, data=payload, timeout=Config.REQUEST_TIMEOUT
+    )
 
     # Handle response
     if response.status_code == 200:
         data = response.json()
         if not data.get("success"):
-            print("Lỗi: Không thể truy xuất dữ liệu từ API.")
+            _logger.warning("SJC: Không thể truy xuất dữ liệu từ API.")
             return None
 
         gold_data = data.get("data", [])
         if not gold_data:
-            print("Lỗi: Không có dữ liệu trả về từ API.")
+            _logger.warning("SJC: Không có dữ liệu trả về từ API.")
             return None
 
         # Convert to DataFrame
@@ -70,43 +88,57 @@ def sjc_gold_price(date=None):
 
         return df
     else:
-        print(f"Lỗi: Không thể kết nối đến API. Mã trạng thái: {response.status_code}")
+        _logger.warning(
+            "SJC: Không thể kết nối đến API. Mã trạng thái: %s", response.status_code
+        )
         return None
-    
 
-@optimize_execution('MISC')
-def btmc_goldprice(url='http://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v'):
+
+@optimize_execution("MISC")
+def btmc_goldprice(
+    url: Optional[str] = None,
+) -> pd.DataFrame:
     """Parse dữ liệu giá vàng từ API JSON Bảo Tín Minh Châu.
 
     Args:
-        url: Đường dẫn đến API JSON.
+        url: Đường dẫn đến API JSON. None → dùng BTMC_API_KEY env
+            hoặc key mặc định (backward-compat).
 
     Returns:
         DataFrame chứa dữ liệu giá vàng.
     """
-    response = requests.get(url)
+    if url is None:
+        url = _btmc_default_url()
+    response = requests.get(url, timeout=Config.REQUEST_TIMEOUT)
     json_data = response.json()
-    data_list = json_data['DataList']['Data']
+    data_list = json_data["DataList"]["Data"]
 
     data = []
     for item in data_list:
         row_number = item["@row"]
-        n_key = f'@n_{row_number}'
-        k_key = f'@k_{row_number}'
-        h_key = f'@h_{row_number}'
-        pb_key = f'@pb_{row_number}'
-        ps_key = f'@ps_{row_number}'
-        pt_key = f'@pt_{row_number}'
-        d_key = f'@d_{row_number}'
-        data.append({
-            "name": item.get(n_key, ''),
-            "karat": item.get(k_key, ''),
-            "gold_content": item.get(h_key, ''),
-            "buy_price": item.get(pb_key, ''),
-            "sell_price": item.get(ps_key, ''),
-            "world_price": item.get(pt_key, ''),
-            "time": item.get(d_key, '')
-        })
+        n_key = f"@n_{row_number}"
+        k_key = f"@k_{row_number}"
+        h_key = f"@h_{row_number}"
+        pb_key = f"@pb_{row_number}"
+        ps_key = f"@ps_{row_number}"
+        pt_key = f"@pt_{row_number}"
+        d_key = f"@d_{row_number}"
+        data.append(
+            {
+                "name": item.get(n_key, ""),
+                "karat": item.get(k_key, ""),
+                "gold_content": item.get(h_key, ""),
+                "buy_price": item.get(pb_key, ""),
+                "sell_price": item.get(ps_key, ""),
+                "world_price": item.get(pt_key, ""),
+                "time": item.get(d_key, ""),
+            }
+        )
     df = pd.DataFrame(data)
-    df = df.sort_values(by=['sell_price'], ascending=False)
+    # Ép số trước khi sort để tránh sort lexicographic trên string.
+    for _col in ("buy_price", "sell_price", "world_price"):
+        if _col in df.columns:
+            df[_col] = pd.to_numeric(df[_col], errors="coerce")
+    if "sell_price" in df.columns:
+        df = df.sort_values(by=["sell_price"], ascending=False)
     return df

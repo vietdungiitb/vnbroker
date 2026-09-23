@@ -243,9 +243,9 @@ class TCBSPortfolioEngine:
             return _empty_reconcile()
 
         b = _normalize_for_reconcile(broker_holdings_df, "broker_qty")
-        l = _normalize_for_reconcile(local_ledger_df, "local_qty")
+        local = _normalize_for_reconcile(local_ledger_df, "local_qty")
 
-        merged = b.merge(l, on="symbol", how="outer")
+        merged = b.merge(local, on="symbol", how="outer")
 
         merged["broker_qty"] = pd.to_numeric(merged["broker_qty"], errors="coerce")
         merged["local_qty"] = pd.to_numeric(merged["local_qty"], errors="coerce")

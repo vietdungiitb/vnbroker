@@ -11,15 +11,17 @@ import inspect
 from typing import Optional, Any, Dict
 from functools import lru_cache
 import pandas as pd
-from tenacity import retry, stop_after_attempt, wait_exponential
+import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from pandas.api.types import is_numeric_dtype
 
 from vnbroker.core.utils.logger import get_logger
+from vnbroker.core.exceptions import UnsupportedMethodError
 
 logger = get_logger(__name__)
 
 
-PUBLIC_VN_SOURCES = {"KBS", "VCI", "TCBS", "DNSE"}
+PUBLIC_VN_SOURCES = {"KBS", "VCI", "TCBS", "DNSE", "SSI"}
 
 
 _INSIDER_STANDARD_COLUMNS = [
@@ -201,7 +203,6 @@ class BaseComponent:
 
     SUPPORTED_SOURCES = []
     FALLBACK_MAP: dict = {}
-    _fallback_cache: dict = {}
 
     def __init__(self, symbol: Optional[str] = None,
                  source: str = Config.DEFAULT_SOURCE):
@@ -217,6 +218,7 @@ class BaseComponent:
         """
         self.symbol = symbol.upper() if symbol else None
         self.source = source.upper()
+        self._fallback_cache: dict = {}
         self._validate_source()
         self.data_source = self._load_data_source()
 
@@ -236,15 +238,13 @@ class BaseComponent:
 
     def _load_fallback_provider(self, fb_source: str):
         """Load a fallback provider for the given source."""
-        cache_key = f"fallback_{fb_source}"
+        cache_key = f"{self.__class__.__name__}_{self.symbol}_{fb_source.upper()}"
         if cache_key in self._fallback_cache:
             return self._fallback_cache[cache_key]
         old_source = self.source
         self.source = fb_source.upper()
         provider = self._load_data_source()
         self.source = old_source
-        if len(self._fallback_cache) > 16:
-            self._fallback_cache.clear()
         self._fallback_cache[cache_key] = provider
         return provider
 
@@ -253,6 +253,7 @@ class BaseComponent:
         provider = self.data_source
         sources = [self.source] + self.FALLBACK_MAP.get(self.source, [])
         last_error = None
+        empty_result = None
         for source in sources:
             if source != self.source:
                 try:
@@ -267,17 +268,22 @@ class BaseComponent:
             try:
                 result = method(*args, **kwargs)
                 if isinstance(result, pd.DataFrame) and result.empty:
-                    if source == self.source:
-                        return result
+                    # DNSE fallback providers return empty DF by design;
+                    # keep trying fallbacks, remember empty to return if all empty.
+                    if empty_result is None:
+                        empty_result = result
                     continue
                 return result
-            except (NotImplementedError, AttributeError):
+            except (NotImplementedError, AttributeError, UnsupportedMethodError) as e:
+                last_error = e
                 continue
             except Exception as e:
                 if source != self.source:
                     last_error = e
                     continue
                 raise
+        if empty_result is not None:
+            return empty_result
         if last_error:
             raise last_error
         raise NotImplementedError(
@@ -291,7 +297,7 @@ class StockComponents(BaseComponent):
     Direct Provider Architecture: VCI, KBS, TCBS, DNSE
     """
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
 
     def __init__(self, symbol: str, source: str = "KBS",
                  show_log: bool = True,
@@ -369,7 +375,9 @@ class StockComponents(BaseComponent):
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # One-way only: SSI needs a key/quota, so KBS/VCI never fall back into SSI (W2).
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
     def __init__(self, symbol: str, source: str = "KBS",
                  auth_token: Optional[str] = None,
@@ -403,6 +411,9 @@ class Quote(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.quote import DNSEQuote
             return DNSEQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.quote import SSIQuote
+            return SSIQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -414,36 +425,76 @@ class Quote(BaseComponent):
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def history(self, symbol: Optional[str] = None, **kwargs):
         """Fetch historical price data."""
         self._update_data_source(symbol)
-        return self.data_source.history(**kwargs)
+        method = self.data_source.history
+        return method(**_filter_kwargs(method, kwargs))
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def intraday(self, symbol: Optional[str] = None, **kwargs):
         """Fetch intraday trading data."""
         self._update_data_source(symbol)
-        return self.data_source.intraday(**kwargs)
+        method = self.data_source.intraday
+        return method(**_filter_kwargs(method, kwargs))
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
         """Fetch order book depth data."""
         self._update_data_source(symbol)
-        return self.data_source.price_depth(**kwargs)
+        method = self.data_source.price_depth
+        return method(**_filter_kwargs(method, kwargs))
+
+
+def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Lọc kwargs theo signature của provider method (pattern vnstock 4.0.4).
+
+    - Provider có VAR_KEYWORD (**kwargs) → passthrough toàn bộ.
+    - Không → chỉ giữ param có trong signature; kwargs lạ bị bỏ + logger.debug.
+    - Luôn giữ `show_log` khi caller truyền (không filter mất).
+    - Không inject thêm gì (giữ nguyên behavior khi caller không truyền).
+    """
+    try:
+        params = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        return dict(kwargs)
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return dict(kwargs)
+    allowed = set(params)
+    filtered: Dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if key in allowed:
+            filtered[key] = value
+        else:
+            logger.debug(
+                "Quote: bỏ kwarg không hỗ trợ %r cho %s.",
+                key,
+                getattr(method, "__name__", method),
+            )
+    return filtered
 
 
 class Listing(BaseComponent):
     """Symbol listing and grouping data."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # One-way only: SSI needs a key/quota, so KBS/VCI never fall back into SSI (W2).
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
     def __init__(self, source: str = "KBS",
                  api_key: Optional[str] = None,
@@ -475,6 +526,9 @@ class Listing(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.listing import DNSEListing
             return DNSEListing(api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.listing import SSIListing
+            return SSIListing(api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -527,8 +581,9 @@ class Listing(BaseComponent):
 class Trading(BaseComponent):
     """Real-time trading data and market board information."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
-    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"]}
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # One-way only (W2): line 581 duplicated this map and dropped SSI — removed.
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
     def __init__(self, symbol: Optional[str] = 'VN30F1M',
                  source: str = "KBS",
@@ -563,6 +618,9 @@ class Trading(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.trading import DNSETrading
             return DNSETrading(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.trading import SSITrading
+            return SSITrading(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -574,7 +632,9 @@ class Trading(BaseComponent):
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def price_board(self, symbols_list: list, **kwargs):
         """Fetch price board for multiple symbols."""
@@ -584,8 +644,8 @@ class Trading(BaseComponent):
 class Company(BaseComponent):
     """Company profile, management, ownership information."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
-    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"]}
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
     def __init__(self, symbol: Optional[str] = 'ACB',
                  source: str = "KBS",
@@ -620,6 +680,9 @@ class Company(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.company import DNSECompany
             return DNSECompany(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.company import SSICompany
+            return SSICompany(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -629,19 +692,19 @@ class Company(BaseComponent):
             self.symbol = symbol.upper()
             self.data_source = self._load_data_source()
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
+    # NOTE: intentionally no @lru_cache here — methods depend on self.symbol;
+    # caching `self` would leak instances and return stale data after
+    # update_symbol(). Use TTLCache with explicit (symbol, source, params) key
+    # if caching is needed (see core/utils/cache.py).
     def overview(self, **kwargs):
         return self._call_with_fallback('overview', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def profile(self, **kwargs):
         return self._call_with_fallback('profile', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def shareholders(self, **kwargs):
         return self._call_with_fallback('shareholders', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def insider_deals(self, **kwargs):
         standardize = kwargs.pop("standardize", True)
         result = self._call_with_fallback('insider_deals', **kwargs)
@@ -651,35 +714,27 @@ class Company(BaseComponent):
             return _normalize_company_insider_deals_df(result, symbol=self.symbol)
         return result
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def subsidiaries(self, **kwargs):
         return self._call_with_fallback('subsidiaries', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def officers(self, **kwargs):
         return self._call_with_fallback('officers', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def events(self, **kwargs):
         return self._call_with_fallback('events', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def news(self, **kwargs):
         return self._call_with_fallback('news', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def dividends(self, **kwargs):
         return self._call_with_fallback('dividends', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def affiliate(self, **kwargs):
         return self._call_with_fallback('affiliate', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def trading_stats(self, **kwargs):
         return self._call_with_fallback('trading_stats', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def ratio_summary(self, **kwargs):
         return self._call_with_fallback('ratio_summary', **kwargs)
 
@@ -690,7 +745,7 @@ class Company(BaseComponent):
 class News(BaseComponent):
     """Multi-source normalized stock news access."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
 
     def __init__(self, symbol: Optional[str] = None,
                  source: str = "KBS",
@@ -723,9 +778,18 @@ class News(BaseComponent):
             from vnbroker.explorer.tcbs.news import News as TCBSNews
             return TCBSNews(self.symbol, auth_token=self.auth_token, show_log=self.show_log)
         elif source == "dnse":
-            # DNSE doesn't have news, fallback to VCI
+            # DNSE doesn't have news — explicit fallback to VCI.
+            # Annotated via source_used so callers know real origin.
             from vnbroker.explorer.vci.news import News as VCINews
-            return VCINews(self.symbol, show_log=self.show_log)
+            provider = VCINews(self.symbol, show_log=self.show_log)
+            provider._vnbroker_fallback_note = ("DNSE", "VCI")
+            return provider
+        elif source == "ssi":
+            # SSI doesn't have news — explicit fallback to VCI (same as DNSE).
+            from vnbroker.explorer.vci.news import News as VCINews
+            provider = VCINews(self.symbol, show_log=self.show_log)
+            provider._vnbroker_fallback_note = ("SSI", "VCI")
+            return provider
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -798,23 +862,37 @@ class News(BaseComponent):
             self.symbol = symbol.upper()
         self.data_source = self._load_data_source()
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
+    # NOTE: no @lru_cache — symbol-dependent, would leak `self` (see Company).
+    def _annotate_news_fallback(self, result):
+        """Ghi source_used=VCI khi source=DNSE/SSI fallback (minh bạch nguồn thật)."""
+        if self.source in ("DNSE", "SSI"):
+            try:
+                if isinstance(getattr(result, "attrs", None), dict):
+                    result.attrs["source"] = result.attrs.get("source", "VCI")
+                    result.attrs["source_used"] = "VCI"
+                    result.attrs["source_requested"] = self.source
+            except Exception:
+                pass
+        return result
+
     def latest(self, symbol: Optional[str] = None, **kwargs):
         """Get latest normalized news."""
         self._update_data_source(symbol)
-        return self.data_source.latest(**kwargs)
+        return self._annotate_news_fallback(self.data_source.latest(**kwargs))
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def search(self, query: str, symbol: Optional[str] = None, **kwargs):
         """Search normalized news."""
         self._update_data_source(symbol)
-        return self.data_source.search(query=query, **kwargs)
+        return self._annotate_news_fallback(
+            self.data_source.search(query=query, **kwargs)
+        )
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def by_symbol(self, symbol: str, **kwargs):
         """Get normalized news by symbol."""
         self._update_data_source(symbol)
-        return self.data_source.by_symbol(symbol=symbol, **kwargs)
+        return self._annotate_news_fallback(
+            self.data_source.by_symbol(symbol=symbol, **kwargs)
+        )
 
     def filter(
         self,
@@ -860,8 +938,8 @@ class News(BaseComponent):
 class Finance(BaseComponent):
     """Financial statements and ratios."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
-    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"]}
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
     SUPPORTED_PERIODS = ["quarter", "year", "annual"]
 
     def __init__(
@@ -916,6 +994,10 @@ class Finance(BaseComponent):
             # DNSE doesn't support financial data, fallback to KBS
             from vnbroker.explorer.kbs.financial import Finance as KBSFinancial
             return KBSFinancial(self.symbol, show_log=self.show_log)
+        elif source == "ssi":
+            # SSI doesn't support financial data, fallback to KBS
+            from vnbroker.explorer.kbs.financial import Finance as KBSFinancial
+            return KBSFinancial(self.symbol, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -949,25 +1031,22 @@ class Finance(BaseComponent):
 
         return self._call_with_fallback(data_type, **processed_kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
+    # NOTE: no @lru_cache — symbol-dependent, would leak `self` (see Company).
     def balance_sheet(self, symbol: Optional[str] = None,
                       **kwargs) -> Any:
         """Get balance sheet."""
         return self._get_financial_data('balance_sheet', symbol, **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def income_statement(self, symbol: Optional[str] = None,
                          **kwargs) -> Any:
         """Get income statement."""
         return self._get_financial_data('income_statement', symbol, **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def cash_flow(self, symbol: Optional[str] = None,
                   **kwargs) -> Any:
         """Get cash flow statement."""
         return self._get_financial_data('cash_flow', symbol, **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def ratio(self, symbol: Optional[str] = None, **kwargs) -> Any:
         """Get financial ratios."""
         return self._get_financial_data('ratio', symbol, **kwargs)
@@ -1306,7 +1385,9 @@ class Screener(BaseComponent):
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        reraise=True,
     )
     def stock(self, **kwargs):
         """Screen stocks with criteria."""

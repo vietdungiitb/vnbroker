@@ -20,10 +20,11 @@ class DataSources:
     
     Data sources supported by vnbroker.
     """
-    "KBS" = _DataSource.KBS.value
+    KBS = _DataSource.KBS.value
     VCI = _DataSource.VCI.value
     TCBS = _DataSource.TCBS.value
     DNSE = _DataSource.DNSE.value
+    SSI = _DataSource.SSI.value
     BINANCE = _DataSource.BINANCE.value
     
     ALL_SOURCES = _DataSource.all_sources()
