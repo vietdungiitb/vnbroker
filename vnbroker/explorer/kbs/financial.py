@@ -137,7 +137,6 @@ class Finance:
         """
         # Extract components from response
         audit_list = response.get('Audit', [])
-        unit_list = response.get('Unit', [])
         head_list = response.get('Head', [])
         content = response.get('Content', {})
         

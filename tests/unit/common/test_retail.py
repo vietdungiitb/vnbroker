@@ -63,8 +63,11 @@ class TestGoldSjc:
     def test_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         calls: Dict[str, Any] = {}
 
-        def _post(url: str, headers: Any = None, data: Any = None) -> FakeResp:
+        def _post(
+            url: str, headers: Any = None, data: Any = None, **k: Any
+        ) -> FakeResp:
             calls["data"] = data
+            calls["timeout"] = k.get("timeout")
             return FakeResp(200, load("sjc"))
 
         monkeypatch.setattr("vnbroker.explorer.misc.gold_price.requests.post", _post)
@@ -75,11 +78,14 @@ class TestGoldSjc:
         assert df.iloc[0]["source"] == "SJC"
         assert df.attrs["source"] == "SJC"
         assert "toDate=15/01/2026" in calls["data"]
+        assert calls["timeout"] is not None
 
     def test_default_today(self, monkeypatch: pytest.MonkeyPatch) -> None:
         calls: Dict[str, Any] = {}
 
-        def _post(url: str, headers: Any = None, data: Any = None) -> FakeResp:
+        def _post(
+            url: str, headers: Any = None, data: Any = None, **k: Any
+        ) -> FakeResp:
             calls["data"] = data
             return FakeResp(200, load("sjc"))
 

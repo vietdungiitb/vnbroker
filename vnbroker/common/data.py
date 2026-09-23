@@ -252,6 +252,7 @@ class BaseComponent:
         provider = self.data_source
         sources = [self.source] + self.FALLBACK_MAP.get(self.source, [])
         last_error = None
+        empty_result = None
         for source in sources:
             if source != self.source:
                 try:
@@ -266,17 +267,22 @@ class BaseComponent:
             try:
                 result = method(*args, **kwargs)
                 if isinstance(result, pd.DataFrame) and result.empty:
-                    if source == self.source:
-                        return result
+                    # DNSE fallback providers return empty DF by design;
+                    # keep trying fallbacks, remember empty to return if all empty.
+                    if empty_result is None:
+                        empty_result = result
                     continue
                 return result
-            except (NotImplementedError, AttributeError):
+            except (NotImplementedError, AttributeError) as e:
+                last_error = e
                 continue
             except Exception as e:
                 if source != self.source:
                     last_error = e
                     continue
                 raise
+        if empty_result is not None:
+            return empty_result
         if last_error:
             raise last_error
         raise NotImplementedError(
@@ -668,19 +674,19 @@ class Company(BaseComponent):
             self.symbol = symbol.upper()
             self.data_source = self._load_data_source()
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
+    # NOTE: intentionally no @lru_cache here — methods depend on self.symbol;
+    # caching `self` would leak instances and return stale data after
+    # update_symbol(). Use TTLCache with explicit (symbol, source, params) key
+    # if caching is needed (see core/utils/cache.py).
     def overview(self, **kwargs):
         return self._call_with_fallback('overview', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def profile(self, **kwargs):
         return self._call_with_fallback('profile', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def shareholders(self, **kwargs):
         return self._call_with_fallback('shareholders', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def insider_deals(self, **kwargs):
         standardize = kwargs.pop("standardize", True)
         result = self._call_with_fallback('insider_deals', **kwargs)
@@ -690,35 +696,27 @@ class Company(BaseComponent):
             return _normalize_company_insider_deals_df(result, symbol=self.symbol)
         return result
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def subsidiaries(self, **kwargs):
         return self._call_with_fallback('subsidiaries', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def officers(self, **kwargs):
         return self._call_with_fallback('officers', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def events(self, **kwargs):
         return self._call_with_fallback('events', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def news(self, **kwargs):
         return self._call_with_fallback('news', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def dividends(self, **kwargs):
         return self._call_with_fallback('dividends', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def affiliate(self, **kwargs):
         return self._call_with_fallback('affiliate', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def trading_stats(self, **kwargs):
         return self._call_with_fallback('trading_stats', **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def ratio_summary(self, **kwargs):
         return self._call_with_fallback('ratio_summary', **kwargs)
 
@@ -762,9 +760,12 @@ class News(BaseComponent):
             from vnbroker.explorer.tcbs.news import News as TCBSNews
             return TCBSNews(self.symbol, auth_token=self.auth_token, show_log=self.show_log)
         elif source == "dnse":
-            # DNSE doesn't have news, fallback to VCI
+            # DNSE doesn't have news — explicit fallback to VCI.
+            # Annotated via source_used so callers know real origin.
             from vnbroker.explorer.vci.news import News as VCINews
-            return VCINews(self.symbol, show_log=self.show_log)
+            provider = VCINews(self.symbol, show_log=self.show_log)
+            provider._vnbroker_fallback_note = ("DNSE", "VCI")
+            return provider
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -837,23 +838,37 @@ class News(BaseComponent):
             self.symbol = symbol.upper()
         self.data_source = self._load_data_source()
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
+    # NOTE: no @lru_cache — symbol-dependent, would leak `self` (see Company).
+    def _annotate_news_fallback(self, result):
+        """Ghi source_used=VCI khi source=DNSE fallback (minh bạch nguồn thật)."""
+        if self.source == "DNSE":
+            try:
+                if isinstance(getattr(result, "attrs", None), dict):
+                    result.attrs["source"] = result.attrs.get("source", "VCI")
+                    result.attrs["source_used"] = "VCI"
+                    result.attrs["source_requested"] = "DNSE"
+            except Exception:
+                pass
+        return result
+
     def latest(self, symbol: Optional[str] = None, **kwargs):
         """Get latest normalized news."""
         self._update_data_source(symbol)
-        return self.data_source.latest(**kwargs)
+        return self._annotate_news_fallback(self.data_source.latest(**kwargs))
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def search(self, query: str, symbol: Optional[str] = None, **kwargs):
         """Search normalized news."""
         self._update_data_source(symbol)
-        return self.data_source.search(query=query, **kwargs)
+        return self._annotate_news_fallback(
+            self.data_source.search(query=query, **kwargs)
+        )
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def by_symbol(self, symbol: str, **kwargs):
         """Get normalized news by symbol."""
         self._update_data_source(symbol)
-        return self.data_source.by_symbol(symbol=symbol, **kwargs)
+        return self._annotate_news_fallback(
+            self.data_source.by_symbol(symbol=symbol, **kwargs)
+        )
 
     def filter(
         self,
@@ -988,25 +1003,22 @@ class Finance(BaseComponent):
 
         return self._call_with_fallback(data_type, **processed_kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
+    # NOTE: no @lru_cache — symbol-dependent, would leak `self` (see Company).
     def balance_sheet(self, symbol: Optional[str] = None,
                       **kwargs) -> Any:
         """Get balance sheet."""
         return self._get_financial_data('balance_sheet', symbol, **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def income_statement(self, symbol: Optional[str] = None,
                          **kwargs) -> Any:
         """Get income statement."""
         return self._get_financial_data('income_statement', symbol, **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def cash_flow(self, symbol: Optional[str] = None,
                   **kwargs) -> Any:
         """Get cash flow statement."""
         return self._get_financial_data('cash_flow', symbol, **kwargs)
 
-    @lru_cache(maxsize=Config.CACHE_SIZE)
     def ratio(self, symbol: Optional[str] = None, **kwargs) -> Any:
         """Get financial ratios."""
         return self._get_financial_data('ratio', symbol, **kwargs)

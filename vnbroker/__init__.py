@@ -19,7 +19,7 @@ class Vnbroker:
 
 
 # Market constants
-from .constants import (
+from .constants import (  # noqa: E402
     INDICES_INFO,
     INDICES_MAP,
     INDEX_GROUPS,
@@ -28,8 +28,8 @@ from .constants import (
 )
 
 # Load connector modules to register providers
-from . import connector
-from . import analytics
+from . import connector  # noqa: E402
+from . import analytics  # noqa: E402
 
 # Load explorer modules to register providers (lazy to avoid deadlock)
 _explorer_modules_loaded = False
@@ -63,10 +63,10 @@ __all__ = [
 ]
 
 # Unified Registry
-from .core.unified_registry import UnifiedRegistry
+from .core.unified_registry import UnifiedRegistry  # noqa: E402
 
 # Check for updates only if explicitly enabled via environment variable
-import os
+import os  # noqa: E402
 if os.getenv("VNBROKER_CHECK_UPDATES") == "1" and not os.getenv("PYTEST_RUNNING"):
     try:
         from vnbroker.core.utils.upgrade import update_notice

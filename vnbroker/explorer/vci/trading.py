@@ -102,7 +102,7 @@ class Trading:
                 for i, ask in enumerate(item['bidAsk']['askPrices'], start=1):
                     row[f'bidAsk_ask_{i}_price'] = ask['price']
                     row[f'bidAsk_ask_{i}_volume'] = ask['volume']
-            except:
+            except Exception:
                 pass
             
             # Append the row dictionary to the list

@@ -369,5 +369,5 @@ class Listing:
 
 
 # Register provider
-from vnbroker.core.registry import ProviderRegistry
+from vnbroker.core.registry import ProviderRegistry  # noqa: E402
 ProviderRegistry.register("listing", "tcbs", Listing)

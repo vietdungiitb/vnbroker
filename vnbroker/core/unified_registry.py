@@ -9,7 +9,7 @@ data providers (explorer/connector) and broker clients (TCBS, SSI, VNDirect).
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Type, Any
+from typing import Dict, List, Type, Any
 from logging import getLogger
 
 from vnbroker.core.registry import ProviderRegistry

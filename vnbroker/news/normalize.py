@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
@@ -107,13 +108,17 @@ def normalize_news_dataframe(
     out["tags"] = out.get("tags", None)
 
     out["news_id"] = _build_news_id(source_key, out["source_article_id"], out["url"])
-    out["raw_hash"] = (
+    # Stable cross-process hash (Python hash() is salted per process).
+    raw_key = (
         out["title"].fillna("").astype(str)
         + "|"
         + out["url"].fillna("").astype(str)
         + "|"
         + out["published_at"].fillna("").astype(str)
-    ).map(lambda x: str(abs(hash(x))))
+    )
+    out["raw_hash"] = raw_key.map(
+        lambda x: hashlib.md5(x.encode("utf-8")).hexdigest()
+    )
 
     if "dedup_group_id" not in out.columns:
         out["dedup_group_id"] = None

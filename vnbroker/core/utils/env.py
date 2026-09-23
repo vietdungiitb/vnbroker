@@ -127,7 +127,7 @@ def get_hosting_service():
             hosting_service = "Kaggle"
         elif '.hf.space' in os.environ['SPACE_HOST']:
             hosting_service = "Hugging Face Spaces"
-    except:
+    except Exception:
         hosting_service = "Local or Unknown"
     return hosting_service
 

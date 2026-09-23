@@ -22,7 +22,7 @@ class SessionState(Enum):
     REVOKED = "revoked"
 
 
-from vnbroker.broker.exceptions import BrokerSessionExpiredError
+from vnbroker.broker.exceptions import BrokerSessionExpiredError  # noqa: E402
 
 
 @dataclass

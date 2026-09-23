@@ -12,9 +12,8 @@ from vnbroker.core.utils import client
 from vnbroker.core.utils.client import ProxyConfig
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import camel_to_snake, get_asset_type
-from vnbroker.core.utils.transform import drop_cols_by_pattern, reorder_cols
+from vnbroker.core.utils.transform import drop_cols_by_pattern
 from vnbroker.core.utils.user_agent import get_headers
-from vnbroker.core.utils.validation import validate_symbol
 from vnbroker.core.utils.execution import optimize_execution
 from .const import _VCI_COMPANY_URL, _VCIQ_URL
 
@@ -349,5 +348,5 @@ class Company:
         ])
 
 
-from vnbroker.core.registry import ProviderRegistry
+from vnbroker.core.registry import ProviderRegistry  # noqa: E402
 ProviderRegistry.register("company", "vci", Company)

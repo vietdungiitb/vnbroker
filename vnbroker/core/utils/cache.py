@@ -7,7 +7,7 @@ listing data, industry mappings, and other static/reference data.
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Optional, TypeVar, Generic, Callable
 from functools import wraps
 
@@ -52,6 +52,8 @@ class TTLCache(Generic[T]):
         self._cache: Dict[str, CacheEntry[T]] = {}
         self._lock = threading.RLock()
         self._access_times: Dict[str, float] = {}
+        self._hit_count = 0
+        self._total_count = 0
     
     def _make_key(self, *args, **kwargs) -> str:
         """Generate cache key from arguments."""
@@ -62,6 +64,7 @@ class TTLCache(Generic[T]):
     def get(self, key: str) -> Optional[T]:
         """Get value from cache if not expired."""
         with self._lock:
+            self._total_count += 1
             entry = self._cache.get(key)
             if entry is None:
                 return None
@@ -70,6 +73,7 @@ class TTLCache(Generic[T]):
                 self._access_times.pop(key, None)
                 return None
             self._access_times[key] = time.monotonic()
+            self._hit_count += 1
             return entry.value
     
     def set(self, key: str, value: T, ttl_seconds: Optional[int] = None) -> None:
@@ -129,12 +133,16 @@ class TTLCache(Generic[T]):
         """Return cache statistics."""
         with self._lock:
             self.cleanup_expired()
+            total = self._total_count
+            hits = self._hit_count
             return {
                 "name": self._name,
                 "size": len(self._cache),
                 "max_size": self._max_size,
                 "ttl_seconds": self._ttl_seconds,
-                "hit_rate": getattr(self, '_hit_count', 0) / max(getattr(self, '_total_count', 1), 1)
+                "hit_count": hits,
+                "total_count": total,
+                "hit_rate": (hits / total) if total else 0.0,
             }
 
 

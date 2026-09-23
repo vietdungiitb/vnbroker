@@ -284,39 +284,14 @@ def remove_vietnamese_accents(text: str, use_map: bool = True) -> str:
         return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
 
 
-def normalize_vietnamese_text_to_snake_case(
+def _normalize_vietnamese_text_to_snake_case_legacy(
     text: str,
     keep_numbers: bool = True,
     max_length: Optional[int] = None,
     remove_common_words: bool = False,
     preserve_acronyms: bool = False
 ) -> str:
-    """
-    Convert Vietnamese text to ASCII-compatible snake_case identifier.
-    Robust normalization for Vietnamese financial line items and field names.
-    
-    Args:
-        text: Vietnamese or English text to normalize
-        keep_numbers: Whether to keep numeric digits (default: True)
-        max_length: Maximum length of output (default: None/unlimited)
-        remove_common_words: Remove Vietnamese stop words like 'của', 'và', 'các' (default: False)
-        preserve_acronyms: Try to preserve acronyms in uppercase before conversion
-        
-    Returns:
-        Snake_case identifier suitable for database column names
-        
-    Examples:
-        >>> normalize_vietnamese_text_to_snake_case("1. Doanh thu")
-        'doanh_thu'
-        >>> normalize_vietnamese_text_to_snake_case("Doanh thu bán hàng và cung cấp dịch vụ")
-        'doanh_thu_ban_hang_va_cung_cap_dich_vu'
-        >>> normalize_vietnamese_text_to_snake_case("Chi phí (2023-2024)")
-        'chi_phi_2023_2024'
-        >>> normalize_vietnamese_text_to_snake_case("Lợi nhuận sau thuế", remove_common_words=True)
-        'loi_nhuan_sau_thue'
-        >>> normalize_vietnamese_text_to_snake_case("EBITDA (Lãi trước thuế)")
-        'ebitda_lai_truoc_thue'
-    """
+    """Deprecated legacy variant kept for backward-compat; use normalize_vietnamese_text_to_snake_case()."""
     if not text or not text.strip():
         return ""
     

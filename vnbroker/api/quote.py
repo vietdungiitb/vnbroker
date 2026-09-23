@@ -5,7 +5,7 @@ Unified Quote adapter with dynamic method detection and parameter filtering.
 Module quản lý dữ liệu giá chứng khoán với phát hiện phương thức động và lọc tham số.
 """
 
-from typing import Any, Optional, Union, List
+from typing import Any, Optional, Union
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 from vnbroker.config import Config

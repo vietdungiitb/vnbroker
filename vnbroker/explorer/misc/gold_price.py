@@ -1,9 +1,21 @@
+import logging
+import os
 import requests
 import pandas as pd
 from datetime import datetime
 from typing import Optional
+from vnbroker.config import Config
 from vnbroker.core.utils.user_agent import get_headers
 from vnbroker.core.utils.execution import optimize_execution
+
+_logger = logging.getLogger(__name__)
+
+_BTMC_DEFAULT_KEY = "3kd8ub1llcg9t45hnoh8hmn7t5kc2v"
+
+
+def _btmc_default_url() -> str:
+    key = os.getenv("BTMC_API_KEY", _BTMC_DEFAULT_KEY)
+    return f"http://api.btmc.vn/api/BTMCAPI/getpricebtmc?key={key}"
 
 
 @optimize_execution("MISC")
@@ -46,18 +58,20 @@ def sjc_gold_price(date: Optional[str] = None) -> Optional[pd.DataFrame]:
     headers = get_headers(data_source="SJC", random_agent=False)
 
     # Send request
-    response = requests.post(url, headers=headers, data=payload)
+    response = requests.post(
+        url, headers=headers, data=payload, timeout=Config.REQUEST_TIMEOUT
+    )
 
     # Handle response
     if response.status_code == 200:
         data = response.json()
         if not data.get("success"):
-            print("Lỗi: Không thể truy xuất dữ liệu từ API.")
+            _logger.warning("SJC: Không thể truy xuất dữ liệu từ API.")
             return None
 
         gold_data = data.get("data", [])
         if not gold_data:
-            print("Lỗi: Không có dữ liệu trả về từ API.")
+            _logger.warning("SJC: Không có dữ liệu trả về từ API.")
             return None
 
         # Convert to DataFrame
@@ -74,23 +88,28 @@ def sjc_gold_price(date: Optional[str] = None) -> Optional[pd.DataFrame]:
 
         return df
     else:
-        print(f"Lỗi: Không thể kết nối đến API. Mã trạng thái: {response.status_code}")
+        _logger.warning(
+            "SJC: Không thể kết nối đến API. Mã trạng thái: %s", response.status_code
+        )
         return None
 
 
 @optimize_execution("MISC")
 def btmc_goldprice(
-    url: str = "http://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v",
+    url: Optional[str] = None,
 ) -> pd.DataFrame:
     """Parse dữ liệu giá vàng từ API JSON Bảo Tín Minh Châu.
 
     Args:
-        url: Đường dẫn đến API JSON.
+        url: Đường dẫn đến API JSON. None → dùng BTMC_API_KEY env
+            hoặc key mặc định (backward-compat).
 
     Returns:
         DataFrame chứa dữ liệu giá vàng.
     """
-    response = requests.get(url)
+    if url is None:
+        url = _btmc_default_url()
+    response = requests.get(url, timeout=Config.REQUEST_TIMEOUT)
     json_data = response.json()
     data_list = json_data["DataList"]["Data"]
 
@@ -116,5 +135,10 @@ def btmc_goldprice(
             }
         )
     df = pd.DataFrame(data)
-    df = df.sort_values(by=["sell_price"], ascending=False)
+    # Ép số trước khi sort để tránh sort lexicographic trên string.
+    for _col in ("buy_price", "sell_price", "world_price"):
+        if _col in df.columns:
+            df[_col] = pd.to_numeric(df[_col], errors="coerce")
+    if "sell_price" in df.columns:
+        df = df.sort_values(by=["sell_price"], ascending=False)
     return df

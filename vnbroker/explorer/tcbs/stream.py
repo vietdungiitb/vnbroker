@@ -12,7 +12,6 @@ from vnbroker.explorer.tcbs.ws_models import (
     MatchingEvent,
     OHLC,
     OrderBook,
-    StreamMessage,
     Ticker,
     Trade,
 )

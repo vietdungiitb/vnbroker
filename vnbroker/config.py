@@ -42,8 +42,9 @@ class Config:
     # -------------------------------------------------------------------------
     # Logging
     # -------------------------------------------------------------------------
-    # Default logging level for all vnbroker modules
-    LOG_LEVEL: int = logging.DEBUG
+    # Default logging level for all vnbroker modules (INFO to avoid spam;
+    # DEBUG only when explicitly needed)
+    LOG_LEVEL: int = logging.INFO
 
     @classmethod
     def apply_logging_config(cls):
@@ -59,25 +60,15 @@ class Config:
 # Define minimum required versions for each vnbroker version
 # Format: "X.Y.Z": {"package_name": "min_version", ...}
 VERSION_REQUIREMENTS = {
-    "3.1.0": {
+    "3.3.0": {
         "vnii": ">=0.1.5",
-        
-        # # Core dependencies - required for vnbroker to work
-        # "requests": ">=2.25.0,<3.0.0",
-        # "pandas": ">=1.3.0,<3.0.0",
-        # "beautifulsoup4": ">=4.9.0,<5.0.0",
-        # "packaging": ">=20.0",
-        
-        # # Recommended optional dependencies
-        # "openpyxl": ">=3.0.0",
-        # "psutil": ">=5.8.0"
     }
 }
 
 # Version-specific notices for user
 VERSION_NOTICES = {
-    "3.1.0": {
-        "title": "vnbroker 3.1.0 - Cleanup Release",
+    "3.3.0": {
+        "title": "vnbroker 3.3.0 - Audit Fixes Release",
         "release_url": "https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban",
         "critical_notices": [],
         "warnings": [],
@@ -86,6 +77,6 @@ VERSION_NOTICES = {
 
 # Python version compatibility matrix
 PYTHON_VERSION_SUPPORT = {
-    "3.1.0": ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    "3.3.0": ["3.10", "3.11", "3.12", "3.13", "3.14"]
 }
 
