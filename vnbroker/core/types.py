@@ -97,6 +97,7 @@ class DataSource(str, Enum):
     VCI = "vci"
     TCBS = "tcbs"
     DNSE = "dnse"
+    SSI = "ssi"
     BINANCE = "binance"
     FMARKET = "fmarket"  # Fund market
     

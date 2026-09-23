@@ -86,6 +86,31 @@ ssi.stream.wait(timeout=60)
 ssi.stream.disconnect()
 ```
 
+## 5. Dùng SSI làm source market-data (`vn.stock(..., source="SSI")`)
+
+Không cần `vn.broker(...)`: cùng key SSI, gọi API chuẩn KBS/VCI.
+Cần `VNBROKER_BROKER_SSI_API_KEY` + `VNBROKER_BROKER_SSI_API_SECRET` (xem `.env.example`).
+
+```python
+from vnbroker import Vnbroker
+
+vn = Vnbroker(source="SSI", show_log=False)  # key đọc từ env
+acb = vn.stock("ACB")
+history = acb.quote.history(start="2024-01-01", end="2024-01-31")  # SSI-native
+board = acb.trading.price_board(["ACB", "VNM"])                    # SSI-native
+print(history.attrs)  # {"source": "SSI", "source_used": "SSI", ...}
+```
+
+Ma trận native-vs-fallback (kế hoạch: `docs/SSI_EXPLORER_IMPLEMENTATION_PLAN.md` §4):
+
+| Hàm | Nguồn thật | Ghi chú |
+|---|---|---|
+| `quote.history` | SSI (`get_ohlc`) | `interval` đủ 8 giá trị (`1m/3m/5m/15m/1H/1D/1W/1M`); `30m` raise `NotImplementedError` |
+| `quote.intraday` / `price_depth` | — | `NotImplementedError`; dùng `source="KBS"/"VCI"` hoặc `vn.broker(provider="ssi").stream` |
+| `listing.*` | SSI (`securities_info`/`master_data`/`indexes`) | `all_symbols()` loop 3 sàn; CW/bonds/futures raise `NotImplementedError` |
+| `trading.price_board` | SSI (1 master + N summary) | batch > 20 mã nên dùng KBS (quota 10 rps) |
+| `company.*` / `finance.*` / `news.*` | KBS/VCI (tự fallback) | `df.attrs["source_requested"]="SSI"`, `source_used` ghi nguồn thật |
+
 ## Lưu ý
 
 - Date query `YYYY/MM/DD`; FCO place `YYYY/MM/DD HH:MM:SS`.

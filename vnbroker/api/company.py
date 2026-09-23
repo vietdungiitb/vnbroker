@@ -53,9 +53,9 @@ class Company(BaseAdapter):
         self.api_key = api_key
         self.api_secret = api_secret
         
-        valid_sources = ["kbs", "vci", "tcbs", "dnse", AUTO_SOURCE]
+        valid_sources = ["kbs", "vci", "tcbs", "dnse", "ssi", AUTO_SOURCE]
         if source.lower() not in valid_sources:
-            raise ValueError("Lớp Company chỉ nhận giá trị tham số source là 'VCI', 'KBS', 'TCBS', 'DNSE' hoặc 'AUTO'.")
+            raise ValueError("Lớp Company chỉ nhận giá trị tham số source là 'VCI', 'KBS', 'TCBS', 'DNSE', 'SSI' hoặc 'AUTO'.")
         
         # BaseAdapter will discover vnbroker.explorer.<real_source>.company
         # and pass only the kwargs its __init__ accepts.

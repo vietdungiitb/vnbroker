@@ -44,7 +44,7 @@ class Vnbroker:
         >>> acb = vn.stock('ACB', source='DNSE')  # Direct DNSE access (requires DNSE_API_KEY + DNSE_API_SECRET)
     """
 
-    SUPPORTED_SOURCES = ["KBS", "VCI", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["KBS", "VCI", "TCBS", "DNSE", "SSI"]
     DEFAULT_SOURCE = "KBS"
 
     def __init__(
@@ -120,6 +120,14 @@ class Vnbroker:
                 f"Supported: {', '.join(self.SUPPORTED_SOURCES)}"
             )
 
+        # API keys per authenticated source (TCBS / SSI read their own env).
+        if effective_source == "SSI":
+            key = os.getenv("VNBROKER_BROKER_SSI_API_KEY")
+            secret = os.getenv("VNBROKER_BROKER_SSI_API_SECRET")
+        else:
+            key = None
+            secret = None
+
         return StockComponents(
             self.symbol,
             effective_source,
@@ -128,12 +136,15 @@ class Vnbroker:
             or os.getenv("TCBS_AUTH_TOKEN")
             if effective_source == "TCBS"
             else None,
-            api_key=os.getenv("vnbroker_TCBS_OPENAPI_API_KEY")
-            or os.getenv("TCBS_OPENAPI_API_KEY")
-            or os.getenv("vnbroker_TCBS_API_KEY")
-            or os.getenv("TCBS_API_KEY")
-            if effective_source == "TCBS"
-            else None,
+            api_key=(
+                os.getenv("vnbroker_TCBS_OPENAPI_API_KEY")
+                or os.getenv("TCBS_OPENAPI_API_KEY")
+                or os.getenv("vnbroker_TCBS_API_KEY")
+                or os.getenv("TCBS_API_KEY")
+                if effective_source == "TCBS"
+                else key
+            ),
+            api_secret=secret,
         )
 
     def fx(self, symbol: Optional[str] = "EURUSD", source: Optional[str] = None):

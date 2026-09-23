@@ -20,7 +20,7 @@ from vnbroker.core.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-PUBLIC_VN_SOURCES = {"KBS", "VCI", "TCBS", "DNSE"}
+PUBLIC_VN_SOURCES = {"KBS", "VCI", "TCBS", "DNSE", "SSI"}
 
 
 _INSIDER_STANDARD_COLUMNS = [
@@ -296,7 +296,7 @@ class StockComponents(BaseComponent):
     Direct Provider Architecture: VCI, KBS, TCBS, DNSE
     """
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
 
     def __init__(self, symbol: str, source: str = "KBS",
                  show_log: bool = True,
@@ -374,7 +374,7 @@ class StockComponents(BaseComponent):
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
 
     def __init__(self, symbol: str, source: str = "KBS",
                  auth_token: Optional[str] = None,
@@ -408,6 +408,9 @@ class Quote(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.quote import DNSEQuote
             return DNSEQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.quote import SSIQuote
+            return SSIQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -486,7 +489,7 @@ def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
 class Listing(BaseComponent):
     """Symbol listing and grouping data."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
 
     def __init__(self, source: str = "KBS",
                  api_key: Optional[str] = None,
@@ -518,6 +521,9 @@ class Listing(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.listing import DNSEListing
             return DNSEListing(api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.listing import SSIListing
+            return SSIListing(api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -570,7 +576,8 @@ class Listing(BaseComponent):
 class Trading(BaseComponent):
     """Real-time trading data and market board information."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
     FALLBACK_MAP = {"DNSE": ["KBS", "VCI"]}
 
     def __init__(self, symbol: Optional[str] = 'VN30F1M',
@@ -606,6 +613,9 @@ class Trading(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.trading import DNSETrading
             return DNSETrading(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.trading import SSITrading
+            return SSITrading(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -629,8 +639,8 @@ class Trading(BaseComponent):
 class Company(BaseComponent):
     """Company profile, management, ownership information."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
-    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"]}
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
     def __init__(self, symbol: Optional[str] = 'ACB',
                  source: str = "KBS",
@@ -665,6 +675,9 @@ class Company(BaseComponent):
         elif source == "dnse":
             from vnbroker.explorer.dnse.company import DNSECompany
             return DNSECompany(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.company import SSICompany
+            return SSICompany(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
@@ -727,7 +740,7 @@ class Company(BaseComponent):
 class News(BaseComponent):
     """Multi-source normalized stock news access."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
 
     def __init__(self, symbol: Optional[str] = None,
                  source: str = "KBS",
@@ -765,6 +778,12 @@ class News(BaseComponent):
             from vnbroker.explorer.vci.news import News as VCINews
             provider = VCINews(self.symbol, show_log=self.show_log)
             provider._vnbroker_fallback_note = ("DNSE", "VCI")
+            return provider
+        elif source == "ssi":
+            # SSI doesn't have news — explicit fallback to VCI (same as DNSE).
+            from vnbroker.explorer.vci.news import News as VCINews
+            provider = VCINews(self.symbol, show_log=self.show_log)
+            provider._vnbroker_fallback_note = ("SSI", "VCI")
             return provider
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
@@ -840,13 +859,13 @@ class News(BaseComponent):
 
     # NOTE: no @lru_cache — symbol-dependent, would leak `self` (see Company).
     def _annotate_news_fallback(self, result):
-        """Ghi source_used=VCI khi source=DNSE fallback (minh bạch nguồn thật)."""
-        if self.source == "DNSE":
+        """Ghi source_used=VCI khi source=DNSE/SSI fallback (minh bạch nguồn thật)."""
+        if self.source in ("DNSE", "SSI"):
             try:
                 if isinstance(getattr(result, "attrs", None), dict):
                     result.attrs["source"] = result.attrs.get("source", "VCI")
                     result.attrs["source_used"] = "VCI"
-                    result.attrs["source_requested"] = "DNSE"
+                    result.attrs["source_requested"] = self.source
             except Exception:
                 pass
         return result
@@ -914,8 +933,8 @@ class News(BaseComponent):
 class Finance(BaseComponent):
     """Financial statements and ratios."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE"]
-    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"]}
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
     SUPPORTED_PERIODS = ["quarter", "year", "annual"]
 
     def __init__(
@@ -968,6 +987,10 @@ class Finance(BaseComponent):
             return TCBSFinancial(self.symbol, period=self.period, get_all=self.get_all, auth_token=self.auth_token, show_log=self.show_log)
         elif source == "dnse":
             # DNSE doesn't support financial data, fallback to KBS
+            from vnbroker.explorer.kbs.financial import Finance as KBSFinancial
+            return KBSFinancial(self.symbol, show_log=self.show_log)
+        elif source == "ssi":
+            # SSI doesn't support financial data, fallback to KBS
             from vnbroker.explorer.kbs.financial import Finance as KBSFinancial
             return KBSFinancial(self.symbol, show_log=self.show_log)
         else:

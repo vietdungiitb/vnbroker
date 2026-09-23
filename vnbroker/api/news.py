@@ -19,6 +19,8 @@ class News(BaseAdapter):
         random_agent: bool = False,
         show_log: bool = False,
         auth_token: Optional[str] = None,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
     ):
         # Ensure provider modules are loaded.
         from vnbroker import _ensure_explorer_modules_loaded
@@ -30,19 +32,22 @@ class News(BaseAdapter):
         self.random_agent = random_agent
         self.show_log = show_log
         self.auth_token = auth_token
+        self.api_key = api_key
+        self.api_secret = api_secret
 
         valid_sources = [
             "kbs",
             "vci",
             "tcbs",
             "dnse",
+            "ssi",
             "rss_cafef",
             "rss_vneconomy",
             AUTO_SOURCE,
         ]
         if source.lower() not in valid_sources:
             raise ValueError(
-                "Lop News chi nhan source: 'KBS', 'VCI', 'TCBS', 'DNSE', 'RSS_CAFEF', 'RSS_VNECONOMY' hoac 'AUTO'."
+                "Lop News chi nhan source: 'KBS', 'VCI', 'TCBS', 'DNSE', 'SSI', 'RSS_CAFEF', 'RSS_VNECONOMY' hoac 'AUTO'."
             )
 
         super().__init__(
@@ -51,6 +56,8 @@ class News(BaseAdapter):
             random_agent=random_agent,
             show_log=show_log,
             auth_token=auth_token,
+            api_key=api_key,
+            api_secret=api_secret,
         )
 
     @retry(

@@ -43,6 +43,7 @@ def _ensure_explorer_modules_loaded():
     try:
         from .explorer import vci, tcbs, kbs, rss_cafef, rss_vneconomy  # noqa: F401
         from .explorer import dnse  # noqa: F401 - DNSE provider registration
+        from .explorer import ssi  # noqa: F401 - SSI provider registration
         _explorer_modules_loaded = True
     except Exception as e:
         _explorer_modules_loaded = True
