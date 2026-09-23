@@ -46,6 +46,10 @@ jobs:
     - name: Type baseline check (fail on new mypy --strict errors)
       run: |
         python scripts/check_mypy_baseline.py
+    
+    - name: Version sync check (docs must match pyproject.toml)
+      run: |
+        python scripts/check_version_sync.py
 
   security:
     runs-on: ubuntu-latest

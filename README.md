@@ -2,7 +2,7 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
-> **v3.1.0** — Direct Provider Architecture, không phụ thuộc PAT/Gateway. Cleanup: MSN/FMP removed.
+> **v3.3.0** — Direct Provider Architecture, không phụ thuộc PAT/Gateway. Cleanup: MSN/FMP removed.
 
 ## Tóm tắt
 
@@ -38,9 +38,13 @@ vnbroker hỗ trợ truy cập trực tiếp tới các provider mà **không c�
 | `KBS` | Quote, Company, Finance, Listing, Trading | Không cần auth |
 | `TCBS` | Quote, Company, Finance, Listing, Trading, News | Không cần auth |
 | `DNSE` | Quote, Listing, Trading | Cần `DNSE_API_KEY` + `DNSE_API_SECRET` |
+| `SSI` | Quote, Listing, Trading | Cần `VNBROKER_BROKER_SSI_API_KEY` + `VNBROKER_BROKER_SSI_API_SECRET` |
 
 
-> **Lưu ý:** DNSE Company/Finance hiện tại trả về DataFrame rỗng (chưa được hỗ trợ bởi DNSE upstream).
+> **Lưu ý:** DNSE/SSI không có Company/Finance/News endpoints ở upstream — provider trả
+> DataFrame rỗng đúng schema và **facade tự fallback sang KBS/VCI**
+> (`Finance` fallback cứng sang KBS; `Company` bỏ qua DF rỗng). Kiểm tra nguồn thật qua
+> `df.attrs["source_used"]` / `source_requested`, đừng tin `source` yêu cầu.
 
 ### Private Brokerage (Direct Broker API)
 - `TCBS`: Đặt/hủy/sửa lệnh, số dư, sức mua, vị thế nắm giữ, portfolio — **trực tiếp TCBS iFlash OpenAPI v1.0.0**

@@ -238,6 +238,10 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
 3. **Type check**: `mypy vnbroker --strict`
 4. **Lint**: `ruff check vnbroker`
 5. **Format**: `ruff format vnbroker`
+6. **Dev tools**: `pip install -e .[test,lint]` (mypy/ruff come from the `lint` extra).
+   Offline fallback (no PyPI): `python -m py_compile` touched files + grep checklist
+   (no `print(`, no `core.utils.client` import in explorers, no secrets in logs) —
+   **record the substitution in the PR so CI runs the real gates**.
 
 ## Common Patterns
 
@@ -257,7 +261,8 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
 - Version defined in `pyproject.toml` (single source of truth)
 - `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
 - Upgrade notice checks GitHub release tags (not PyPI)
-- Current version: **3.1.0**
+- Current version: **3.3.0** (`v3.4-dev` on `dev` branch; `scripts/check_version_sync.py` enforces doc sync in CI)
+- Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
 
 ## Deprecated/Removed (v3.1.0)
 - ❌ MSN explorer (no real data)

@@ -16,7 +16,7 @@
 - [x] Cập nhật README, CLAUDE.md, CHANGELOG, broker/__init__.py
 
 ### Future
-- [x] Crypto qua Binance spot public (`Vnbroker.crypto()`, v3.4 — xem `artifacts/v3.4-roadmap/04-crypto-fx-worldindex-wiring.md`)
+- [x] Crypto qua Binance spot public (`Vnbroker.crypto()`, v3.4 — xem `artifacts/v3.4-roadmap/04-crypto-fx-worldindex-wiring.md`; riêng `fx()`/`world_index()` vẫn `NotImplementedError`)
 - [ ] Bổ sung hỗ trợ FX/World Index qua provider khác (Yahoo, TwelveData, etc. — v3.5)
 - [ ] Tăng coverage cho DNSE + broker modules
 - [ ] Xóa `vnstock` references còn sót trong CI/CD workflows
