@@ -49,7 +49,8 @@ class TestvnbrokerClient:
 
     def test_vnbroker_supported_sources(self):
         """Test vnbroker supports expected sources."""
-        expected_sources = ['KBS', 'VCI', 'TCBS', 'DNSE']
+        # SSI duoc them vao client.py:47 khi chua cap nhat test nay.
+        expected_sources = ['KBS', 'VCI', 'TCBS', 'DNSE', 'SSI']
         assert Vnbroker.SUPPORTED_SOURCES == expected_sources
 
     @pytest.mark.parametrize("source", ['VCI', 'KBS', 'TCBS'])
@@ -77,9 +78,14 @@ class TestvnbrokerClient:
             stock.fx('ACB', source='KBS')
 
     def test_vnbroker_crypto_method(self):
-        """Test vnbroker.crypto() method."""
+        """Test vnbroker.crypto() method.
+
+        Crypto chi ho tro BINANCE (vnbroker/common/client.py). Truoc day test
+        ky vong `NotImplementedError` cho moi source != BINANCE; hien method chan
+        `ValueError` som va noi ro danh sach source hop le.
+        """
         stock = Vnbroker(show_log=False)
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(ValueError, match="not supported"):
             stock.crypto('BTC', source='KBS')
 
     def test_vnbroker_world_index_method(self):

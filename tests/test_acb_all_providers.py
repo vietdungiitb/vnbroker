@@ -1,11 +1,40 @@
 """
 Cross-provider capability test: test ACB across all providers and features.
 Produces a capability matrix as a DataFrame and highlights gaps.
+
+GATE (2026-09-28): module nay goi API THAT cua 6 provider (KBS/VCI/TCBS/DNSE/MSN/FMP)
+o 7 capability x nhieu method = hang tram HTTP call. Khong co guard nen `pytest`
+khong co tham so bi treo >15 phuc va 0.6 GB RAM bi nuot.
+
+Suy ra lai trong bao cao kiem toan 2026-09-28: chay `pytest tests/unit` va
+`pytest tests/integration` (CLAUDE.md:182) deu xanh trong <1 phut, nen khong ai
+thay. Chi `pytest` chay ca `tests/` moi gap file nay.
+
+Da sua theo dung convention da co san trong repo (vd
+tests/unit/explorer/test_vci_quote_comprehensive.py:18-28): module-level skip
++ cung bien env `vnbroker_RUN_LIVE_INTEGRATION`. Muon chay:
+    vnbroker_RUN_LIVE_INTEGRATION=1 pytest tests/test_acb_all_providers.py -s
 """
 
 import sys, os, importlib, time, traceback
 from datetime import datetime, timedelta
 import pandas as pd
+
+import pytest
+
+RUN_LIVE_INTEGRATION = os.getenv("vnbroker_RUN_LIVE_INTEGRATION", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+if not RUN_LIVE_INTEGRATION:
+    pytest.skip(
+        "Live cross-provider capability benchmark is disabled by default "
+        "(hundreds of real HTTP calls). Set vnbroker_RUN_LIVE_INTEGRATION=1 to run.",
+        allow_module_level=True,
+    )
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
