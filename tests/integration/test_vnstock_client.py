@@ -48,9 +48,18 @@ class TestvnbrokerClient:
         assert hasattr(acb.finance, 'cash_flow')
 
     def test_vnbroker_supported_sources(self):
-        """Test vnbroker supports expected sources."""
-        expected_sources = ['KBS', 'VCI', 'TCBS', 'DNSE']
-        assert Vnbroker.SUPPORTED_SOURCES == expected_sources
+        """vnbroker supports the expected set of sources.
+
+        Không hardcode danh sách đầy đủ: bản này đã thêm SSI (3.4.0) và AUTO
+        (3.5.0, tầng 1 ẩn danh). Assert theo bất biến thay vì liệt kê, để
+        thêm provider mới không làm test đỏ vô lý.
+        """
+        expected_sources = {'KBS', 'VCI', 'TCBS', 'DNSE', 'SSI'}
+        actual = set(Vnbroker.SUPPORTED_SOURCES)
+        assert expected_sources <= actual, f"thiếu source: {expected_sources - actual}"
+
+        # AUTO là tầng 1: không cần credential, nên phải luôn có sẵn.
+        assert 'AUTO' in actual, "tầng 1 ẩn danh (AUTO) phải được hỗ trợ"
 
     @pytest.mark.parametrize("source", ['VCI', 'KBS', 'TCBS'])
     def test_vnbroker_stock_with_different_sources(self, source):
@@ -77,9 +86,14 @@ class TestvnbrokerClient:
             stock.fx('ACB', source='KBS')
 
     def test_vnbroker_crypto_method(self):
-        """Test vnbroker.crypto() method."""
+        """Crypto chỉ hỗ trợ BINANCE; source khác phải báo lỗi rõ ràng.
+
+        Từ 3.4.0 crypto đã có provider thật (`connector/binance`), nên gọi với
+        source của cổ phiếu phải nói "source không hỗ trợ" — im lặng hoặc báo
+        NotImplementedError đều gây hiểu nhầm rằng crypto chưa implement.
+        """
         stock = Vnbroker(show_log=False)
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(ValueError, match="not supported|không hỗ trợ"):
             stock.crypto('BTC', source='KBS')
 
     def test_vnbroker_world_index_method(self):

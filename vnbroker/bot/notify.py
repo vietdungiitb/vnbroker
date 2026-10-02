@@ -31,7 +31,7 @@ Examples:
 import os
 import json
 import base64
-from typing import Union, Dict, Optional
+from typing import Any, Union, Dict, Optional, cast
 from urllib.parse import quote
 
 import requests
@@ -333,7 +333,7 @@ class Messenger:
         return response.json()
 
     def _telegram_photo(self, message: str,
-                        file_path: str) -> requests.Response:
+                        file_path: str) -> Dict[str, Any]:
         """
         Send photo to Telegram group.
 
@@ -380,7 +380,8 @@ class Messenger:
             files=files,
             timeout=self.TIMEOUT
         )
-        return response.json()
+        # requests trả Any cho .json(); cast để khai báo kiểu là đúng thật.
+        return cast(Dict[str, Any], response.json())
 
     def _telegram_message(self, message: str) -> Dict:
         """

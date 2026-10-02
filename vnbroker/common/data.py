@@ -80,7 +80,14 @@ def _normalize_company_insider_deals_df(df: pd.DataFrame, symbol: Optional[str] 
 
     normalized = base.copy()
 
-    normalized["symbol"] = _pick_first_existing(normalized, ["symbol", "ticker"]).fillna(symbol)
+    # Không dùng `.fillna(symbol)` khi symbol có thể None: pandas 2.x ném
+    # ValueError ("Must specify a fill 'value' or 'method'") còn pandas 3.x bỏ
+    # qua — cùng code, hai hành vi, chỉ máy có pandas mới chạy được.
+    # (Phát hiện từ CI: test đỏ trên cả 3 OS ở Python 3.10.)
+    symbol_col = _pick_first_existing(normalized, ["symbol", "ticker"])
+    if symbol is not None:
+        symbol_col = symbol_col.fillna(symbol)
+    normalized["symbol"] = symbol_col
 
     normalized["announce_date"] = pd.to_datetime(
         _pick_first_existing(

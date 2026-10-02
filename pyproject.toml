@@ -50,7 +50,18 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-timeout"]
-lint = ["mypy>=1.10", "ruff>=0.4.0"]
+lint = [
+    "mypy>=1.10",
+    "ruff>=0.4.0",
+    # Stub types BẮT BUỘC: không có chúng, số lỗi mypy phụ thuộc môi trường —
+    # CI (Python 3.11) và máy dev (3.13) cho kết quả khác nhau với cùng một
+    # commit, khiến baseline gate báo sai. Đây là nguyên nhân 14 lỗi "mới" ở
+    # CI lúc đóng gói v3.5.0 trong khi máy local báo 0.
+    "types-requests>=2.31",
+    "types-beautifulsoup4",
+    "types-python-dateutil",
+    "types-pytz",
+]
 
 [project.urls]
 Documentation = "https://vnstocks.com/docs"

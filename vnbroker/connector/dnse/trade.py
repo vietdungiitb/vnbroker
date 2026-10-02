@@ -898,7 +898,9 @@ class Trade:
         """
         url = f"{self.BASE_URL}/conditional-order-api/v1/orders"
         headers = {"Authorization": f"Bearer {self.token}"}
-        params = {
+        # Annotate rõ kiểu: không có thì mypy suy ra dict[str, object], không
+        # khớp chữ ký `params` của requests (SupportsItems[str, ...]).
+        params: Dict[str, Any] = {
             "accountNo": account_no,
             "marketId": market_id,
             "daily": daily,

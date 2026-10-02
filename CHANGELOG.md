@@ -47,6 +47,38 @@ All notable changes to this project will be documented in this file.
 **Số liệu:** pytest **1001 passed** / 5 skipped · ruff 0 · version-sync 0 ·
 mypy-baseline 0 · coverage **55%**.
 
+### Sửa lỗi phát hiện bởi CI ngay sau khi đóng gói (v3.5.0 follow-up)
+
+Ba lỗi này **chỉ lộ ra trên CI**, không thấy ở máy dev — và là nguyên nhân release
+v3.5.0 bị đánh dấu đỏ. Đã tái hiện và sửa, không reset baseline.
+
+1. **`fillna(None)` — phụ thuộc phiên bản pandas.** `common/data.py:83` gọi
+   `.fillna(symbol)` với `symbol=None`. pandas **2.x** ném
+   `ValueError: Must specify a fill 'value' or 'method'.`; pandas **3.x** bỏ qua.
+   Máy dev dùng pandas 3.0.2 nên xanh, CI dùng 2.x nên đỏ trên cả 3 OS.
+   → Sửa bằng `if symbol is not None:` + `test_pandas_version_compat.py` chặn
+   tái phát ở mức AST (vì test runtime ở máy pandas 3 không bắt được).
+   **Đã verify bằng pandas 2.2.3 thật: trước sửa đỏ, sau sửa xanh.**
+2. **Thiếu stub `types-requests` trong `[lint]`.** Không có nó, số lỗi mypy phụ
+   thuộc môi trường: CI (Python 3.11) báo 14 lỗi "mới" cho cùng một commit mà máy
+   dev báo 0. → Bổ sung stub vào `lint` extra, và sửa 3 lỗi thật phát lộ ra:
+   `dict` không annotate → `Dict[str, Any]` ở `dnse/trade.py` và `proxy_manager.py`;
+   `_telegram_photo` khai báo `-> requests.Response` nhưng trả `response.json()`
+   (bug annotation thật) → `Dict[str, Any]` + `cast`.
+   **Kết quả: 33 lỗi strict được sửa thật, không phải nới baseline.**
+3. **`import file mismatch` — 7 basename trùng giữa các thư mục test.**
+   Thiếu `__init__.py` nên `test_quote.py` ở `tests/unit/explorer` và
+   `tests/integration/explorer` đụng nhau, làm **toàn bộ** collection fail.
+   → Thêm 16 `__init__.py`. `pytest tests/` giờ thu thập 1090 test, exit 0.
+4. **2 test integration lỗi thời** — `test_vnstock_client.py` assert
+   `SUPPORTED_SOURCES == ['KBS','VCI','TCBS','DNSE']` (thiếu SSI từ 3.4.0 và AUTO
+   từ 3.5.0), và kỳ vọng `crypto()` ném `NotImplementedError` trong khi nay là
+   `ValueError` (crypto đã có provider BINANCE thật từ 3.4.0).
+   → Chuyển sang bất biến + kiểm đúng hành vi.
+
+**Số liệu sau sửa:** pytest **1064 passed** / 29 skipped (toàn bộ `tests/`) ·
+1006 passed trên pandas 2.2.3 · ruff 0 · version-sync 0 · mypy-baseline 0.
+
 ---
 
 ## [Unreleased]
