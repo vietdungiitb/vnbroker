@@ -140,7 +140,7 @@ class SSIExplorerSession:
         self.ensure_token()
         return SSIMarketService(self._config, self._session, self._transport)
 
-    def stream_manager(self) -> "SSIStreamManager":
+    def stream_manager(self) -> "SSIStreamManager":  # noqa: F821 - import cục bộ bên dưới
         """Build a WS stream manager bound to this session (P2 live lane)."""
         from vnbroker.broker.ssi.stream import SSIStreamManager
 

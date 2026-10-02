@@ -2,9 +2,9 @@ name: Comprehensive Test Suite
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
   schedule:
     - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        pip install -e ".[test]"
+        pip install -e ".[test,lint]"
         pip install pytest-xdist pytest-timeout pytest-mock pytest-rerunfailures
     
     - name: Run unit tests
@@ -38,6 +38,20 @@ jobs:
       env:
         PYTEST_CURRENT_TEST: true
         CI: true
+
+    # Hợp đồng kiến trúc hai tầng (GĐ1–GĐ3): mọi provider ẩn danh phải trả
+    # cùng schema, và failover phải xoay vòng đúng. KHÔNG continue-on-error:
+    # đây là thứ bảo vệ toàn bộ phần data layer.
+    - name: Run architecture contract tests
+      run: |
+        pytest tests/contract/ -v --tb=short --timeout=60
+
+    # GĐ4: ruff trước đây KHÔNG có trong CI và không có [tool.ruff], nên 2888
+    # lỗi tồn tại mà không ai chặn. Rule set nay nhỏ và có chủ đích; chạy
+    # không continue-on-error để baseline không trôi ngược.
+    - name: Lint with ruff
+      run: |
+        ruff check vnbroker tests/unit tests/contract/
     
     - name: Run integration tests
       run: |

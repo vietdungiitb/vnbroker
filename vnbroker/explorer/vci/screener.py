@@ -103,7 +103,7 @@ class VCIScreener:
     @optimize_execution("VCI")
     def stock(
         self,
-        params: Dict[str, Any] = {"exchangeName": "HOSE,HNX,UPCOM"},
+        params: Optional[Dict[str, Any]] = None,
         limit: int = 50,
         id: Optional[str] = None,
         lang: str = "vi",

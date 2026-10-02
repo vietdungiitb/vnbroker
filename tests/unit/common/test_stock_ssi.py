@@ -48,22 +48,34 @@ class TestSSIWiringP1:
             Quote("ACB", source="SSI", show_log=False)
 
     def test_quote_history_through_facade(self, ssi_keys: tuple[str, str]) -> None:
-        expected = pd.DataFrame(
-            {
-                "time": pd.to_datetime(["2024-01-01"]),
-                "open": [25.0],
-                "high": [25.1],
-                "low": [24.9],
-                "close": [25.0],
-                "volume": [100],
-            }
-        )
-        q = Quote("ACB", source="SSI", show_log=False)
-        with patch(
-            "vnbroker.explorer.ssi.quote.SSIQuote.history", return_value=expected
-        ):
-            out = q.history(start="2024-01-01", end="2024-01-31")
-        pd.testing.assert_frame_equal(out, expected)
+            """Facade chuẩn hoá kết quả provider theo hợp đồng tầng 1.
+
+            GĐ2: provider trả tz-naive, nhưng tầng ``data.py`` gắn
+            ``Asia/Ho_Chi_Minh`` để mọi provider ẩn danh cùng schema (xem
+            ``_normalize_quote_result``). Test này khoá hành vi đó.
+            """
+            raw = pd.DataFrame(
+                {
+                    "time": pd.to_datetime(["2024-01-01"]),
+                    "open": [25.0],
+                    "high": [25.1],
+                    "low": [24.9],
+                    "close": [25.0],
+                    "volume": [100],
+                }
+            )
+            q = Quote("ACB", source="SSI", show_log=False)
+            with patch(
+                "vnbroker.explorer.ssi.quote.SSIQuote.history", return_value=raw
+            ):
+                out = q.history(start="2024-01-01", end="2024-01-31")
+
+            expected = raw.copy()
+            expected["time"] = expected["time"].dt.tz_localize("Asia/Ho_Chi_Minh")
+            pd.testing.assert_frame_equal(out, expected)
+
+            # Hợp đồng tầng 1: kết quả qua facade luôn tz-aware.
+            assert out["time"].dt.tz is not None
 
 
 class TestSSIStockInit:

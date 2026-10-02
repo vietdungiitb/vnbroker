@@ -2,6 +2,145 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.0] — Kiến trúc hai tầng + an toàn đường giao dịch
+
+**Breaking changes — đọc trước khi nâng cấp:**
+
+1. `quote.history()` qua `Vnbroker` trả cột `time` **tz-aware** (`Asia/Ho_Chi_Minh`)
+   thay vì tz-naive, và được **lọc theo `start`/`end`**.
+   - Lý do: provider trả tz khác nhau (VCI tz-aware, KBS/DNSE/SSI tz-naive) khiến
+     `pd.concat` sinh dtype `object`; VCI còn trả nến ngoài khoảng yêu cầu **không báo lỗi**.
+   - Nếu code bạn so `df["time"]` với timestamp naive: dùng `.dt.tz_localize(None)`.
+   - Gọi provider trực tiếp (`VCIQuote(...).history()`) **không đổi**.
+2. `connector/dnse`: `place_order` / `cancel_order` / `deposit_derivative_margin` /
+   `withdraw_derivative_margin` nay cần `trade.enable_write()` trước khi gửi thật.
+   Mặc định `dry_run=True` (an toàn). Trước đây lệnh gửi ngay, không có hàng rào.
+3. SSI **không còn retry tự động** trên POST đặt lệnh (chống double-submit).
+   Đã tái hiện được: trước đây 1 lời gọi → **5 POST thật** khi response mất.
+   - Hãy truyền `clientRequestId` khi định thử lại; key được gắn vào exception.
+
+**Tính năng mới:**
+
+- **Tầng 1 — dữ liệu ẩn danh, không cần biết provider.** `Market/Reference/Fundamental(auto=True)`
+  và `Vnbroker(source="AUTO")`: hệ thống tự chọn provider ổn định và xoay vòng khi
+  rate-limit / mất kết nối. Failover áp cho `history`, `intraday`, `price_depth`.
+  **Mặc định vẫn là `"KBS"`** — không đổi hành vi cho người dùng hiện tại.
+- Chuẩn hoá dữ liệu ở **một điểm duy nhất** (`_normalize_quote_result`): tz-aware,
+  lọc biên, sort. Provider mới thêm vào tự động tuân thủ.
+- `match_type` chuẩn hoá về `Buy`/`Sell`/`unknown` cho mọi provider (trước đó
+  DNSE/SSI giữ nguyên giá trị provider → sai âm thầm).
+- `Redactor.redact_url()` — chặn rò `api_key`/signature trong query string
+  (`connector/dnse/websocket.py` trước đây log nguyên văn ở level INFO).
+
+**Sửa lỗi hạ tầng:**
+
+- **CI không chạy cho PR vào `dev`**: cả 4 workflow trigger `[main, develop]` nhưng
+  repo không có branch `develop`. Đã đổi thành `[main, dev]`.
+- `pytest tests/contract/` + `ruff` nay **chặn thật** (trước mọi bước đều advisory).
+- `[tool.ruff]`: 2888 → 0 lỗi với rule set có chủ đích.
+- `check_version_sync.py` quét cả `tests/` (trước gate xanh trong khi test đỏ).
+- Reset baseline `mypy --strict` (ghi 556 dòng nhưng thực tế 1266 lỗi → gate luôn đỏ),
+  hạn **2026-11-01** và hạn **được thực thi thật** (`baseline_is_expired`).
+- Xoá `vnbroker/core/base/` — 164 câu lệnh code chết (registry thứ hai bị thay thế
+  từ `dbcd81a`, 0 import). Bằng chứng ở `f5de70d`; gate ngăn tái sinh.
+
+**Số liệu:** pytest **1001 passed** / 5 skipped · ruff 0 · version-sync 0 ·
+mypy-baseline 0 · coverage **55%**.
+
+---
+
+## [Unreleased]
+
+### Added
+- **Hợp đồng tầng 1 (contract test)** — `tests/contract/` khoá bảo đảm mọi provider ẩn danh
+  (VCI, KBS) trả về cùng schema: đủ cột chuẩn, `time` tz-aware, không có dòng ngoài khoảng
+  `[start, end]`, thứ tự thời gian tăng dần.
+- `tests/contract/test_layer_normalization.py` — 12 test khoá hợp đồng chuẩn hoá ở tầng `data.py`.
+- **Failover tầng 1** — `Quote._run_with_failover()`: hệ thống tự chọn provider ổn định và
+  tự xoay vòng khi gặp rate-limit / mất kết nối, dùng cơ chế `core.source_router`
+  (`build_source_order`, `should_failover`, health store có cooldown). Kết quả được gắn
+  vào `df.attrs["source_used"]` để debug.
+- **Tuỳ chọn `auto=True`** trên `Market` / `Reference` / `Fundamental`, và `source="AUTO"`
+  trên `Vnbroker`. **Mặc định giữ nguyên `"KBS"`** — không thay đổi hành vi cho người
+  dùng hiện tại.
+- `tests/contract/test_failover_tier1.py` — 8 test khoá hành vi failover.
+- **Gate CI thực sự chặn (GĐ4):** `pytest tests/contract/` và `ruff check` chạy **không**
+  `continue-on-error`. Trước đó mọi bước lint/type/security đều advisory.
+- `[tool.ruff]` trong `pyproject.toml` — rule set nhỏ, có chủ đích (syntax error, undefined
+  name, unused import/biến, mutable default). Baseline: **2888 → 0 lỗi**.
+- `check_version_sync.py` quét cả `tests/` — trước đó gate xanh trong khi 3 test đỏ vì
+  test hardcode version cũ.
+- Sửa `params: Dict = {...}` dùng chung giữ các lần gọi ở 3 `explorer/*/screener.py` (B006).
+
+### Security — đường tiền thật (P0, sau kiến trúc hai tầng)
+
+- **SSI không còn retry mù trên POST đặt lệnh.** `SSIHttpClient.request` trước đây bọc
+  mọi method trong `tenacity.Retrying` không phân biệt idempotent; `ConnectionError`
+  xảy ra cả khi server **đã nhận lệnh** nhưng response mất → gửi lại lệnh trùng.
+  **Đã tái hiện: 1 lời gọi → 5 POST thật.** Nay chỉ retry method idempotent
+  (`GET`/`HEAD`/`PUT`/`DELETE`/`OPTIONS`); POST ném `BrokerNetworkError` với code
+  `NETWORK_ERROR_NON_IDEMPOTENT` kèm hướng dẫn tra cứu `clientRequestId`.
+- **`clientRequestId` được gắn vào exception** khi lỗi mạng xảy ra (`broker/ssi/equity.py`)
+  — không có nó thì lần thử lại sinh key mới và dedupe phía server vô hiệu, tức vẫn
+  là double-submit do người dùng bấm.
+- **`connector/dnse/trade.py` có hàng rào ghi.** Trước đây `place_order`,
+  `cancel_order`, `deposit_derivative_margin`, `withdraw_derivative_margin`
+  **không có** `dry_run`, **không có** `write_gate` → tiền đi thật ngay.
+  Nay: `dry_run: bool = True` (an toàn) + `Trade.enable_write()` tắt mặc định;
+  `dry_run=False` mà chưa bật quyền thì ném `BrokerPermissionError`.
+- Thứ tự trong `place_order`: **validate → guard → network.** Để guard trước validate
+  sẽ khiến dry-run trả "OK" cho một lệnh mà lúc gửi thật chắc chắn raise — dry-run nói dối.
+
+### Fixed — dữ liệu âm thầm & rò credential (P2)
+
+- **`match_type` chuẩn hoá về một tập giá trị.** `process_match_types` trước đây là
+  if/elif theo `source`, mỗi provider một cách viết (VCI `'b'`, TCBS `'BU'`, KBS `'B'`),
+  và **DNSE/SSI không có nhánh nào** nên giữ nguyên giá trị provider. Hệ quả:
+  `df[df.match_type == "Buy"]` cho kết quả khác nhau tuỳ provider, sai mà không ném lỗi.
+  Nay dùng bảng mapping chung + chuẩn hoá hoa/thường → chỉ còn `Buy`/`Sell`/`unknown`,
+  không NaN, provider mới tự động tuân thủ.
+- **`Redactor.redact_url()`** cho URL có credential trong query string (client HMAC DNSE/KBS
+  truyền `?api_key=...&signature=...`). `connector/dnse/websocket.py` trước đây log URL
+  nguyên văn ở level **INFO** → rò `api_key` + HMAC signature. Đã bổ sung `signature`,
+  `sig`, `trading_token`, `smart_otp`, `x-api-key` vào danh sách nhạy cảm.
+- **Xoá `vnbroker/core/base/` — 164 câu lệnh code chết.** Đây là registry đầu
+  tiên của dự án, đã bị `core/registry.py` thay thế ở commit `dbcd81a` ("registry merge")
+  nhưng quên dọn. 0% coverage và **không module nào import** (đã quét toàn repo).
+  Hai registry cùng tên khác API là bẫy cho người đọc mới. Bằng chứng hoạt động được
+  lưu ở commit `f5de70d` trước khi xoá; `tests/unit/core/test_legacy_base_module.py`
+  nay là gate ngăn tái sinh (đã kiểm chứng đỏ khi thư mục tồn tại).
+- **Failover mở rộng sang `intraday` và `price_depth`.** Trước đó chỉ `history` xoay vòng
+  provider — khi provider chính hết hạn, toàn bộ người dùng mất dữ liệu trong phiên dù
+  hệ thống còn provider dự phòng.
+- `_normalize_quote_result()` trong `vnbroker/common/data.py` — điểm kiểm soát **duy nhất**
+  cho chuẩn hoá kết quả provider. Provider mới thêm vào sau này tự động tuân thủ.
+
+### Fixed
+- **Baseline `mypy --strict` bị lệch ngay từ đầu:** file ghi 556 dòng nhưng thực tế có
+  **1266** lỗi strict, nên `check_mypy_baseline.py` luôn đỏ và gate không bảo vệ được gì.
+  Đã reset về trạng thái thật kèm **hạn 30 ngày (2026-11-01)**, và hạn giờ **được thực thi
+  thật**: quá hạn thì gate đỏ, buộc thu hẹp baseline hoặc xin gia hạn có lý do.
+  Ưu tiên giảm dần: `common/data.py` (142), `broker/tcbs/account.py` (66),
+  `explorer/vci/company.py` (56), `brokerage/tcbs/client.py` (36).
+- **CI không chạy cho PR vào `dev`:** cả 4 workflow trigger `branches: [main, develop]` nhưng
+  repo **không có branch `develop`** (`git rev-parse --verify develop` → `fatal`). Đã đổi
+  thành `[main, dev]`.
+
+### Changed
+- **Retry policy rõ ràng hơn:** đường không-auto retry cả lời gọi provider (`DEFAULT_RETRIES=3`,
+  như trước). Đường `AUTO` retry **từng provider** rồi mới xoay vòng — tránh việc hết pool
+  bị thử lại N lần.
+- Khi mọi provider đều lỗi, hệ thống **ném lỗi gốc** thay vì trả DataFrame rỗng (frame rỗng
+  khiến người dùng tưởng "không có giao dịch" thay vì "đã lỗi mạng").
+- Lỗi lập trình (`TypeError`…) **không** bị failover che giấu: ném thẳng ra.
+- ⚠️ **BREAKING (giới hạn ở đường `Vnbroker`)**: `quote.history()` qua facade giờ trả
+  `time` **tz-aware** `Asia/Ho_Chi_Minh` thay vì tz-naive, và lọc cắt theo `start`/`end`.
+  - Lý do: provider khác nhau trả tz khác nhau (VCI tz-aware, KBS/DNSE/SSI tz-naive) khiến
+    `pd.concat` sinh dtype `object`; VCI còn trả nến ngoài khoảng yêu cầu mà không báo lỗi.
+  - Đây là tiền quyết cho failover tự động (GĐ3): xoay vòng provider giờ trả đúng schema.
+  - Gọi provider trực tiếp (`VCIQuote(...).history()`) **không đổi hành vi**.
+  - Code so sánh `df["time"]` với timestamp naive cần `.dt.tz_localize(None)`.
+
 ## [2026-09-23] — Release 3.4.0: SSI Swap Parity (P0–P4)
 
 ### Added

@@ -3,7 +3,6 @@ import pandas as pd
 import time
 from unittest.mock import MagicMock
 from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
-from vnbroker.core.adaptive_controller import get_global_pressure
 
 
 @pytest.mark.unit

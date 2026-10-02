@@ -1,9 +1,8 @@
 import pytest
-from unittest.mock import patch, MagicMock
 
 from vnbroker.broker.base import BaseBrokerClient
 from vnbroker.broker.tcbs.client import TCBSBrokerClient
-from vnbroker.broker import BrokerRegistry, get_tcbs_broker_client
+from vnbroker.broker import BrokerRegistry
 from vnbroker.common.client import Vnbroker
 
 

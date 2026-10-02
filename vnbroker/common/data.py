@@ -11,8 +11,15 @@ import inspect
 from typing import Optional, Any, Dict
 from functools import lru_cache
 import pandas as pd
+import pytz
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    Retrying,
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 from pandas.api.types import is_numeric_dtype
 
 from vnbroker.core.utils.logger import get_logger
@@ -223,12 +230,48 @@ class BaseComponent:
         self.data_source = self._load_data_source()
 
     def _validate_source(self) -> None:
-        """Validate that source is supported by this component."""
-        if self.source not in self.SUPPORTED_SOURCES:
+        """Validate that source is supported by this component.
+
+        ``AUTO`` được chấp nhận ở mọi component: đó là tầng 1 ẩn danh, provider
+        thật sự được chọn động bởi ``Quote._run_with_failover`` theo health store.
+        Component chưa implement failover sẽ báo lỗi rõ ràng khi được gọi, thay
+        vì từ chối ngay ở cửa — để người dùng vẫn dùng được các module đã hỗ trợ.
+        """
+        if self.source == "AUTO" and "AUTO" not in self.SUPPORTED_SOURCES:
+            # Module chưa khai báo hỗ trợ AUTO: dùng provider đầu tiên của pool
+            # ẩn danh làm mặc định ổn định. Module nào có failover động
+            # (quote.history) sẽ tự chọn theo health store ở _run_with_failover.
+            self.source = self._resolve_auto_source(self._auto_module_name())
+        if self.source not in self.SUPPORTED_SOURCES and self.source != "AUTO":
             sources_str = ', '.join(self.SUPPORTED_SOURCES)
             raise ValueError(
                 f"Supported sources: {sources_str}. Got: {self.source}"
             )
+
+    def _auto_module_name(self) -> str:
+        """Tên module trong source_router, suy ra từ tên class (vd Quote→quote)."""
+        name = type(self).__name__.lower()
+        # Tên class → tên module trong ProviderRegistry/source_router.
+        alias = {
+            "stockcomponents": "quote",
+            "commonretail": "quote",
+            "finance": "financial",
+        }
+        return alias.get(name, name)
+
+    def _resolve_auto_source(self, module_name: str) -> str:
+        """AUTO → provider cụ thể đầu tiên trong pool ẩn danh.
+
+        Tầng 1: người dùng không cần biết provider nào đang phục vụ.
+        """
+        from vnbroker.core import source_router
+
+        candidates = source_router.get_auto_candidates(module_name)
+        if not candidates:
+            raise ValueError(
+                f"Không có provider ẩn danh khả dụng cho module {module_name!r}."
+            )
+        return candidates[0].upper()
 
     def _load_data_source(self):
         """Load and return the actual data source module instance."""
@@ -297,7 +340,8 @@ class StockComponents(BaseComponent):
     Direct Provider Architecture: VCI, KBS, TCBS, DNSE
     """
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # AUTO = tầng 1 ẩn danh: tự chọn provider ổn định, tự xoay vòng khi lỗi.
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI", "AUTO"]
 
     def __init__(self, symbol: str, source: str = "KBS",
                  show_log: bool = True,
@@ -375,7 +419,9 @@ class StockComponents(BaseComponent):
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
-    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI"]
+    # AUTO = tầng 1 ẩn danh: hệ thống tự chọn provider ổn định và tự xoay vòng
+    # khi gặp rate-limit / mất kết nối (xem _run_with_failover).
+    SUPPORTED_SOURCES = ["VCI", "KBS", "TCBS", "DNSE", "SSI", "AUTO"]
     # One-way only: SSI needs a key/quota, so KBS/VCI never fall back into SSI (W2).
     FALLBACK_MAP = {"DNSE": ["KBS", "VCI"], "SSI": ["KBS", "VCI"]}
 
@@ -397,8 +443,23 @@ class Quote(BaseComponent):
         return self._load_direct_provider()
 
     def _load_direct_provider(self):
-        """Load direct provider adapter based on source."""
+        """Load direct provider adapter based on source.
+
+        Với ``source == "AUTO"`` (tầng 1 ẩn danh) chỉ khởi tạo provider đầu
+        tiên trong pool; provider thực sự phục vụ được chọn động bởi
+        ``_run_with_failover`` dựa trên health store.
+        """
+        from vnbroker.core import source_router
+
         source = self.source.lower()
+        if source == "auto":
+            candidates = source_router.get_auto_candidates("quote")
+            if not candidates:
+                raise ValueError(
+                    "Không có provider ẩn danh khả dụng cho module 'quote'."
+                )
+            source = candidates[0]
+            self.source = source.upper()
         if source == "vci":
             from vnbroker.explorer.vci.quote import Quote as VCIQuote
             return VCIQuote(self.symbol, show_log=self.show_log)
@@ -423,17 +484,123 @@ class Quote(BaseComponent):
             self.symbol = symbol.upper()
             self.data_source = self._load_data_source()
 
-    @retry(
-        stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
-        reraise=True,
-    )
+    def _run_with_failover(
+        self,
+        method_name: str,
+        module_name: str,
+        kwargs: Dict[str, Any],
+    ) -> Any:
+        """Gọi ``method_name`` trên provider, tự xoay vòng khi provider lỗi.
+
+        Tầng 1 — dữ liệu thị trường ẩn danh. Người dùng gọi một lần, không cần
+        biết provider nào phục vụ; hệ thống ưu tiên provider ổn định và xoay vòng
+        khi gặp rate-limit / mất kết nối.
+
+        Dùng cơ chế thật của ``core.source_router``:
+        ``build_source_order`` (loại provider đang cooldown + hash-shard theo
+        symbol) và ``should_failover`` (quyết định lỗi nào đáng xoay vòng).
+
+        Nguyên tắc: **hết provider thì ném lỗi gốc, không bao giờ trả DataFrame
+        rỗng.** Frame rỗng khiến người dùng tưởng 'hôm nay không giao dịch' thay
+        vì 'đã lỗi mạng' — đó là lỗi âm thầm nguy hiểm nhất.
+
+        Args:
+            method_name: Tên method trên provider (vd ``history``).
+            module_name: Module dùng cho health store (vd ``quote``).
+            kwargs: Tham số truyền xuống provider (đã lọc theo signature).
+
+        Returns:
+            Kết quả từ provider đầu tiên thành công.
+
+        Raises:
+            Exception: Lỗi gốc của provider cuối cùng khi mọi provider đều lỗi.
+        """
+        from vnbroker.core import source_router
+
+        sources = getattr(self, "_auto_sources", None)
+        if not sources:
+            # Đường không-auto: một provider cố định, retry cả lời gọi provider
+            # theo hành vi lịch sử (DEFAULT_RETRIES lần).
+            self._update_data_source()
+            method = getattr(self.data_source, method_name)
+            filtered = _filter_kwargs(method, kwargs)
+            return Retrying(
+                stop=stop_after_attempt(Config.DEFAULT_RETRIES),
+                wait=wait_exponential(multiplier=1, min=2, max=10),
+                retry=retry_if_exception_type((
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    TimeoutError,
+                )),
+                reraise=True,
+            )(method, **filtered)
+
+        # Retry áp cho TỪNG provider: một provider gặp lỗi mạng tạm thời thì thử
+        # lại chính nó vài lần trước khi chuyển sang provider kế tiếp. Retry cả vòng
+        # failover sẽ khiến mỗi provider bị thử N lần khi hết pool.
+        def _call_once() -> Any:
+            method = getattr(self.data_source, method_name)
+            return method(**_filter_kwargs(method, kwargs))
+
+        per_provider_retry = Retrying(
+            stop=stop_after_attempt(Config.DEFAULT_RETRIES),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type((
+                requests.exceptions.RequestException,
+                ConnectionError,
+                TimeoutError,
+            )),
+            reraise=True,
+        )
+
+        # Cho phép ghim thứ tự (dùng cho test) — xem _make_quote trong
+        # tests/contract/test_failover_tier1.py.
+        pinned_order = getattr(self, "_fixed_source_order", None)
+        if callable(pinned_order):
+            ordered_sources = pinned_order(module_name, self.symbol)
+        else:
+            ordered_sources = source_router.build_source_order(module_name, self.symbol)
+
+        last_exc: Exception | None = None
+        for source in ordered_sources:
+            if source not in sources:
+                continue
+            self.source = source.upper()
+            self.data_source = sources[source]
+            try:
+                result = per_provider_retry(_call_once)
+            except Exception as exc:  # noqa: BLE001 - quyết định nhờ should_failover
+                if not source_router.should_failover(exc):
+                    # Lỗi lập trình, không phải lỗi mạng: ném ra, đừng che.
+                    raise
+                source_router.record_failure(module_name, source)
+                last_exc = exc
+                continue
+            source_router.record_success(module_name, source)
+            return source_router.annotate_result_source(result, source)
+
+        raise last_exc if last_exc else RuntimeError(
+            f"Không có provider khả dụng cho module={module_name!r}."
+        )
+
     def history(self, symbol: Optional[str] = None, **kwargs):
-        """Fetch historical price data."""
-        self._update_data_source(symbol)
-        method = self.data_source.history
-        return method(**_filter_kwargs(method, kwargs))
+        """Fetch historical price data.
+
+        Retry policy:
+        - **Đường không-auto** (một provider cố định): decorator ``@retry`` bọc
+          cả lời gọi provider, giữ hành vi lịch sử (``DEFAULT_RETRIES`` lần).
+        - **Đường auto** (``_auto_sources``): decorator bị bỏ qua, retry áp cho
+          TỪNG provider trong ``_run_with_failover`` — nếu không, hết pool sẽ bị
+          thử lại N lần.
+        """
+        if symbol:
+            self.symbol = symbol.upper()
+        result = self._run_with_failover("history", "quote", kwargs)
+        # Hợp đồng tầng 1: chuẩn hoá tz + lọc biên ở MỘT chỗ duy nhất để mọi
+        # provider ẩn danh trả về cùng schema. Xem _normalize_quote_result.
+        if kwargs.get("to_df", True) and isinstance(result, pd.DataFrame):
+            return _normalize_quote_result(result, kwargs.get("start"), kwargs.get("end"))
+        return result
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
@@ -442,10 +609,25 @@ class Quote(BaseComponent):
         reraise=True,
     )
     def intraday(self, symbol: Optional[str] = None, **kwargs):
-        """Fetch intraday trading data."""
-        self._update_data_source(symbol)
-        method = self.data_source.intraday
-        return method(**_filter_kwargs(method, kwargs))
+        """Fetch intraday trading data.
+
+        Cùng cơ chế failover như `history` (xem `_run_with_failover`), vì intraday
+        cũng là dữ liệu thị trường ẩn danh: user không cần biết provider, và hệ
+        thống phải xoay vòng khi provider lỗi — nếu không thì chỉ cần provider
+        "chính" hết hạn là toàn bộ người dùng mất dữ liệu trong phiên.
+
+        Khác `history`: intraday không lọc theo `start`/`end` (đó là khoảng ngày
+        giao dịch, provider tự xử lý), nhưng `time` vẫn phải tz-aware và tăng dần
+        để `concat` với `history` không hỏng.
+        """
+        if symbol:
+            self.symbol = symbol.upper()
+        result = self._run_with_failover("intraday", "quote", kwargs)
+        if kwargs.get("to_df", True) and isinstance(result, pd.DataFrame):
+            # Không truyền start/end: intraday trả dữ liệu trong phiên, lọc theo
+            # ngày là việc của provider.
+            return _normalize_quote_result(result)
+        return result
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
@@ -454,10 +636,109 @@ class Quote(BaseComponent):
         reraise=True,
     )
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
-        """Fetch order book depth data."""
-        self._update_data_source(symbol)
-        method = self.data_source.price_depth
-        return method(**_filter_kwargs(method, kwargs))
+        """Fetch order book depth data.
+
+        Có failover như `history`/`intraday` — cùng lý do: dữ liệu ẩn danh, user
+        không biết provider, provider chính hết hạn thì phải tự chuyển.
+
+        KHÔNG chuẩn hoá tz: `price_depth` là bảng giá hai chiều, không có cột
+        `time` theo dòng nên `_normalize_quote_result` không áp dụng (hàm đó tự
+        bỏ qua frame không có cột `time`).
+        """
+        if symbol:
+            self.symbol = symbol.upper()
+        return self._run_with_failover("price_depth", "quote", kwargs)
+
+
+def _canonical_tz() -> Any:
+    """Timezone chuẩn của thị trường Việt Nam (giờ giao dịch)."""
+    return pytz.timezone("Asia/Ho_Chi_Minh")
+
+
+def _to_canonical_tz(series: "pd.Series") -> "pd.Series":
+    """Chuẩn hoá cột ``time`` thành tz-aware Asia/Ho_Chi_Minh.
+
+    Vì sao cần (GĐ2 của kế hoạch hai tầng):
+
+    - ``ohlc_to_df`` chỉ ``tz_convert`` cho nhánh ``source == 'VCI'``; nhánh
+      ``else`` để nguyên ``pd.to_datetime(...)`` nên ra tz-naive
+      (vnbroker/core/utils/transform.py:331-338).
+    - Hệ quả: provider tz-naive + provider tz-aware khiến ``pd.concat`` sinh
+      dtype ``object`` — phá mọi phép tính thời gian phía downstream, và
+      **không** ném exception.
+
+    Naive được hiểu là giờ Việt Nam chứ không phải UTC: provider trả
+    ``'2024-01-02 09:00'`` nghĩa là 09:00 VN. Nếu localize UTC rồi convert sang
+    VN thì nó thành 16:00 — sai 7 tiếng, và sai này rất khó phát hiện vì vẫn là
+    timestamp hợp lệ.
+    """
+    if getattr(series.dt, "tz", None) is None:
+        return series.dt.tz_localize(_canonical_tz())
+    return series
+
+
+def _parse_boundary(value: Any, *, inclusive_end: bool) -> "pd.Timestamp | None":
+    """Parse ngày biên của lời gọi. Trả None nếu thiếu/không parse được."""
+    if value is None or value == "":
+        return None
+    try:
+        ts = pd.to_datetime(value)
+    except (ValueError, TypeError):
+        return None
+    if pd.isna(ts):
+        return None
+    if getattr(ts, "tzinfo", None) is None:
+        ts = ts.tz_localize(_canonical_tz())
+    if inclusive_end and ts.hour == 0 and ts.minute == 0 and ts.second == 0:
+        # Người dùng truyền '2024-01-31' nghĩa là hết ngày đó, không phải 00:00.
+        ts = ts + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+    return ts
+
+
+def _normalize_quote_result(
+    result: Any,
+    start: Any = None,
+    end: Any = None,
+) -> Any:
+    """Chuẩn hoá DataFrame giá theo hợp đồng tầng 1 (dữ liệu ẩn danh).
+
+    Hợp đồng mà mọi provider ẩn danh phải tuân thủ, khoá ở MỘT chỗ duy nhất:
+
+    1. ``time`` luôn tz-aware ``Asia/Ho_Chi_Minh``.
+    2. Không có dòng nào ngoài khoảng ``[start, end]`` (bỏ qua nếu không truyền).
+    3. ``time`` tăng dần.
+    4. Không thêm/bớt cột, không mutate DataFrame của provider.
+
+    Vì sao ở đây mà không sửa từng provider: đây là điểm kiểm soát duy nhất
+    người dùng đi qua (``Vnbroker``); provider mới thêm vào sau này tự động
+    tuân thủ. Gọi provider trực tiếp (``VCIQuote(...).history()``) giữ hành vi cũ.
+
+    Args:
+        result: DataFrame trả về từ provider (có thể không phải DataFrame).
+        start: Ngày bắt đầu caller yêu cầu.
+        end: Ngày kết thúc caller yêu cầu.
+
+    Returns:
+        DataFrame đã chuẩn hoá, hoặc nguyên ``result`` nếu không phải DataFrame.
+    """
+    if not isinstance(result, pd.DataFrame) or "time" not in result.columns:
+        return result
+
+    df = result.copy()
+
+    df["time"] = _to_canonical_tz(pd.to_datetime(df["time"], errors="coerce"))
+    # Timestamp không parse được thì loại bỏ thay vì để NaT làm hỏng phép so sánh.
+    df = df[df["time"].notna()]
+
+    lo = _parse_boundary(start, inclusive_end=False)
+    if lo is not None:
+        df = df[df["time"] >= lo]
+
+    hi = _parse_boundary(end, inclusive_end=True)
+    if hi is not None:
+        df = df[df["time"] <= hi]
+
+    return df.sort_values("time").reset_index(drop=True)
 
 
 def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:

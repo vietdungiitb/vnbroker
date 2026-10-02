@@ -4,11 +4,26 @@ Copyright (c) 2026 Phạm Việt Dũng  (vietdungiitb@gmail.com).
 
 Tệp này mô tả điều khoản sử dụng phần mềm vnbroker.
 
+## 0. Quyền của chủ sở hữu bản quyền
+
+Giấy phép này chỉ ràng buộc **người nhận giấy phép** (bên thứ ba cài đặt hoặc sử dụng
+vnbroker). **Chủ sở hữu bản quyền không bị ràng buộc bởi chính giấy phép này** và giữ
+toàn quyền, bao gồm không giới hạn: sử dụng, sao chép, sửa đổi, và tích hợp vnbroker
+vào **bất kỳ sản phẩm, dịch vụ, hoặc hệ thống nội bộ nào của chủ sở hữu** — kể cả khi
+sản phẩm đó thu phí hoặc được phân phối thương mại.
+
+Cụ thể, các sản phẩm do chủ sở hữu phát triển (ví dụ: VNInvest) được phép dùng vnbroker
+mà **không cần xin phép thêm** và không thuộc phạm vi hạn chế ở Mục 1 và Mục 2.
+
+Mục 1 và Mục 2 dưới đây áp dụng cho **người nhận giấy phép bên thứ ba**.
+
 ## 1. Quyền sử dụng
 
 Bạn được phép cài đặt, chạy, sao chép và sửa đổi phần mềm cho mục đích cá nhân, học tập và nghiên cứu phi thương mại, với điều kiện giữ nguyên thông báo bản quyền và giấy phép này trong mọi bản sao hợp lệ.
 
 ## 2. Hạn chế
+
+*(Các hạn chế dưới đây áp dụng cho **người nhận giấy phép bên thứ ba**; xem Mục 0.)*
 
 Bạn không được dùng phần mềm cho:
 
@@ -38,4 +53,14 @@ Nếu bạn vi phạm bất kỳ điều khoản nào ở đây, quyền sử d�
 
 ## English summary
 
-vnbroker is licensed for personal, educational, and research use only. Commercial use, redistribution in commercial products, and organizational deployment require prior written permission from the author. The software is provided as-is without warranty.
+This license governs **licensees** (third parties installing or using vnbroker). The
+copyright holder is **not** bound by this license and retains all rights, including
+without limitation: use, modification, and integration of vnbroker into any product,
+service, or internal system of the copyright holder, including paid or commercially
+distributed ones. The holder's own products (e.g. VNInvest) require no additional
+permission.
+
+Third-party licensees may use vnbroker for personal, educational, and research purposes
+only. Commercial use, redistribution in commercial products, and organizational
+deployment require prior written permission from the author. The software is provided
+as-is without warranty.

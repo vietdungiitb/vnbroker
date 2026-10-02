@@ -189,6 +189,40 @@ def get_trading_date() -> datetime.date:
         # Regular trading day
         return now.date()
 
+# Chuẩn hoá `match_type` — key là dạng UPPERCASE đã strip.
+#
+# Gom mọi biến thể provider về đúng 2 giá trị nghiệp vụ. Giữ ở đây (một chỗ)
+# thay vì rải if/elif theo `source`: thêm provider mới không cần sửa hàm này.
+_MATCH_TYPE_UNKNOWN = 'unknown'
+_MATCH_TYPE_BUY = 'Buy'
+_MATCH_TYPE_SELL = 'Sell'
+
+_MATCH_TYPE_MAP = {
+    # Mua
+    'B': _MATCH_TYPE_BUY,
+    'BU': _MATCH_TYPE_BUY,
+    'BUY': _MATCH_TYPE_BUY,
+    'NB': _MATCH_TYPE_BUY,
+    'N': _MATCH_TYPE_BUY,
+    'MUA': _MATCH_TYPE_BUY,
+    # Bán
+    'S': _MATCH_TYPE_SELL,
+    'SD': _MATCH_TYPE_SELL,
+    'SELL': _MATCH_TYPE_SELL,
+    'NS': _MATCH_TYPE_SELL,
+    'BAN': _MATCH_TYPE_SELL,
+    'BÁN': _MATCH_TYPE_SELL,
+    # Đã là dạng chuẩn
+    _MATCH_TYPE_BUY.upper(): _MATCH_TYPE_BUY,
+    _MATCH_TYPE_SELL.upper(): _MATCH_TYPE_SELL,
+    # Trạng thái không xác định
+    'UNKNOWN': _MATCH_TYPE_UNKNOWN,
+    'A': _MATCH_TYPE_UNKNOWN,
+    'D': _MATCH_TYPE_UNKNOWN,
+    '': _MATCH_TYPE_UNKNOWN,
+}
+
+
 def process_match_types(df, asset_type, source):
     """
     Process match_type labels with special handling for stock ATO/ATC transactions.
@@ -220,18 +254,24 @@ def process_match_types(df, asset_type, source):
         DataFrame: The modified DataFrame with updated match_type values.
     """
     # --- Basic replacement and normalization ---
-    if source == 'VCI':
-        df['match_type'] = df['match_type'].replace({'b': 'Buy', 's': 'Sell'})
-    elif source == 'MAS':
-        df['match_type'] = df['match_type'].replace({'BUY': 'Buy', 'SELL': 'Sell'})
-        df['match_type'] = df['match_type'].fillna('unknown')
-    elif source == 'TCBS':
-        df['match_type'] = df['match_type'].replace({'BU': 'Buy', 'SD': 'Sell'})
-    elif source == 'KBS':
-        df['match_type'] = df['match_type'].replace({'B': 'Buy', 'S': 'Sell'})
-    
-    # Determine the unknown value to check for based on the source
-    unknown_val = 'unknown' if source in ['VCI', 'MAS'] else ''
+    #
+    # HỢP ĐỒNG TẦNG 1: `match_type` chỉ được có giá trị trong
+    # {'Buy', 'Sell', 'unknown'} — bất kể provider nào, không phân biệt casing.
+    #
+    # Trước đây đây là if/elif theo `source`: mỗi provider một cách viết
+    # (VCI 'b', TCBS 'BU', KBS 'B'), và DNSE/SSI **không có nhánh nào** nên
+    # giữ nguyên giá trị provider. Hệ quả: `df[df.match_type == "Buy"]` cho kết
+    # quả khác nhau tuỳ provider, sai mà KHÔNG ném lỗi.
+    #
+    # Nay dùng một bảng mapping chung + chuẩn hoá chữ hoa/thường, nên provider
+    # mới thêm vào cũng tự động tuân thủ mà không cần sửa ở đây.
+    df = df.copy()
+    raw = df['match_type']
+    # So khớp không phân biệt hoa/thường và khoảng trắng thừa.
+    key = raw.astype("string").str.strip().str.upper()
+    df['match_type'] = key.map(_MATCH_TYPE_MAP).fillna(_MATCH_TYPE_UNKNOWN)
+
+    unknown_val = _MATCH_TYPE_UNKNOWN
     
     # --- Process ATO/ATC labeling for stock assets ---
     # Only run ATO/ATC logic if match_type contains missing values

@@ -42,7 +42,7 @@ class Screener:
 
     @optimize_execution("TCBS")
     def stock(self, 
-              params: Dict[str, Any] = {"exchangeName": "HOSE,HNX,UPCOM"}, 
+              params: Optional[Dict[str, Any]] = None,
               limit: int = 50, 
               id: Optional[str] = None) -> pd.DataFrame:
         """
@@ -63,6 +63,10 @@ class Screener:
         """
         url = f"{self.base_url}/ligo/v1/watchlist/preview"
         
+        # Default mới là None (B006: dict default dùng chung giữ các lần gọi)
+        if params is None:
+            params = {"exchangeName": "HOSE,HNX,UPCOM"}
+
         # Create a list of filters based on the params dictionary
         filters = []
         for key, value in params.items():

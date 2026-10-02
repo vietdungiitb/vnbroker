@@ -18,6 +18,19 @@
 ## Architecture: Direct Provider Architecture (v3.0+)
 
 ### Core Principles
+- **Two-tier data model (v3.5.0)**:
+  - **Tier 1 — anonymous market data.** User does NOT pick a provider; the system
+    prefers the most stable one and rotates on rate-limit / connection loss.
+    Enable with `Market(auto=True)` or `Vnbroker(source="AUTO")`. Failover covers
+    `history`, `intraday`, `price_depth`. Default stays `"KBS"` for compatibility.
+    Providers: VCI, KBS (no auth required) — measured 3 and 6 auth refs vs SSI 117.
+  - **Tier 2 — personalized broker data.** Provider is chosen EXPLICITLY, each
+    broker keeps its own OpenAPI shape (SSI RSA/ConsumerID + fixed IP, TCBS API
+    Key + OTP, DNSE HMAC). Do NOT force these behind one interface.
+  - Contract enforced by `tests/contract/`: all anonymous providers must return
+    the same schema (`time` tz-aware `Asia/Ho_Chi_Minh`, required columns, no rows
+    outside `[start, end]`). `_normalize_quote_result` in `common/data.py` is the
+    single enforcement point.
 - **No PAT/Gateway**: Direct access to provider APIs (VCI, KBS, TCBS, DNSE)
 - **Adapter Pattern**: `BaseAdapter` with dynamic method delegation to provider-specific explorers
 - **Provider Registry**: Centralized provider discovery via `ProviderRegistry`
@@ -75,6 +88,10 @@ vnbroker/
 
 ### Key Components
 
+> Ghi chú tên: thư mục `broker/` và `connector/` là **tầng 2** (broker lane, tường minh).
+> `explorer/` + `common/` là **tầng 1** (dữ liệu ẩn danh, auto-failover).
+> `trading` module trong explorer (bảng giá) là tầng 1, KHÁC với đặt lệnh.
+
 #### Vnbroker (Main Entry)
 ```python
 from vnbroker import Vnbroker
@@ -98,7 +115,7 @@ news = acb.news.latest()
 #### Brokerage (Private API) — Two TCBS Implementations
 
 **Option 1: TCBS iFlash OpenAPI v1.0.0 (Official - `vnbroker.broker.tcbs`)**
-- Production-ready, comprehensive test coverage (522 tests)
+- Production-ready, comprehensive test coverage (1001 tests)
 - Auth: OTP + API Key
 - Endpoints: `/tartarus/v1/...`, `/erebos/v1/...`
 - Features: Full account, money, equity, derivatives, portfolio, market data
@@ -178,7 +195,7 @@ Vnbroker.broker(provider="tcbs", api_key="...")
 
 ## Testing
 ```bash
-# Unit tests (522 passing)
+# Unit + contract tests (1001 passing)
 pytest tests/unit -v
 
 # Integration tests (require live credentials)
@@ -261,7 +278,7 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
 - Version defined in `pyproject.toml` (single source of truth)
 - `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
 - Upgrade notice checks GitHub release tags (not PyPI)
-- Current version: **3.4.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
+- Current version: **3.5.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
 - Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
 
 ## Deprecated/Removed (v3.1.0)
@@ -283,7 +300,7 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
 - [ ] DNSE Company/Finance: align to NotImplementedError consistently
 - [ ] DNSE brokerage implementation (extend BrokerageBase)
 - [ ] Async support for brokerage write operations
-- [ ] Circuit breaker pattern for provider failover
+- [x] Circuit breaker pattern for provider failover (done in 3.4.0; HealthStore sqlite+memory, half-open probe, restart-safe)
 - [ ] Type stubs (.pyi) for IDE support
 - [ ] API reference documentation
 - [ ] DNSE News/Stream support

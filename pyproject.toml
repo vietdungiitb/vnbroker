@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vnbroker"
-version = "3.4.0"
+version = "3.5.0"
 description = "A beginner-friendly yet powerful Python toolkit for financial analysis and automation — built to make modern investing accessible to everyone"
 readme = "README.md"
 authors = [
@@ -63,6 +63,36 @@ packages = { find = {} }
 
 [tool.setuptools.package-data]
 vnbroker = ["docs/*.txt", "docs/*.csv"]
+
+[tool.ruff]
+# GĐ4: trước đây ruff chạy với ruleset mặc định và KHÔNG có trong CI, nên
+# 2888 lỗi tồn tại mà không ai chặn. Ở đây khóa một rule set nhỏ, có chủ đích,
+# gồm các lớp lỗi thật sự nguy hiểm (undefined name, unused import, mutable
+# default). Mở rộng dần khi baseline về 0.
+target-version = "py310"
+line-length = 127
+exclude = [".venv", "build", "dist", "__pycache__", "vnbroker.egg-info"]
+
+[tool.ruff.lint]
+select = [
+    "E9",    # syntax error
+    "F821",  # undefined name  -> NameError lúc runtime
+    "F401",  # unused import
+    "F841",  # unused local variable
+    "B006",  # mutable argument default
+    "B008",  # function call trong default arg
+]
+# S110 (try/except/pass) bị bật nhưng hạ xuống cảnh báo: phần lớn là
+# best-effort có chủ đích — ví dụ `source_router._persist_state` bỏ qua lỗi ghi
+# DB (cooldown state chỉ là tối ưu, mất nó không sai dữ liệu), và
+# `upgrade._check_dependency_compatibility` bỏ qua package chưa cài.
+# Nuốt lỗi ở những chỗ đó là đúng; sửa máy sẽ gây rủi ro lớn hơn lợi ích.
+# Đưa vào danh sách theo file khi rà tới chỗ cụ thể.
+ignore = ["S110"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test dùng assert và import cố ý.
+"tests/**" = ["S101", "B011"]
 
 [tool.mypy]
 # Canonical mypy config (pyproject.toml.testing holds legacy test/lint extras).
