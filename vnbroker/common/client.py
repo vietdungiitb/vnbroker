@@ -44,7 +44,9 @@ class Vnbroker:
         >>> acb = vn.stock('ACB', source='DNSE')  # Direct DNSE access (requires DNSE_API_KEY + DNSE_API_SECRET)
     """
 
-    SUPPORTED_SOURCES = ["KBS", "VCI", "TCBS", "DNSE", "SSI"]
+    # AUTO = tầng 1 ẩn danh: hệ thống tự chọn provider ổn định và tự xoay vòng
+    # khi gặp rate-limit / mất kết nối (xem Quote._run_with_failover).
+    SUPPORTED_SOURCES = ["KBS", "VCI", "TCBS", "DNSE", "SSI", "AUTO"]
     DEFAULT_SOURCE = "KBS"
 
     def __init__(

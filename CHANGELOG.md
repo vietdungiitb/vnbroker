@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] — Kiến trúc hai tầng + CI thực sự chặn (GĐ1–GĐ4)
+
+### Added
+- **Hợp đồng tầng 1 (contract test)** — `tests/contract/` khoá bảo đảm mọi provider ẩn danh
+  (VCI, KBS) trả về cùng schema: đủ cột chuẩn, `time` tz-aware, không có dòng ngoài khoảng
+  `[start, end]`, thứ tự thời gian tăng dần.
+- `tests/contract/test_layer_normalization.py` — 12 test khoá hợp đồng chuẩn hoá ở tầng `data.py`.
+- **Failover tầng 1** — `Quote._run_with_failover()`: hệ thống tự chọn provider ổn định và
+  tự xoay vòng khi gặp rate-limit / mất kết nối, dùng cơ chế `core.source_router`
+  (`build_source_order`, `should_failover`, health store có cooldown). Kết quả được gắn
+  vào `df.attrs["source_used"]` để debug.
+- **Tuỳ chọn `auto=True`** trên `Market` / `Reference` / `Fundamental`, và `source="AUTO"`
+  trên `Vnbroker`. **Mặc định giữ nguyên `"KBS"`** — không thay đổi hành vi cho người
+  dùng hiện tại.
+- `tests/contract/test_failover_tier1.py` — 8 test khoá hành vi failover.
+- **Gate CI thực sự chặn (GĐ4):** `pytest tests/contract/` và `ruff check` chạy **không**
+  `continue-on-error`. Trước đó mọi bước lint/type/security đều advisory.
+- `[tool.ruff]` trong `pyproject.toml` — rule set nhỏ, có chủ đích (syntax error, undefined
+  name, unused import/biến, mutable default). Baseline: **2888 → 0 lỗi**.
+- `check_version_sync.py` quét cả `tests/` — trước đó gate xanh trong khi 3 test đỏ vì
+  test hardcode version cũ.
+- Sửa `params: Dict = {...}` dùng chung giữ các lần gọi ở 3 `explorer/*/screener.py` (B006).
+- `_normalize_quote_result()` trong `vnbroker/common/data.py` — điểm kiểm soát **duy nhất**
+  cho chuẩn hoá kết quả provider. Provider mới thêm vào sau này tự động tuân thủ.
+
+### Fixed
+- **Baseline `mypy --strict` bị lệch ngay từ đầu:** file ghi 556 dòng nhưng thực tế có
+  **1266** lỗi strict, nên `check_mypy_baseline.py` luôn đỏ và gate không bảo vệ được gì.
+  Đã reset về trạng thái thật kèm **hạn 30 ngày (2026-11-01)**, và hạn giờ **được thực thi
+  thật**: quá hạn thì gate đỏ, buộc thu hẹp baseline hoặc xin gia hạn có lý do.
+  Ưu tiên giảm dần: `common/data.py` (142), `broker/tcbs/account.py` (66),
+  `explorer/vci/company.py` (56), `brokerage/tcbs/client.py` (36).
+- **CI không chạy cho PR vào `dev`:** cả 4 workflow trigger `branches: [main, develop]` nhưng
+  repo **không có branch `develop`** (`git rev-parse --verify develop` → `fatal`). Đã đổi
+  thành `[main, dev]`.
+
+### Changed
+- **Retry policy rõ ràng hơn:** đường không-auto retry cả lời gọi provider (`DEFAULT_RETRIES=3`,
+  như trước). Đường `AUTO` retry **từng provider** rồi mới xoay vòng — tránh việc hết pool
+  bị thử lại N lần.
+- Khi mọi provider đều lỗi, hệ thống **ném lỗi gốc** thay vì trả DataFrame rỗng (frame rỗng
+  khiến người dùng tưởng "không có giao dịch" thay vì "đã lỗi mạng").
+- Lỗi lập trình (`TypeError`…) **không** bị failover che giấu: ném thẳng ra.
+- ⚠️ **BREAKING (giới hạn ở đường `Vnbroker`)**: `quote.history()` qua facade giờ trả
+  `time` **tz-aware** `Asia/Ho_Chi_Minh` thay vì tz-naive, và lọc cắt theo `start`/`end`.
+  - Lý do: provider khác nhau trả tz khác nhau (VCI tz-aware, KBS/DNSE/SSI tz-naive) khiến
+    `pd.concat` sinh dtype `object`; VCI còn trả nến ngoài khoảng yêu cầu mà không báo lỗi.
+  - Đây là tiền quyết cho failover tự động (GĐ3): xoay vòng provider giờ trả đúng schema.
+  - Gọi provider trực tiếp (`VCIQuote(...).history()`) **không đổi hành vi**.
+  - Code so sánh `df["time"]` với timestamp naive cần `.dt.tz_localize(None)`.
+
 ## [2026-09-23] — Release 3.4.0: SSI Swap Parity (P0–P4)
 
 ### Added
