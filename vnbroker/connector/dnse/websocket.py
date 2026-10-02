@@ -91,7 +91,11 @@ class DNSEWebSocketClient:
     async def connect(self) -> None:
         """Establish WebSocket connection."""
         url = self._build_ws_url()
-        logger.info(f"Connecting to DNSE WebSocket: {url}")
+        # P2: URL chứa api_key + HMAC signature trong query string.
+        # Log nguyên văn ở level INFO là rò credential.
+        from vnbroker.broker.security.redaction import Redactor
+
+        logger.info(f"Connecting to DNSE WebSocket: {Redactor.redact_url(url)}")
         
         self._ws = await websockets.connect(
             url,

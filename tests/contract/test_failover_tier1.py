@@ -212,3 +212,53 @@ def test_single_provider_no_retry_loop():
     assert vci.calls == Config.DEFAULT_RETRIES, (
         f"Phải thử đúng {Config.DEFAULT_RETRIES} lần, thực tế {vci.calls}"
     )
+
+# ------------------------------------------------------------- intraday
+
+
+class _IntradayFailing(_FailingSource):
+    pass
+
+
+def test_intraday_also_fails_over():
+    """intraday là dữ liệu ẩn danh → phải xoay vòng giống history.
+
+    Nếu chỉ `history` có failover thì khi provider chính hết hạn, toàn bộ người
+    dùng mất dữ liệu trong phiên — dù hệ thống còn provider dự phòng.
+    """
+    class _Source:
+        def __init__(self, exc=None):
+            self.exc = exc
+            self.calls = 0
+
+        def intraday(self, **kw):
+            self.calls += 1
+            if self.exc is not None:
+                raise self.exc
+            return _frame(naive=False, times=["2024-01-02 09:30:00", "2024-01-02 10:00:00"])
+
+    kbs = _Source(ConnectionError("429 rate limit"))
+    vci = _Source()
+    q = _make_quote({"kbs": kbs, "vci": vci}, order=["kbs", "vci"])
+
+    df = q.intraday()
+
+    assert kbs.calls > 0, "provider lỗi phải được thử"
+    assert vci.calls >= 1, "phải fallback sang provider kế tiếp"
+    assert isinstance(df, pd.DataFrame)
+    assert "time" in df.columns
+
+
+def test_intraday_result_is_tz_aware_and_sorted():
+    """intraday cũng phải qua chuẩn hoá tz để concat với history không hỏng."""
+    class _Source:
+        symbol = "ACB"
+
+        def intraday(self, **kw):
+            return _frame(naive=True, times=["2024-01-02 10:00:00", "2024-01-02 09:30:00"])
+
+    q = _make_quote({"kbs": _Source()})
+    df = q.intraday()
+
+    assert df["time"].dt.tz is not None, "intraday phải tz-aware"
+    assert df["time"].is_monotonic_increasing, "intraday phải tăng dần"

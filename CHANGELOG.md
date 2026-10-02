@@ -43,6 +43,22 @@ All notable changes to this project will be documented in this file.
   `dry_run=False` mà chưa bật quyền thì ném `BrokerPermissionError`.
 - Thứ tự trong `place_order`: **validate → guard → network.** Để guard trước validate
   sẽ khiến dry-run trả "OK" cho một lệnh mà lúc gửi thật chắc chắn raise — dry-run nói dối.
+
+### Fixed — dữ liệu âm thầm & rò credential (P2)
+
+- **`match_type` chuẩn hoá về một tập giá trị.** `process_match_types` trước đây là
+  if/elif theo `source`, mỗi provider một cách viết (VCI `'b'`, TCBS `'BU'`, KBS `'B'`),
+  và **DNSE/SSI không có nhánh nào** nên giữ nguyên giá trị provider. Hệ quả:
+  `df[df.match_type == "Buy"]` cho kết quả khác nhau tuỳ provider, sai mà không ném lỗi.
+  Nay dùng bảng mapping chung + chuẩn hoá hoa/thường → chỉ còn `Buy`/`Sell`/`unknown`,
+  không NaN, provider mới tự động tuân thủ.
+- **`Redactor.redact_url()`** cho URL có credential trong query string (client HMAC DNSE/KBS
+  truyền `?api_key=...&signature=...`). `connector/dnse/websocket.py` trước đây log URL
+  nguyên văn ở level **INFO** → rò `api_key` + HMAC signature. Đã bổ sung `signature`,
+  `sig`, `trading_token`, `smart_otp`, `x-api-key` vào danh sách nhạy cảm.
+- **Failover mở rộng sang `intraday` và `price_depth`.** Trước đó chỉ `history` xoay vòng
+  provider — khi provider chính hết hạn, toàn bộ người dùng mất dữ liệu trong phiên dù
+  hệ thống còn provider dự phòng.
 - `_normalize_quote_result()` trong `vnbroker/common/data.py` — điểm kiểm soát **duy nhất**
   cho chuẩn hoá kết quả provider. Provider mới thêm vào sau này tự động tuân thủ.
 

@@ -609,10 +609,25 @@ class Quote(BaseComponent):
         reraise=True,
     )
     def intraday(self, symbol: Optional[str] = None, **kwargs):
-        """Fetch intraday trading data."""
-        self._update_data_source(symbol)
-        method = self.data_source.intraday
-        return method(**_filter_kwargs(method, kwargs))
+        """Fetch intraday trading data.
+
+        Cùng cơ chế failover như `history` (xem `_run_with_failover`), vì intraday
+        cũng là dữ liệu thị trường ẩn danh: user không cần biết provider, và hệ
+        thống phải xoay vòng khi provider lỗi — nếu không thì chỉ cần provider
+        "chính" hết hạn là toàn bộ người dùng mất dữ liệu trong phiên.
+
+        Khác `history`: intraday không lọc theo `start`/`end` (đó là khoảng ngày
+        giao dịch, provider tự xử lý), nhưng `time` vẫn phải tz-aware và tăng dần
+        để `concat` với `history` không hỏng.
+        """
+        if symbol:
+            self.symbol = symbol.upper()
+        result = self._run_with_failover("intraday", "quote", kwargs)
+        if kwargs.get("to_df", True) and isinstance(result, pd.DataFrame):
+            # Không truyền start/end: intraday trả dữ liệu trong phiên, lọc theo
+            # ngày là việc của provider.
+            return _normalize_quote_result(result)
+        return result
 
     @retry(
         stop=stop_after_attempt(Config.DEFAULT_RETRIES),
@@ -621,10 +636,18 @@ class Quote(BaseComponent):
         reraise=True,
     )
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
-        """Fetch order book depth data."""
-        self._update_data_source(symbol)
-        method = self.data_source.price_depth
-        return method(**_filter_kwargs(method, kwargs))
+        """Fetch order book depth data.
+
+        Có failover như `history`/`intraday` — cùng lý do: dữ liệu ẩn danh, user
+        không biết provider, provider chính hết hạn thì phải tự chuyển.
+
+        KHÔNG chuẩn hoá tz: `price_depth` là bảng giá hai chiều, không có cột
+        `time` theo dòng nên `_normalize_quote_result` không áp dụng (hàm đó tự
+        bỏ qua frame không có cột `time`).
+        """
+        if symbol:
+            self.symbol = symbol.upper()
+        return self._run_with_failover("price_depth", "quote", kwargs)
 
 
 def _canonical_tz() -> Any:
