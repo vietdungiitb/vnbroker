@@ -2,7 +2,7 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
-> **v3.4.0** — SSI swap parity (P0–P4): SSI dùng qua lại với KBS/VCI + indices/securities/screener/live + AUTO credential-aware.
+> **v3.5.0** — Kiến trúc hai tầng: dữ liệu thị trường ẩn danh (`auto=True`) tự chọn và xoay vòng provider; broker chọn provider tường minh. Kèm chặn double-submit lệnh SSI + hàng rào `dry_run` cho `connector/dnse`. ⚠️ Có **Breaking changes** (xem [Breaking Changes 3.5.0](#phiên-bản-350--2026-10-02--kiến-trúc-hai-tầng--an-toàn-đường-giao-dịch)) — `history()` trả `time` tz-aware.
 
 ## Tóm tắt
 
@@ -229,6 +229,46 @@ all_funds = funds.listing()
 - Một số nguồn live có thể bị giới hạn tốc độ hoặc thay đổi phía upstream; adapter của thư viện có retry và backoff.
 - **FX/Crypto/World Index:** Không được hỗ trợ bởi các provider hiện tại (KBS, VCI, TCBS, DNSE). Các phương thức `fx()`, `crypto()`, `world_index()` sẽ raise `NotImplementedError` trong phiên bản tới.
 
+## Phiên bản 3.5.0 (2026-10-02) — Kiến trúc hai tầng + an toàn đường giao dịch
+
+### Breaking Changes (3.5.0)
+
+1. **`history()` qua `Vnbroker` trả `time` tz-aware** (`Asia/Ho_Chi_Minh`) thay vì
+   tz-naive, và được lọc theo `start`/`end`.
+   - Lý do: provider trả tz khác nhau nên `pd.concat` sinh dtype `object`; VCI còn
+     trả nến ngoài khoảng yêu cầu **không báo lỗi**.
+   - Nếu bạn so `df["time"]` với timestamp naive: dùng `.dt.tz_localize(None)`.
+   - Gọi provider trực tiếp (`VCIQuote(...).history()`) **không đổi**.
+2. **`connector/dnse` cần `trade.enable_write()`** trước khi gửi lệnh thật.
+   `place_order` / `cancel_order` / `deposit_derivative_margin` /
+   `withdraw_derivative_margin` giờ có `dry_run=True` mặc định.
+3. **SSI không retry tự động trên POST đặt lệnh** (chống double-submit — trước đây
+   1 lời gọi có thể gửi **5 POST thật**). Hãy truyền `clientRequestId` khi định
+   thử lại sau lỗi mạng.
+
+### Tầng 1 — dữ liệu ẩn danh (không cần biết provider)
+
+```python
+from vnbroker.ui.market import Market
+
+mkt = Market(auto=True)                      # tự chọn + tự xoay vòng provider
+hist = mkt.equity("ACB").history(start="2026-01-01", end="2026-06-30")
+
+# hoặc
+from vnbroker import Vnbroker
+vn = Vnbroker(source="AUTO")
+```
+
+Failover áp cho `history`, `intraday`, `price_depth`; kết quả có
+`df.attrs["source_used"]` để biết provider nào đã phục vụ.
+**Mặc định vẫn là `"KBS"`** — `auto=True` là tuỳ chọn, không phải mặc định.
+
+### Tầng 2 — broker (chọn provider tường minh)
+
+```python
+vn.broker(provider="ssi").get_balance()      # mỗi broker theo OpenAPI riêng
+```
+
 ## Phiên bản 3.1.0 (2026-06-18) — Cleanup Release
 
 ### Breaking Changes
@@ -245,7 +285,7 @@ all_funds = funds.listing()
 - `GatewayHttpClient`, `launcher.py`.
 
 ### Testing
-- **522 passed**, 9 skipped, 8 warnings — **0 failures, 0 errors** sau cleanup.
+- **1001 passed**, 5 skipped — **0 failures** (tính 2026-10-02, `pytest tests/unit tests/contract`).
 
 ## Đóng góp và hỗ trợ
 

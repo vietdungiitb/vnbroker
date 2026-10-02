@@ -66,6 +66,9 @@ VERSION_REQUIREMENTS = {
     "3.4.0": {
         "vnii": ">=0.1.5",
     },
+    "3.5.0": {
+        "vnii": ">=0.1.5",
+    },
 }
 
 # Version-specific notices for user
@@ -82,11 +85,29 @@ VERSION_NOTICES = {
         "critical_notices": [],
         "warnings": [],
     },
+    "3.5.0": {
+        "title": "vnbroker 3.5.0 - Two-Tier Architecture Release",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.5.0",
+        # Breaking: quote.history() qua Vnbroker trả time tz-aware; connector/dnse
+        # yêu cầu enable_write() trước khi gửi lệnh thật.
+        "critical_notices": [
+            "quote.history() qua Vnbroker giờ trả cột `time` dạng tz-aware "
+            "(Asia/Ho_Chi_Minh) thay vì tz-naive, và được lọc theo start/end.",
+            "connector/dnse: place_order/cancel_order/deposit_derivative_margin/"
+            "withdraw_derivative_margin giờ cần enable_write() trước khi gửi thật.",
+            "SSI không còn retry tự động trên POST đặt lệnh (chống double-submit).",
+        ],
+        "warnings": [
+            "Đặt lệnh SSI: hãy truyền clientRequestId khi định thử lại sau lỗi mạng.",
+            "Baseline mypy --strict hết hạn 2026-11-01.",
+        ],
+    },
 }
 
 # Python version compatibility matrix
 PYTHON_VERSION_SUPPORT = {
     "3.3.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
     "3.4.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
+    "3.5.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
 }
 

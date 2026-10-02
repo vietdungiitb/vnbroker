@@ -363,10 +363,19 @@ Không chặn mục tiêu tầng 1, nhưng **vẫn nên sửa** vì người dù
 GĐ1 ✅  GĐ2 ✅  GĐ3 ✅  GĐ4 ✅        (2026-10-01 → 2026-10-02)
 ```
 
-### Trạng thái cuối (2026-10-02)
+### Trạng thái cuối (2026-10-02) — chuẩn bị release 3.5.0
 
 Coverage **54% → 55%** (16.954 stmt / 7.702 chưa chạy) sau khi xoá code chết.
 Gate: pytest **1001 passed** · ruff 0 · version-sync 0 · mypy-baseline 0.
+
+**Version 3.5.0** (breaking + feature, không phải patch):
+1. `history()` qua `Vnbroker` trả `time` tz-aware + lọc `start`/`end`.
+2. `connector/dnse` cần `enable_write()` trước khi gửi lệnh thật.
+3. SSI không retry tự động trên POST đặt lệnh.
+
+Gate `check_version_sync.py` tự bắt 2 lỗi trong lúc bump: literal version cũ còn
+sót trong `test_upgrade_notice.py` (test giả lập release `3.5.0` trùng số version
+thật → đổi sang `9.9.9`). Đó là bằng chứng gate đang thực sự canh.
 
 ### Định hướng sản phẩm đã chốt
 

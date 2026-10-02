@@ -2,7 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] — Kiến trúc hai tầng + CI thực sự chặn (GĐ1–GĐ4)
+## [3.5.0] — Kiến trúc hai tầng + an toàn đường giao dịch
+
+**Breaking changes — đọc trước khi nâng cấp:**
+
+1. `quote.history()` qua `Vnbroker` trả cột `time` **tz-aware** (`Asia/Ho_Chi_Minh`)
+   thay vì tz-naive, và được **lọc theo `start`/`end`**.
+   - Lý do: provider trả tz khác nhau (VCI tz-aware, KBS/DNSE/SSI tz-naive) khiến
+     `pd.concat` sinh dtype `object`; VCI còn trả nến ngoài khoảng yêu cầu **không báo lỗi**.
+   - Nếu code bạn so `df["time"]` với timestamp naive: dùng `.dt.tz_localize(None)`.
+   - Gọi provider trực tiếp (`VCIQuote(...).history()`) **không đổi**.
+2. `connector/dnse`: `place_order` / `cancel_order` / `deposit_derivative_margin` /
+   `withdraw_derivative_margin` nay cần `trade.enable_write()` trước khi gửi thật.
+   Mặc định `dry_run=True` (an toàn). Trước đây lệnh gửi ngay, không có hàng rào.
+3. SSI **không còn retry tự động** trên POST đặt lệnh (chống double-submit).
+   Đã tái hiện được: trước đây 1 lời gọi → **5 POST thật** khi response mất.
+   - Hãy truyền `clientRequestId` khi định thử lại; key được gắn vào exception.
+
+**Tính năng mới:**
+
+- **Tầng 1 — dữ liệu ẩn danh, không cần biết provider.** `Market/Reference/Fundamental(auto=True)`
+  và `Vnbroker(source="AUTO")`: hệ thống tự chọn provider ổn định và xoay vòng khi
+  rate-limit / mất kết nối. Failover áp cho `history`, `intraday`, `price_depth`.
+  **Mặc định vẫn là `"KBS"`** — không đổi hành vi cho người dùng hiện tại.
+- Chuẩn hoá dữ liệu ở **một điểm duy nhất** (`_normalize_quote_result`): tz-aware,
+  lọc biên, sort. Provider mới thêm vào tự động tuân thủ.
+- `match_type` chuẩn hoá về `Buy`/`Sell`/`unknown` cho mọi provider (trước đó
+  DNSE/SSI giữ nguyên giá trị provider → sai âm thầm).
+- `Redactor.redact_url()` — chặn rò `api_key`/signature trong query string
+  (`connector/dnse/websocket.py` trước đây log nguyên văn ở level INFO).
+
+**Sửa lỗi hạ tầng:**
+
+- **CI không chạy cho PR vào `dev`**: cả 4 workflow trigger `[main, develop]` nhưng
+  repo không có branch `develop`. Đã đổi thành `[main, dev]`.
+- `pytest tests/contract/` + `ruff` nay **chặn thật** (trước mọi bước đều advisory).
+- `[tool.ruff]`: 2888 → 0 lỗi với rule set có chủ đích.
+- `check_version_sync.py` quét cả `tests/` (trước gate xanh trong khi test đỏ).
+- Reset baseline `mypy --strict` (ghi 556 dòng nhưng thực tế 1266 lỗi → gate luôn đỏ),
+  hạn **2026-11-01** và hạn **được thực thi thật** (`baseline_is_expired`).
+- Xoá `vnbroker/core/base/` — 164 câu lệnh code chết (registry thứ hai bị thay thế
+  từ `dbcd81a`, 0 import). Bằng chứng ở `f5de70d`; gate ngăn tái sinh.
+
+**Số liệu:** pytest **1001 passed** / 5 skipped · ruff 0 · version-sync 0 ·
+mypy-baseline 0 · coverage **55%**.
+
+---
+
+## [Unreleased]
 
 ### Added
 - **Hợp đồng tầng 1 (contract test)** — `tests/contract/` khoá bảo đảm mọi provider ẩn danh
