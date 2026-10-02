@@ -1,7 +1,5 @@
 ﻿import pytest
 
-from vnbroker import Vnbroker
-from vnbroker.api.quote import Quote
 from vnbroker.explorer.tcbs import auth
 from vnbroker.explorer.tcbs.auth import resolve_auth_token
 

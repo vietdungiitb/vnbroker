@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import MagicMock, patch
 import pandas as pd
 
 from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote

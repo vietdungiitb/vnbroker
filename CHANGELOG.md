@@ -24,6 +24,25 @@ All notable changes to this project will be documented in this file.
 - `check_version_sync.py` quét cả `tests/` — trước đó gate xanh trong khi 3 test đỏ vì
   test hardcode version cũ.
 - Sửa `params: Dict = {...}` dùng chung giữ các lần gọi ở 3 `explorer/*/screener.py` (B006).
+
+### Security — đường tiền thật (P0, sau kiến trúc hai tầng)
+
+- **SSI không còn retry mù trên POST đặt lệnh.** `SSIHttpClient.request` trước đây bọc
+  mọi method trong `tenacity.Retrying` không phân biệt idempotent; `ConnectionError`
+  xảy ra cả khi server **đã nhận lệnh** nhưng response mất → gửi lại lệnh trùng.
+  **Đã tái hiện: 1 lời gọi → 5 POST thật.** Nay chỉ retry method idempotent
+  (`GET`/`HEAD`/`PUT`/`DELETE`/`OPTIONS`); POST ném `BrokerNetworkError` với code
+  `NETWORK_ERROR_NON_IDEMPOTENT` kèm hướng dẫn tra cứu `clientRequestId`.
+- **`clientRequestId` được gắn vào exception** khi lỗi mạng xảy ra (`broker/ssi/equity.py`)
+  — không có nó thì lần thử lại sinh key mới và dedupe phía server vô hiệu, tức vẫn
+  là double-submit do người dùng bấm.
+- **`connector/dnse/trade.py` có hàng rào ghi.** Trước đây `place_order`,
+  `cancel_order`, `deposit_derivative_margin`, `withdraw_derivative_margin`
+  **không có** `dry_run`, **không có** `write_gate` → tiền đi thật ngay.
+  Nay: `dry_run: bool = True` (an toàn) + `Trade.enable_write()` tắt mặc định;
+  `dry_run=False` mà chưa bật quyền thì ném `BrokerPermissionError`.
+- Thứ tự trong `place_order`: **validate → guard → network.** Để guard trước validate
+  sẽ khiến dry-run trả "OK" cho một lệnh mà lúc gửi thật chắc chắn raise — dry-run nói dối.
 - `_normalize_quote_result()` trong `vnbroker/common/data.py` — điểm kiểm soát **duy nhất**
   cho chuẩn hoá kết quả provider. Provider mới thêm vào sau này tự động tuân thủ.
 

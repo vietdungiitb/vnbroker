@@ -51,7 +51,7 @@ jobs:
     # không continue-on-error để baseline không trôi ngược.
     - name: Lint with ruff
       run: |
-        ruff check vnbroker tests/contract/
+        ruff check vnbroker tests/unit tests/contract/
     
     - name: Run integration tests
       run: |

@@ -117,7 +117,7 @@ class TestEquityGetOrders:
     def test_get_orders_size_over_100_raises_validation_error(self):
         # size parameter is now accepted (no validation error)
         with patch("requests.get", return_value=_mock_resp(200, {"total": 0, "data": []})) as m:
-            df = self._svc().get_orders(ACCOUNT_NO, size=101)
+            self._svc().get_orders(ACCOUNT_NO, size=101)
         assert m.called
         assert m.call_args.kwargs["params"]["size"] == 101
 
@@ -386,7 +386,7 @@ class TestDerivativesGetOrders:
     def test_get_deriv_orders_size_over_100_raises(self):
         # size parameter is now accepted (no validation error)
         with patch("requests.get", return_value=_mock_resp(200, {"total": 0, "data": []})) as m:
-            df = self._svc().get_orders(ACCOUNT_NO, size=101)
+            self._svc().get_orders(ACCOUNT_NO, size=101)
         assert m.called
         assert m.call_args.kwargs["params"]["pageSize"] == 101
 

@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import warnings
 from pandas import json_normalize
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.connector.dnse.client import DNSEClient
@@ -27,6 +27,49 @@ class Trade:
         self._api_key = api_key
         self._api_secret = api_secret
         self._openapi_base_url = base_url
+        # P0-2: đường GHI phải có hàng rào. Trước đây place_order /
+        # cancel_order / deposit_derivative_margin / withdraw_derivative_margin
+        # gửi thật ngay lập tức, không cần dry_run cũng không cần bật quyền.
+        self._write_enabled = False
+
+    def enable_write(self, enabled: bool = True) -> None:
+        """Bật/tắt quyền thực thi lệnh thật.
+
+        Mặc định là TẮT. Đặt lệnh hay rút tiền phải là hành động có chủ đích —
+        không phải chuyện xảy ra do gọi nhầm.
+
+        Example:
+            >>> trade.enable_write()          # cho phép gửi thật
+            >>> trade.place_order(..., dry_run=False)
+        """
+        self._write_enabled = enabled
+
+    def _require_write(self, operation: str, dry_run: bool) -> Optional[Dict[str, Any]]:
+        """Trả về envelope dry-run, hoặc ``None`` nếu được phép gửi thật.
+
+        Raises:
+            BrokerPermissionError: khi ``dry_run=False`` nhưng chưa ``enable_write()``.
+        """
+        if dry_run:
+            return {
+                "dry_run": True,
+                "operation": operation,
+                "message": (
+                    f"[DRY_RUN] {operation} — lệnh KHÔNG được gửi. "
+                    f"Gọi trade.enable_write() và truyền dry_run=False để thực thi."
+                ),
+            }
+        if not self._write_enabled:
+            from vnbroker.broker.exceptions import BrokerPermissionError
+
+            raise BrokerPermissionError(
+                message=(
+                    f"{operation} chưa được phép. Gọi trade.enable_write() "
+                    f"trước khi gửi lệnh thật."
+                ),
+                code="WRITE_NOT_ENABLED",
+            )
+        return None
 
     def _get_openapi_client(self) -> DNSEClient:
         if self._openapi_client is None:
@@ -301,7 +344,7 @@ class Trade:
         order_type: str,
         loan_package_id: Optional[int] = None,
         asset_type: str = 'stock'
-    ) -> Optional[pd.DataFrame]:
+    , dry_run: bool = True,) -> Optional[pd.DataFrame]:
         """
         Place an order for stocks or derivatives.
 
@@ -319,6 +362,11 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with order info if successful,
                 None otherwise.
         """
+        # Validate TRƯỚC, rồi mới chặn. Thứ tự này quan trọng: dry-run phải mô
+        # phỏng trung thực đường gửi thật — cùng input thì cùng lỗi. Nếu guard
+        # chạy trước, dry_run sẽ trả envelope "OK" cho một lệnh mà lúc gửi
+        # thật chắc chắn raise, tức là dry-run nói dối (xem P0-1/P0-2: nguyên tắc
+        # chung — không bao giờ trả tín hiệu sai cho người dùng).
         normalized_side = str(side).strip().lower()
         if normalized_side in ("buy", "nb", "b", "mua"):
             side_code = "NB"
@@ -328,6 +376,11 @@ class Trade:
             raise ValueError(
                 f"Giá trị side '{side}' không hợp lệ. Vui lòng sử dụng 'buy' hoặc 'sell'."
             )
+
+        # P0-2: hàng rào đường GHI — dry_run=True (mặc định) thì KHÔNG gửi.
+        _dry = self._require_write("place_order", dry_run)
+        if _dry is not None:
+            return _dry
 
         if asset_type == 'stock':
             url = f"{self.BASE_URL}/order-service/v2/orders"
@@ -424,7 +477,7 @@ class Trade:
         order_id: str,
         sub_account: str,
         asset_type: str = 'stock'
-    ) -> Optional[pd.DataFrame]:
+    , dry_run: bool = True,) -> Optional[pd.DataFrame]:
         """
         Cancel an order.
 
@@ -437,6 +490,10 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with cancellation result if
                 successful, None otherwise.
         """
+        # P0-2: hàng rào đường GHI — hủy lệnh cũng là thao tác thật.
+        _dry = self._require_write("cancel_order", dry_run)
+        if _dry is not None:
+            return _dry
         if asset_type == 'stock':
             url = f"{self.BASE_URL}/order-service/v2/orders/{order_id}"
             url += f"?accountNo={sub_account}"
@@ -600,7 +657,7 @@ class Trade:
         amount: int,
         via: str,
         otp: str
-    ) -> Optional[pd.DataFrame]:
+    , dry_run: bool = True,) -> Optional[pd.DataFrame]:
         """
         Deposit margin for derivative trading.
 
@@ -616,6 +673,10 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with result if successful,
                 None otherwise.
         """
+        # P0-2: nạp ký quỹ = tiền thật vào tài khoản phái sinh.
+        _dry = self._require_write("deposit_derivative_margin", dry_run)
+        if _dry is not None:
+            return _dry
         url = f"{self.BASE_URL}/derivative-asset-service/deposit"
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -644,7 +705,7 @@ class Trade:
         amount: int,
         via: str,
         otp: str
-    ) -> Optional[pd.DataFrame]:
+    , dry_run: bool = True,) -> Optional[pd.DataFrame]:
         """
         Withdraw margin from derivative trading.
 
@@ -660,6 +721,10 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with result if successful,
                 None otherwise.
         """
+        # P0-2: rút ký quỹ = tiền thật ra khỏi tài khoản.
+        _dry = self._require_write("withdraw_derivative_margin", dry_run)
+        if _dry is not None:
+            return _dry
         url = f"{self.BASE_URL}/derivative-asset-service/withdraw"
         headers = {
             "Authorization": f"Bearer {self.token}",

@@ -19,7 +19,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Union
 
-from vnbroker.broker.exceptions import BrokerValidationError
+from vnbroker.broker.exceptions import BrokerNetworkError, BrokerValidationError
 from vnbroker.broker.security.credentials import SSICredentialConfig
 from vnbroker.broker.security.guards import write_gate
 from vnbroker.broker.session import BrokerSession
@@ -136,9 +136,17 @@ class SSIEquityService:
             "userAgent": _USER_AGENT,
         }
         body = json.dumps(payload)
-        data = self._transport.request_signed(
-            "POST", _paths.EP_TRADING_ORDER, body, self._config.private_key
-        )
+        try:
+            data = self._transport.request_signed(
+                "POST", _paths.EP_TRADING_ORDER, body, self._config.private_key
+            )
+        except BrokerNetworkError as exc:
+            # Gắn clientRequestId vào exception: nếu lỗi mạng xảy ra, người dùng
+            # cần chính key này để tra cứu / đặt lại mà không tạo lệnh trùng
+            # (P0-1). Không có nó thì lần thử lại sẽ sinh key mới và dedupe
+            # phía server vô hiệu.
+            exc.client_request_id = request_id  # type: ignore[attr-defined]
+            raise
         rec = data if isinstance(data, dict) else {}
         return {
             "order_id": str(rec.get("orderId", "")),

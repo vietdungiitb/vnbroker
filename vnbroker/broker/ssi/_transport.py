@@ -32,6 +32,8 @@ from vnbroker.broker.ssi._signing import rsa_sign_hex
 
 _logger = logging.getLogger("vnbroker.broker.ssi.transport")
 
+_IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS"})
+
 _HEADER_SIGNATURE = "X-Signature"
 
 
@@ -101,8 +103,20 @@ class SSIHttpClient:
             BrokerError: 4xx/5xx khác hoặc body không phải JSON.
         """
         url = self._base_url + path
+        # Retry chỉ an toàn cho method IDEMPOTENT.
+        #
+        # Lý do (P0-1): `requests.exceptions.ConnectionError` cũng xảy ra khi
+        # server ĐÃ nhận xong lệnh nhưng response bị mất trên đường về. Retry
+        # một POST không idempotent sẽ gửi lại lệnh trùng — ở đường tiền thật
+        # nghĩa là double-submit. Đã tái hiện: 1 lời gọi → 5 POST thật.
+        #
+        # Với POST ta KHÔNG retry: ném lỗi để caller tra cứu bằng
+        # `clientRequestId` rồi quyết định đặt lại hay không. Đây là hành vi
+        # an toàn: "chắc chắn không đặt" tốt hơn "chắc chắn không đặt trùng".
+        idempotent = method.upper() in _IDEMPOTENT_METHODS
+        attempts = self._max_retries if idempotent else 1
         retryer = Retrying(
-            stop=stop_after_attempt(self._max_retries),
+            stop=stop_after_attempt(attempts),
             wait=wait_exponential(multiplier=0.5, max=8.0),
             retry=retry_if_exception_type(
                 (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
@@ -123,6 +137,17 @@ class SSIHttpClient:
             requests.exceptions.Timeout,
             requests.exceptions.ConnectionError,
         ) as exc:
+            if not idempotent:
+                raise BrokerNetworkError(
+                    message=(
+                        f"Lỗi mạng SSI ({type(exc).__name__}) trên "
+                        f"{method.upper()} — KHÔNG retry tự động vì method "
+                        f"không idempotent: server có thể đã nhận lệnh. "
+                        f"Tra cứu bằng clientRequestId trước khi đặt lại."
+                    ),
+                    code="NETWORK_ERROR_NON_IDEMPOTENT",
+                    http_status=0,
+                ) from exc
             raise BrokerNetworkError(
                 message=f"Lỗi mạng SSI ({type(exc).__name__}) sau {self._max_retries} attempt.",
                 code="NETWORK_ERROR",
