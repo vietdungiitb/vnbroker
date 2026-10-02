@@ -56,6 +56,12 @@ All notable changes to this project will be documented in this file.
   truyền `?api_key=...&signature=...`). `connector/dnse/websocket.py` trước đây log URL
   nguyên văn ở level **INFO** → rò `api_key` + HMAC signature. Đã bổ sung `signature`,
   `sig`, `trading_token`, `smart_otp`, `x-api-key` vào danh sách nhạy cảm.
+- **Xoá `vnbroker/core/base/` — 164 câu lệnh code chết.** Đây là registry đầu
+  tiên của dự án, đã bị `core/registry.py` thay thế ở commit `dbcd81a` ("registry merge")
+  nhưng quên dọn. 0% coverage và **không module nào import** (đã quét toàn repo).
+  Hai registry cùng tên khác API là bẫy cho người đọc mới. Bằng chứng hoạt động được
+  lưu ở commit `f5de70d` trước khi xoá; `tests/unit/core/test_legacy_base_module.py`
+  nay là gate ngăn tái sinh (đã kiểm chứng đỏ khi thư mục tồn tại).
 - **Failover mở rộng sang `intraday` và `price_depth`.** Trước đó chỉ `history` xoay vòng
   provider — khi provider chính hết hạn, toàn bộ người dùng mất dữ liệu trong phiên dù
   hệ thống còn provider dự phòng.

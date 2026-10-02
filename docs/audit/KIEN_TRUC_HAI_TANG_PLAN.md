@@ -363,6 +363,11 @@ Không chặn mục tiêu tầng 1, nhưng **vẫn nên sửa** vì người dù
 GĐ1 ✅  GĐ2 ✅  GĐ3 ✅  GĐ4 ✅        (2026-10-01 → 2026-10-02)
 ```
 
+### Trạng thái cuối (2026-10-02)
+
+Coverage **54% → 55%** (16.954 stmt / 7.702 chưa chạy) sau khi xoá code chết.
+Gate: pytest **1001 passed** · ruff 0 · version-sync 0 · mypy-baseline 0.
+
 ### Định hướng sản phẩm đã chốt
 
 - **Vnbroker là công cụ truy cập dữ liệu qua OpenAPI**, phát hành **open-source, không thu tiền**.
@@ -385,7 +390,11 @@ GĐ1 ✅  GĐ2 ✅  GĐ3 ✅  GĐ4 ✅        (2026-10-01 → 2026-10-02)
 
 | Hạng mục | Mức | Ghi chú |
 |:---|:--:|:---|
-| Baseline mypy 1266 lỗi | P1 | Hạn 2026-11-01; giảm dần theo phân bố trong header baseline |
+| Baseline mypy 1266 lỗi | P1 | Hạn 2026-11-01; gate `baseline_is_expired` thực thi thật |
+| `core/base/` 164 stmt code chết | **Closed** | Xoá 2026-10-02; bằng chứng ở `f5de70d`, gate ngăn tái sinh |
+| `match_type` chuẩn hoá | **Closed** | 2026-10-02, +31 test contract |
+| WS DNSE log rò `api_key` | **Closed** | `Redactor.redact_url()` 2026-10-02 |
+| Failover chỉ có ở `quote.history()` | **Closed** | Mở rộng `intraday` + `price_depth` |
 | SSI retry lặp POST đặt lệnh | **P0** | Đã tái hiện: 1 lệnh → 3 POST thật. **Không chặn kiến trúc 2 tầng nhưng vẫn nên sửa** |
 | `connector/dnse` không có `dry_run` | **P0** | `trade.py`: `place_order`/`cancel_order`/deposit/withdraw đều gửi thật |
 | `VCI history()` lọc `start` | — | **Đã sửa ở GĐ2** (tầng data chuẩn hoá) |
