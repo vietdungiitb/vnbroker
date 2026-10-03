@@ -2,6 +2,10 @@
 
 **Ngày:** 2026-10-03 · **Trạng thái:** Đề xuất chờ duyệt · **Chưa triển khai**
 **Bên nhận hợp đồng phía server:** `vnsaas` (Django 5.2 + DRF), theo `D07 §3.1`, `§10`, `§11`
+**Câu hỏi cần `vnsaas` trả lời:** [`OPEN_QUESTIONS_FOR_VNSAAS_20261003.md`](OPEN_QUESTIONS_FOR_VNSAAS_20261003.md)
+
+> **Chưa viết mã.** Theo yêu cầu chủ dự án: `vnbroker` không code cho tới khi
+> `vnsaas` thực sự online. Nhóm A trong tài liệu câu hỏi là điều kiện bắt đầu.
 
 ---
 
