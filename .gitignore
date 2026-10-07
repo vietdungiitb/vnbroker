@@ -200,6 +200,9 @@ tmp_tcbs_chunk_*.js
 -p/
 # Machine state của quy trình SDLC (ghi nhánh/stage/gate status, sinh lại mỗi phiên)
 docs/_workflow/STATE.json
+# Checkpoint tiến độ của subagent trong quy trình multi-agent (ghi đè mỗi bước,
+# là tín hiệu sống chứ không phải bàn giao — nội dung nằm trong REPORT_FINAL.md)
+docs/HEARTBEAT_*.md
 
 # Secrets and local test scripts
 *.jwt
