@@ -4,9 +4,36 @@
 - **Planner:** Hermes Agent
 - **Ngày:** 2026-10-05
 - **Workdir:** `C:/Mujoco Projects/vnbroker`
-- **Trạng thái:** `DRAFT`
+- **Trạng thái:** `BLOCKED` — hoãn 2026-10-07, chờ `vnsaas` hoàn thành
 - **Quy trình:** Theo `skills/software-development/multi-agent-workflow` (9 giai đoạn, 6 Gate)
 - **Ngôn ngữ kế hoạch:** Tiếng Việt (theo yêu cầu người dùng); tên file/code giữ tiếng Anh.
+
+---
+
+## 0. Trạng thái: BLOCKED (2026-10-07) — KHÔNG bắt đầu code
+
+**Quyết định của người dùng:** *"tạm thời chưa làm đến nó vì vnsaas chưa xong"*.
+
+Ground truth đo ngày 2026-10-07 xác nhận việc hoãn là **đúng**, không phải né tránh:
+
+| # | Phụ thuộc | Trạng thái đo được | Hệ quả |
+|---|---|---|---|
+| 1 | `vnsaas` backend (P0) | Repo tồn tại, có `identity_access/models.py` (PAT: 5 hàm) + `entitlement/models.py` + `entitlement/serializers.py:33` khai `POST /api/v1/entitlements/verify`. **Nhưng** HEAD của `vnsaas` là `8721b97 claim(implement-license): Stage 3` — đang giữa chừng triển khai | Endpoint có vẻ tồn tại nhưng chưa chốt ⇒ SDK không thể test thật |
+| 2 | `Subscription` đổi `OneToOneField` → `ForeignKey` (§7.3.1) | **CHƯA XÁC MINH** | SDK đọc sai nếu vnsaas chưa sửa |
+| 3 | `vnbroker/sdk/` | **CHƯA TỒN TẠI** (đúng — chưa làm) | — |
+| 4 | P1 gap: `brokerage/` thiếu `write_gate` | **ĐÃ XÁC NHẬN**: `grep write_gate\|dry_run\|enable_write` trên `brokerage/base.py` + `brokerage/tcbs/client.py` → **rỗng**. Thêm nữa: **không ai import `vnbroker.brokerage`** ở bất kỳ đâu (grep toàn repo) ⇒ module **mồ côi** | Đây là rủi ro P1 cao — nhưng **thuộc phạm vi vnbroker**, không phụ thuộc vnsaas |
+
+**Việc có thể làm độc lập với vnsaas:** đóng P1 gap (`write_gate` cho `brokerage/`).
+Việc này không cần vnsaas và cũng có giá trị riêng (module mồ côi có ghi lệnh mà
+không có hàng rào). **CHƯA CHẠY** — chờ người dùng quyết.
+
+**Điều kiện gỡ BLOCKED:** `vnsaas` chốt P0 (9 bảng + `Subscription` FK + endpoint
+verify hoạt động + 596 test pass), và người dùng xác nhận.
+
+**Trước khi bắt đầu, phải chốt lại mô hình sản phẩm:** kế hoạch này được lập để
+**thương mại hóa** (PAT, entitlement, tier, License Key, rate limit phân biệt tier
+trả phí). Người dùng từng nói `vnbroker` là open-source, không thu tiền. Hai điều
+này mâu thuẫn — cần xác nhận lại mục đích trước khi viết dòng code đầu tiên.
 
 ---
 
