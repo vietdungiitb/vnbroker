@@ -12,10 +12,14 @@ Target users:
 
 For reproducible deployments, pin a version or commit.
 
-Stable from PyPI:
+> ⚠️ **Chưa có bản nào trên PyPI.** Lệnh `pip install "vnbroker==..."` bên dưới
+> chỉ dùng được SAU khi phát hành lần đầu (xem `docs/PUBLISHING.md`). Hiện tại
+> dùng cách cài từ GitHub ở mục dưới.
+
+Từ PyPI (sau khi phát hành):
 
 ```bash
-pip install "vnbroker==1.0.2"
+pip install "vnbroker==3.5.0"
 ```
 
 From GitHub branch/commit:

@@ -3,6 +3,8 @@
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
 > **v3.5.0** — Kiến trúc hai tầng: dữ liệu thị trường ẩn danh (`auto=True`) tự chọn và xoay vòng provider; broker chọn provider tường minh. Kèm chặn double-submit lệnh SSI + hàng rào `dry_run` cho `connector/dnse`. ⚠️ Có **Breaking changes** (xem [Breaking Changes 3.5.0](#phiên-bản-350--2026-10-02--kiến-trúc-hai-tầng--an-toàn-đường-giao-dịch)) — `history()` trả `time` tz-aware.
+>
+> **Độc lập hoàn toàn từ v3.5.0:** `vnbroker` không phải fork hay phụ thuộc bất kỳ dự án ngoại nào. Mọi kiến trúc, bản quyền và mã nguồn được phát triển nội bộ từ đầu (`Direct Provider Architecture` — tầng 1 dữ liệu ẩn danh, tầng 2 broker lane). Xem `docs/PLAN_CLEAR_VNSTOCK_REFERENCES.md` để biết chi tiết các tham chiếu cũ đã được xóa sạch.
 
 ## Tóm tắt
 
@@ -62,13 +64,21 @@ ohlc = ssi.get_ohlc("SSI", timeframe="1d")
 
 ## Cài đặt
 
+> ⚠️ **Chưa phát hành trên PyPI.** `vnbroker` hiện chỉ phân phối qua GitHub.
+> `pip install vnbroker` sẽ báo *No matching distribution found* — xem
+> `docs/PUBLISHING.md` để biết cách phát hành và trạng thái hiện tại.
+
+Cài trực tiếp từ GitHub:
+
 ```bash
-pip install -U vnbroker
+pip install "git+https://github.com/vietdungiitb/vnbroker.git@v3.5.0"
 ```
 
 Phát triển cục bộ:
 
 ```bash
+git clone https://github.com/vietdungiitb/vnbroker.git
+cd vnbroker
 pip install -e ".[test]"
 ```
 

@@ -10,7 +10,8 @@ readme = "README.md"
 authors = [
   { name = "Pham Viet Dung", email = "vietdungiitb@gmail.com" },
 ]
-license = { text = "Custom: Personal, research, non-commercial; contact vietdungiitb@gmail.com for other use" }
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE.md"]
 requires-python = ">=3.10"
 keywords = ["vnbroker", "finance", "vietnam", "stock market", "analysis", "API", "DNSE", "broker"]
 classifiers = [
@@ -27,7 +28,6 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
-    "License :: Other/Proprietary License",
     "Natural Language :: Vietnamese",
     "Natural Language :: English",
 ]
@@ -70,7 +70,8 @@ IssueTracker = "https://github.com/vietdungiitb/vnbroker/issues"
 
 [tool.setuptools]
 include-package-data = true
-packages = { find = {} }
+[tool.setuptools.packages.find]
+include = ["vnbroker*"]
 
 [tool.setuptools.package-data]
 vnbroker = ["docs/*.txt", "docs/*.csv"]
