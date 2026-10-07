@@ -1,3 +1,19 @@
+# Version — nguồn duy nhất là `pyproject.toml`, đọc qua metadata của distribution.
+#
+# KHÔNG hardcode chuỗi version ở đây. Bản cài từ wheel luôn có metadata nên giá
+# trị luôn khớp `pyproject.toml`; hardcode sẽ tạo nguồn sự thật thứ hai và lệch
+# âm thầm ở lần bump đầu tiên (người dùng thấy `pip show` một đằng, `__version__`
+# một nẻo). `scripts/check_version_sync.py` cũng cấm literal version trong tests/.
+try:
+    from importlib.metadata import version as _distribution_version
+
+    __version__ = _distribution_version("vnbroker")
+except Exception:  # pragma: no cover - chạy trực tiếp từ source chưa cài, hoặc metadata hỏng
+    # Bắt rộng có chủ đích: đây chỉ là một chuỗi version, KHÔNG được làm
+    # `import vnbroker` nổ. Giá trị dự phòng cố tình trông giả để không ai
+    # nhầm nó là bản phát hành thật.
+    __version__ = "0.0.0.dev0"
+
 # Lazy import vnbroker to avoid circular import deadlock
 _vnbroker = None
 
@@ -61,6 +77,7 @@ __all__ = [
     "INDEX_GROUPS",
     "SECTOR_IDS",
     "EXCHANGES",
+    "__version__",
 ]
 
 # Unified Registry
