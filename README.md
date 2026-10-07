@@ -64,11 +64,15 @@ ohlc = ssi.get_ohlc("SSI", timeframe="1d")
 
 ## Cài đặt
 
-> ⚠️ **Chưa phát hành trên PyPI.** `vnbroker` hiện chỉ phân phối qua GitHub.
-> `pip install vnbroker` sẽ báo *No matching distribution found* — xem
-> `docs/PUBLISHING.md` để biết cách phát hành và trạng thái hiện tại.
+```bash
+pip install -U vnbroker
+```
 
-Cài trực tiếp từ GitHub:
+[![PyPI](https://img.shields.io/pypi/v/vnbroker)](https://pypi.org/project/vnbroker/)
+[![Python](https://img.shields.io/pypi/pyversions/vnbroker)](https://pypi.org/project/vnbroker/)
+[![License](https://img.shields.io/pypi/l/vnbroker)](https://pypi.org/project/vnbroker/)
+
+Cài trực tiếp từ GitHub (bản `main`):
 
 ```bash
 pip install "git+https://github.com/vietdungiitb/vnbroker.git@v3.5.0"
