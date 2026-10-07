@@ -750,7 +750,7 @@ def _normalize_quote_result(
 
 def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Lọc kwargs theo signature của provider method (pattern vnstock 4.0.4).
+    Lọc kwargs theo signature của provider method (pattern vnbroker v3.5 — nội bộ).
 
     - Provider có VAR_KEYWORD (**kwargs) → passthrough toàn bộ.
     - Không → chỉ giữ param có trong signature; kwargs lạ bị bỏ + logger.debug.

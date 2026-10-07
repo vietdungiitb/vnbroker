@@ -75,7 +75,7 @@ VERSION_REQUIREMENTS = {
 VERSION_NOTICES = {
     "3.3.0": {
         "title": "vnbroker 3.3.0 - Audit Fixes Release",
-        "release_url": "https://vnstocks.com/docs/tai-lieu/lich-su-phien-ban",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.3.0",
         "critical_notices": [],
         "warnings": [],
     },
