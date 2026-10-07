@@ -21,14 +21,21 @@ Ground truth đo ngày 2026-10-07 xác nhận việc hoãn là **đúng**, khôn
 | 1 | `vnsaas` backend (P0) | Repo tồn tại, có `identity_access/models.py` (PAT: 5 hàm) + `entitlement/models.py` + `entitlement/serializers.py:33` khai `POST /api/v1/entitlements/verify`. **Nhưng** HEAD của `vnsaas` là `8721b97 claim(implement-license): Stage 3` — đang giữa chừng triển khai | Endpoint có vẻ tồn tại nhưng chưa chốt ⇒ SDK không thể test thật |
 | 2 | `Subscription` đổi `OneToOneField` → `ForeignKey` (§7.3.1) | **CHƯA XÁC MINH** | SDK đọc sai nếu vnsaas chưa sửa |
 | 3 | `vnbroker/sdk/` | **CHƯA TỒN TẠI** (đúng — chưa làm) | — |
-| 4 | P1 gap: `brokerage/` thiếu `write_gate` | **ĐÃ XÁC NHẬN**: `grep write_gate\|dry_run\|enable_write` trên `brokerage/base.py` + `brokerage/tcbs/client.py` → **rỗng**. Thêm nữa: **không ai import `vnbroker.brokerage`** ở bất kỳ đâu (grep toàn repo) ⇒ module **mồ côi** | Đây là rủi ro P1 cao — nhưng **thuộc phạm vi vnbroker**, không phụ thuộc vnsaas |
+| 4 | P1 gap: `brokerage/` thiếu `write_gate` | ✅ **ĐÃ ĐÓNG** (2026-10-07) — thêm `vnbroker/brokerage/guards.py` (`WriteGateMixin` + `@guarded_write`), gắn vào `place_order`/`cancel_order`/`modify_order` của `TCBSClient`; 15 test mới + probe đếm HTTP call | Không còn là rủi ro chặn |
 
-**Việc có thể làm độc lập với vnsaas:** đóng P1 gap (`write_gate` cho `brokerage/`).
-Việc này không cần vnsaas và cũng có giá trị riêng (module mồ côi có ghi lệnh mà
-không có hàng rào). **CHƯA CHẠY** — chờ người dùng quyết.
+**Việc có thể làm độc lập với vnsaas — ĐÃ XONG:** P1 gap (`write_gate` cho `brokerage/`)
+đã đóng ngày 2026-10-07. Chi tiết:
+- File mới: `vnbroker/brokerage/guards.py` — `WriteGateMixin`, `@guarded_write`,
+  `DryRunResult`. **Không** dùng lại `broker/security/guards.py:write_gate` vì
+  decorator đó yêu cầu `self._session` là `BrokerSession` — `BrokerageBase` không có
+  session, ép vào sẽ làm mọi write raise vĩnh viễn.
+- `TCBSClient` kế thừa `WriteGateMixin`; 3 write method có `dry_run: bool = True`
+  keyword-only + `@guarded_write`.
+- Kiểm chứng: `pytest tests/unit/brokerage/` → 15 passed; probe độc lập đếm lời gọi
+  HTTP = `[0, 0, 1]` cho 3 ca (dry-run mặc định / chưa mở cổng / đã mở cổng).
 
-**Điều kiện gỡ BLOCKED:** `vnsaas` chốt P0 (9 bảng + `Subscription` FK + endpoint
-verify hoạt động + 596 test pass), và người dùng xác nhận.
+**Điều kiện gỡ BLOCKED (còn lại):** `vnsaas` chốt P0 (9 bảng + `Subscription` FK +
+endpoint verify hoạt động + 596 test pass), và người dùng xác nhận.
 
 **Trước khi bắt đầu, phải chốt lại mô hình sản phẩm:** kế hoạch này được lập để
 **thương mại hóa** (PAT, entitlement, tier, License Key, rate limit phân biệt tier
