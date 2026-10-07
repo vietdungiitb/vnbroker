@@ -70,9 +70,10 @@ jobs:
           fi
 
       # Cổng 2 — suite thật, chạy trên đúng commit sẽ được phát hành.
+      # `--maxfail=1`: đỏ ở test đầu là dừng, không đốt quota runner cho phần còn lại.
       - name: Run unit + contract tests
         run: |
-          pytest tests/unit tests/contract -q --timeout=120
+          pytest tests/unit tests/contract -q --timeout=120 --maxfail=1
 
       - name: Build sdist and wheel
         run: |

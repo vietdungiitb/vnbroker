@@ -14,7 +14,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
@@ -30,9 +30,12 @@ jobs:
         pytest tests/ --cov=vnbroker --cov-report=xml --cov-report=html --cov-report=term-missing
     
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
-        file: ./coverage.xml
+        # Repo private + không có CODECOV_TOKEN -> upload sẽ fail. Đặt false để
+        # bước này không làm đỏ CI; trước đây chỉ thiếu token nên gate chết âm thầm.
+        fail_ci_if_error: false
+        files: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
         verbose: true

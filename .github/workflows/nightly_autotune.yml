@@ -5,7 +5,10 @@ name: Nightly Auto-Tune Concurrency
 # for each provider at the current network conditions.
 on:
   schedule:
-    - cron: '0 1 * * 1-5'      # Mon–Fri 01:00 UTC (weekdays only)
+    # Thứ Ba 01:00 UTC (08:00 ICT) — trước giờ mở cửa TTCK VN. Đổi từ Mon–Fri
+    # hằng ngày sang mỗi tuần một lần: 5 ngày × 2 provider = 10 job/tuần -> 2.
+    # Đo lại concurrency vẫn làm được bất cứ lúc nào bằng workflow_dispatch.
+    - cron: '0 1 * * 2'
   workflow_dispatch:             # allow manual trigger from GitHub UI
     inputs:
       concurrency_grid:
@@ -43,7 +46,7 @@ jobs:
       # Run with stats disabled for maximum accuracy of concurrency measurement.
       - name: Run auto-tune — ${{ matrix.provider }}
         env:
-          VNSTOCK_ASYNC_STATS_ENABLED: '0'
+          VNBROKER_ASYNC_STATS_ENABLED: '0'
         run: |
           CONCURRENCY="${{ github.event.inputs.concurrency_grid || '4,8,12,16,24' }}"
           SYMBOLS="${{ github.event.inputs.symbols || 'ACB,VCB,TCB,HPG,VNM,BID,CTG,FPT,MWG,SSI' }}"

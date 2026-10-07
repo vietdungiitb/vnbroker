@@ -6,7 +6,8 @@ on:
   pull_request:
     branches: [ main, dev ]
   schedule:
-    - cron: '0 3 * * *'  # Daily at 3 AM UTC
+    # Hằng tuần (Thứ Hai 03:00 UTC) thay vì hằng ngày: giảm 1 job/ngày.
+    - cron: '0 3 * * 1'
 
 jobs:
   performance:
@@ -16,7 +17,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
