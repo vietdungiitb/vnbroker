@@ -1,5 +1,23 @@
 # vnbroker v3.2 - Technical Improvement Plan
 
+<!-- TRẠNG THÁI ĐỐI CHIẾU — WP-PLAN-CLEANUP-01, 2026-10-07 -->
+
+> ## ⚠️ Trạng thái đối chiếu (2026-10-07) — KHÔNG đọc các ô `[ ]` bên dưới như việc còn dở
+>
+> Kế hoạch lập cho **v3.2.0** (2026-06-24). Repo nay ở **v3.5.0**.
+>
+> **Đã xác minh bằng lệnh — XONG:**
+> `analytics.indicators` có 11 chỉ báo (yêu cầu ≥9) · `fx()`/`world_index()` báo lỗi
+> trung thực (`NotImplementedError`, không hứa provider giả) · circuit breaker
+> (`vnbroker/core/health_store.py`) · suite 1052 passed (yêu cầu "522+") ·
+> `uvx ruff check` + mypy baseline đều exit 0.
+>
+> **CHƯA LÀM:**
+> DNSE brokerage tích hợp vào `brokerage/` pattern · async write cho TCBS brokerage ·
+> `docs/` còn nhiều tài liệu cũ chưa dọn (đang xử lý dần — xem
+> `docs/PLAN_CLEAR_VNSTOCK_REFERENCES.md` và WP-PLAN-CLEANUP-01).
+
+
 **Date:** 2026-06-24  
 **Based on:** AUDIT_REPORT_v3.1.1.md  
 **Target Release:** v3.2.0 (Q3 2026)

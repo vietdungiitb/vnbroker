@@ -1,4 +1,23 @@
 ﻿# Kế hoạch tích hợp DNSE LightSpeed API vào vnbroker
+
+<!-- TRẠNG THÁI ĐỐI CHIẾU — WP-PLAN-CLEANUP-01, 2026-10-07 -->
+
+> ## ⚠️ Trạng thái đối chiếu (2026-10-07) — KHÔNG đọc các ô `[ ]` bên dưới như việc còn dở
+>
+> File ghi *"CHỜ PHÊ DUYỆT"* (2026-05-07). DNSE **đã được tích hợp** từ đó.
+>
+> **Đã xác minh bằng lệnh — XONG:**
+> `vnbroker/connector/dnse/client.py` tồn tại · `DNSEClient.get_ohlc` trả DataFrame
+> (`client.py:337`) · `trade.py` dùng `get_logger` thay `print` · `.env.dnse.example`
+> có hướng dẫn 2 luồng (HMAC + JWT) · unit tests DNSE pass · integration test skip
+> sạch khi thiếu env.
+>
+> **CHƯA XÁC MINH / CÒN LẠI:**
+> 2 dòng `print()` còn trong `vnbroker/connector/dnse/` · `brokerage/dnse/`
+> (DNSE brokerage lane) **chưa tồn tại** — xem `docs/PLAN_VNSAAS.md` mục P1.
+> Ghi chú: `Quote(source='dnse')` trong plan là API cũ; nay dùng
+> `Vnbroker().stock('VNM', source='DNSE')`.
+
 **Ngày:** 2026-05-07  
 **Trạng thái:** CHỜ PHÊ DUYỆT  
 **Tác giả:** GitHub Copilot  

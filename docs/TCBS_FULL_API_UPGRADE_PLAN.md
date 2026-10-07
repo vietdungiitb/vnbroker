@@ -1,5 +1,23 @@
 # TCBS iFlash OpenAPI — Kế hoạch nâng cấp toàn diện
 
+<!-- TRẠNG THÁI ĐỐI CHIẾU — WP-PLAN-CLEANUP-01, 2026-10-07 -->
+
+> ## ⚠️ Trạng thái đối chiếu (2026-10-07) — KHÔNG đọc các ô `[ ]` bên dưới như việc còn dở
+>
+> File ghi *"✅ Approved — Đang triển khai"* (2026-06-21). Nay **đã triển khai xong**.
+>
+> **Đã xác minh bằng lệnh — XONG:**
+> Broker registry · auth flow OTP → JWT (`vnbroker/broker/tcbs/auth.py`) ·
+> account/money/equity services · `dry_run=True` + idempotency key + write gate ·
+> phái sinh (`derivatives.py`) · WebSocket (`vnbroker/explorer/tcbs/websocket.py`)
+> · `Vnbroker.broker(provider='TCBS')` gọi được · suite TCBS **318 passed**.
+>
+> **6 mục cuối file là bước hành chính đã qua:** review/approve plan · confirm API
+> key + OTP · setup SIT (`openapisit.tcbs.com.vn`) · cài `websockets>=12.0`
+> (nay `pyproject.toml` đã pin `websockets>=12.0`) · tạo feature branch · cập nhật
+> `docs/TCBS_SPRINT_TASK_BOARD.md` (file tồn tại).
+
+
 **Version:** 2.0  
 **Ngày tạo:** 2026-06-21  
 **Trạng thái:** ✅ Approved — Đang triển khai  

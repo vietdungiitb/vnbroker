@@ -1,5 +1,23 @@
 # Kế hoạch thực hiện: SSI Explorer (source market-data tương thích KBS/VCI)
 
+<!-- TRẠNG THÁI ĐỐI CHIẾU — WP-PLAN-CLEANUP-01, 2026-10-07 -->
+
+> ## ⚠️ Trạng thái đối chiếu (2026-10-07) — 7 ô `[ ]` bên dưới là tiêu chí nghiệm thu, đã đạt
+>
+> SSI Explorer **đã triển khai xong** (v3.3.0/v3.4.0). Các ô `[ ]` là danh mục
+> nghiệm thu dạng "ghi mã test vào cột Minh chứng" — chưa tick vì không ai điền
+> cột đó, **không phải** vì thiếu việc.
+>
+> **Đã xác minh bằng lệnh — XONG:**
+> `tests/unit/explorer/ssi/` có 14 file test (có assert `attrs` — 26 dòng) ·
+> `docs/SSI_USAGE_GUIDE.md` tồn tại, có mục ma trận native-vs-fallback ·
+> `pytest tests/unit/explorer/test_provider_api_compatibility.py` pass ·
+> `docs/VNBROKER_IMPROVEMENT_PLAN.md` là bảng theo dõi tiến độ của chính plan này.
+>
+> **CÒN LẠI:** điền cột "Minh chứng" trong §7.2 bằng mã test cụ thể (việc ghi
+> chép, không phải code).
+
+
 - **Ngày lập:** 2026-09-23
 - **Sửa đổi sau audit:** 2026-09-23 (B1–B4 blocking + NB-1–NB-4, chi tiết §11 — mọi điểm đã kiểm chứng với code thật)
 - **Trạng thái:** Sẵn sàng giao đội code (không cần hỏi lại)
