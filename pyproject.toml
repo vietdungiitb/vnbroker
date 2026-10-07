@@ -10,6 +10,12 @@ readme = "README.md"
 authors = [
   { name = "Pham Viet Dung", email = "vietdungiitb@gmail.com" },
 ]
+# PEP 639: dùng SPDX expression + license-files. Trước đây là TOML table
+# (`license = { text = ... }`) + classifier `License :: Other/Proprietary
+# License` — setuptools đã deprecate cả hai và hạn cứng 2027-02-18; metadata
+# sinh ra chứa đồng thời `License:` (free text) và `License-File:`, đúng ca mà
+# core-metadata 2.4 nói PyPI từ chối. `LicenseRef-Proprietary` là dạng hợp lệ
+# cho giấy phép không thuộc SPDX license list (LICENSE.md của dự án).
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE.md"]
 requires-python = ">=3.10"
@@ -70,6 +76,26 @@ IssueTracker = "https://github.com/vietdungiitb/vnbroker/issues"
 
 [tool.setuptools]
 include-package-data = true
+
+# CHỈ đóng gói package thật của thư viện.
+#
+# `packages = { find = {} }` (dạng cũ, không có `namespaces`) bị setuptools
+# phân giải thành PEP420 namespace finder — mà finder này có DEFAULT_EXCLUDE
+# RỖNG, không loại trừ `tests`/`scripts`/`docs` như FlatLayoutPackageFinder.
+# Hệ quả đo được trên bản build v3.5.0:
+#   - wheel: `tests/` 155 file + `scripts/` 2 file nằm ở top-level site-packages
+#     -> top_level.txt = ['docs', 'scripts', 'tests', 'vnbroker']
+#   - `build/` cũ trên máy dev bị quét theo, nên cùng một commit cho artifact
+#     khác nhau: 740,433 B (có 13 file docs/debug_*.py) vs 732,254 B (clone sạch)
+# `include` chặn cả hai: chỉ `vnbroker*`, không phụ thuộc cây làm việc.
+#
+# LƯU Ý: `packages.find.include` CHỈ áp cho wheel. Sdist lấy file theo
+# `MANIFEST.in` + glob của egg_info, và setuptools chỉ ĐỌC LẠI
+# `vnbroker.egg-info/SOURCES.txt` ở các lần build sau — nên file rác lọt vào một
+# lần sẽ đi vào mọi sdist tiếp theo. Vì vậy `docs/` bị `prune` trong MANIFEST.in
+# và có cổng chặn riêng.
+#
+# Cổng chặn: scripts/check_dist_contents.py (chạy trong .github/workflows/publish.yml).
 [tool.setuptools.packages.find]
 include = ["vnbroker*"]
 
