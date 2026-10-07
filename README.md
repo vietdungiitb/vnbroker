@@ -231,9 +231,11 @@ all_funds = funds.listing()
 | --- | --- | --- |
 | `DNSE_API_KEY` | DNSE API Key (HMAC OpenAPI) | `your_dnse_key` |
 | `DNSE_API_SECRET` | DNSE API Secret (HMAC OpenAPI) | `your_dnse_secret` |
-| `DNSE_USERNAME` | DNSE Username (JWT Trading) | `your_dnse_username` |
-| `DNSE_PASSWORD` | DNSE Password (JWT Trading) | `your_dnse_password` |
+| `DNSE_USERNAME` | DNSE Username (JWT Trading) — **CHƯA HỖ TRỢ**, code không đọc | `your_dnse_username` |
+| `DNSE_PASSWORD` | DNSE Password (JWT Trading) — **CHƯA HỖ TRỢ**, code không đọc | `your_dnse_password` |
 | `VNBROKER_BROKER_TCBS_API_KEY` | TCBS OpenAPI Key cho Broker Lane (iFlash) | `your_tcbs_key` |
+
+> **Lưu ý:** `DNSE_USERNAME` và `DNSE_PASSWORD` dành cho phần DNSE JWT/Trading chưa implement; xem `docs/PUBLISHING.md` để biết trạng thái phát hành.
 
 ## Lưu ý quan trọng
 

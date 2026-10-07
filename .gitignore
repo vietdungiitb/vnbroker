@@ -1,5 +1,5 @@
 .DS_Store
-/vnstock_data/
+/vnbroker_data/
 tests/report
 # /logs_58999677869/
 
@@ -198,6 +198,8 @@ debug_*.py
 tmp/
 tmp_tcbs_chunk_*.js
 -p/
+# Machine state của quy trình SDLC (ghi nhánh/stage/gate status, sinh lại mỗi phiên)
+docs/_workflow/STATE.json
 
 # Secrets and local test scripts
 *.jwt

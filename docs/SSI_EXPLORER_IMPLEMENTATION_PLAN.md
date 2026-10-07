@@ -392,7 +392,7 @@ python -c "from vnbroker.common.client import Vnbroker; from vnbroker.common.dat
 $env:vnbroker_RUN_LIVE_INTEGRATION='1'; pytest tests/integration/explorer/test_ssi_live.py -v
 ```
 
-### 8.3. Bộ minh chứng bàn giao (lưu ở `artifacts/ssi_explorer/`, commit kèm PR)
+### 8.3. Bộ minh chứng bàn giao (thư mục `artifacts/ssi_explorer/` đã xoá 2026-10; nội dung dưới đây là mô tả bàn giao lịch sử)
 
 | # | File minh chứng | Lấy từ lệnh | Đạt khi |
 |---|---|---|---|
