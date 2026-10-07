@@ -70,12 +70,11 @@ v3.5.0 bị đánh dấu đỏ. Đã tái hiện và sửa, không reset baselin
    Thiếu `__init__.py` nên `test_quote.py` ở `tests/unit/explorer` và
    `tests/integration/explorer` đụng nhau, làm **toàn bộ** collection fail.
    → Thêm 16 `__init__.py`. `pytest tests/` giờ thu thập 1090 test, exit 0.
-4. **2 test integration lỗi thời** — `tests/integration/test_vnstock_client.py` assert
+4. **2 test integration lỗi thời** (đã xoá cùng đợt dọn tham chiếu cũ) — test cũ assert
    `SUPPORTED_SOURCES == ['KBS','VCI','TCBS','DNSE']` (thiếu SSI từ 3.4.0 và AUTO
    từ 3.5.0), và kỳ vọng `crypto()` ném `NotImplementedError` trong khi nay là
-   `ValueError` (crypto đã có provider BINANCE thật từ 3.4.0). File đã bị xoá
-   cùng đợt dọn tham chiếu `vnstock`; bất biến `SUPPORTED_SOURCES` nay được giữ ở
-   `tests/unit/common/test_stock_ssi.py::test_supported_sources`.
+   `ValueError` (crypto đã có provider BINANCE thật từ 3.4.0). Bất biến
+   `SUPPORTED_SOURCES` nay được giữ ở `tests/unit/common/test_stock_ssi.py::test_supported_sources`.
    → Chuyển sang bất biến + kiểm đúng hành vi.
 
 **Số liệu sau sửa:** pytest **1064 passed** / 29 skipped (toàn bộ `tests/`) ·
