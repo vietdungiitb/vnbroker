@@ -16,7 +16,7 @@ vnbroker cung cấp một lớp truy cập thống nhất để lấy dữ liệ
 
 | Thành phần | Mục đích |
 | --- | --- |
-| `Vnbroker` | Client cấp cao để lấy stock, FX, crypto, world index và quỹ (Direct Providers) |
+| `Vnbroker` | Client cấp cao để lấy stock, crypto (Binance), quỹ và Retail (FX/world index chưa hỗ trợ) |
 | `Quote` | Giá lịch sử, intraday, price depth (Multi-Source) |
 | `Company` | Hồ sơ công ty, cổ đông, giao dịch nội bộ, ban lãnh đạo, công ty con, tin tức và sự kiện |
 | `Finance` | Bảng cân đối kế toán, kết quả kinh doanh, lưu chuyển tiền tệ, chỉ số tài chính |
@@ -241,7 +241,10 @@ all_funds = funds.listing()
 - **Broker Lane:** Gọi trực tiếp API Broker với API Key + OTP.
 - Dữ liệu giá được chuẩn hóa theo contract riêng; kiểm tra `df.attrs["price_unit"]` trước khi lưu hay so sánh.
 - Một số nguồn live có thể bị giới hạn tốc độ hoặc thay đổi phía upstream; adapter của thư viện có retry và backoff.
-- **FX/Crypto/World Index:** Không được hỗ trợ bởi các provider hiện tại (KBS, VCI, TCBS, DNSE). Các phương thức `fx()`, `crypto()`, `world_index()` sẽ raise `NotImplementedError` trong phiên bản tới.
+- **FX/World Index:** Không được hỗ trợ bởi các provider hiện tại (KBS, VCI, TCBS,
+  DNSE). `fx()` và `world_index()` raise `NotImplementedError`.
+  Riêng **`crypto()` đã hoạt động** từ v3.4 qua provider `BINANCE` (spot public,
+  không cần key).
 
 ## Phiên bản 3.5.0 (2026-10-02) — Kiến trúc hai tầng + an toàn đường giao dịch
 
