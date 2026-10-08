@@ -29,9 +29,10 @@
 | agent-t1-bulk | feat/tier1-bulk | vnbroker/core/registry.py,vnbroker/core/bulk_router.py,vnbroker/core/unified_registry.py,vnbroker/api/quote.py,vnbroker/api/bulk.py,tests/unit/core/test_bulk_router.py,tests/unit/api/test_bulk_api.py | done | 2026-10-08T13:00:00Z |
 | agent-t1-failover | feat/tier1-failover | vnbroker/common/data.py,tests/contract/test_failover_integration.py,tests/contract/test_failover_tier1.py,tests/unit/common/test_bulk_normalizer.py | done | 2026-10-08T13:00:00Z |
 | agent-t1-netpool | feat/tier1-netpool | vnbroker/core/utils/cache.py,vnbroker/core/utils/rate_limiter.py,vnbroker/core/utils/client.py,vnbroker/core/provider_pool.py,tests/unit/core/test_cache_key.py,tests/unit/core/test_rate_limiter.py,tests/unit/core/test_connection_pool.py,tests/unit/core/test_provider_pool.py | done | 2026-10-08T13:00:00Z |
-| leader-t2-trade | feat/t2-trade | vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_trade_write_gate.py | in-progress | 2026-10-08T15:00:00Z |
-| leader-t2-secrecy | feat/t2-secrecy | vnbroker/broker/security/redaction.py,vnbroker/connector/dnse/core/http_client.py,tests/unit/broker/test_redaction.py,tests/unit/connector/dnse/test_dry_run_envelope.py | in-progress | 2026-10-08T15:00:00Z |
-| leader-t2-policy | feat/t2-policy | vnbroker/core/source_router.py,vnbroker/core/utils/async_client.py,tests/contract/test_failover_policy_parity.py,tests/unit/core/test_rate_limiter.py | in-progress | 2026-10-08T15:00:00Z |
+| leader-t2-trade | dev | vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_trade_write_gate.py,tests/contract/test_dnse_endpoint_contract.py | done | 2026-10-08T15:00:00Z -> eeb1965 |
+| leader-t2-secrecy | dev | vnbroker/broker/security/redaction.py,vnbroker/connector/dnse/core/http_client.py,tests/unit/broker/test_redaction.py | done | 2026-10-08T15:00:00Z -> b505766 |
+| leader-t2-policy | dev | vnbroker/core/source_router.py,tests/unit/core/test_failover_parity.py. **CHUA LAM: vnbroker/core/utils/async_client.py (TokenBucketRateLimiter trung lap)** | partial | 2026-10-08T15:00:00Z -> b505766 |
+| leader-t2-ws | dev | vnbroker/connector/dnse/websocket.py,tests/unit/connector/dnse/test_websocket_protocol.py | done | 2026-10-09 -> 95f68e6 |
 
 ## Ghi chú
 

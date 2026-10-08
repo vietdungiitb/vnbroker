@@ -2,6 +2,65 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - DNSE round 2: write gate, ro credential, failover, WebSocket
+
+**Breaking changes - doc truoc khi nang cap:**
+
+1. **WebSocket DNSE viet lai hoan toan** theo protocol provider hien tai. Client cu sai
+   o **moi mat** (host, auth, HMAC, nonce, subscribe, ten kenh, heartbeat, phan loai
+   message) nen khong mot request nao cua no ra duoc.
+   - Host: `wss://openapi.dnse.com.vn/ws` -> `wss://ws-openapi.dnse.com.vn/v1/stream`
+   - Auth chuyen tu HMAC trong query string sang message `{"action":"auth"}` in-band
+   - `subscribe` chuyen tu `channels:[str]` phang -> `channels:[{name,symbols}]`
+   - Ten kenh cu (`quote`, `trade`, `sec_def`, ...) **giu lam alias** nen code goi cu
+     khong vo. Ten wire day du (`tick.G1.json`) cung chay duoc.
+   - Heartbeat chuyen tu WS protocol frame sang **application-level `{"action":"pong"}`**
+     (server gui PING moi 3 phut, doi PONG trong 60s, neu khong close code 1008).
+   - Symbols nay tu **UPPERCASE**; subscribe **truoc** khi auth se bi tu choi.
+2. **10 method tien that cua DNSE moi can `trade.enable_write()`**:
+   `set_deal_pnl_config`, `set_account_pnl_config`, `close_deal`,
+   `place_conditional_order`, `cancel_conditional_order`, `post_order`, `put_order`,
+   `cancel_order_openapi`, `create_trading_token`, `close_position`.
+   Truoc day chi 4 method co hang rao; **do bang thuc thi** cho thay
+   `Trade(api_key, api_secret)` khong goi `enable_write()` van gui **7 request that**.
+3. **5 method truoc do khong co tham so `dry_run` nao** (luon gui, khong co loi thoat):
+   `set_deal_pnl_config`, `set_account_pnl_config`, `close_deal`,
+   `place_conditional_order`, `cancel_conditional_order` - nay da co.
+
+**Sua loi:**
+
+- **Ro credential trong envelope dry-run cua DNSE** (nghiem trong): chi `trading-token`
+  duoc che bang `if` hardcode, nen **`X-Signature`** (chuoi HMAC day du) va
+  **`x-api-key`** - gui tren **moi** request - in nguyen van. Nay dung chung `Redactor`.
+  Cung luc do sua luon nguyen nhan goc trong `Redactor`: set luu key theo nhieu cach
+  viet trong khi cho tra lai chuan hoa `-` -> `_`, khien **moi entry viet bang dau gach
+  la chet vinh vien** (`x-api-key`, `X-Signature`, `smart-otp` deu lot). Ba entry point
+  (`redact_dict` / `redact_headers` / `redact_url`) gio dung chung mot matcher.
+- **3 path DNSE sai**: `close_position` -> `/positions/{id}/close`,
+  `get_position_by_id` -> `/positions/{id}`, `send_email_otp` ->
+  `/registration/send-email-otp` (khong gui body).
+- **Failover parity**: `bulk_router.PROVIDER_ERRORS` co `OSError` con
+  `source_router.should_failover` thieu => toan bo ho loi mang (DNS, SSL, connection
+  reset, `requests.*`) khong failover o duong single-symbol trong khi duong bulk van
+  chay. Loi code provider (`TypeError`/`ValueError`/`AttributeError`) van lot len nhu cu.
+- `Trade` nhan them tham so `api_base_url` de cau hinh ho API **legacy**
+  (`api.dnse.com.vn`, 32 method dung host nay - SDK khong nhac toi). Mac dinh **khong doi**.
+
+**Khong sua (co chu dich):**
+
+- `post_order` giu nguyen `accountNo` trong **payload**. **SDK chinh thuc mau thuan voi
+  doc cua ho**: doc mau `post_order(market_type, payload, trading_token, order_category)`
+  khong co `account_no`, SDK thi them vao path. `vnbroker` khop doc.
+- `dry_run` giu mac dinh `False` de **khop SDK chinh thuc** (`client.py:473`). An toan
+  den tu `enable_write()`. Doi sang `True` nhu 4 method cu se bien "gui tien ngo y muon"
+  thanh "lenh bien mat im lang" - te hon.
+- 4 method phien/OTP (`login`, `get_trading_token`, `login_and_get_trading_session`,
+  `send_email_otp`) **khong** gate - gate se hong luong dang nhap.
+- **`vninvest` khong can thay doi**: grep toan repo cho `DNSEWebSocketClient` va cac ten
+  kenh cu deu **0 ket qua trong code** (chi co prose trong docs/ledger).
+
+Chi tiet day du + danh sach viec con lai: `docs/HANDOFF_DNSE_ROUND2_20261009.md`.
+
 ## [3.5.0] — Kiến trúc hai tầng + an toàn đường giao dịch
 
 **Breaking changes — đọc trước khi nâng cấp:**
