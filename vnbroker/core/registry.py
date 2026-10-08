@@ -10,7 +10,7 @@ Module này cho phép:
 - Liệt kê tất cả available providers
 """
 
-from typing import Dict, Tuple, Type, List, Optional
+from typing import Any, Dict, Tuple, Type, List, Optional
 from logging import getLogger
 
 logger = getLogger(__name__)
@@ -30,7 +30,7 @@ logger = getLogger(__name__)
 # re-running the loader would not help, ``sys.modules`` caches the modules and
 # their bottom-line ``register()`` calls would not execute a second time.
 # --------------------------------------------------------------------------
-_auto_loaded: Dict[Tuple[str, str], Type] = {}
+_auto_loaded: Dict[Tuple[str, str], Type[Any]] = {}
 _load_attempted = False
 _loading = False
 

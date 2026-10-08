@@ -15,6 +15,7 @@ import pandas as pd
 from vnbroker.core.bulk_router import BulkRouter
 from vnbroker.core.health_router import HealthRouter
 from vnbroker.core.provider_pool import ProviderPool
+from vnbroker.core.registry import ProviderRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -60,15 +61,34 @@ class BulkAPI:
                 columns=["time", "open", "high", "low", "close", "volume", "symbol"]
             )
 
-        # 1. Get available providers
-        providers = self._provider_pool.get_available_providers("quote")
-        if not providers:
+        # 1. Ask the pool which providers can serve `quote` at all. The pool is
+        #    the single authority on availability (no-auth + credentials found
+        #    in the environment), so the router is handed that list instead of
+        #    re-deriving it. `get_available_providers` can legitimately return
+        #    an empty list, unlike the old call which was checked but never
+        #    falsifiable because NO_AUTH_PROVIDERS is a hardcoded non-empty
+        #    list.
+        pool_providers = self._provider_pool.get_available_providers("quote")
+        if not pool_providers:
             raise ConnectionError("No providers available for quote module")
 
-        # 2. Use BulkRouter to fetch concurrently
-        result = self._bulk_router.fetch_history(symbols, start, end, "quote")
+        # 2. Drop pool members with no registered implementation, otherwise the
+        #    router burns a worker slot discovering the registry is empty.
+        registered = {name.lower() for name in ProviderRegistry.list_available("quote")}
+        servable = [p for p in pool_providers if p.lower() in registered]
+        if not servable:
+            raise ConnectionError(
+                "No registered provider implementation for quote module "
+                f"(pool offered: {pool_providers})"
+            )
 
-        # 3. Merge results into single DataFrame
+        # 3. Use BulkRouter to fetch concurrently. It narrows `servable` down
+        #    to the providers that are healthy right now.
+        result = self._bulk_router.fetch_history(
+            symbols, start, end, "quote", interval=interval, providers=servable
+        )
+
+        # 4. Merge results into single DataFrame
         frames: List[pd.DataFrame] = []
         sources_used: Dict[str, str] = {}
 
@@ -94,7 +114,7 @@ class BulkAPI:
         combined = pd.concat(frames, ignore_index=True)
         combined = combined.sort_values(["symbol", "time"]).reset_index(drop=True)
 
-        # 4. Add metadata
+        # 5. Add metadata
         combined.attrs["sources_used"] = sources_used
         combined.attrs["failed"] = result.get("errors", {})
         combined.attrs["requested"] = len(symbols)
@@ -105,7 +125,7 @@ class BulkAPI:
     def price_board(self, symbols: Optional[List[str]] = None) -> pd.DataFrame:
         """Fetch price board for multiple symbols.
 
-        Uses KBS price_board endpoint which supports bulk requests.
+        Uses the ``trading`` module, which supports bulk requests.
 
         Args:
             symbols: List of stock symbols. If None, fetches all symbols.
@@ -118,12 +138,12 @@ class BulkAPI:
 
         from vnbroker.common.data import Trading
 
-        trading = Trading(source="KBS", show_log=self.show_log)
+        trading = Trading(source=self.source, show_log=self.show_log)
 
         if symbols is None:
             from vnbroker.common.data import Listing
 
-            listing = Listing(source="KBS", show_log=self.show_log)
+            listing = Listing(source=self.source, show_log=self.show_log)
             symbols = listing.all_symbols()["symbol"].tolist()
 
         return trading.price_board(symbols)
