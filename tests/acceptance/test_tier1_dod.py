@@ -18,6 +18,8 @@ No network egress: providers are fakes, or egress is blocked.
 """
 from __future__ import annotations
 
+import ast
+import copy
 import inspect
 from datetime import date
 
@@ -26,9 +28,31 @@ import pytest
 import requests
 
 from vnbroker.core import source_router
+from vnbroker.core.registry import ProviderRegistry
 
 
 OHLCV_COLUMNS = ["time", "open", "high", "low", "close", "volume"]
+
+
+@pytest.fixture
+def isolated_registry():
+    """Snapshot and restore the `ProviderRegistry` singleton.
+
+    This file registers fake providers. `ProviderRegistry._registry` is a
+    process-wide dict with no teardown, so without this fixture every test that
+    runs after ours in the same pytest process inherits our fakes. That was not
+    hypothetical: it turned `tests/unit/api/test_quote.py` from 10 passed into
+    4 failed, and only under the full suite.
+    """
+    saved = copy.deepcopy(ProviderRegistry._registry)
+    saved_health = dict(source_router._health_state)
+    try:
+        yield ProviderRegistry
+    finally:
+        ProviderRegistry._registry.clear()
+        ProviderRegistry._registry.update(saved)
+        source_router._health_state.clear()
+        source_router._health_state.update(saved_health)
 
 
 def _ohlcv(rows: int = 3) -> pd.DataFrame:
@@ -189,14 +213,13 @@ def test_no_nested_retry(method_name):
 # --------------------------------------------------------------------------
 # Bulk must actually reach the network layer
 # --------------------------------------------------------------------------
-def test_bulk_reaches_provider_layer_and_reports_failure():
+def test_bulk_reaches_provider_layer_and_reports_failure(isolated_registry):
     """Assert CONSEQUENCE: the failing provider appears in attrs['failed'].
 
     Not "record_failure was called" -- an earlier test asserted exactly that
     and stayed green while the circuit breaker was inert.
     """
     from vnbroker.api.bulk import BulkAPI
-    from vnbroker.core.registry import ProviderRegistry
 
     _reset_health()
 
@@ -204,7 +227,7 @@ def test_bulk_reaches_provider_layer_and_reports_failure():
         def __init__(self, *a, **kw):
             raise requests.exceptions.ConnectionError("simulated outage")
 
-    ProviderRegistry.register("quote", "vci", Down)
+    isolated_registry.register("quote", "vci", Down)
 
     orig_request = requests.Session.request
 
