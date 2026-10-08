@@ -137,3 +137,132 @@ def test_bulk_has_manifest():
     assert len(result) == 1
     # Normalizer preserves attrs
     assert result[0].attrs.get("symbol") == "ACB"
+
+
+# ------------------------------------------- empty result must fail over (AC-7)
+
+
+class _EmptyNoSchemaSource:
+    """Provider that returns ``pd.DataFrame()`` WITHOUT raising.
+
+    Mô phỏng provider im lặng chết: HTTP 200 nhưng payload rỗng. Đây là ca
+    nguy hiểm nhất vì không có exception nào để bắt — `should_failover` chỉ xét
+    exception, nên trước đây frame rỗng lọt thẳng tới người dùng kèm
+    `record_success`.
+    """
+
+    symbol = "ACB"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def history(self, **kw):
+        self.calls += 1
+        return pd.DataFrame()
+
+    def intraday(self, **kw):
+        self.calls += 1
+        return pd.DataFrame()
+
+    def price_depth(self, **kw):
+        self.calls += 1
+        return pd.DataFrame()
+
+
+class _EmptyWithSchemaSource:
+    """Provider that returns 0 rows BUT keeps the schema (non-trading day)."""
+
+    symbol = "ACB"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def history(self, **kw):
+        self.calls += 1
+        return pd.DataFrame(
+            columns=["time", "open", "high", "low", "close", "volume"]
+        )
+
+
+def test_empty_result_triggers_failover():
+    """AC-7: provider trả rỗng mà không ném lỗi ⇒ phải chuyển provider.
+
+    Provider #1 trả `pd.DataFrame()` (0 cột, 0 dòng), provider #2 trả dữ liệu
+    thật. Kỳ vọng: #2 được gọi, #1 KHÔNG được ghi `record_success`, và frame
+    trả về có dữ liệu.
+    """
+    dead = _EmptyNoSchemaSource()
+    alive = _WorkingSource(naive=False)
+
+    q = _make_quote({"kbs": dead, "vci": alive}, order=["kbs", "vci"])
+    df = q.history(start="2024-01-01", end="2024-01-31")
+
+    assert alive.calls == 1, (
+        f"Phải fallback sang provider thứ 2, thực tế {alive.calls}"
+    )
+    assert len(df) > 0, f"Phải trả frame có dữ liệu, thực tế {len(df)} dòng"
+    assert df.attrs.get("source_used") == "VCI", (
+        "Frame phải đến từ provider thứ 2, không phải provider trả rỗng"
+    )
+
+    snapshot = source_router.get_source_health_snapshot("quote")
+    kbs_state = snapshot.get("KBS") or {}
+    assert int(kbs_state.get("failures", 0)) >= 1, (
+        f"Provider trả rỗng phải bị ghi failure, thực tế: {kbs_state}"
+    )
+
+
+def test_empty_result_records_no_success_for_dead_provider(monkeypatch):
+    """AC-7: tuyệt đối KHÔNG `record_success` cho provider trả rỗng.
+
+    Đo trực tiếp lời gọi `record_success`/`record_failure` thay vì suy ra từ
+    snapshot, để assertion bám đúng hành vi AC nêu.
+    """
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        source_router, "record_success",
+        lambda module_name, source: recorded.append(("success", source)),
+    )
+    monkeypatch.setattr(
+        source_router, "record_failure",
+        lambda module_name, source: recorded.append(("failure", source)),
+    )
+
+    dead = _EmptyNoSchemaSource()
+    alive = _WorkingSource(naive=False)
+    q = _make_quote({"kbs": dead, "vci": alive}, order=["kbs", "vci"])
+    df = q.history(start="2024-01-01", end="2024-01-31")
+
+    assert len(df) > 0
+    assert ("success", "kbs") not in recorded, (
+        f"Provider trả rỗng không được ghi success: {recorded}"
+    )
+    assert ("success", "vci") in recorded, (
+        f"Provider phục vụ thật phải được ghi success: {recorded}"
+    )
+
+
+def test_empty_frame_with_schema_is_still_a_success():
+    """Ranh giới của AC-7: ngày giao dịch rỗng KHÔNG phải provider chết.
+
+    Provider trả 0 dòng **nhưng giữ schema** (`pd.DataFrame(columns=[...])`)
+    nghĩa là provider đã làm đúng việc, chỉ là trong khoảng yêu cầu không có
+    phiên (Tết, cuối tuần, mã chưa có dữ liệu). Frame này phải được coi là
+    THÀNH CÔNG và trả về cho người dùng — nếu coi là thất bại thì mọi ngày nghỉ
+    sẽ thành lỗi hệ thống.
+    """
+    quiet = _EmptyWithSchemaSource()
+    q = _make_quote({"kbs": quiet})
+    df = q.history(start="2024-01-06", end="2024-01-07")
+
+    assert len(df) == 0, "Ngày nghỉ vẫn phải trả frame rỗng, không phải lỗi"
+    assert "time" in df.columns, "Frame rỗng vẫn phải giữ schema hợp đồng"
+    assert df["time"].dt.tz is not None, "Frame rỗng vẫn phải tz-aware"
+    assert df.attrs.get("source_used") == "KBS"
+
+    snapshot = source_router.get_source_health_snapshot("quote")
+    state = snapshot.get("KBS") or {}
+    assert int(state.get("failures", 0)) == 0, (
+        f"Ngày giao dịch rỗng không phải lỗi provider: {state}"
+    )
+

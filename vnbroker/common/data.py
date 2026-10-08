@@ -423,6 +423,64 @@ class StockComponents(BaseComponent):
         self._initialize_components()
 
 
+class EmptyProviderResult(RuntimeError):
+    """Provider trả về kết quả KHÔNG dùng được mà không ném lỗi.
+
+    Cần loại riêng vì ``should_failover`` chỉ xét ``Exception``; quyết định
+    "rỗng = không phục vụ được" thuộc về tầng data (``_run_with_failover``),
+    không sửa ``core.source_router``.
+    """
+
+
+def _describe_empty(result: Any) -> str:
+    """Mô tả ngắn kết quả rỗng để log/exception đọc được."""
+    if isinstance(result, pd.DataFrame) or isinstance(result, pd.Series):
+        return f"{type(result).__name__} khong co cot (schema={list(result.columns)!r})"
+    return f"{type(result).__name__} rong: {result!r}"
+
+
+def _is_unusable_provider_result(result: Any) -> bool:
+    """Provider có trả về thứ gì **dùng được** không?
+
+    Đây là chỗ hiện thực nguyên tắc đã ghi trong docstring của
+    ``_run_with_failover``: "hết provider thì ném lỗi gốc, không bao giờ trả
+    DataFrame rỗng". Provider im lặng trả rỗng là lỗi âm thầm nặng nhất vì
+    người dùng tưởng "hôm nay không giao dịch" thay vì "provider chết".
+
+    **"Không dùng được" khác "ngày giao dịch rỗng"** — ranh giới nằm ở *schema*,
+    không phải ở số dòng:
+
+    - ``pd.DataFrame()`` (0 cột) ⇒ provider không sinh ra cả cấu trúc. Hợp
+      đồng tầng 1 quy định mọi provider trả cùng schema có cột ``time``
+      (``_normalize_quote_result``), mà ``_normalize_quote_result` bỏ qua
+      ngay ở ``if "time" not in result.columns`` ⇒ frame không cột lọt thẳng
+      tới người dùng, vi phạm hợp đồng. ⇒ **không dùng được**.
+    - ``pd.DataFrame(columns=["time", ...])`` với **0 dòng** ⇒ provider đã làm
+      đúng việc, chỉ là trong khoảng yêu cầu không có phiên giao dịch (Tết,
+      cuối tuần, mã chưa có dữ liệu). Chuẩn hoá vẫn chạy và trả frame tz-aware
+      đúng hợp đồng. ⇒ **dùng được**, coi như thành công.
+
+    Chọn mốc *schema* vì nó phân biệt được hai ca thật mà mốc "0 dòng" thì
+    không: coi 0 dòng là thất bại sẽ biến mọi ngày nghỉ thành lỗi hệ thống —
+    đủ provider cùng trả 0 dòng thì ``RuntimeError`` thay vì khung dữ liệu rỗng.
+
+    Args:
+        result: Giá trị provider trả về (DataFrame, dict, list, None, ...).
+
+    Returns:
+        ``True`` nếu kết quả không mang dữ liệu nào dùng được.
+    """
+    if result is None:
+        return True
+    if isinstance(result, (pd.DataFrame, pd.Series)):
+        # Có cột = có schema = provider đã trả lời đúng hình thức, kể cả 0 dòng.
+        return len(result.columns) == 0
+    if isinstance(result, (list, tuple, set, frozenset, dict, str, bytes)):
+        return len(result) == 0
+    # Số, bool, object tùy ý...: không đủ căn cứ để kết luận là rỗng.
+    return False
+
+
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
@@ -636,6 +694,17 @@ class Quote(BaseComponent):
                 if not source_router.should_failover(exc):
                     # Lỗi lập trình, không phải lỗi mạng: ném ra, đừng che.
                     raise
+                source_router.record_failure(module_name, source)
+                last_exc = exc
+                continue
+            if _is_unusable_provider_result(result):
+                # Provider KHÔNG ném lỗi nhưng cũng không phục vụ được: coi như
+                # thất bại, tuyệt đối không record_success (xem helper để biết vì
+                # sao "rỗng" được hiểu là mất schema chứ không phải ngày nghỉ).
+                exc = EmptyProviderResult(
+                    f"Provider {source!r} trả kết quả không dùng được "
+                    f"({method_name}, module={module_name!r}): {_describe_empty(result)}."
+                )
                 source_router.record_failure(module_name, source)
                 last_exc = exc
                 continue
