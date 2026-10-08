@@ -216,6 +216,13 @@ def test_provider_failure_captured_not_crash():
 # ---------------------------------------------------------------------------
 # T1/T2/T3/R4/R5 — bulk thực sự gọi được provider
 # (PLAN_TIER1_ENGINE_v3.md §4 AC-1..AC-5)
+#
+# Provider giả được cài vào đúng slot 'vci'/'kbs' của AUTO candidates thay vì
+# dùng tham số `providers=` mới. Lý do: nếu test chỉ dựa vào tham số mới thì
+# ở e5d8133 nó chết vì "unexpected keyword argument" chứ không phải vì hành vi
+# sai — đó là bằng chứng AC-12 yếu, và `pytest.raises(TypeError)` còn nuốt luôn
+# chính lỗi đó khiến test xanh sai. Cài vào slot thật thì lỗi pre-fix là lỗi
+# hành vi thật.
 # ---------------------------------------------------------------------------
 
 
@@ -224,9 +231,16 @@ class _SpyProvider:
 
     AC-1 yêu cầu chứng minh bằng spy provider nào **thực sự** phục vụ frame,
     không được suy ra từ việc provider khác không được gọi.
+
+    ``__init__`` yêu cầu ``symbol`` giống hệt VCI/KBS thật — nếu để
+    ``__init__`` không tham số thì ``provider_class()`` ở e5d8133 lại chạy
+    được và test xanh sai.
     """
 
     calls: list = []
+
+    def __init__(self, symbol: str):
+        self.symbol = symbol
 
     @classmethod
     def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
@@ -238,6 +252,9 @@ class _AsyncSpyProvider:
     """Hình dạng provider của VCI: ``fetch_multiple`` là ``async classmethod``."""
 
     calls: list = []
+
+    def __init__(self, symbol: str):
+        self.symbol = symbol
 
     @classmethod
     async def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
@@ -259,18 +276,18 @@ class _HistoryOnlyProvider:
 
 
 class _BrokenCtorProvider:
-    """Lỗi lập trình: dựng instance không đủ tham số."""
+    """Lỗi lập trình: dựng instance thiếu tham số bắt buộc."""
 
     def __init__(self):
         raise TypeError("__init__() missing 1 required positional argument: 'symbol'")
 
 
 class _MisboundSelfProvider:
-    """Lỗi lập trình T2: ``history`` bị gọi không đúng ``self``.
+    """Bắt lỗi T2 'mis-bound self'.
 
     ``history`` trên provider thật không có tham số ``symbol``; nếu ai đó gọi
-    nó trên **class** thì ``self`` bị bind vào chuỗi symbol và dòng đầu tiên
-    chạm vào thuộc tính sẽ ném ``AttributeError``.
+    nó trên **class** thì ``self`` bị bind vào chuỗi symbol. Dòng đầu tiên
+    chạm vào thuộc tính sẽ ném ``AttributeError`` — y hệt dấu hiệu ban đầu.
     """
 
     calls: list = []
@@ -281,8 +298,7 @@ class _MisboundSelfProvider:
         type(self).calls.append(symbol)
 
     def _probe(self):
-        # Giống hệt provider thật: chạm vào thuộc tính của self.
-        _ = self.symbol
+        _ = self.symbol  # giống provider thật: chạm thuộc tính của self
 
     def history(self, start=None, end=None, interval="1D"):
         return _frame(self.symbol)
@@ -298,33 +314,36 @@ class _AttributeErrorProvider:
         raise AttributeError("'str' object has no attribute 'symbol'")
 
 
-def _register(name: str, provider_class: type) -> str:
-    """Đăng ký provider giả và trả về tên viết hoa của nó."""
-    ProviderRegistry.register("quote", name, provider_class)
+def _install_as_vci(provider_class: type) -> None:
+    """Cài provider giả vào slot ``vci`` và đẩy ``kbs`` vào cooldown.
+
+    ``get_source_health_snapshot('quote')`` chỉ liệt kê AUTO candidates
+    (``vci``, ``kbs``), nên provider lạ không bao giờ xuất hiện trong health
+    snapshot. Cài vào slot thật giữ được cả hành vi cũ lẫn mới.
+    """
+    ProviderRegistry.register("quote", "vci", provider_class)
     provider_class.calls = []
-    return name.upper()
+    HealthRouter().record_failure("kbs", ConnectionError("cooldown"), module="quote")
 
 
-def _router_with_only_real_providers_down() -> BulkRouter:
-    """Router mà vci/kbs đang cooldown, provider giả là lựa chọn duy nhất."""
+def _router_for_vci() -> BulkRouter:
     hr = HealthRouter()
-    for real in ("vci", "kbs"):
-        hr.record_failure(real, ConnectionError("cooldown for test"), module="quote")
+    hr.record_failure("kbs", ConnectionError("cooldown"), module="quote")
     return BulkRouter(health_router=hr)
 
 
 def test_ac1_fetch_multiple_sync_provider_returns_rows(monkeypatch):
     """AC-1: bulk trả DỮ LIỆU, spy chứng minh đúng provider đã phục vụ."""
     _block_egress(monkeypatch)
-    name = _register("spy1", _SpyProvider)
-    router = _router_with_only_real_providers_down()
+    _install_as_vci(_SpyProvider)
+    router = _router_for_vci()
 
     result = router.fetch_history(
-        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
     )
 
     assert result["errors"] == {}
-    assert result["providers_used"] == [name]
+    assert result["providers_used"] == ["VCI"]
     assert result["symbols_returned"] == 2
     assert all(not df.empty for frames in result["results"].values() for df in frames)
     # spy: đúng provider, đúng batch symbol, đúng interval
@@ -338,11 +357,11 @@ def test_ac1_async_fetch_multiple_is_awaited(monkeypatch):
     ``isinstance(result, dict)`` đều False nên batch rỗng bị coi là thành công.
     """
     _block_egress(monkeypatch)
-    name = _register("spyasync", _AsyncSpyProvider)
-    router = _router_with_only_real_providers_down()
+    _install_as_vci(_AsyncSpyProvider)
+    router = _router_for_vci()
 
     result = router.fetch_history(
-        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
     )
 
     assert result["errors"] == {}
@@ -360,28 +379,30 @@ def test_ac2_real_providers_registered_in_cold_process():
 
 
 def test_ac3_constructor_type_error_propagates():
-    """AC-3: lỗi lập trình phải nổi lên, không đổi thành logger.warning."""
-    name = _register("brokenaaa", _BrokenCtorProvider)
-    router = _router_with_only_real_providers_down()
+    """AC-3: lỗi lập trình phải nổi lên, không đổi thành logger.warning.
+
+    Gọi thẳng ``_fetch_batch`` để lỗi không bị che bởi tham số mới: ở e5d8133
+    ``except Exception`` ở :136 nuốt TypeError rồi trả list rỗng.
+    """
+    ProviderRegistry.register("quote", "vci", _BrokenCtorProvider)
+    router = _router_for_vci()
 
     with pytest.raises(TypeError):
-        router.fetch_history(
-            ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
-        )
+        router._fetch_batch("VCI", ["ACB"], "2024-01-01", "2024-01-31", "quote")
 
 
 def test_ac3_misbound_self_is_not_reproduced():
     """AC-3/T2: ``history`` phải được gọi trên **instance** dựng đúng.
 
-    Nếu router dựng ``provider_class()`` (thiếu ``symbol`` → TypeError) hoặc
-    gọi ``history`` trên class thì ``self`` là chuỗi symbol và dòng
-    ``self.symbol`` ném ``AttributeError``.
+    Nếu router dựng ``provider_class()`` (thiếu ``symbol`` → TypeError) hoặc gọi
+    ``history`` trên class thì ``self`` là chuỗi symbol và dòng ``self.symbol``
+    ném ``AttributeError``.
     """
-    name = _register("mselfp", _MisboundSelfProvider)
-    router = _router_with_only_real_providers_down()
+    _install_as_vci(_MisboundSelfProvider)
+    router = _router_for_vci()
 
     result = router.fetch_history(
-        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
     )
 
     assert result["errors"] == {}
@@ -391,13 +412,11 @@ def test_ac3_misbound_self_is_not_reproduced():
 
 def test_ac3_attribute_error_propagates():
     """AC-3: ``AttributeError`` từ provider phải nổi lên tới caller."""
-    name = _register("attrerrr", _AttributeErrorProvider)
-    router = _router_with_only_real_providers_down()
+    ProviderRegistry.register("quote", "vci", _AttributeErrorProvider)
+    router = _router_for_vci()
 
     with pytest.raises(AttributeError):
-        router.fetch_history(
-            ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
-        )
+        router._fetch_batch("VCI", ["ACB"], "2024-01-01", "2024-01-31", "quote")
 
 
 def test_ac4_all_providers_runtime_error_is_reported():
@@ -410,8 +429,9 @@ def test_ac4_all_providers_runtime_error_is_reported():
         def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
             raise RuntimeError("network unreachable")
 
-    names = [_register("downaaa", _Down), _register("downbbb", _Down)]
-    router = _router_with_only_real_providers_down()
+    ProviderRegistry.register("quote", "vci", _Down)
+    ProviderRegistry.register("quote", "kbs", _Down)
+    router = BulkRouter(health_router=HealthRouter())
 
     recorded: list = []
     original = router._health.record_failure
@@ -423,13 +443,13 @@ def test_ac4_all_providers_runtime_error_is_reported():
     router._health.record_failure = spy_failure
 
     result = router.fetch_history(
-        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote", providers=names
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
     )
 
-    assert set(result["errors"]) == set(names)
+    assert set(result["errors"]) == {"VCI", "KBS"}
     assert all("network unreachable" in msg for msg in result["errors"].values())
     assert result["symbols_returned"] == 0
-    assert {provider for provider, _ in recorded} == set(names)
+    assert {provider for provider, _ in recorded} == {"VCI", "KBS"}
     assert {module for _, module in recorded} == {"quote"}
 
 
@@ -442,14 +462,14 @@ def test_ac4_empty_result_counts_as_provider_failure():
         def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
             return []
 
-    name = _register("silentc", _Silent)
-    router = _router_with_only_real_providers_down()
+    ProviderRegistry.register("quote", "vci", _Silent)
+    router = _router_for_vci()
 
     result = router.fetch_history(
-        ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
+        ["ACB"], "2024-01-01", "2024-01-31", module="quote"
     )
 
-    assert name in result["errors"], "list rỗng phải là thất bại, không phải thành công"
+    assert "VCI" in result["errors"], "list rỗng phải là thất bại, không phải thành công"
 
 
 def test_ac5_interval_is_keyword_only_after_module():
@@ -471,28 +491,33 @@ def test_ac5_interval_is_keyword_only_after_module():
 def test_ac5_interval_reaches_provider(monkeypatch):
     """AC-5: giá trị ``interval`` đi tới ``fetch_multiple`` của provider."""
     _block_egress(monkeypatch)
-    name = _register("spyint", _SpyProvider)
-    router = _router_with_only_real_providers_down()
+    _install_as_vci(_SpyProvider)
+    router = _router_for_vci()
 
     router.fetch_history(
-        ["ACB"],
-        "2024-01-01",
-        "2024-01-31",
-        module="quote",
-        interval="1m",
-        providers=[name],
+        ["ACB"], "2024-01-01", "2024-01-31", module="quote", interval="1m"
     )
 
     assert _SpyProvider.calls == [("fetch_multiple", ("ACB",), "1m")]
 
 
+def test_ac5_fetch_batch_accepts_interval_positionally_last():
+    """``_fetch_batch`` phải nhận ``interval`` và chuyển tiếp nó xuống provider."""
+    _install_as_vci(_SpyProvider)
+    router = _router_for_vci()
+
+    router._fetch_batch("VCI", ["ACB"], "2024-01-01", "2024-01-31", "quote", "15m")
+
+    assert _SpyProvider.calls == [("fetch_multiple", ("ACB",), "15m")]
+
+
 def test_history_fallback_passes_symbol_to_constructor():
     """T2: ``__init__`` cần ``symbol``; gọi thiếu sẽ ``TypeError``."""
-    name = _register("histonly", _HistoryOnlyProvider)
-    router = _router_with_only_real_providers_down()
+    _install_as_vci(_HistoryOnlyProvider)
+    router = _router_for_vci()
 
     result = router.fetch_history(
-        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
     )
 
     assert result["errors"] == {}
@@ -508,25 +533,56 @@ def test_normalize_multi_result_rejects_unknown_type():
         def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
             return "not-a-frame"
 
-    name = _register("weirdd", _Weird)
-    router = _router_with_only_real_providers_down()
+    ProviderRegistry.register("quote", "vci", _Weird)
+    router = _router_for_vci()
 
     with pytest.raises(TypeError):
-        router.fetch_history(
-            ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
-        )
+        router._fetch_batch("VCI", ["ACB"], "2024-01-01", "2024-01-31", "quote")
 
 
 def test_unregistered_provider_is_skipped_with_warning(caplog):
     """Provider healthy nhưng chưa đăng ký: bỏ qua kèm cảnh báo, không im lặng
     trả 0 frame trông như thành công."""
-    name = _register("ghostpr", _SpyProvider)
-    router = _router_with_only_real_providers_down()
-    ProviderRegistry._registry.pop(("quote", "ghostpr"), None)
+    hr = HealthRouter()
+    hr.record_failure("kbs", ConnectionError("cooldown"), module="quote")
+    hr.record_success("ghostpr", 1.0, module="quote")
+    router = BulkRouter(health_router=hr)
 
-    result = router.fetch_history(
-        ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=[name]
+    result = router._fetch_batch(
+        "GHOSTPR", ["ACB"], "2024-01-01", "2024-01-31", "quote"
     )
 
-    assert result["symbols_returned"] == 0
+    assert result == []
     assert "not registered" in caplog.text.lower()
+
+
+def test_explicit_providers_argument_narrows_to_healthy(monkeypatch):
+    """Tham số ``providers`` mới: danh sách của caller là chuẩn, health store
+    chỉ dùng để loai provider đang cooldown."""
+    _install_as_vci(_SpyProvider)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB"],
+        "2024-01-01",
+        "2024-01-31",
+        module="quote",
+        providers=["vci", "kbs"],
+    )
+
+    # kbs đang cooldown nên bị loại, chỉ vci chạy
+    assert result["providers_used"] == ["VCI"]
+    assert _SpyProvider.calls == [("fetch_multiple", ("ACB",), "1D")]
+
+
+def test_explicit_providers_all_unhealthy_raises(monkeypatch):
+    """Mọi provider được chỉ định đều cooldown → ConnectionError."""
+    hr = HealthRouter()
+    hr.record_failure("vci", ConnectionError("cooldown"), module="quote")
+    hr.record_failure("kbs", ConnectionError("cooldown"), module="quote")
+    router = BulkRouter(health_router=hr)
+
+    with pytest.raises(ConnectionError, match="No healthy providers"):
+        router.fetch_history(
+            ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=["vci", "kbs"]
+        )
