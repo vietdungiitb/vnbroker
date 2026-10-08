@@ -8,7 +8,7 @@ user-facing API for fetching data across multiple symbols and providers.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -39,8 +39,8 @@ class BulkAPI:
     def history(
         self,
         symbols: List[str],
-        start: str = None,
-        end: str = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
         interval: str = "1D",
     ) -> pd.DataFrame:
         """Fetch history for multiple symbols using multiple providers.
@@ -102,7 +102,7 @@ class BulkAPI:
 
         return combined
 
-    def price_board(self, symbols: List[str] = None) -> pd.DataFrame:
+    def price_board(self, symbols: Optional[List[str]] = None) -> pd.DataFrame:
         """Fetch price board for multiple symbols.
 
         Uses KBS price_board endpoint which supports bulk requests.

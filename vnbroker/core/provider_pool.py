@@ -8,14 +8,14 @@ Auth providers (DNSE, SSI, TCBS) are auto-detected from environment variables.
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class ProviderPool:
     """Manages all providers, including auth providers with env detection."""
 
     # Auth provider configurations
-    AUTH_PROVIDERS: Dict[str, Dict] = {
+    AUTH_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "dnse": {
             "env_key": "DNSE_API_KEY",
             "env_secret": "DNSE_API_SECRET",
@@ -36,8 +36,8 @@ class ProviderPool:
     # No-auth providers always available
     NO_AUTH_PROVIDERS: List[str] = ["vci", "kbs"]
 
-    def __init__(self):
-        self._auth_providers: Dict[str, Dict] = {}
+    def __init__(self) -> None:
+        self._auth_providers: Dict[str, Dict[str, Any]] = {}
         self._detect_auth_providers()
 
     def _detect_auth_providers(self) -> None:
@@ -66,11 +66,11 @@ class ProviderPool:
         """Check if an auth provider is configured."""
         return name in self._auth_providers
 
-    def get_provider_config(self, name: str) -> Optional[Dict]:
+    def get_provider_config(self, name: str) -> Optional[Dict[str, Any]]:
         """Get auth config for a provider."""
         return self._auth_providers.get(name)
 
-    def get_provider(self, name: str, module: str, symbol: str = None):
+    def get_provider(self, name: str, module: str, symbol: Optional[str] = None) -> Optional[Any]:
         """Create a provider instance."""
         # This will be implemented in WP-5 (API integration)
         # For now, just return the provider class

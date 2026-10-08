@@ -6,7 +6,7 @@ from vnbroker.config import Config
 from vnbroker.base import BaseAdapter, dynamic_method
 from vnbroker.core.source_router import AUTO_SOURCE
 
-class Company(BaseAdapter):  # type: ignore[misc]
+class Company(BaseAdapter):
     _module_name = "company"
     """
     Adapter for company-related data:
@@ -70,7 +70,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         )
 
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -83,7 +83,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         """Retrieve company overview data."""
         pass
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -96,7 +96,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         """Retrieve company shareholders data."""
         pass
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -109,7 +109,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         """Retrieve company insider trading deals."""
         pass
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -125,7 +125,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         """
         pass
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -141,7 +141,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         """
         pass
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -154,7 +154,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         """Retrieve company affiliate data."""
         pass
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -167,7 +167,7 @@ class Company(BaseAdapter):  # type: ignore[misc]
         """Retrieve company news."""
         pass
 
-    @retry(  # type: ignore
+    @retry(
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,

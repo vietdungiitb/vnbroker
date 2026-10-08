@@ -6,7 +6,7 @@ and source validation.
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from vnbroker.api.stream import Stream, TickData
 
 
