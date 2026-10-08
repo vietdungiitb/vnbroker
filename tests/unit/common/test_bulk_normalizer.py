@@ -144,6 +144,48 @@ def test_empty_df_in_list_safe():
     assert len(result[1]) == 1
 
 
+# ---------------------------------- empty-day vs unusable-empty (AC-7 regression)
+
+
+def test_empty_df_with_schema_stays_tz_aware():
+    """Regression: ngày giao dịch rỗng VẪN phải đạt hợp đồng tz.
+
+    `test_empty_df_safe` trên chỉ kiểm `len(result) == 0` nên không bắt được
+    hợp đồng tầng 1 (`vnbroker/common/data.py`, docstring `_normalize_quote_result`:
+    mọi provider trả cùng schema, `time` luôn tz-aware). Frame rỗng mà cột
+    `time` là object/NaT thì `concat` với frame thật sẽ hỏng — đúng loại lỗi âm
+    thầm mà `history` trả về cho ngày nghỉ.
+    """
+    df = pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
+    result = Normalizer.normalize_history(df)
+
+    assert len(result) == 0
+    assert "time" in result.columns, "Frame rỗng vẫn phải giữ schema"
+    assert str(result["time"].dt.tz) == CANONICAL_TZ, (
+        f"Ngày giao dịch rỗng vẫn phải tz-aware, thực tế: {result['time'].dtype}"
+    )
+
+
+def test_schema_less_df_passes_through_unchanged():
+    """Regression: frame KHÔNG schema đi thẳng qua, không được chuẩn hoá.
+
+    Ghi lại điều kiện mà quyết định "rỗng = không dùng được" của
+    `_is_unusable_provider_result` dựa vào: normalizer KHÔNG cứu được frame
+    thiếu cột `time` (nó trả về đúng object gốc, 0 cột). Vì vậy tầng failover
+    (`_run_with_failover`) phải tự loại trước, nếu không frame 0 cột sẽ lọt
+    thẳng tới người dùng.
+
+    Nếu ai đó sửa normalizer để xử lý frame thiếu schema, test này đỏ và quyết
+    định ở `data.py` cần được xem lại.
+    """
+    df = pd.DataFrame()
+    result = Normalizer.normalize_history(df)
+
+    assert result is df, "Normalizer phải trả nguyên frame khi không có cột time"
+    assert len(result.columns) == 0
+    assert "time" not in result.columns
+
+
 # ------------------------------------------------------------------ sorting
 
 

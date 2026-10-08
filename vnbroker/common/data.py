@@ -423,6 +423,64 @@ class StockComponents(BaseComponent):
         self._initialize_components()
 
 
+class EmptyProviderResult(RuntimeError):
+    """Provider trả về kết quả KHÔNG dùng được mà không ném lỗi.
+
+    Cần loại riêng vì ``should_failover`` chỉ xét ``Exception``; quyết định
+    "rỗng = không phục vụ được" thuộc về tầng data (``_run_with_failover``),
+    không sửa ``core.source_router``.
+    """
+
+
+def _describe_empty(result: Any) -> str:
+    """Mô tả ngắn kết quả rỗng để log/exception đọc được."""
+    if isinstance(result, pd.DataFrame) or isinstance(result, pd.Series):
+        return f"{type(result).__name__} khong co cot (schema={list(result.columns)!r})"
+    return f"{type(result).__name__} rong: {result!r}"
+
+
+def _is_unusable_provider_result(result: Any) -> bool:
+    """Provider có trả về thứ gì **dùng được** không?
+
+    Đây là chỗ hiện thực nguyên tắc đã ghi trong docstring của
+    ``_run_with_failover``: "hết provider thì ném lỗi gốc, không bao giờ trả
+    DataFrame rỗng". Provider im lặng trả rỗng là lỗi âm thầm nặng nhất vì
+    người dùng tưởng "hôm nay không giao dịch" thay vì "provider chết".
+
+    **"Không dùng được" khác "ngày giao dịch rỗng"** — ranh giới nằm ở *schema*,
+    không phải ở số dòng:
+
+    - ``pd.DataFrame()`` (0 cột) ⇒ provider không sinh ra cả cấu trúc. Hợp
+      đồng tầng 1 quy định mọi provider trả cùng schema có cột ``time``
+      (``_normalize_quote_result``), mà ``_normalize_quote_result` bỏ qua
+      ngay ở ``if "time" not in result.columns`` ⇒ frame không cột lọt thẳng
+      tới người dùng, vi phạm hợp đồng. ⇒ **không dùng được**.
+    - ``pd.DataFrame(columns=["time", ...])`` với **0 dòng** ⇒ provider đã làm
+      đúng việc, chỉ là trong khoảng yêu cầu không có phiên giao dịch (Tết,
+      cuối tuần, mã chưa có dữ liệu). Chuẩn hoá vẫn chạy và trả frame tz-aware
+      đúng hợp đồng. ⇒ **dùng được**, coi như thành công.
+
+    Chọn mốc *schema* vì nó phân biệt được hai ca thật mà mốc "0 dòng" thì
+    không: coi 0 dòng là thất bại sẽ biến mọi ngày nghỉ thành lỗi hệ thống —
+    đủ provider cùng trả 0 dòng thì ``RuntimeError`` thay vì khung dữ liệu rỗng.
+
+    Args:
+        result: Giá trị provider trả về (DataFrame, dict, list, None, ...).
+
+    Returns:
+        ``True`` nếu kết quả không mang dữ liệu nào dùng được.
+    """
+    if result is None:
+        return True
+    if isinstance(result, (pd.DataFrame, pd.Series)):
+        # Có cột = có schema = provider đã trả lời đúng hình thức, kể cả 0 dòng.
+        return len(result.columns) == 0
+    if isinstance(result, (list, tuple, set, frozenset, dict, str, bytes)):
+        return len(result) == 0
+    # Số, bool, object tùy ý...: không đủ căn cứ để kết luận là rỗng.
+    return False
+
+
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
@@ -639,6 +697,19 @@ class Quote(BaseComponent):
                 source_router.record_failure(module_name, source)
                 last_exc = exc
                 continue
+            if _is_unusable_provider_result(result):
+                # Provider KHÔNG ném lỗi nhưng cũng không phục vụ được: coi như
+                # thất bại, tuyệt đối không record_success (xem helper để biết vì
+                # sao "rỗng" được hiểu là mất schema chứ không phải ngày nghỉ).
+                # Tên biến cố ý KHÁC `exc`: `except ... as exc` xoá tên đó ở cuối
+                # khối except, gán lại sẽ bị mypy --strict chặn.
+                unusable_exc = EmptyProviderResult(
+                    f"Provider {source!r} trả kết quả không dùng được "
+                    f"({method_name}, module={module_name!r}): {_describe_empty(result)}."
+                )
+                source_router.record_failure(module_name, source)
+                last_exc = unusable_exc
+                continue
             source_router.record_success(module_name, source)
             return source_router.annotate_result_source(result, source)
 
@@ -666,12 +737,6 @@ class Quote(BaseComponent):
             return Normalizer.normalize_history(result, kwargs.get("start"), kwargs.get("end"))
         return result
 
-    @retry(
-        stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
-        reraise=True,
-    )
     def intraday(self, symbol: Optional[str] = None, **kwargs):
         """Fetch intraday trading data.
 
@@ -679,6 +744,17 @@ class Quote(BaseComponent):
         cũng là dữ liệu thị trường ẩn danh: user không cần biết provider, và hệ
         thống phải xoay vòng khi provider lỗi — nếu không thì chỉ cần provider
         "chính" hết hạn là toàn bộ người dùng mất dữ liệu trong phiên.
+
+        Retry policy (giống hệt `history`):
+        - **Đường auto** (``_auto_sources``): KHÔNG có decorator ``@retry``; retry
+          áp cho TỪNG provider trong ``_run_with_failover``.
+        - **Đường không-auto**: ``Retrying`` trong ``_run_with_failover`` bọc cả
+          lời gọi provider (``DEFAULT_RETRIES`` lần).
+
+        Vì sao gỡ decorator: ``@retry`` bọc NGOÀI lại khiến cả vòng failover bị
+        thử lại N lần — provider đã thử 3 lần rồi lại quay lại thử tiếp, tổng
+        3 × 2 × 3 = 18 lời gọi thay vì 6. Đo được bằng đếm lời gọi provider, không
+        đo bằng `inspect.getsource` (docstring `history` có chứa chuỗi `@retry`).
 
         Khác `history`: intraday không lọc theo `start`/`end` (đó là khoảng ngày
         giao dịch, provider tự xử lý), nhưng `time` vẫn phải tz-aware và tăng dần
@@ -693,17 +769,14 @@ class Quote(BaseComponent):
             return _normalize_quote_result(result)
         return result
 
-    @retry(
-        stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
-        reraise=True,
-    )
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
         """Fetch order book depth data.
 
         Có failover như `history`/`intraday` — cùng lý do: dữ liệu ẩn danh, user
         không biết provider, provider chính hết hạn thì phải tự chuyển.
+
+        Retry policy: KHÔNG decorator ``@retry``; retry áp cho TỪNG provider trong
+        ``_run_with_failover`` (xem `history` và `intraday` để biết vì sao).
 
         KHÔNG chuẩn hoá tz: `price_depth` là bảng giá hai chiều, không có cột
         `time` theo dòng nên `_normalize_quote_result` không áp dụng (hàm đó tự
