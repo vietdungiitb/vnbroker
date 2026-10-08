@@ -735,12 +735,6 @@ class Quote(BaseComponent):
             return Normalizer.normalize_history(result, kwargs.get("start"), kwargs.get("end"))
         return result
 
-    @retry(
-        stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
-        reraise=True,
-    )
     def intraday(self, symbol: Optional[str] = None, **kwargs):
         """Fetch intraday trading data.
 
@@ -748,6 +742,17 @@ class Quote(BaseComponent):
         cũng là dữ liệu thị trường ẩn danh: user không cần biết provider, và hệ
         thống phải xoay vòng khi provider lỗi — nếu không thì chỉ cần provider
         "chính" hết hạn là toàn bộ người dùng mất dữ liệu trong phiên.
+
+        Retry policy (giống hệt `history`):
+        - **Đường auto** (``_auto_sources``): KHÔNG có decorator ``@retry``; retry
+          áp cho TỪNG provider trong ``_run_with_failover``.
+        - **Đường không-auto**: ``Retrying`` trong ``_run_with_failover`` bọc cả
+          lời gọi provider (``DEFAULT_RETRIES`` lần).
+
+        Vì sao gỡ decorator: ``@retry`` bọc NGOÀI lại khiến cả vòng failover bị
+        thử lại N lần — provider đã thử 3 lần rồi lại quay lại thử tiếp, tổng
+        3 × 2 × 3 = 18 lời gọi thay vì 6. Đo được bằng đếm lời gọi provider, không
+        đo bằng `inspect.getsource` (docstring `history` có chứa chuỗi `@retry`).
 
         Khác `history`: intraday không lọc theo `start`/`end` (đó là khoảng ngày
         giao dịch, provider tự xử lý), nhưng `time` vẫn phải tz-aware và tăng dần
@@ -762,17 +767,14 @@ class Quote(BaseComponent):
             return _normalize_quote_result(result)
         return result
 
-    @retry(
-        stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
-        reraise=True,
-    )
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
         """Fetch order book depth data.
 
         Có failover như `history`/`intraday` — cùng lý do: dữ liệu ẩn danh, user
         không biết provider, provider chính hết hạn thì phải tự chuyển.
+
+        Retry policy: KHÔNG decorator ``@retry``; retry áp cho TỪNG provider trong
+        ``_run_with_failover`` (xem `history` và `intraday` để biết vì sao).
 
         KHÔNG chuẩn hoá tz: `price_depth` là bảng giá hai chiều, không có cột
         `time` theo dòng nên `_normalize_quote_result` không áp dụng (hàm đó tự

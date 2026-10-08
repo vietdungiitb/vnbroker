@@ -266,3 +266,89 @@ def test_empty_frame_with_schema_is_still_a_success():
         f"Ngày giao dịch rỗng không phải lỗi provider: {state}"
     )
 
+# --------------------------------------------------- no nested retry (AC-8)
+
+
+class _CountingSource:
+    """Provider đếm số lần gọi cho cả 3 method của tầng quote."""
+
+    symbol = "ACB"
+
+    def __init__(self, exc: Exception | None = None) -> None:
+        self.exc = exc
+        self.calls = 0
+
+    def _serve(self, payload):
+        self.calls += 1
+        if self.exc is not None:
+            raise self.exc
+        return payload
+
+    def history(self, **kw):
+        return self._serve(_frame(naive=False, times=["2024-01-02", "2024-01-03"]))
+
+    def intraday(self, **kw):
+        return self._serve(
+            _frame(naive=False, times=["2024-01-02 09:30:00", "2024-01-02 10:00:00"])
+        )
+
+    def price_depth(self, **kw):
+        return self._serve({"price": 1.0})
+
+
+@pytest.mark.parametrize("method_name", ["intraday", "price_depth"])
+def test_no_nested_retry_per_provider_call_count(method_name):
+    """AC-8: retry KHÔNG lồng — đo bằng ĐẾM LỜI GỌI provider.
+
+    Cấu hình: `DEFAULT_RETRIES=3`, pool 2 provider, provider #1 luôn ném lỗi
+    mạng. Retry đúng phải là *per provider* trong `_run_with_failover`, nên
+    tổng lời gọi = 3 (kbs) + 3 (vci) = 6.
+
+    Nếu `@retry` còn bọc ngoài method thì cả pool bị thử lại 3 vòng ⇒ 18 lời
+    gọi. Đây là baseline tại `e5d8133`.
+
+    KHÔNG dùng `inspect.getsource(Quote.history)` để phát hiện `@retry`: docstring
+    `data.py` của `history` chứa đúng chuỗi `@retry` dù không có decorator —
+    cách kiểm tra đó báo giả. Đếm lời gọi không nói dối.
+    """
+    from vnbroker.common.data import Config
+
+    first = _CountingSource(ConnectionError("429 rate limit"))
+    second = _CountingSource(ConnectionError("429 rate limit"))
+    q = _make_quote({"kbs": first, "vci": second}, order=["kbs", "vci"])
+
+    with pytest.raises(ConnectionError):
+        getattr(q, method_name)()
+
+    total = first.calls + second.calls
+    assert total <= Config.DEFAULT_RETRIES * 2, (
+        f"{method_name}: retry lồng — {total} lời gọi provider, "
+        f"tối đa cho phép {Config.DEFAULT_RETRIES * 2}"
+    )
+    assert first.calls == Config.DEFAULT_RETRIES, (
+        f"Provider #1 phải được thử đúng DEFAULT_RETRIES lần, thực tế {first.calls}"
+    )
+
+
+def test_history_retry_count_is_not_nested_regression():
+    """Chốt hành vi của `history` (đã đúng từ trước) để chống hồi quy.
+
+    `history` không có decorator `@retry`; retry áp cho từng provider trong
+    `_run_with_failover`. Bỏ decorator khỏi `intraday`/`price_depth` KHÔNG được
+    làm đổi hành vi này.
+    """
+    from vnbroker.common.data import Config
+
+    first = _CountingSource(ConnectionError("429 rate limit"))
+    second = _CountingSource(ConnectionError("429 rate limit"))
+    q = _make_quote({"kbs": first, "vci": second}, order=["kbs", "vci"])
+
+    with pytest.raises(ConnectionError):
+        q.history(start="2024-01-01", end="2024-01-31")
+
+    assert first.calls == Config.DEFAULT_RETRIES, (
+        f"history phải retry DEFAULT_RETRIES lần cho provider #1, thực tế {first.calls}"
+    )
+    assert first.calls + second.calls == Config.DEFAULT_RETRIES * 2, (
+        f"history: tổng lời gọi phải đúng 6, thực tế {first.calls + second.calls}"
+    )
