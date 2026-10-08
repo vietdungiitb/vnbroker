@@ -20,10 +20,21 @@ from vnbroker.core.registry import ProviderRegistry
 
 @pytest.fixture(autouse=True)
 def _clean_router(monkeypatch):
+    """Cô lập health store **và registry** cho mọi test trong file.
+
+    ``ProviderRegistry`` là singleton toàn cục, còn ``_install_as_vci`` cài
+    provider giả vào đúng slot ``vci``. Không khôi phục lại thì provider giả sống
+    tới hết phiên và làm các test chạy sau (kể cả file khác) nhận nhầm provider.
+    """
+    from vnbroker.core.registry import ProviderRegistry
+
     monkeypatch.setenv("vnbroker_ROUTER_HEALTH_DB", "memory")
     source_router.reload_store()
     source_router.reset_router_state()
+    saved_registry = dict(ProviderRegistry._registry)
     yield
+    ProviderRegistry._registry.clear()
+    ProviderRegistry._registry.update(saved_registry)
     source_router.reset_router_state()
     source_router.reload_store()
 
@@ -199,7 +210,8 @@ def test_provider_failure_captured_not_crash():
     router = BulkRouter(health_router=hr)
 
     def mock_fetch_batch(provider, symbols, start, end, module, interval="1D"):
-        if provider == "VCI":
+        # MAJOR-1: `provider` là tên NỘI BỘ, khớp khoá health store (lower-case).
+        if provider == "vci":
             raise ConnectionError("VCI is down")
         return [pd.DataFrame({"symbol": symbols})]
 
@@ -208,7 +220,7 @@ def test_provider_failure_captured_not_crash():
     symbols = ["ACB", "BID", "CTG", "DPG"]
     result = router.fetch_history(symbols, "2024-01-01", "2024-12-31", module="quote")
 
-    # Should have partial results
+    # Khoá trả về cho `api/bulk.py` vẫn UPPER-CASE.
     assert "VCI" in result["errors"]
     assert result["symbols_returned"] > 0  # kbs should have succeeded
 
@@ -226,6 +238,53 @@ def test_provider_failure_captured_not_crash():
 # ---------------------------------------------------------------------------
 
 
+class _DownProvider:
+    """Provider chết theo hình dạng VCI/KBS (có ``parallel``).
+
+    MAJOR-4: mọi provider thật đều có ``history`` và ``__init__(symbol)``; fakes
+    chỉ có ``fetch_multiple`` classmethod sẽ chết vì ``TypeError``, tức là test
+    chết vì hình dạng sai chứ không vì hành vi sai.
+    """
+
+    calls: list = []
+
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
+        type(self).calls.append(tuple(symbols or []))
+        raise RuntimeError("network unreachable")
+
+
+class _SilentProvider:
+    """Nuốt lỗi rồi trả list rỗng — hình dạng ``fetch_multiple`` của KBS."""
+
+    calls: list = []
+
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
+        type(self).calls.append(tuple(symbols or []))
+        return []
+
+
 class _SpyProvider:
     """Provider class giả, ghi lại mọi lần được gọi.
 
@@ -233,8 +292,40 @@ class _SpyProvider:
     không được suy ra từ việc provider khác không được gọi.
 
     ``__init__`` yêu cầu ``symbol`` giống hệt VCI/KBS thật — nếu để
-    ``__init__`` không tham số thì ``provider_class()`` ở e5d8133 lại chạy
-    được và test xanh sai.
+    ``__init__`` không tham số thì ``provider_class()`` lại chạy được và test
+    xanh sai.
+
+    MAJOR-4: ``history`` có cả ``parallel`` và ``symbols`` như VCI/KBS/TCBS thật,
+    nên bulk gọi đúng một lần cho cả batch thay vì gọi ``fetch_multiple`` qua
+    bridge riêng.
+    """
+
+    calls: list = []
+
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
+        type(self).calls.append(("history", tuple(symbols or []), interval, parallel))
+        return [_frame(sym) for sym in (symbols or [self.symbol])]
+
+
+class _AsyncSpyProvider:
+    """Hình dạng provider VCI: ``history`` đồng bộ nhưng bên trong gọi
+    ``fetch_multiple`` bất đồng bộ qua ``asyncio.run``.
+
+    MAJOR-4: bulk không còn tự await gì cả — ``explorer/vci/quote.py:496`` đã
+    giữ sẵn bridge đó. Provider giả ở đây giữ đúng hình dạng đó để chứng minh
+    bulk vẫn nhận được frame qua ``history`` bất cứ provider bên dưới là sync
+    hay async.
     """
 
     calls: list = []
@@ -243,27 +334,27 @@ class _SpyProvider:
         self.symbol = symbol
 
     @classmethod
-    def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
-        cls.calls.append(("fetch_multiple", tuple(symbols), interval))
+    async def fetch_multiple(cls, symbols, **kwargs):
         return [_frame(sym) for sym in symbols]
 
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
+        import asyncio
 
-class _AsyncSpyProvider:
-    """Hình dạng provider của VCI: ``fetch_multiple`` là ``async classmethod``."""
-
-    calls: list = []
-
-    def __init__(self, symbol: str):
-        self.symbol = symbol
-
-    @classmethod
-    async def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
-        cls.calls.append(("async_fetch_multiple", tuple(symbols), interval))
-        return [_frame(sym) for sym in symbols]
+        targets = symbols or [self.symbol]
+        type(self).calls.append(("history", tuple(targets), interval, parallel))
+        return asyncio.run(type(self).fetch_multiple(symbols=targets))
 
 
 class _HistoryOnlyProvider:
-    """Không có ``fetch_multiple`` — buộc router đi nhánh ``history``."""
+    """``history`` KHÔNG có ``parallel``/``symbols`` — hình dạng SSI/DNSE."""
 
     calls: list = []
 
@@ -332,7 +423,7 @@ def _router_for_vci() -> BulkRouter:
     return BulkRouter(health_router=hr)
 
 
-def test_ac1_fetch_multiple_sync_provider_returns_rows(monkeypatch):
+def test_ac1_parallel_history_returns_rows(monkeypatch):
     """AC-1: bulk trả DỮ LIỆU, spy chứng minh đúng provider đã phục vụ."""
     _block_egress(monkeypatch)
     _install_as_vci(_SpyProvider)
@@ -347,14 +438,16 @@ def test_ac1_fetch_multiple_sync_provider_returns_rows(monkeypatch):
     assert result["symbols_returned"] == 2
     assert all(not df.empty for frames in result["results"].values() for df in frames)
     # spy: đúng provider, đúng batch symbol, đúng interval
-    assert _SpyProvider.calls == [("fetch_multiple", ("ACB", "VNM"), "1D")]
+    assert _SpyProvider.calls == [("history", ("ACB", "VNM"), "1D", True)]
 
 
-def test_ac1_async_fetch_multiple_is_awaited(monkeypatch):
-    """AC-1/T3: ``fetch_multiple`` async của VCI phải được await.
+def test_ac1_async_provider_underneath_still_yields_rows(monkeypatch):
+    """AC-1/T3: provider có ``fetch_multiple`` bất đồng bộ bên dưới vẫn ra frame.
 
-    Không có bridge thì hàm trả coroutine, ``isinstance(result, list)`` và
-    ``isinstance(result, dict)`` đều False nên batch rỗng bị coi là thành công.
+    MAJOR-4: bulk không tự await gì — ``explorer/vci/quote.py:496`` đã giữ sẵn
+    bridge đó trong ``history``. Test giữ đúng hình dạng đó (history đồng bộ,
+    fetch_multiple bất đồng bộ) để chứng minh lớp `core` không còn phụ thuộc
+    vào việc tự quản lý event loop.
     """
     _block_egress(monkeypatch)
     _install_as_vci(_AsyncSpyProvider)
@@ -366,7 +459,7 @@ def test_ac1_async_fetch_multiple_is_awaited(monkeypatch):
 
     assert result["errors"] == {}
     assert result["symbols_returned"] == 2
-    assert _AsyncSpyProvider.calls == [("async_fetch_multiple", ("ACB", "VNM"), "1D")]
+    assert _AsyncSpyProvider.calls == [("history", ("ACB", "VNM"), "1D", True)]
 
 
 def test_ac2_real_providers_registered_in_cold_process():
@@ -421,26 +514,11 @@ def test_ac3_attribute_error_propagates():
 
 def test_ac4_all_providers_runtime_error_is_reported():
     """AC-4: mọi provider ném ``RuntimeError`` (lỗi mạng) → ``errors`` có giá
-    trị VÀ ``HealthRouter.record_failure`` được gọi, tức lỗi không bị nuốt
-    trong ``_fetch_batch``."""
-
-    class _Down:
-        @classmethod
-        def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
-            raise RuntimeError("network unreachable")
-
-    ProviderRegistry.register("quote", "vci", _Down)
-    ProviderRegistry.register("quote", "kbs", _Down)
+    trị VÀ lỗi đó **tới được** health store (snapshot thấy failures>0 và
+    cooldown), tức lỗi không bị nuốt trong ``_fetch_batch``."""
+    ProviderRegistry.register("quote", "vci", _DownProvider)
+    ProviderRegistry.register("quote", "kbs", _DownProvider)
     router = BulkRouter(health_router=HealthRouter())
-
-    recorded: list = []
-    original = router._health.record_failure
-
-    def spy_failure(provider, error, module="quote"):
-        recorded.append((provider, module))
-        return original(provider, error, module=module)
-
-    router._health.record_failure = spy_failure
 
     result = router.fetch_history(
         ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
@@ -449,20 +527,23 @@ def test_ac4_all_providers_runtime_error_is_reported():
     assert set(result["errors"]) == {"VCI", "KBS"}
     assert all("network unreachable" in msg for msg in result["errors"].values())
     assert result["symbols_returned"] == 0
-    assert {provider for provider, _ in recorded} == {"VCI", "KBS"}
-    assert {module for _, module in recorded} == {"quote"}
+
+    # MAJOR-5: khẳng định HẬU QUẢ, không phải "hàm có được gọi không".
+    # Spy `record_failure` trước đây vẫn xanh kể cả khi bulk ghi sai khoá
+    # health store, vì nó forward sang bản thật — test chứng minh vô nghĩa.
+    snapshot = source_router.get_source_health_snapshot("quote")
+    for provider in ("VCI", "KBS"):
+        assert snapshot[provider]["failures"] > 0, (
+            f"{provider}: lỗi không tới được health store "
+            f"(failures={snapshot[provider]['failures']})"
+        )
+        assert snapshot[provider]["in_cooldown"] is True
 
 
 def test_ac4_empty_result_counts_as_provider_failure():
     """AC-4: provider nuốt lỗi rồi trả list rỗng vẫn phải bị báo thất bại.
     KBS ``fetch_multiple`` chính là hình dạng này."""
-
-    class _Silent:
-        @classmethod
-        def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
-            return []
-
-    ProviderRegistry.register("quote", "vci", _Silent)
+    ProviderRegistry.register("quote", "vci", _SilentProvider)
     router = _router_for_vci()
 
     result = router.fetch_history(
@@ -489,7 +570,7 @@ def test_ac5_interval_is_keyword_only_after_module():
 
 
 def test_ac5_interval_reaches_provider(monkeypatch):
-    """AC-5: giá trị ``interval`` đi tới ``fetch_multiple`` của provider."""
+    """AC-5: giá trị ``interval`` đi tới ``history`` của provider."""
     _block_egress(monkeypatch)
     _install_as_vci(_SpyProvider)
     router = _router_for_vci()
@@ -498,7 +579,7 @@ def test_ac5_interval_reaches_provider(monkeypatch):
         ["ACB"], "2024-01-01", "2024-01-31", module="quote", interval="1m"
     )
 
-    assert _SpyProvider.calls == [("fetch_multiple", ("ACB",), "1m")]
+    assert _SpyProvider.calls == [("history", ("ACB",), "1m", True)]
 
 
 def test_ac5_fetch_batch_accepts_interval_positionally_last():
@@ -508,7 +589,7 @@ def test_ac5_fetch_batch_accepts_interval_positionally_last():
 
     router._fetch_batch("VCI", ["ACB"], "2024-01-01", "2024-01-31", "quote", "15m")
 
-    assert _SpyProvider.calls == [("fetch_multiple", ("ACB",), "15m")]
+    assert _SpyProvider.calls == [("history", ("ACB",), "15m", True)]
 
 
 def test_history_fallback_passes_symbol_to_constructor():
@@ -529,15 +610,25 @@ def test_normalize_multi_result_rejects_unknown_type():
     """Giá trị trả về không nhận diện được phải nổi lên, không bị bơm thành rỗng."""
 
     class _Weird:
-        @classmethod
-        def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
+        def __init__(self, symbol: str):
+            self.symbol = symbol
+
+        def history(
+            self,
+            start=None,
+            end=None,
+            interval="1D",
+            parallel=False,
+            symbols=None,
+            **kwargs,
+        ):
             return "not-a-frame"
 
     ProviderRegistry.register("quote", "vci", _Weird)
     router = _router_for_vci()
 
     with pytest.raises(TypeError):
-        router._fetch_batch("VCI", ["ACB"], "2024-01-01", "2024-01-31", "quote")
+        router._fetch_batch("vci", ["ACB"], "2024-01-01", "2024-01-31", "quote")
 
 
 def test_unregistered_provider_is_skipped_with_warning(caplog):
@@ -572,7 +663,7 @@ def test_explicit_providers_argument_narrows_to_healthy(monkeypatch):
 
     # kbs đang cooldown nên bị loại, chỉ vci chạy
     assert result["providers_used"] == ["VCI"]
-    assert _SpyProvider.calls == [("fetch_multiple", ("ACB",), "1D")]
+    assert _SpyProvider.calls == [("history", ("ACB",), "1D", True)]
 
 
 def test_explicit_providers_all_unhealthy_raises(monkeypatch):
@@ -586,3 +677,415 @@ def test_explicit_providers_all_unhealthy_raises(monkeypatch):
         router.fetch_history(
             ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=["vci", "kbs"]
         )
+
+
+# ---------------------------------------------------------------------------
+# MAJOR-1 — circuit breaker trên bulk path phải thật sự đóng
+#
+# `get_source_health_snapshot` đọc `_health_state[(module, s)]` với `s` lấy từ
+# `get_auto_candidates` ('vci', 'kbs'). `_select_providers` trả tên UPPER-CASE
+# nên `record_failure` ghi ('quote','VCI') — khoá mà snapshot KHÔNG đọc. Hệ quả:
+# sau 6 lần bulk fail, failures=0, in_cooldown=False, circuit breaker không
+# bao giờ đóng, và khoá chết vẫn được `_persist_state` ghi xuống SQLite.
+#
+# Test này khẳng định HẬU QUẢ (snapshot), không khẳng định "hàm có được gọi
+# không" — spy kiểu AC-4 cũ vẫn xanh với key sai vì nó forward sang bản thật.
+# ---------------------------------------------------------------------------
+
+
+def test_bulk_failure_is_visible_in_health_snapshot():
+    """MAJOR-1: failure của bulk phải hiện ra trong health snapshot."""
+
+    ProviderRegistry.register("quote", "vci", _DownProvider)
+    ProviderRegistry.register("quote", "kbs", _DownProvider)
+    router = BulkRouter(health_router=HealthRouter())
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert set(result["errors"]) == {"VCI", "KBS"}
+
+    snapshot = source_router.get_source_health_snapshot("quote")
+    for provider in ("VCI", "KBS"):
+        assert snapshot[provider]["failures"] > 0, (
+            f"{provider}: health snapshot không thấy failure của bulk path "
+            f"(failures={snapshot[provider]['failures']})"
+        )
+        assert snapshot[provider]["in_cooldown"] is True, (
+            f"{provider}: circuit breaker chưa đóng"
+        )
+
+
+def test_bulk_failure_uses_health_store_key_that_snapshot_reads():
+    """MAJOR-1: bulk không ghi khoá chết mà snapshot không đọc tới."""
+
+    ProviderRegistry.register("quote", "vci", _DownProvider)
+    ProviderRegistry.register("quote", "kbs", _DownProvider)
+    router = BulkRouter(health_router=HealthRouter())
+    router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    readable = set(source_router.get_auto_candidates("quote"))
+    written = {source for module, source in source_router._health_state if module == "quote"}
+    assert written <= readable, (
+        f"bulk ghi khoá health store không ai đọc: {sorted(written - readable)}"
+    )
+
+
+def test_bulk_circuit_breaker_blocks_next_call_after_failure():
+    """MAJOR-1: sau khi provider chết, lần gọi kế tiếp bị chặn thay vì thử lại."""
+
+    ProviderRegistry.register("quote", "vci", _DownProvider)
+    ProviderRegistry.register("quote", "kbs", _DownProvider)
+    router = BulkRouter(health_router=HealthRouter())
+
+    # 2 symbol: round-robin phải giao cho CẢ HAI provider, nếu không provider
+    # còn lại chưa bao giờ hỏng thì circuit breaker chưa có lý do đóng.
+    router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    with pytest.raises(ConnectionError, match="No healthy providers"):
+        router.fetch_history(
+            ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+        )
+
+
+def test_bulk_returned_keys_stay_upper_case_for_api_layer():
+    """MAJOR-1 sửa bằng lower-case nội bộ — khoá trả về KHÔNG được đổi.
+
+    `api/bulk.py` đưa khoá này thẳng vào `attrs['sources_used']` và
+    `attrs['failed']`, phải khớp `df.attrs['source']`.
+    """
+    _install_as_vci(_SpyProvider)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["providers_used"] == ["VCI"]
+    assert set(result["results"]) == {"VCI"}
+
+
+# ---------------------------------------------------------------------------
+# MAJOR-2 — tiêu chí "không dùng được" phải là SCHEMA, không phải số dòng
+#
+# `common/data.py:442` phân biệt bằng schema: 0 cột = provider hỏng, đủ cột +
+# 0 dòng = ngày nghỉch giao dịch = thành công. Bulk dùng tiêu chí "0 frame" và
+# `_normalize_multi_result` lọc `not df.empty`, nên mọi ngày nghỉch đều bị quy
+# thành provider chết — giống hệt nhau với provider thật sự hỏng.
+# --------------------------------------------------------------------------
+
+
+QUOTE_COLUMNS = ["time", "open", "high", "low", "close", "volume"]
+
+
+class _HolidayProvider:
+    """Frame ĐÚNG schema nhưng 0 dòng — không có phiên giao dịch trong kỳ."""
+
+    calls: list = []
+
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
+        targets = symbols or [self.symbol]
+        type(self).calls.append(tuple(targets))
+        return [pd.DataFrame(columns=QUOTE_COLUMNS) for _ in targets]
+
+
+class _ZeroColumnProvider:
+    """Frame 0 cột — provider không sinh ra cấu trúc."""
+
+    calls: list = []
+
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
+        targets = symbols or [self.symbol]
+        type(self).calls.append(tuple(targets))
+        return [pd.DataFrame() for _ in targets]
+
+
+def test_m2_well_shaped_zero_row_frame_is_success():
+    """MAJOR-2: ngày nghỉch giao dịch KHÔNG phải lỗi provider."""
+    _install_as_vci(_HolidayProvider)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["errors"] == {}, (
+        f"ngày nghỉch giao dịch bị quy thành provider hỏng: {result['errors']}"
+    )
+    frames = result["results"]["VCI"]
+    assert len(frames) == 2
+    assert all(list(df.columns) == QUOTE_COLUMNS for df in frames)
+    assert all(df.empty for df in frames)
+
+
+def test_m2_well_shaped_zero_row_frame_does_not_mark_provider_unhealthy():
+    """MAJOR-2: provider sống qua ngày nghỉch thì KHÔNG rơi vào cooldown."""
+    _install_as_vci(_HolidayProvider)
+    router = _router_for_vci()
+
+    router.fetch_history(["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote")
+
+    snapshot = source_router.get_source_health_snapshot("quote")
+    assert snapshot["VCI"]["failures"] == 0
+    assert snapshot["VCI"]["in_cooldown"] is False
+
+
+def test_m2_zero_column_frame_is_failure():
+    """MAJOR-2: 0 cột thì vẫn là provider hỏng — ranh giới nằm ở schema."""
+    _install_as_vci(_ZeroColumnProvider)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert "VCI" in result["errors"], "frame 0 cột phải bị báo lỗi"
+    assert "unusable" in result["errors"]["VCI"]
+
+
+def test_m2_bulk_reuses_the_data_module_schema_criterion():
+    """MAJOR-2: bulk dùng CHUNG helper với `common.data`, không viết lại.
+
+    Nếu ai đó đổi tiêu chí ở một chỗ, chỗ kia phải đổi theo — nếu không hai
+    đường đi lại lệch nhau và lỗi ngày nghỉch quay trở lại.
+    """
+    from vnbroker.common.data import _is_unusable_provider_result as data_criterion
+    from vnbroker.core.bulk_router import _is_unusable
+
+    cases = [
+        None,
+        pd.DataFrame(),
+        pd.DataFrame(columns=QUOTE_COLUMNS),
+        pd.DataFrame({"time": [1]}),
+        [],
+        (),
+        {},
+        {"a"},
+        [pd.DataFrame(columns=QUOTE_COLUMNS)],
+    ]
+    for value in cases:
+        assert _is_unusable(value) == data_criterion(value), (
+            f"bulk va common.data lech tai {value!r}"
+        )
+
+
+def test_m2_history_path_treats_zero_row_frame_as_usable():
+    """MAJOR-2: nhánh fallback `history` cũng phải giữ frame 0 dòng."""
+
+    class _HistoryHoliday:
+        def __init__(self, symbol: str):
+            self.symbol = symbol
+
+        def history(self, start=None, end=None, interval="1D"):
+            return pd.DataFrame(columns=QUOTE_COLUMNS)
+
+    ProviderRegistry.register("quote", "vci", _HistoryHoliday)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["errors"] == {}
+    assert len(result["results"]["VCI"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# MAJOR-4 — `core` không được import `api`; bridge thuộc về provider
+#
+# `core/bulk_router.py` từng import `call_provider_sync` từ `vnbroker.api.quote`
+# để tự gọi `fetch_multiple` — tức là (a) tầng dưới leo lên tầng trên và
+# (b) viết lại cái bridge đã có sẵn trong `explorer/*/quote.py:history`
+# (`explorer/vci/quote.py:496`). Nay bulk gọi thẳng `history` của provider.
+# --------------------------------------------------------------------------
+
+
+def test_m4_core_does_not_import_the_api_layer():
+    """MAJOR-4: `core` không được phụ thuộc `vnbroker.api.*`."""
+    import ast
+    import inspect
+    import pathlib
+
+    tree = ast.parse(pathlib.Path(inspect.getfile(BulkRouter)).read_text(encoding="utf-8"))
+    upward = sorted(
+        {
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            and (node.module or "").startswith("vnbroker.api")
+        }
+        | {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+            if alias.name.startswith("vnbroker.api")
+        }
+    )
+    assert upward == [], f"core/bulk_router.py import tầng trên: {upward}"
+
+
+def test_m4_call_provider_sync_is_no_longer_used():
+    """MAJOR-4: bridge trùng lặp đã bị gỡ khỏi đường gọi của bulk.
+
+    Kiểm tra trên CÂY AST (không phải chuỗi) vì docstring cố tình nhắc tên
+    `call_provider_sync` để giải thích vì sao nó bị gỡ — quét chuỗi thô sẽ báo
+    động giả.
+    """
+    import ast
+    import inspect
+    import pathlib
+
+    tree = ast.parse(pathlib.Path(inspect.getfile(BulkRouter)).read_text(encoding="utf-8"))
+    calls = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+    assert "call_provider_sync" not in calls, "vẫn còn gọi call_provider_sync"
+    assert "call_provider_sync" not in imported, "vẫn còn import call_provider_sync"
+
+
+def test_m4_parallel_history_is_used_when_provider_supports_it():
+    """MAJOR-4: provider có `parallel`+`symbols` thì bulk gọi MỘT lần cho cả batch."""
+
+    class _Parallel:
+        calls: list = []
+
+        def __init__(self, symbol: str):
+            self.symbol = symbol
+
+        def history(
+            self,
+            start=None,
+            end=None,
+            interval="1D",
+            parallel=False,
+            symbols=None,
+            **kwargs,
+        ):
+            type(self).calls.append((tuple(symbols or []), parallel))
+            return [_frame(sym) for sym in (symbols or [])]
+
+    _install_as_vci(_Parallel)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM", "FPT"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["errors"] == {}
+    assert result["symbols_returned"] == 3
+    assert _Parallel.calls == [(("ACB", "VNM", "FPT"), True)], (
+        "phải gọi history(symbols=..., parallel=True) đúng một lần"
+    )
+
+
+def test_m4_provider_without_parallel_falls_back_to_sequential():
+    """MAJOR-4: SSI/DNSE không có `parallel` thì gọi tuần tự từng symbol."""
+
+    class _Sequential:
+        calls: list = []
+
+        def __init__(self, symbol: str):
+            self.symbol = symbol
+            type(self).calls.append(symbol)
+
+        def history(self, start=None, end=None, interval="1D", **kwargs):
+            return _frame(self.symbol)
+
+    _install_as_vci(_Sequential)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["errors"] == {}
+    assert result["symbols_returned"] == 2
+    assert sorted(_Sequential.calls) == ["ACB", "VNM"]
+
+
+def test_m4_parallel_capability_detection_ignores_var_kwargs():
+    """MAJOR-4: chỉ tin tham số tường minh, không tin `**kwargs`.
+
+    SSI/DNSE có `**kwargs` nên gửi `symbols`/`parallel` vào sẽ bị nuốt im lặng
+    thay vì chạy song song — im lặng là thứ tệ nhất, nên phải rơi về tuần tự.
+    """
+
+    class _SsiShaped:
+        def __init__(self, symbol: str):
+            self.symbol = symbol
+
+        def history(self, start=None, end=None, interval="1D", **kwargs):
+            raise AssertionError("parallel=True phải bị chặn, không gửi vào **kwargs")
+
+    assert BulkRouter._supports_parallel_history(_SsiShaped) is False
+    assert BulkRouter._supports_parallel_history(_SpyProvider) is True
+
+
+def test_m4_real_provider_signatures_are_detected_correctly():
+    """MAJOR-4: phát hiện năng lực khớp với provider THẬT, không chỉ fake."""
+    from vnbroker.explorer.dnse.quote import DNSEQuote
+    from vnbroker.explorer.kbs.quote import Quote as KBSQuote
+    from vnbroker.explorer.ssi.quote import SSIQuote
+    from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
+    from vnbroker.explorer.vci.quote import Quote as VCIQuote
+
+    assert BulkRouter._supports_parallel_history(VCIQuote) is True
+    assert BulkRouter._supports_parallel_history(KBSQuote) is True
+    assert BulkRouter._supports_parallel_history(TCBSQuote) is True
+    assert BulkRouter._supports_parallel_history(SSIQuote) is False
+    assert BulkRouter._supports_parallel_history(DNSEQuote) is False
+
+
+def test_m4_kwargs_are_filtered_against_real_provider_signature():
+    """MAJOR-4: kwarg phải được lọc theo signature thật, không gửi thừa.
+
+    VCI/KBS/TCBS **không** có ``**kwargs`` nên kwarg lạ sẽ ném ``TypeError`` —
+    đó là chỗ cần lọc. SSI/DNSE có ``**kwargs`` nên `_filter_kwargs` cho qua
+    toàn bộ (đúng hành vi của helper, và cũng vô hại vì không sinh TypeError).
+    """
+    import inspect
+
+    from vnbroker.core.bulk_router import _filter_kwargs
+    from vnbroker.explorer.vci.quote import Quote as VCIQuote
+
+    wanted = {"start": "2024-01-01", "end": "2024-01-31", "interval": "1D"}
+    filtered = _filter_kwargs(VCIQuote.history, dict(wanted, bogus=1))
+    assert filtered == wanted, "kwarg lạ phải bị loại với provider không có **kwargs"
+    # Gọi được thật, không TypeError
+    inspect.signature(VCIQuote.history).bind(None, **filtered)

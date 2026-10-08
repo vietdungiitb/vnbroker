@@ -22,6 +22,36 @@ from vnbroker.core.health_router import HealthRouter
 
 logger = logging.getLogger(__name__)
 
+
+def _is_unusable(result: Any) -> bool:
+    """Provider trả về thứ **không dùng được** không?
+
+    MAJOR-2: tiêu chí nằm ở *schema*, KHÔNG phải số dòng. Frame đủ cột mà 0 dòng
+    là ngày nghỉch giao dịch (Tết, cuối tuần, mã chưa có dữ liệu) và phải được coi
+    là thành công; chỉ 0 cột mới là provider hỏng.
+
+    Dùng lại đúng helper của ``common.data`` để hai đường đi không lệch nhau —
+    ``common/data.py:465-467`` đã cảnh báo chính xác cái bẫy "coi 0 dòng thất bại"
+    mà bulk đang mắc. Import trễ (trong hàm) vì ``common.data`` là module nặng
+    và ``core`` nằm DƯỚI nó; đã kiểm tra KHÔNG có vòng import theo cả hai chiều.
+    """
+    from vnbroker.common.data import _is_unusable_provider_result
+
+    return _is_unusable_provider_result(result)
+
+
+def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Chỉ giữ kwarg mà ``method`` thật sự nhận.
+
+    MAJOR-4: provider có tham số khác nhau (`history` của DNSE nhận ``symbol``,
+    SSI không nhận ``to_df`` ở vị trí kia...), nên gửi thừa sẽ ném
+    ``TypeError``. Dùng lại helper sẵn có của ``common.data`` thay vì viết
+    lần hai.
+    """
+    from vnbroker.common.data import _filter_kwargs as _data_filter_kwargs
+
+    return _data_filter_kwargs(method, kwargs)
+
 # Lỗi lập trình: dấu hiệu gọi sai API (self bị bind nhầm vào chuỗi symbol,
 # tham số không tồn tại, thiếu import). Nuốt chúng thành `logger.warning` là
 # cách che bug nên chúng phải nổi lên tới caller.
@@ -44,6 +74,16 @@ PROVIDER_ERRORS: tuple[type[Exception], ...] = (
     LookupError,
     NotImplementedError,
 )
+
+
+def _display_key(provider: str) -> str:
+    """Khoá provider trả về cho ``api/bulk.py``.
+
+    Tên nội bộ của router là lower-case (khớp khoá health store), còn
+    ``attrs['sources_used']`` / ``attrs['failed']`` phải đọc như
+    ``df.attrs['source']`` nên upper-case. Chuyển đổi ở đúng MỘT chỗ.
+    """
+    return provider.upper()
 
 
 class BulkRouter:
@@ -104,6 +144,9 @@ class BulkRouter:
         results: Dict[str, Any] = {}
         errors: Dict[str, str] = {}
 
+        # `selected` (và `provider`) là TÊN lower-case — đúng dạng khoá mà
+        # `source_router._health_state` đọc. Chỉ khoá trả về cho `api/bulk.py`
+        # mới upper-case (xem `_display_key`).
         with ThreadPoolExecutor(max_workers=len(selected)) as executor:
             futures = {
                 executor.submit(
@@ -114,11 +157,12 @@ class BulkRouter:
             }
             for future in as_completed(futures):
                 provider = futures[future]
+                key = _display_key(provider)
                 try:
-                    results[provider] = future.result()
+                    results[key] = future.result()
                 except PROVIDER_ERRORS as e:
                     logger.warning("Bulk fetch failed for provider %s: %s", provider, e)
-                    errors[provider] = str(e)
+                    errors[key] = str(e)
 
         # 4. Merge results
         return {
@@ -136,9 +180,17 @@ class BulkRouter:
     ) -> List[str]:
         """Resolve the provider list to distribute symbols across.
 
-        Names are upper-cased so every downstream key (``results``,
-        ``providers_used``, ``attrs['sources_used']``) reads the same way as
-        ``df.attrs['source']``, regardless of the caller's casing.
+        Names are returned **lower-case**, because that is the form the health
+        store keys on: ``source_router.get_source_health_snapshot`` reads
+        ``_health_state[(module, s)]`` for ``s`` in ``get_auto_candidates(module)``
+        (``['vci', 'kbs']``). Returning upper-case names made every
+        ``record_success`` / ``record_failure`` write ``('quote', 'VCI')`` — a key
+        the snapshot never reads — so the circuit breaker could never engage and
+        the dead keys were still persisted to the SQLite store.
+
+        Upper-casing now happens only where results are handed to the caller
+        (``_display_key``), so ``attrs['sources_used']`` still reads like
+        ``df.attrs['source']``.
 
         With no ``providers`` argument the health router decides — it only
         knows the module's AUTO candidates. When the caller *does* pass a list
@@ -153,12 +205,12 @@ class BulkRouter:
             selected = [
                 p
                 for p in providers
-                if not snapshot.get(p.upper(), {}).get("in_cooldown", False)
+                if not snapshot.get(_display_key(p), {}).get("in_cooldown", False)
             ]
 
         if not selected:
             raise ConnectionError("No healthy providers available")
-        return [p.upper() for p in selected]
+        return [p.lower() for p in selected]
 
     @staticmethod
     def _health_snapshot(module: str) -> Dict[str, Dict[str, Any]]:
@@ -177,9 +229,17 @@ class BulkRouter:
     ) -> List[pd.DataFrame]:
         """Fetch a batch of symbols from a specific provider.
 
-        Prefers the provider's ``fetch_multiple`` (a classmethod on both VCI and
-        KBS, sync for KBS and async for VCI); falls back to one ``history``
-        call per symbol on a properly constructed instance.
+        Two paths, both through the provider's own ``history``:
+
+        - ``history(symbols=[...], parallel=True)`` when the provider's signature
+          advertises both (VCI, KBS, TCBS). That method already owns the
+          sync/async bridge to ``fetch_multiple`` (``explorer/vci/quote.py:496``).
+        - one ``history`` call per symbol otherwise (SSI, DNSE).
+
+        MAJOR-4: bulk used to import ``call_provider_sync`` from
+        ``vnbroker.api.quote`` — a lower layer reaching into a higher one — and
+        drive ``fetch_multiple`` itself, i.e. a second copy of a bridge that
+        already existed in ``explorer``. The capability is called directly now.
 
         Every returned frame is tagged with ``attrs['symbol']`` when the
         provider did not do it itself, so the caller can attribute each frame
@@ -188,7 +248,7 @@ class BulkRouter:
         Raises:
             Exception: One of ``PROGRAMMING_ERRORS`` always propagates — a
                 programming error is never downgraded to a log line. Provider
-                errors only propagate when the batch produced no frame at all.
+                errors only propagate when the batch produced no usable frame.
         """
         provider_class = self._resolve_provider_class(module, provider)
         if provider_class is None:
@@ -200,15 +260,9 @@ class BulkRouter:
             return []
 
         started = time.perf_counter()
-        fetch_multiple = getattr(provider_class, "fetch_multiple", None)
-        if fetch_multiple is not None:
-            frames = self._frames_from_fetch_multiple(
-                provider, fetch_multiple, symbols, start, end, interval, module
-            )
-        else:
-            frames = self._frames_from_history(
-                provider_class, provider, symbols, start, end, interval, module
-            )
+        frames = self._frames_from_history(
+            provider_class, provider, symbols, start, end, interval, module
+        )
 
         if frames:
             self._health.record_success(
@@ -231,37 +285,83 @@ class BulkRouter:
             logger.debug("No registered %s provider named %s", module, provider)
             return None
 
-    def _frames_from_fetch_multiple(
+    @staticmethod
+    def _supports_parallel_history(provider_class: type) -> bool:
+        """``history`` của provider có nhận ``parallel`` + ``symbols`` không?
+
+        Quyết định dựa trên **tên tham số tường minh**, không dựa trên
+        ``**kwargs``: SSI/DNSE có ``**kwargs`` nên `symbols`/`parallel` gửi vào
+        sẽ bị nuốt im lặng thay vì chạy song song — im lặng là thứ tệ nhất.
+        """
+        import inspect
+
+        history = getattr(provider_class, "history", None)
+        if history is None:
+            return False
+        try:
+            params = inspect.signature(history).parameters
+        except (TypeError, ValueError):
+            return False
+        return "parallel" in params and "symbols" in params
+
+    def _frames_from_history(
         self,
+        provider_class: type,
         provider: str,
-        fetch_multiple: Any,
         symbols: List[str],
         start: Optional[str],
         end: Optional[str],
         interval: str,
         module: str,
     ) -> List[pd.DataFrame]:
-        """Call a provider's ``fetch_multiple`` through the sync/async bridge.
+        """Dispatch a batch to the provider's ``history``.
 
-        ``fetch_multiple`` is an ``async classmethod`` on VCI and a sync one on
-        KBS. Calling it blindly returns a coroutine, whose ``isinstance(...,
-        list)`` and ``isinstance(..., dict)`` are both False — the caller then
-        sees an empty batch and reports success.
-
-        An empty result for a non-empty request is treated as a provider
-        failure, not a quiet success: KBS's own ``fetch_multiple`` catches
-        every per-symbol exception and returns ``[]``, so without this the
-        failure would never reach ``errors``.
+        MAJOR-4: the provider owns the bridge, not ``core``.
         """
-        from vnbroker.api.quote import call_provider_sync
+        if self._supports_parallel_history(provider_class):
+            return self._parallel_history_frames(
+                provider_class, provider, symbols, start, end, interval, module
+            )
+        return self._sequential_history_frames(
+            provider_class, provider, symbols, start, end, interval, module
+        )
+
+    def _parallel_history_frames(
+        self,
+        provider_class: type,
+        provider: str,
+        symbols: List[str],
+        start: Optional[str],
+        end: Optional[str],
+        interval: str,
+        module: str,
+    ) -> List[pd.DataFrame]:
+        """One ``history(symbols=..., parallel=True)`` call for the batch.
+
+        VCI/KBS/TCBS already route this to their own ``fetch_multiple`` and own
+        the sync/async bridging (``explorer/vci/quote.py:496``), so bulk needs
+        no bridge of its own.
+
+        A result carrying no usable schema is a provider failure, not a quiet
+        success: KBS's ``fetch_multiple`` swallows per-symbol exceptions and
+        returns ``[]``, so without this the failure never reaches ``errors``.
+        The reverse matters equally — a batch of well-shaped 0-row frames is a
+        market holiday, not a failure (MAJOR-2).
+        """
+        instance = self._build_instance(provider_class, symbols, provider)
 
         try:
-            result = call_provider_sync(
-                fetch_multiple,
-                symbols=symbols,
-                start=start,
-                end=end,
-                interval=interval,
+            result = instance.history(
+                **_filter_kwargs(
+                    instance.history,
+                    {
+                        "symbols": symbols,
+                        "start": start,
+                        "end": end,
+                        "interval": interval,
+                        "parallel": True,
+                    },
+                )
             )
         except PROGRAMMING_ERRORS:
             raise
@@ -271,13 +371,27 @@ class BulkRouter:
         frames = self._normalize_multi_result(result, symbols)
         if symbols and not frames:
             empty_result = RuntimeError(
-                f"Provider {provider} returned no data for "
-                f"{len(symbols)} requested symbol(s): {symbols}"
+                f"Provider {provider} returned unusable data for "
+                f"{len(symbols)} requested symbol(s): {symbols} "
+                "(no frame carried a usable schema)"
             )
             raise self._note_failure(provider, empty_result, module) from empty_result
         return frames
 
-    def _frames_from_history(
+    @staticmethod
+    def _build_instance(
+        provider_class: type, symbols: List[str], provider: str
+    ) -> Any:
+        """Dựng instance đúng cách cho provider.
+
+        Mọi provider thật yêu cầu ``symbol`` ở ``__init__``; gọi
+        ``provider_class()`` không tham số sẽ ném ``TypeError``. Ở nhánh song
+        song ``self.symbol`` không được dùng (symbols truyền vào rồi) nhưng
+        constructor vẫn bắt buộc có nó.
+        """
+        return provider_class(symbol=symbols[0] if symbols else None)
+
+    def _sequential_history_frames(
         self,
         provider_class: type,
         provider: str,
@@ -290,6 +404,9 @@ class BulkRouter:
         """Per-symbol fallback: construct one instance per symbol, then call
         ``history`` **on that instance**.
 
+        Used by providers whose ``history`` has no ``parallel``/``symbols``
+        (SSI, DNSE).
+
         Two traps live here. ``__init__`` requires ``symbol``, so
         ``provider_class()`` raises ``TypeError``; and ``history`` takes no
         ``symbol`` parameter (the symbol lives on the instance), so
@@ -301,7 +418,12 @@ class BulkRouter:
         for sym in symbols:
             instance = provider_class(symbol=sym)
             try:
-                df = instance.history(start=start, end=end, interval=interval)
+                df = instance.history(
+                    **_filter_kwargs(
+                        instance.history,
+                        {"start": start, "end": end, "interval": interval},
+                    )
+                )
             except PROGRAMMING_ERRORS:
                 raise
             except PROVIDER_ERRORS as exc:
@@ -312,7 +434,7 @@ class BulkRouter:
                     "Individual fetch failed for %s on %s: %s", sym, provider, exc
                 )
                 continue
-            if df is not None and not df.empty:
+            if self._is_usable_frame(df):
                 self._tag_symbol(df, sym)
                 frames.append(df)
 
@@ -320,8 +442,9 @@ class BulkRouter:
             raise first_error
         if symbols and not frames:
             empty_result = RuntimeError(
-                f"Provider {provider} returned no data for "
-                f"{len(symbols)} requested symbol(s): {symbols}"
+                f"Provider {provider} returned unusable data for "
+                f"{len(symbols)} requested symbol(s): {symbols} "
+                "(no frame carried a usable schema)"
             )
             raise self._note_failure(provider, empty_result, module) from empty_result
         return frames
@@ -347,14 +470,33 @@ class BulkRouter:
         if not df.attrs.get("symbol"):
             df.attrs["symbol"] = symbol
 
+    @staticmethod
+    def _is_usable_frame(df: Any) -> bool:
+        """Frame này có mang dữ liệu *dùng được* không?
+
+        MAJOR-2: đủ cột + 0 dòng là ngày nghỉch giao dịch — giữ lại. 0 cột là
+        provider trả về rỗng — loại. Trước đây chỗ này lọc ``not df.empty`` nên
+        frame hợp lệ của ngày nghỉch bị loại TRƯỚC khi kịp kiểm tra schema, rồi
+        batch rỗng bị quy thành provider hỏng.
+        """
+        return isinstance(df, pd.DataFrame) and not _is_unusable(df)
+
     def _normalize_multi_result(
         self, result: Any, symbols: List[str]
     ) -> List[pd.DataFrame]:
-        """Flatten a ``fetch_multiple`` return value into a list of frames."""
+        """Flatten a provider ``history`` return value into a list of frames.
+
+        Parallel-capable providers hand back what their ``fetch_multiple``
+        produced: a list (or dict) of frames, or a bare DataFrame for one
+        symbol.
+
+        Chỉ frame **không dùng được** (thiếu schema) bị loại; frame đủ schema mà
+        0 dòng vẫn được giữ để ngày nghỉch giao dịch không bị tính là lỗi.
+        """
         if result is None:
             return []
         if isinstance(result, pd.DataFrame):
-            if result.empty:
+            if _is_unusable(result):
                 return []
             if not result.attrs.get("symbol") and len(symbols) == 1:
                 self._tag_symbol(result, symbols[0])
@@ -363,14 +505,12 @@ class BulkRouter:
             frames = []
             for sym in symbols:
                 df = result.get(sym)
-                if isinstance(df, pd.DataFrame) and not df.empty:
+                if self._is_usable_frame(df):
                     self._tag_symbol(df, sym)
                     frames.append(df)
             return frames
         if isinstance(result, (list, tuple)):
-            frames = [
-                df for df in result if isinstance(df, pd.DataFrame) and not df.empty
-            ]
+            frames = [df for df in result if self._is_usable_frame(df)]
             # Providers return one frame per requested symbol, in order. Only
             # align positionally when the counts match, otherwise guessing
             # would mislabel frames.
@@ -379,6 +519,6 @@ class BulkRouter:
                     self._tag_symbol(df, sym)
             return frames
         raise TypeError(
-            "fetch_multiple returned an unsupported type "
+            "provider history returned an unsupported type "
             f"{type(result).__name__!r}; expected list, tuple, dict or DataFrame"
         )
