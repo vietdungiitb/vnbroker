@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -631,7 +631,12 @@ class DNSEQuote:
         def _fetch_one(symbol: str) -> Optional[pd.DataFrame]:
             try:
                 quote = cls(symbol=symbol, show_log=show_log)
-                return quote.history(start=start, end=end, interval=interval)
+                # `history` tự có default cho `start`; chỉ truyền khi caller
+                # thực sự chỉ định, để không ghi đè default bằng None.
+                history_kwargs: Dict[str, Any] = {"end": end, "interval": interval}
+                if start is not None:
+                    history_kwargs["start"] = start
+                return quote.history(**history_kwargs)
             except Exception:
                 return None
 

@@ -460,11 +460,24 @@ class Quote(BaseComponent):
 
         super().__init__(symbol, source)
 
+    def _require_symbol(self) -> str:
+        """Narrow ``self.symbol`` cho các provider bắt buộc có symbol.
+
+        Provider ``explorer/*`` đều cần ``symbol: str``; trước đây ``None``
+        chạy thẳng xuống constructor và chết sâu bên trong với lỗi khó hiểu.
+        """
+        if not self.symbol:
+            raise ValueError(
+                f"{type(self).__name__} cần symbol để dựng provider, "
+                "nhưng symbol đang là None. Truyền symbol khi khởi tạo hoặc gọi update_symbol()."
+            )
+        return self.symbol
+
     def _load_data_source(self):
         """Load quote data source module."""
         return self._load_direct_provider()
 
-    def _load_direct_provider(self):
+    def _load_direct_provider(self) -> Any:
         """Load direct provider adapter based on source.
 
         Với ``source == "AUTO"`` (tầng 1 ẩn danh) chỉ khởi tạo provider đầu
@@ -473,6 +486,7 @@ class Quote(BaseComponent):
         """
         from vnbroker.core import source_router
 
+        symbol = self._require_symbol()
         source = self.source.lower()
         if source == "auto":
             candidates = source_router.get_auto_candidates("quote")
@@ -484,45 +498,46 @@ class Quote(BaseComponent):
             self.source = source.upper()
         if source == "vci":
             from vnbroker.explorer.vci.quote import Quote as VCIQuote
-            return VCIQuote(self.symbol, show_log=self.show_log)
+            return VCIQuote(symbol, show_log=self.show_log)
         elif source == "kbs":
             from vnbroker.explorer.kbs.quote import Quote as KBSQuote
-            return KBSQuote(self.symbol, show_log=self.show_log)
+            return KBSQuote(symbol, show_log=self.show_log)
         elif source == "tcbs":
             from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
-            return TCBSQuote(self.symbol, auth_token=self.auth_token, show_log=self.show_log)
+            return TCBSQuote(symbol, auth_token=self.auth_token, show_log=self.show_log)
         elif source == "dnse":
             from vnbroker.explorer.dnse.quote import DNSEQuote
-            return DNSEQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+            return DNSEQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         elif source == "ssi":
             from vnbroker.explorer.ssi.quote import SSIQuote
-            return SSIQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+            return SSIQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
 
-    def _load_direct_provider_for_source(self, source: str):
+    def _load_direct_provider_for_source(self, source: str) -> Any:
         """Create a provider instance for a given source name.
 
         Used by AUTO mode to pre-instantiate all candidate providers
         for failover. Mirrors _load_direct_provider but takes an explicit
         source string instead of using self.source.
         """
+        symbol = self._require_symbol()
         source = source.lower()
         if source == "vci":
             from vnbroker.explorer.vci.quote import Quote as VCIQuote
-            return VCIQuote(self.symbol, show_log=self.show_log)
+            return VCIQuote(symbol, show_log=self.show_log)
         elif source == "kbs":
             from vnbroker.explorer.kbs.quote import Quote as KBSQuote
-            return KBSQuote(self.symbol, show_log=self.show_log)
+            return KBSQuote(symbol, show_log=self.show_log)
         elif source == "tcbs":
             from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
-            return TCBSQuote(self.symbol, auth_token=self.auth_token, show_log=self.show_log)
+            return TCBSQuote(symbol, auth_token=self.auth_token, show_log=self.show_log)
         elif source == "dnse":
             from vnbroker.explorer.dnse.quote import DNSEQuote
-            return DNSEQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+            return DNSEQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         elif source == "ssi":
             from vnbroker.explorer.ssi.quote import SSIQuote
-            return SSIQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+            return SSIQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {source}")
 

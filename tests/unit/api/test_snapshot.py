@@ -7,7 +7,7 @@ DataFrame output, and edge cases.
 
 import pytest
 import pandas as pd
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from vnbroker.api.snapshot import MarketSnapshot
 

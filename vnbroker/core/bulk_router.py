@@ -27,8 +27,8 @@ class BulkRouter:
     def fetch_history(
         self,
         symbols: List[str],
-        start: str,
-        end: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
         module: str = "quote",
     ) -> Dict[str, Any]:
         """Fetch history for multiple symbols using multiple providers.
@@ -88,8 +88,8 @@ class BulkRouter:
         self,
         provider: str,
         symbols: List[str],
-        start: str,
-        end: str,
+        start: Optional[str],
+        end: Optional[str],
         module: str,
     ) -> List[pd.DataFrame]:
         """Fetch a batch of symbols from a specific provider.

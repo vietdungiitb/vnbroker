@@ -1,16 +1,33 @@
 """
 Cross-provider capability test: test ACB across all providers and features.
 Produces a capability matrix as a DataFrame and highlights gaps.
+
+GATED — this is a diagnostic script, not a unit test. It fans out to ~30
+methods x 6 providers over the real network, so it cannot finish inside a
+CI step (`--timeout=60` aborts the whole coverage run; see
+`.github/workflows/coverage-report.yml`). Run it by hand only:
+
+    $env:vnbroker_RUN_LIVE_INTEGRATION='1'
+    pytest tests/test_acb_all_providers.py -v -s --timeout=0
+
+Without the flag pytest skips the module, so `pytest tests/` stays green.
 """
 
 import sys, os, importlib, time, traceback
 from datetime import datetime, timedelta
 import pandas as pd
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from vnbroker.common.data import (
     Quote, Company, Finance, News, Trading, Listing, Screener, StockComponents
+)
+
+# Diagnostic matrix: real network across every provider. Opt-in only.
+pytestmark = pytest.mark.skipif(
+    os.getenv("vnbroker_RUN_LIVE_INTEGRATION") != "1",
+    reason="Cross-provider capability matrix gọi network thật; cần vnbroker_RUN_LIVE_INTEGRATION=1",
 )
 
 SYMBOL = "ACB"

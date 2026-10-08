@@ -43,7 +43,7 @@ class TestBrokerAPI:
         mock_instance = MagicMock()
         mock_client_class.return_value = mock_instance
 
-        client = get_broker(
+        get_broker(
             provider="tcbs",
             api_key="test_key",
             base_url="https://custom.api.com",
