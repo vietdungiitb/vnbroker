@@ -25,7 +25,7 @@
 | agent-types | feat/fix-types | vnbroker/api/company.py,vnbroker/api/snapshot.py,vnbroker/api/broker.py,vnbroker/api/stream.py | done | 2026-10-08T11:00:00Z |
 | agent-fetch | feat/fetch-multiple | vnbroker/explorer/dnse/quote.py,vnbroker/explorer/ssi/quote.py,tests/unit/explorer/test_dnse_fetch_multiple.py,tests/unit/explorer/test_ssi_fetch_multiple.py | done | 2026-10-08T11:00:00Z |
 | agent-ratelimit | feat/rate-limit | vnbroker/core/utils/rate_limiter.py,vnbroker/core/utils/client.py,tests/unit/core/test_rate_limiter.py | done | 2026-10-08T11:00:00Z |
-| leader-gates | feat/fix-gates | vnbroker/api/company.py,vnbroker/api/bulk.py,vnbroker/common/data.py,vnbroker/core/bulk_router.py,vnbroker/core/health_router.py,vnbroker/core/provider_pool.py,vnbroker/explorer/dnse/quote.py,tests/test_acb_all_providers.py,tests/unit/api/test_broker_api.py,tests/unit/api/test_snapshot.py,tests/unit/api/test_stream.py,tests/unit/common/test_bulk_normalizer.py,tests/unit/explorer/test_dnse_fetch_multiple.py | in-progress | 2026-10-08T12:00:00Z |
+| leader-gates | feat/fix-gates | vnbroker/api/company.py,vnbroker/api/bulk.py,vnbroker/common/data.py,vnbroker/core/bulk_router.py,vnbroker/core/health_router.py,vnbroker/core/provider_pool.py,vnbroker/explorer/dnse/quote.py,tests/test_acb_all_providers.py,tests/unit/api/test_broker_api.py,tests/unit/api/test_snapshot.py,tests/unit/api/test_stream.py,tests/unit/common/test_bulk_normalizer.py,tests/unit/explorer/test_dnse_fetch_multiple.py | done | 2026-10-08T12:30:00Z |
 
 ## Ghi chú
 
