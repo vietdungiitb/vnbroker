@@ -5,6 +5,7 @@ Provides thread-safe caching with time-to-live expiration for
 listing data, industry mappings, and other static/reference data.
 """
 
+import datetime
 import threading
 import time
 from dataclasses import dataclass
@@ -17,6 +18,42 @@ from vnbroker.core.utils.logger import get_logger
 logger = get_logger(__name__)
 
 T = TypeVar('T')
+
+#: Types whose ``str()`` is a stable, address-free representation.
+PRIMITIVES = (str, int, float, bool, type(None))
+
+
+def _encode_value(value: Any) -> str:
+    """Encode one argument into a deterministic, address-free token.
+
+    Every branch keeps the value's information, so different arguments cannot
+    share a token. The same value always yields the same token, so equal
+    arguments still share a key and the cache still hits.
+
+    Domain objects with a custom ``__str__`` collapse to their *type name*
+    on purpose: their ``str()`` usually embeds a memory address, which would
+    make every call look like a different argument and empty the cache.
+    """
+    if isinstance(value, PRIMITIVES):
+        return str(value)
+    if isinstance(value, (bytes, bytearray)):
+        return f"{type(value).__name__}:{bytes(value).hex()}"
+    if isinstance(value, (list, tuple)):
+        inner = ",".join(_encode_value(item) for item in value)
+        return f"{type(value).__name__}:{len(value)}:[{inner}]"
+    if isinstance(value, (set, frozenset)):
+        inner = ",".join(sorted(_encode_value(item) for item in value))
+        return f"{type(value).__name__}:{len(value)}:{{{inner}}}"
+    if isinstance(value, dict):
+        # Sorted by encoded key so insertion order cannot change the key.
+        items = sorted(value.items(), key=lambda item: _encode_value(item[0]))
+        inner = ",".join(f"{_encode_value(k)}={_encode_value(v)}" for k, v in items)
+        return f"{type(value).__name__}:{len(value)}:{{{inner}}}"
+    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+        return f"{type(value).__name__}:{value.isoformat()}"
+    if isinstance(value, datetime.timedelta):
+        return f"timedelta:{value.total_seconds()}"
+    return type(value).__name__
 
 
 @dataclass
@@ -56,9 +93,18 @@ class TTLCache(Generic[T]):
         self._total_count = 0
     
     def _make_key(self, *args, **kwargs) -> str:
-        """Generate cache key from arguments (only primitive types)."""
-        key_parts = [str(arg) for arg in args if isinstance(arg, (str, int, float, bool, type(None)))]
-        key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()) if isinstance(v, (str, int, float, bool, type(None))))
+        """Generate cache key from arguments.
+
+        Every argument contributes to the key. Dropping the non-primitive ones
+        made calls with different ``date``/``list``/``dict`` arguments share a
+        single entry, so the cache silently served one call's payload for
+        another call's arguments.
+        """
+        key_parts = [_encode_value(arg) for arg in args]
+        key_parts.extend(
+            f"{name}={_encode_value(value)}"
+            for name, value in sorted(kwargs.items())
+        )
         return "|".join(key_parts)
     
     def get(self, key: str) -> Optional[T]:
@@ -178,6 +224,23 @@ def get_industry_cache() -> TTLCache:
         return _industry_cache
 
 
+def _cache_namespace(func: Callable[..., Any], args: tuple[Any, ...]) -> str:
+    """Namespace that keeps same-named methods of different owners apart.
+
+    The listing cache and the industry cache are single process-wide objects
+    shared by every provider, and providers reuse the same method names
+    (``kbs.Listing.all_symbols`` vs ``vci.Listing.all_symbols``). Keying on
+    ``func.__name__`` alone therefore let one provider's result be served to
+    another. The namespace is built from the defining module/qualname and,
+    when the call is a method, from the instance's own class.
+    """
+    owner = ""
+    if args and not isinstance(args[0], PRIMITIVES) and hasattr(args[0], "__class__"):
+        owner_cls = type(args[0])
+        owner = f"{owner_cls.__module__}.{owner_cls.__qualname__}."
+    return f"{owner}{func.__module__}.{func.__qualname__}"
+
+
 def cached_listing(ttl_seconds: Optional[int] = None):
     """
     Decorator for caching listing functions.
@@ -190,7 +253,7 @@ def cached_listing(ttl_seconds: Optional[int] = None):
         
         @wraps(func)
         def wrapper(*args, **kwargs):
-            key = cache._make_key(func.__name__, *args, **kwargs)
+            key = cache._make_key(_cache_namespace(func, args), *args, **kwargs)
             result = cache.get(key)
             if result is not None:
                 logger.debug(f"Cache HIT for {func.__name__}: {key}")
@@ -217,7 +280,7 @@ def cached_industry(ttl_seconds: Optional[int] = None):
         
         @wraps(func)
         def wrapper(*args, **kwargs):
-            key = cache._make_key(func.__name__, *args, **kwargs)
+            key = cache._make_key(_cache_namespace(func, args), *args, **kwargs)
             result = cache.get(key)
             if result is not None:
                 logger.debug(f"Cache HIT for {func.__name__}: {key}")

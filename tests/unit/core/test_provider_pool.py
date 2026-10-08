@@ -132,5 +132,57 @@ class TestProviderPool(unittest.TestCase):
             self.assertIsNone(pool.get_provider_config("nonexistent"))
 
 
+class TestProviderPoolDeadCode(unittest.TestCase):
+    """D3: decide whether ProviderPool is used, and drop its dead code.
+
+    The class itself IS used for real: `vnbroker/api/bulk.py:37` builds one
+    and `:64` asks it for providers, and `tests/unit/api/test_bulk_api.py:89`
+    asserts it is not None. So the class stays.
+
+    `ProviderPool.get_provider` was the dead code: zero callers anywhere in
+    `vnbroker/` or `tests/` (the only `.get_provider(` receivers are
+    `UnifiedRegistry.get_provider` in `core/unified_registry.py`), a
+    "will be implemented in WP-5" placeholder, an unused `symbol` parameter,
+    and it contradicted its own docstring — it claims to create a provider
+    *instance* while returning whatever `ProviderRegistry.get` gives, which
+    at e5d8133 is `None` 100% of the time because the registry is empty.
+    """
+
+    def test_dead_get_provider_is_gone(self):
+        """The unused WP-5 placeholder must not come back."""
+        self.assertFalse(
+            hasattr(ProviderPool, "get_provider"),
+            "ProviderPool.get_provider is dead code (0 callers) and was removed",
+        )
+
+    def test_pool_keeps_the_api_bulk_depends_on(self):
+        """Positive case: the parts api/bulk.py uses must stay."""
+        with patch.dict(os.environ, {}, clear=False):
+            pool = ProviderPool()
+            providers = pool.get_available_providers("quote")
+
+        self.assertIn("vci", providers)
+        self.assertIn("kbs", providers)
+
+    def test_pool_still_reports_auth_providers(self):
+        """Positive case: env detection is the pool's real job."""
+        env = {
+            "DNSE_API_KEY": "k",
+            "DNSE_API_SECRET": "s",
+            "VNBROKER_BROKER_SSI_API_KEY": "",
+            "VNBROKER_BROKER_SSI_API_SECRET": "",
+            "TCBS_API_KEY": "",
+            "TCBS_API_SECRET": "",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            pool = ProviderPool()
+
+            self.assertTrue(pool.has_auth_provider("dnse"))
+            self.assertIsNotNone(pool.get_provider_config("dnse"))
+            self.assertFalse(pool.has_auth_provider("ssi"))
+            self.assertIsNone(pool.get_provider_config("ssi"))
+            self.assertIn("dnse", pool.get_available_providers("quote"))
+
+
 if __name__ == "__main__":
     unittest.main()

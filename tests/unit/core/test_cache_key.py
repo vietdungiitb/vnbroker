@@ -1,7 +1,9 @@
 """Tests for cache key generation — verifies no memory addresses in keys."""
 
+from datetime import date, datetime
+
 import pytest
-from vnbroker.core.utils.cache import TTLCache
+from vnbroker.core.utils.cache import TTLCache, cached_listing, get_listing_cache
 
 
 class _FakeObj:
@@ -10,9 +12,24 @@ class _FakeObj:
         return f"<FakeObj object at 0x{id(self):016X}>"
 
 
+class _OtherObj:
+    """A second domain object type, also with an address in str()."""
+    def __str__(self):
+        return f"<OtherObj object at 0x{id(self):016X}>"
+
+
 @pytest.fixture
 def cache():
     return TTLCache(ttl_seconds=60, max_size=10, name="test")
+
+
+@pytest.fixture
+def listing_cache():
+    """The process-wide listing cache, cleared around each test."""
+    shared = get_listing_cache()
+    shared.clear()
+    yield shared
+    shared.clear()
 
 
 # ── _make_key tests ──────────────────────────────────────────────────────────
@@ -94,3 +111,221 @@ def test_cache_stats_hit_rate(cache):
     assert stats["hit_count"] == 1
     assert stats["total_count"] == 2
     assert stats["hit_rate"] == 0.5
+
+
+# ── VN-2 / AC-9: no argument may be silently dropped from the key ───────────
+#
+# `_make_key` used to keep only str/int/float/bool/None arguments, so every
+# call whose arguments were `date`, `list` or `dict` produced the SAME key and
+# the cache served one call's payload for another's arguments.
+
+def test_date_arguments_do_not_collide(cache):
+    """Two different dates must not produce the same key."""
+    old = cache._make_key("all_symbols", date(2024, 1, 1))
+    new = cache._make_key("all_symbols", date(2026, 10, 8))
+    assert old != new
+
+
+def test_list_order_is_part_of_the_key(cache):
+    """A list is ordered: ['ACB','VNM'] must differ from ['VNM','ACB']."""
+    assert cache._make_key("f", ["ACB", "VNM"]) != cache._make_key("f", ["VNM", "ACB"])
+
+
+def test_dict_values_are_part_of_the_key(cache):
+    """A dict's values must not be dropped from the key."""
+    assert cache._make_key("f", {"a": 1}) != cache._make_key("f", {"a": 2})
+
+
+def test_list_and_tuple_are_distinguished(cache):
+    """A list and a tuple with the same items are different arguments."""
+    assert cache._make_key("f", ["ACB"]) != cache._make_key("f", ("ACB",))
+
+
+def test_datetime_and_date_are_distinguished(cache):
+    """A datetime must not share the key of the date it falls on."""
+    day = date(2024, 1, 1)
+    moment = datetime(2024, 1, 1, 9, 30)
+    assert cache._make_key("f", day) != cache._make_key("f", moment)
+
+
+def test_nested_arguments_are_distinguished(cache):
+    """Structure inside an argument must still change the key."""
+    assert cache._make_key("f", ["a", {"b": 1}]) != cache._make_key("f", ["a", {"b": 2}])
+    assert cache._make_key("f", {"a": ["x"]}) != cache._make_key("f", {"a": ["y"]})
+
+
+def test_kwarg_container_values_are_distinguished(cache):
+    """The rule applies to kwargs exactly as it does to positional args."""
+    assert cache._make_key("f", symbols=["ACB"]) != cache._make_key("f", symbols=["VNM"])
+
+
+def test_unknown_object_types_are_distinguished_without_addresses(cache):
+    """Domain objects collapse to their type name, never to a memory address."""
+    key = cache._make_key("f", _FakeObj())
+    assert "0x" not in key
+    assert cache._make_key("f", _FakeObj()) != cache._make_key("f", _OtherObj())
+
+
+def test_same_arguments_still_produce_one_stable_key(cache):
+    """Positive case: equal arguments must keep producing an equal key."""
+    assert cache._make_key("f", date(2024, 1, 1), ["ACB"], {"a": 1}) == \
+        cache._make_key("f", date(2024, 1, 1), ["ACB"], {"a": 1})
+
+
+def test_cache_still_hits_for_repeated_non_primitive_arguments(cache):
+    """Positive case: the cache must still hit, so the fix costs no reuse."""
+    calls = []
+
+    def expensive(*_args, **_kwargs):
+        calls.append(1)
+        return "computed"
+
+    def cached(*args, **kwargs):
+        key = cache._make_key("expensive", *args, **kwargs)
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+        result = expensive(*args, **kwargs)
+        cache.set(key, result)
+        return result
+
+    day = date(2024, 1, 1)
+    symbols = ["ACB", "VNM"]
+
+    assert cached(day, symbols=symbols) == "computed"
+    assert cached(day, symbols=symbols) == "computed"
+    assert len(calls) == 1  # second call served from the cache
+
+    # Different arguments must still miss.
+    assert cached(date(2026, 10, 8), symbols=symbols) == "computed"
+    assert cached(day, symbols=["VNM", "ACB"]) == "computed"
+    assert len(calls) == 3
+
+
+def test_cache_does_not_serve_another_dates_payload(cache):
+    """End-to-end corruption check: write under one date, read under another."""
+    cache.set(cache._make_key("all_symbols", date(2024, 1, 1)), "payload-2024-01-01")
+
+    assert cache.get(cache._make_key("all_symbols", date(2026, 10, 8))) is None
+    assert cache.get(cache._make_key("all_symbols", date(2024, 1, 1))) == "payload-2024-01-01"
+
+
+def test_cache_does_not_serve_another_list_order_payload(cache):
+    """End-to-end corruption check for list ordering."""
+    cache.set(cache._make_key("all_symbols", ["ACB", "VNM"]), "payload-acb-vnm")
+
+    assert cache.get(cache._make_key("all_symbols", ["VNM", "ACB"])) is None
+    assert cache.get(cache._make_key("all_symbols", ["ACB", "VNM"])) == "payload-acb-vnm"
+
+
+def test_cache_does_not_serve_another_dict_payload(cache):
+    """End-to-end corruption check for dict values."""
+    cache.set(cache._make_key("all_symbols", {"a": 1}), "payload-a=1")
+
+    assert cache.get(cache._make_key("all_symbols", {"a": 2})) is None
+    assert cache.get(cache._make_key("all_symbols", {"a": 1})) == "payload-a=1"
+
+
+# ── Same-named methods of different providers must not share a cache entry ───
+#
+# Found while fixing VN-2, NOT part of AC-9: `cached_listing` keyed on
+# `func.__name__` only, and every listing cache is the SAME global object. So
+# `kbs.Listing.all_symbols` (explorer/kbs/listing.py:66) and
+# `vci.Listing.all_symbols` (explorer/vci/listing.py:49) — two providers whose
+# classes are both named `Listing` — shared one entry, and whichever provider
+# was called first served its DataFrame to the other for LISTING_CACHE_TTL.
+
+def _stub_provider_method(module_name, class_name, payload, calls):
+    """Build a cached_listing-decorated method standing in for a provider."""
+    def all_symbols(self=None):
+        calls.append(module_name)
+        return payload
+
+    all_symbols.__name__ = "all_symbols"
+    all_symbols.__qualname__ = f"{class_name}.all_symbols"
+    all_symbols.__module__ = module_name
+    return cached_listing(ttl_seconds=60)(all_symbols)
+
+
+def test_cached_listing_does_not_cross_serve_same_named_provider_methods(listing_cache):
+    """Two providers' `all_symbols` must not read each other's cache entry."""
+    calls = []
+    kbs = _stub_provider_method(
+        "vnbroker.explorer.kbs.listing", "Listing", "FROM-KBS", calls
+    )
+    vci = _stub_provider_method(
+        "vnbroker.explorer.vci.listing", "Listing", "FROM-VCI", calls
+    )
+
+    assert kbs() == "FROM-KBS"
+    assert vci() == "FROM-VCI"
+    assert calls == [
+        "vnbroker.explorer.kbs.listing",
+        "vnbroker.explorer.vci.listing",
+    ]
+
+
+def test_cached_listing_does_not_cross_serve_across_cache_types(listing_cache):
+    """The same method name in the industry cache stays separate from listing."""
+    from vnbroker.core.utils.cache import cached_industry, get_industry_cache
+
+    industry_cache = get_industry_cache()
+    industry_cache.clear()
+    try:
+        calls = []
+
+        def symbols_by_industries(self=None):
+            calls.append("listing")
+            return "FROM-LISTING"
+
+        symbols_by_industries.__name__ = "shared_name"
+        symbols_by_industries.__qualname__ = "Listing.shared_name"
+        symbols_by_industries.__module__ = "vnbroker.explorer.kbs.listing"
+
+        def shared_name(self=None):
+            calls.append("industry")
+            return "FROM-INDUSTRY"
+
+        shared_name.__name__ = "shared_name"
+        shared_name.__qualname__ = "Industry.shared_name"
+        shared_name.__module__ = "vnbroker.explorer.kbs.industry"
+
+        listing_fn = cached_listing(ttl_seconds=60)(symbols_by_industries)
+        industry_fn = cached_industry(ttl_seconds=60)(shared_name)
+
+        assert listing_fn() == "FROM-LISTING"
+        assert industry_fn() == "FROM-INDUSTRY"
+        assert calls == ["listing", "industry"]
+    finally:
+        industry_cache.clear()
+
+
+def test_cached_listing_still_caches_the_same_provider_method(listing_cache):
+    """Positive case: namespacing must not cost the cache its hits."""
+    calls = []
+    kbs = _stub_provider_method(
+        "vnbroker.explorer.kbs.listing", "Listing", "FROM-KBS", calls
+    )
+
+    assert kbs() == "FROM-KBS"
+    assert kbs() == "FROM-KBS"
+    assert calls == ["vnbroker.explorer.kbs.listing"]  # second call was a hit
+
+
+def test_cached_listing_still_honours_arguments(listing_cache):
+    """Positive case: different arguments of the same method still miss."""
+    calls = []
+
+    def all_symbols(self=None, include_derivatives=False):
+        calls.append(include_derivatives)
+        return f"DERIV={include_derivatives}"
+
+    all_symbols.__name__ = "all_symbols"
+    all_symbols.__qualname__ = "SSIListing.all_symbols"
+    all_symbols.__module__ = "vnbroker.explorer.ssi.listing"
+    cached = cached_listing(ttl_seconds=60)(all_symbols)
+
+    assert cached(include_derivatives=False) == "DERIV=False"
+    assert cached(include_derivatives=True) == "DERIV=True"
+    assert cached(include_derivatives=False) == "DERIV=False"
+    assert calls == [False, True]  # third call was a hit
