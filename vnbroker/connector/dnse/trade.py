@@ -20,11 +20,17 @@ class Trade:
         api_key: Optional[str] = None,
         api_secret: Optional[str] = None,
         base_url: str = "https://openapi.dnse.com.vn",
+        api_base_url: Optional[str] = None,
     ):
         self.token: Optional[str] = None
         self.trading_token: Optional[str] = None
         self._openapi_client: Optional[DNSEClient] = None
         self._api_key = api_key
+        # Legacy DNSE API family (auth-service / order-service / deal-service /
+        # conditional-order-api). Distinct from `base_url`, which is the newer
+        # OpenAPI host the provider's own SDK documents. Settable per instance so
+        # a sandbox or a test can intercept it; defaults to the class constant.
+        self._api_base_url = api_base_url or self.BASE_URL
         self._api_secret = api_secret
         self._openapi_base_url = base_url
         # P0-2: đường GHI phải có hàng rào. Trước đây place_order /
@@ -103,7 +109,7 @@ class Trade:
         Returns:
             Optional[str]: JWT token if successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/auth-service/login"
+        url = f"{self._api_base_url}/auth-service/login"
         payload = json.dumps({'username': user_name, 'password': password})
         headers = {'Content-Type': 'application/json'}
         response = requests.post(url, headers=headers, data=payload, timeout=self.TIMEOUT)
@@ -123,7 +129,7 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with user profile if successful,
                 None otherwise.
         """
-        url = f"{self.BASE_URL}/user-service/api/me"
+        url = f"{self._api_base_url}/user-service/api/me"
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.token}'
@@ -144,7 +150,7 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with sub-accounts info if
                 successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/order-service/accounts"
+        url = f"{self._api_base_url}/order-service/accounts"
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
@@ -165,7 +171,7 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with account balance if
                 successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/order-service/account-balances/{sub_account}"
+        url = f"{self._api_base_url}/order-service/account-balances/{sub_account}"
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
@@ -182,7 +188,7 @@ class Trade:
         The OTP will be sent to the email address associated with
         the DNSE account.
         """
-        url = f"{self.BASE_URL}/auth-service/api/email-otp"
+        url = f"{self._api_base_url}/auth-service/api/email-otp"
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
@@ -205,7 +211,7 @@ class Trade:
         Returns:
             Optional[str]: Trading token if successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/order-service/trading-token"
+        url = f"{self._api_base_url}/order-service/trading-token"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "smart-otp" if smart_otp else "otp": otp
@@ -256,10 +262,10 @@ class Trade:
                 None otherwise.
         """
         if asset_type == 'stock':
-            url = f"{self.BASE_URL}/order-service/v2/accounts/"
+            url = f"{self._api_base_url}/order-service/v2/accounts/"
             url += f"{sub_account}/loan-packages"
         else:
-            url = f"{self.BASE_URL}/order-service/accounts/"
+            url = f"{self._api_base_url}/order-service/accounts/"
             url += f"{sub_account}/derivative-loan-packages"
         
         headers = {"Authorization": f"Bearer {self.token}"}
@@ -294,7 +300,7 @@ class Trade:
                 successful, None otherwise.
         """
         if asset_type == 'stock':
-            url = f"{self.BASE_URL}/order-service/accounts/"
+            url = f"{self._api_base_url}/order-service/accounts/"
             url += f"{sub_account}/ppse"
             query_params = {
                 "symbol": symbol,
@@ -310,7 +316,7 @@ class Trade:
                 )
                 url += f"?{params_str}"
         else:
-            url = f"{self.BASE_URL}/order-service/accounts/"
+            url = f"{self._api_base_url}/order-service/accounts/"
             url += f"{sub_account}/derivative-ppse"
             query_params = {
                 "symbol": symbol,
@@ -383,9 +389,9 @@ class Trade:
             return _dry
 
         if asset_type == 'stock':
-            url = f"{self.BASE_URL}/order-service/v2/orders"
+            url = f"{self._api_base_url}/order-service/v2/orders"
         else:
-            url = f"{self.BASE_URL}/order-service/derivative/orders"
+            url = f"{self._api_base_url}/order-service/derivative/orders"
         
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -424,10 +430,10 @@ class Trade:
                 successful, None otherwise.
         """
         if asset_type == 'stock':
-            url = f"{self.BASE_URL}/order-service/v2/orders"
+            url = f"{self._api_base_url}/order-service/v2/orders"
             url += f"?accountNo={sub_account}"
         else:
-            url = f"{self.BASE_URL}/order-service/derivative/orders"
+            url = f"{self._api_base_url}/order-service/derivative/orders"
             url += f"?accountNo={sub_account}"
         
         headers = {"Authorization": f"Bearer {self.token}"}
@@ -458,10 +464,10 @@ class Trade:
                 successful, None otherwise.
         """
         if asset_type == 'stock':
-            url = f"{self.BASE_URL}/order-service/v2/orders/{order_id}"
+            url = f"{self._api_base_url}/order-service/v2/orders/{order_id}"
             url += f"?accountNo={sub_account}"
         else:
-            url = f"{self.BASE_URL}/order-service/derivative/orders/"
+            url = f"{self._api_base_url}/order-service/derivative/orders/"
             url += f"{order_id}?accountNo={sub_account}"
         
         headers = {"Authorization": f"Bearer {self.token}"}
@@ -495,10 +501,10 @@ class Trade:
         if _dry is not None:
             return _dry
         if asset_type == 'stock':
-            url = f"{self.BASE_URL}/order-service/v2/orders/{order_id}"
+            url = f"{self._api_base_url}/order-service/v2/orders/{order_id}"
             url += f"?accountNo={sub_account}"
         else:
-            url = f"{self.BASE_URL}/order-service/derivative/orders/"
+            url = f"{self._api_base_url}/order-service/derivative/orders/"
             url += f"{order_id}?accountNo={sub_account}"
         
         headers = {
@@ -530,10 +536,10 @@ class Trade:
                 successful, None otherwise.
         """
         if asset_type == 'stock':
-            url = f'{self.BASE_URL}/deal-service/deals'
+            url = f'{self._api_base_url}/deal-service/deals'
             url += f'?accountNo={sub_account}'
         else:
-            url = f'{self.BASE_URL}/derivative-core/deals'
+            url = f'{self._api_base_url}/derivative-core/deals'
             url += f'?accountNo={sub_account}'
         
         headers = {"Authorization": f"Bearer {self.token}"}
@@ -548,7 +554,8 @@ class Trade:
     def set_deal_pnl_config(
         self,
         deal_id: int,
-        config: dict
+        config: dict,
+        dry_run: bool = False,
     ) -> Optional[pd.DataFrame]:
         """
         Set take profit/stop loss config for a specific deal.
@@ -573,7 +580,11 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with config result if
                 successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/derivative-deal-risk/pnl-configs/{deal_id}"
+        _dry = self._require_write("set_deal_pnl_config", dry_run)
+        if _dry is not None:
+            return _dry
+
+        url = f"{self._api_base_url}/derivative-deal-risk/pnl-configs/{deal_id}"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Trading-Token": self.trading_token
@@ -589,7 +600,8 @@ class Trade:
     def set_account_pnl_config(
         self,
         account_no: str,
-        config: dict
+        config: dict,
+        dry_run: bool = False,
     ) -> Optional[pd.DataFrame]:
         """
         Set take profit/stop loss config for an account.
@@ -611,7 +623,11 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with config result if
                 successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/derivative-deal-risk/"
+        _dry = self._require_write("set_account_pnl_config", dry_run)
+        if _dry is not None:
+            return _dry
+
+        url = f"{self._api_base_url}/derivative-deal-risk/"
         url += f"account-pnl-configs/{account_no}"
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -625,7 +641,7 @@ class Trade:
             logger.error("Thiết lập PnL config cho tài khoản thất bại: %s", response.text)
             return None
 
-    def close_deal(self, deal_id: int) -> Optional[pd.DataFrame]:
+    def close_deal(self, deal_id: int, dry_run: bool = False) -> Optional[pd.DataFrame]:
         """
         Close a derivative deal.
 
@@ -636,7 +652,11 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with result if successful,
                 None otherwise.
         """
-        url = f"{self.BASE_URL}/derivative-core/deals/{deal_id}/close"
+        _dry = self._require_write("close_deal", dry_run)
+        if _dry is not None:
+            return _dry
+
+        url = f"{self._api_base_url}/derivative-core/deals/{deal_id}/close"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Trading-Token": self.trading_token
@@ -677,7 +697,7 @@ class Trade:
         _dry = self._require_write("deposit_derivative_margin", dry_run)
         if _dry is not None:
             return _dry
-        url = f"{self.BASE_URL}/derivative-asset-service/deposit"
+        url = f"{self._api_base_url}/derivative-asset-service/deposit"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "smart-otp": otp
@@ -725,7 +745,7 @@ class Trade:
         _dry = self._require_write("withdraw_derivative_margin", dry_run)
         if _dry is not None:
             return _dry
-        url = f"{self.BASE_URL}/derivative-asset-service/withdraw"
+        url = f"{self._api_base_url}/derivative-asset-service/withdraw"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "smart-otp": otp
@@ -767,7 +787,7 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with cash account info if
                 successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/derivative-core/cash-accounts"
+        url = f"{self._api_base_url}/derivative-core/cash-accounts"
         url += f"?accountNo={account_no}"
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -800,7 +820,7 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with PP0 info if successful,
                 None otherwise.
         """
-        url = f"{self.BASE_URL}/derivative-core/ppse"
+        url = f"{self._api_base_url}/derivative-core/ppse"
         url += f"?loanPackageId={loan_package_id}&accountNo={account_no}"
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
@@ -818,7 +838,8 @@ class Trade:
         target_order: dict,
         props: dict,
         time_in_force: dict,
-        category: str = "STOP"
+        category: str = "STOP",
+        dry_run: bool = False,
     ) -> Optional[pd.DataFrame]:
         """
         Place a conditional order.
@@ -845,7 +866,11 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with order ID if successful,
                 None otherwise.
         """
-        url = f"{self.BASE_URL}/conditional-order-api/v1/orders"
+        _dry = self._require_write("place_conditional_order", dry_run)
+        if _dry is not None:
+            return _dry
+
+        url = f"{self._api_base_url}/conditional-order-api/v1/orders"
         headers = {"Authorization": f"Bearer {self.token}"}
         payload = {
             "condition": condition,
@@ -896,7 +921,7 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with order list if successful,
                 None otherwise.
         """
-        url = f"{self.BASE_URL}/conditional-order-api/v1/orders"
+        url = f"{self._api_base_url}/conditional-order-api/v1/orders"
         headers = {"Authorization": f"Bearer {self.token}"}
         # Annotate rõ kiểu: không có thì mypy suy ra dict[str, object], không
         # khớp chữ ký `params` của requests (SupportsItems[str, ...]).
@@ -938,7 +963,7 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with order details if
                 successful, None otherwise.
         """
-        url = f"{self.BASE_URL}/conditional-order-api/v1/orders/{order_id}"
+        url = f"{self._api_base_url}/conditional-order-api/v1/orders/{order_id}"
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
         if response.status_code == 200:
@@ -949,7 +974,8 @@ class Trade:
 
     def cancel_conditional_order(
         self,
-        order_id: str
+        order_id: str,
+        dry_run: bool = False,
     ) -> Optional[pd.DataFrame]:
         """
         Cancel a conditional order.
@@ -961,7 +987,11 @@ class Trade:
             Optional[pd.DataFrame]: DataFrame with result if successful,
                 None otherwise.
         """
-        url = f"{self.BASE_URL}/conditional-order-api/v1/orders/"
+        _dry = self._require_write("cancel_conditional_order", dry_run)
+        if _dry is not None:
+            return _dry
+
+        url = f"{self._api_base_url}/conditional-order-api/v1/orders/"
         url += f"{order_id}/cancel"
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.patch(url, headers=headers, timeout=self.TIMEOUT)
@@ -1107,6 +1137,10 @@ class Trade:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        _dry = self._require_write("post_order", dry_run)
+        if _dry is not None:
+            return _dry
+
         return self._get_openapi_client().post_order(
             market_type=market_type,
             payload=payload,
@@ -1127,6 +1161,10 @@ class Trade:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        _dry = self._require_write("put_order", dry_run)
+        if _dry is not None:
+            return _dry
+
         return self._get_openapi_client().put_order(
             account_no=account_no,
             order_id=order_id,
@@ -1148,6 +1186,10 @@ class Trade:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        _dry = self._require_write("cancel_order_openapi", dry_run)
+        if _dry is not None:
+            return _dry
+
         return self._get_openapi_client().cancel_order(
             account_no=account_no,
             order_id=order_id,
@@ -1168,6 +1210,10 @@ class Trade:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        _dry = self._require_write("create_trading_token", dry_run)
+        if _dry is not None:
+            return _dry
+
         return self._get_openapi_client().create_trading_token(
             otp_type=otp_type,
             passcode=passcode,
@@ -1211,6 +1257,10 @@ class Trade:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        _dry = self._require_write("close_position", dry_run)
+        if _dry is not None:
+            return _dry
+
         return self._get_openapi_client().close_position(
             position_id=position_id,
             market_type=market_type,

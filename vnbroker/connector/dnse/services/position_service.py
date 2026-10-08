@@ -16,9 +16,13 @@ class PositionService:
         )
 
     def get_position_by_id(self, market_type: str, position_id: str, dry_run: bool = False):
+        # Path per the provider's own SDK (dnse-tech/openapi-sdk,
+        # python/dnse/api/client.py:98-105): the by-id form is
+        # `/positions/{id}`, NOT `/accounts/positions/{id}`. Only the LIST form
+        # is account-scoped (`/accounts/{account_no}/positions`, client.py:90).
         return self._http.request(
             "GET",
-            f"/accounts/positions/{position_id}",
+            f"/positions/{position_id}",
             query={"marketType": market_type},
             dry_run=dry_run,
         )
@@ -30,9 +34,10 @@ class PositionService:
         trading_token: str,
         dry_run: bool = False,
     ):
+        # Path per the provider's SDK (client.py:556-566): `/positions/{id}/close`.
         return self._http.request(
             "POST",
-            f"/accounts/positions/{position_id}/close",
+            f"/positions/{position_id}/close",
             query={"marketType": market_type},
             headers={"trading-token": trading_token},
             dry_run=dry_run,
