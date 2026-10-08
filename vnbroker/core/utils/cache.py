@@ -224,7 +224,7 @@ def get_industry_cache() -> TTLCache:
         return _industry_cache
 
 
-def _cache_namespace(func: Callable, args: tuple) -> str:
+def _cache_namespace(func: Callable[..., Any], args: tuple[Any, ...]) -> str:
     """Namespace that keeps same-named methods of different owners apart.
 
     The listing cache and the industry cache are single process-wide objects
