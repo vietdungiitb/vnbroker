@@ -145,7 +145,9 @@ class TestSSIListingMethods:
             "vnbroker.explorer.ssi.listing.get_shared_session"
         ) as mock_shared:
             mock_shared.return_value.market_service.return_value = fake
-            lst = SSIListing()
+            lst = SSIListing(api_key="test-ssi-key", api_secret="test-ssi-secret")
+            # _market is lazy — only constructed on first network call
+            assert lst._service is None
             df = lst.all_symbols()
         assert len(df) == 3
         mock_shared.assert_called_once()

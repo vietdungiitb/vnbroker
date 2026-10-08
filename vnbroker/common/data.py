@@ -1188,9 +1188,9 @@ class News(BaseComponent):
 
     def _update_data_source(self, symbol: Optional[str] = None):
         """Update symbol and reload data source if needed."""
-        if symbol:
+        if symbol and symbol != self.symbol:
             self.symbol = symbol.upper()
-        self.data_source = self._load_data_source()
+            self.data_source = self._load_data_source()
 
     # NOTE: no @lru_cache — symbol-dependent, would leak `self` (see Company).
     def _annotate_news_fallback(self, result):

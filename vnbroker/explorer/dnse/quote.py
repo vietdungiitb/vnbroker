@@ -8,8 +8,9 @@ vào giao diện chuẩn của vnbroker (history, intraday, price_depth).
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import pandas as pd
 
@@ -600,3 +601,46 @@ class DNSEQuote:
         if isinstance(body, list):
             return pd.json_normalize(body)
         return pd.DataFrame()
+
+    # ------------------------------------------------------------------
+    # fetch_multiple (bulk operations)
+    # ------------------------------------------------------------------
+    @classmethod
+    def fetch_multiple(
+        cls,
+        symbols: List[str],
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        interval: str = "1D",
+        show_log: bool = False,
+        max_concurrency: int = 8,
+    ) -> List[pd.DataFrame]:
+        """Fetch history for multiple symbols concurrently.
+
+        Args:
+            symbols: List of stock symbols.
+            start: Start date 'YYYY-MM-DD'.
+            end: End date 'YYYY-MM-DD'.
+            interval: Candle interval (default '1D').
+            show_log: Enable logging.
+            max_concurrency: Max parallel workers (default 8).
+
+        Returns:
+            List of DataFrames (one per successful symbol).
+        """
+        def _fetch_one(symbol: str) -> Optional[pd.DataFrame]:
+            try:
+                quote = cls(symbol=symbol, show_log=show_log)
+                return quote.history(start=start, end=end, interval=interval)
+            except Exception:
+                return None
+
+        results: List[pd.DataFrame] = []
+        with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
+            futures = {executor.submit(_fetch_one, sym): sym for sym in symbols}
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    results.append(result)
+
+        return results

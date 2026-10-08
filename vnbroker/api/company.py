@@ -6,7 +6,7 @@ from vnbroker.config import Config
 from vnbroker.base import BaseAdapter, dynamic_method
 from vnbroker.core.source_router import AUTO_SOURCE
 
-class Company(BaseAdapter):
+class Company(BaseAdapter):  # type: ignore[misc]
     _module_name = "company"
     """
     Adapter for company-related data:
@@ -33,7 +33,7 @@ class Company(BaseAdapter):
     def __init__(
         self,
         source: str = "KBS",
-        symbol: str = None,
+        symbol: Optional[str] = None,
         random_agent: bool = False,
         show_log: bool = False,
         auth_token: Optional[str] = None,
@@ -70,7 +70,7 @@ class Company(BaseAdapter):
         )
 
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -78,12 +78,12 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def overview(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company overview data."""
         pass
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -91,12 +91,12 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def shareholders(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company shareholders data."""
         pass
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -104,12 +104,12 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def insider_deals(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company insider trading deals."""
         pass
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -117,7 +117,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def officers(self, *args: Any, **kwargs: Any) -> Any:
         """
         Retrieve company officers data.
@@ -125,7 +125,7 @@ class Company(BaseAdapter):
         """
         pass
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -133,7 +133,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def subsidiaries(self, *args: Any, **kwargs: Any) -> Any:
         """
         Retrieve company subsidiaries data.
@@ -141,7 +141,7 @@ class Company(BaseAdapter):
         """
         pass
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -149,12 +149,12 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def affiliate(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company affiliate data."""
         pass
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -162,12 +162,12 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def news(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company news."""
         pass
 
-    @retry(
+    @retry(  # type: ignore
         stop=stop_after_attempt(Config.RETRIES),
         wait=wait_exponential(
             multiplier=Config.BACKOFF_MULTIPLIER,
@@ -175,12 +175,12 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def events(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company events."""
         pass
         
-    def _delegate_to_provider(self, method_name: str, symbol: str = None, **kwargs: Any) -> Any:
+    def _delegate_to_provider(self, method_name: str, symbol: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Delegate method call to the provider with symbol update if needed.
 

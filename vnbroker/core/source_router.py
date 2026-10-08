@@ -40,7 +40,7 @@ OPEN_SOURCE_CANDIDATES: Dict[str, List[str]] = {
 # KBS price_board is materially more stable under sustained load.
 # Remaining providers activate only on confirmed failover.
 PRIMARY_SOURCE_POOLS: Dict[str, List[str]] = {
-    "quote": ["vci"],
+    "quote": ["vci", "kbs"],
     "company": ["vci"],
     "news": ["vci", "kbs"],
     "financial": ["vci"],
@@ -267,8 +267,12 @@ def build_source_order(module_name: str, symbol: str | None = None) -> List[str]
     extras = [source for source in ordered_pool if source not in primary_pool]
 
     if symbol and primary_pool:
-        index = _stable_index(f"{module_name}:{symbol.upper()}", len(primary_pool))
-        primary_order = primary_pool[index:] + primary_pool[:index]
+        if _ssi_primary_enabled() and "ssi" in primary_pool:
+            # SSI is explicit primary — always first, no hash-shard
+            primary_order = ["ssi"] + [s for s in primary_pool if s != "ssi"]
+        else:
+            index = _stable_index(f"{module_name}:{symbol.upper()}", len(primary_pool))
+            primary_order = primary_pool[index:] + primary_pool[:index]
         ordered = primary_order + extras
     else:
         pool = primary_pool or ordered_pool

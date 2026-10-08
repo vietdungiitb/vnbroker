@@ -44,7 +44,7 @@ Ghi chú đơn vị:
 from __future__ import annotations
 
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -114,7 +114,7 @@ class MarketSnapshot:
         symbols_list: List[str],
         price_unit: Optional[str] = None,
         refresh_cache: bool = False,
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Trả về JSON list chuẩn cho heatmap với đầy đủ 8 field.
 
@@ -152,14 +152,14 @@ class MarketSnapshot:
         if df.empty:
             return []
 
-        return df.to_dict(orient="records")
+        return df.to_dict(orient="records")  # type: ignore[no-any-return]
 
     def heatmap_data_by_group(
         self,
         group: str = "VN30",
         price_unit: Optional[str] = None,
         refresh_cache: bool = False,
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Trả về JSON list chuẩn cho một nhóm chỉ số (VN30, VN100, v.v.).
 

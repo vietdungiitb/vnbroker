@@ -6,7 +6,12 @@ Mỏng: delegate về vnbroker.common.data. Không logic wire mới.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from vnbroker.common.data import Quote
+
+if TYPE_CHECKING:
+    from vnbroker.api.bulk import BulkAPI
 
 
 class Market:

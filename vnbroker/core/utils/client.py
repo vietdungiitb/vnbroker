@@ -17,12 +17,33 @@ import threading
 from typing import Dict, Any, Optional, Union, List
 from enum import Enum
 from pydantic import BaseModel
-from requests.adapters import HTTPAdapter
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.proxy_manager import proxy_manager
+from vnbroker.core.utils.rate_limiter import TokenBucketRateLimiter
 
 # Initialize logger for module
 logger = get_logger(__name__)
+
+# Module-level rate limiter (disabled by default, opt-in via configure_rate_limiter)
+_rate_limiter: Optional[TokenBucketRateLimiter] = None
+
+
+def configure_rate_limiter(rate: float, capacity: Optional[float] = None) -> None:
+    """
+    Enable and configure the client-side rate limiter.
+
+    Args:
+        rate: Tokens added per second
+        capacity: Bucket capacity (default: rate)
+    """
+    global _rate_limiter
+    _rate_limiter = TokenBucketRateLimiter(rate=rate, capacity=capacity)
+    logger.info(f"Rate limiter enabled: {rate} tokens/sec, capacity={capacity or rate}")
+
+
+def get_rate_limiter() -> Optional[TokenBucketRateLimiter]:
+    """Get the current rate limiter instance (None if disabled)."""
+    return _rate_limiter
 
 
 # Proxy configuration model for use across the project
@@ -154,6 +175,10 @@ def send_request(
     Raises:
         ConnectionError: Nếu tất cả proxy đều thất bại hoặc request lỗi
     """
+    # Apply rate limiting if enabled
+    if _rate_limiter is not None:
+        _rate_limiter.wait()
+
     # Chuyển đổi string thành enum nếu cần
     if isinstance(proxy_mode, str):
         try:

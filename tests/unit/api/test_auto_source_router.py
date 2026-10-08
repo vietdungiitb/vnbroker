@@ -171,16 +171,22 @@ class TestAutoSourceRouter:
 
         assert second_order[0] != first_order[0]
 
-    def test_vci_first_pool_always_starts_with_vci_when_healthy(self):
-        """Single-item PRIMARY_SOURCE_POOLS["quote"]=["vci"] means every symbol
-        gets VCI as the first attempt when VCI is healthy."""
+    def test_quote_pool_has_two_providers_when_healthy(self):
+        """PRIMARY_SOURCE_POOLS["quote"]=["vci","kbs"] means hash-shard
+        distributes symbols across both providers when both are healthy."""
         source_router.reset_router_state()
         symbols = ["ACB", "VNM", "HPG", "MSN", "VIC", "TCB", "FPT", "MWG", "BID", "CTG"]
+        seen_first = set()
         for sym in symbols:
             order = source_router.build_source_order("quote", symbol=sym)
-            assert order[0] == "vci", (
-                f"Symbol {sym}: expected vci first, got {order}"
+            assert order[0] in ("vci", "kbs"), (
+                f"Symbol {sym}: expected vci or kbs first, got {order}"
             )
+            seen_first.add(order[0])
+        # With 10 symbols and 2 providers, both should appear as first
+        assert seen_first == {"vci", "kbs"}, (
+            f"Expected both vci and kbs as first, got {seen_first}"
+        )
 
     def test_kbs_first_trading_pool_always_starts_with_kbs_when_healthy(self):
         symbols = ["ACB", "VCB", "TCB", "HPG"]

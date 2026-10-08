@@ -8,7 +8,7 @@ user-facing API for fetching data across multiple symbols and providers.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 import pandas as pd
 

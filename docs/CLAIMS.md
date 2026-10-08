@@ -19,6 +19,12 @@
 | agent-bulkrouter | feat/tier1-bulkrouter | vnbroker/core/bulk_router.py,vnbroker/core/health_router.py,tests/unit/core/test_bulk_router.py | done | 2026-10-08T09:10:00Z |
 | agent-providerpool | feat/tier1-providerpool | vnbroker/core/provider_pool.py,tests/unit/core/test_provider_pool.py | done | 2026-10-08T09:10:00Z |
 | agent-api | feat/tier1-api | vnbroker/ui/market.py,vnbroker/api/bulk.py,tests/unit/api/test_bulk_api.py | done | 2026-10-08T09:25:00Z |
+| agent-cache | feat/fix-cache | vnbroker/core/utils/cache.py,tests/unit/core/test_cache_key.py | done | 2026-10-08T11:00:00Z |
+| agent-router | feat/fix-router | vnbroker/core/source_router.py,vnbroker/common/data.py,tests/unit/core/test_source_router_fix.py | done | 2026-10-08T11:00:00Z |
+| agent-tests | feat/add-tests | tests/unit/api/test_snapshot.py,tests/unit/api/test_stream.py,tests/unit/api/test_broker_api.py | done | 2026-10-08T11:00:00Z |
+| agent-types | feat/fix-types | vnbroker/api/company.py,vnbroker/api/snapshot.py,vnbroker/api/broker.py,vnbroker/api/stream.py | done | 2026-10-08T11:00:00Z |
+| agent-fetch | feat/fetch-multiple | vnbroker/explorer/dnse/quote.py,vnbroker/explorer/ssi/quote.py,tests/unit/explorer/test_dnse_fetch_multiple.py,tests/unit/explorer/test_ssi_fetch_multiple.py | done | 2026-10-08T11:00:00Z |
+| agent-ratelimit | feat/rate-limit | vnbroker/core/utils/rate_limiter.py,vnbroker/core/utils/client.py,tests/unit/core/test_rate_limiter.py | done | 2026-10-08T11:00:00Z |
 
 ## Ghi chú
 

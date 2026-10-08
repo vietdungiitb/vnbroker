@@ -56,9 +56,9 @@ class TTLCache(Generic[T]):
         self._total_count = 0
     
     def _make_key(self, *args, **kwargs) -> str:
-        """Generate cache key from arguments."""
-        key_parts = [str(arg) for arg in args]
-        key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
+        """Generate cache key from arguments (only primitive types)."""
+        key_parts = [str(arg) for arg in args if isinstance(arg, (str, int, float, bool, type(None)))]
+        key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()) if isinstance(v, (str, int, float, bool, type(None))))
         return "|".join(key_parts)
     
     def get(self, key: str) -> Optional[T]:
