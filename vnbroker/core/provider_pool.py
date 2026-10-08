@@ -69,13 +69,3 @@ class ProviderPool:
     def get_provider_config(self, name: str) -> Optional[Dict[str, Any]]:
         """Get auth config for a provider."""
         return self._auth_providers.get(name)
-
-    def get_provider(self, name: str, module: str, symbol: Optional[str] = None) -> Optional[Any]:
-        """Create a provider instance."""
-        # This will be implemented in WP-5 (API integration)
-        # For now, just return the provider class
-        from vnbroker.core.registry import ProviderRegistry
-        try:
-            return ProviderRegistry.get(module, name)
-        except ValueError:
-            return None
