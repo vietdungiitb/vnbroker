@@ -84,6 +84,120 @@ v3.5.0 bị đánh dấu đỏ. Đã tái hiện và sửa, không reset baselin
 
 ## [Unreleased]
 
+### Fixed — TIER1-ENGINE-v3: Tier-1 data engine actually meets its own DoD
+
+Kế hoạch `docs/PLAN_TIER1_ENGINE.md` (WP-1..WP-5) đã code xong ở `b51b2a8` và được
+đóng bằng 5 claim `done`. **Đo lại thì DoD §9 của chính nó đạt 3/13**, và bulk **không
+hoạt động chút nào**. Vòng này sửa để DoD thật sự đạt.
+
+**Baseline đo được tại `e5d8133`:**
+```
+ProviderRegistry.list_available('quote')        -> []           # registry rỗng
+get_provider('quote','kbs')                     -> ValueError: Available: []
+VCI.fetch_multiple iscoroutinefunction()        -> True
+BulkAPI.history(["ACB","VNM"])  (network blocked) -> shape (0, 7)
+    attrs: {'sources_used': {}, 'failed': {}, 'requested': 2, 'returned': 0}
+    network calls attempted: 0
+```
+0 dòng **và 0 lần gọi mạng** ⇒ thất bại âm thầm, không tốn một request nào.
+
+#### Đã sửa
+
+- **Registry tự đầy sau `import vnbroker`** (`core/registry.py`). Trước đó provider chỉ
+  đăng ký khi có ai đó import `explorer/*`, nên đường bulk không bao giờ dựng được provider.
+- **Bulk thật sự lấy dữ liệu** (`core/bulk_router.py`). Ba tầng hỏng độc lập: registry
+  rỗng ⇒ `provider_class()` không chạy · fallback gọi method trên **class** nên `self` bị
+  bind vào chuỗi symbol · `VCI.fetch_multiple` là `async classmethod` nên trả coroutine.
+- **Bulk báo lỗi thật.** `attrs["failed"]` trước luôn là `{}` vì `_fetch_batch` nuốt mọi
+  exception ở `:136`/`:153`; nay `errors[provider]` được set và `HealthRouter` được gọi.
+  Lỗi lập trình (`TypeError`/`AttributeError`) **không** còn bị đổi thành `logger.warning`.
+- **Circuit breaker của đường bulk thật sự hoạt động.** `bulk_router` upper-case tên
+  provider nên health ghi vào khoá `("quote","VCI")` trong khi store đọc `['vci','kbs']`:
+  sau 6 lần fail, `failures=0`, `in_cooldown=False` cho mọi provider, cộng dồn khoá không
+  ai đọc rồi ghi xuống SQLite. Nay khoá ghi và khoá đọc khớp.
+- **Ngày nghỉ thị trường không còn bị báo là lỗi.** Tiêu chí "không dùng được" nay là
+  **schema**: 0 cột ⇒ provider hỏng; đủ cột + 0 dòng ⇒ ngày nghỉ ⇒ **thành công**. Đường
+  bulk trước dùng "0 frame" nên mỗi ngày nghỉ đều ghi vào `failed` và hạ health của
+  provider. `common/data.py` đã phân biệt đúng; nay hai nhánh **dùng chung một helper**
+  (có test ép điều đó, để chúng không lệch nhau lần nữa).
+- **Hết retry lồng nhau.** `intraday` và `price_depth` giữ `@retry` bên ngoài *và* bọc
+  thêm `Retrying(3)` cho từng provider trong `_run_with_failover`. Đo bằng **đếm lời gọi
+  provider**: `18 → 6`. `history` từng đã gỡ đúng, hai hàm kia bị bỏ sót.
+- **`interval` được truyền tới router.** `BulkAPI.history` khai tham số nhưng không truyền
+  ⇒ người dùng xin nến 1 phút và âm thầm nhận nến ngày.
+- **`price_board` theo `self.source`** — trước hardcode `source="KBS"` ở **cả hai** chỗ
+  (`Trading` và `Listing`), nên `source="AUTO"` vẫn ra KBS.
+- **Gỡ đảo chiều phụ thuộc `core → api`.** `bulk_router` gọi `vnbroker.api.quote`; nay gọi
+  thẳng `provider.history(parallel=True, symbols=[...])` — bridge **đã có sẵn** trong
+  `explorer/vci/quote.py`. Bỏ được cả cạnh phụ thuộc lẫn một bridge trùng lặp.
+- **Cache key không còn va chạm.** `_make_key` bỏ mọi tham số non-primitive nên các truy vấn
+  khác nhau dùng chung một key; thêm nữa `None`/`"None"`, `0`/`"0"` và mọi DataFrame đều
+  gộp về một token. Đo được cả lỗi **đọc nhầm payload**. Nay phân biệt theo kiểu, vẫn
+  deterministic, và tham số bằng nhau **vẫn hit** (cache không mất tác dụng).
+- **Rate limiter không còn treo.** `capacity = capacity or rate` khiến `rate < 1` cho
+  capacity < 1 token, và `wait()` không có `max_wait` ⇒ lặp vô hạn, không log, không
+  exception. Nay `capacity >= 1` và `wait(tokens, max_wait=…)` ném `TimeoutError`.
+- Xoá code chết: `_thread_local` (`core/utils/client.py`), `ProviderPool.get_provider`
+  (0 importer), `core/base/` (611 dòng).
+
+#### Đã cố ý KHÔNG sửa
+
+- **Session HTTP dùng chung.** Kế hoạch v2 ghi nó là race vì "cookie không khoá" — đo thì
+  `requests` 2.33.1 có `RLock` trong cookie jar, A/B 3 vòng **1600/1600, 0 lỗi**. Sửa thứ
+  không hỏng là tự tạo rủi ro mới. Chỉ xoá `_thread_local` chết.
+- **`core/source_router.py`** và **`vnbroker/explorer/*`** — ngoài phạm vi.
+
+#### Gate
+
+- **DoD đo được: 3/13 → 26/26.** Nhưng con số `3/13` trước đây **không ai tái lập được**:
+  script đo nằm ngoài repo. Nay `tests/acceptance/test_tier1_dod.py` là gate thật trong
+  repo. Chứng minh: trên cây baseline `e5d8133` nó **18 failed / 8 passed**; tại HEAD
+  **26/26**.
+- `pytest tests/unit tests/contract` **1128 → 1237 passed** · `pytest tests/` **1173 → 1308**
+  · `ruff` exit 0 · `check_mypy_baseline.py` exit 0 · `check_version_sync.py` exit 0
+  · `python -m build` + `check_dist_contents.py` + `twine check` exit 0
+  · `check-claims.cjs` PASS (20 claim, 0 conflict)
+- **Coverage 58,15% → 60%** (ngưỡng ORANGE của `coverage-report.yml`).
+
+#### CHƯA CHẠY — không được coi là xanh
+
+- **GitHub Actions không chạy cho repo này**: job fail sau 2 giây với `steps: []` và
+  `duration_ms: 0`; 10/10 run gần nhất trên `dev` đều `failure`. Mọi gate trên là
+  **local**. Còn một lớp verify chưa chạy (matrix Python, Ubuntu, `-n auto --reruns 2`).
+- **Bulk chưa từng chạy với mạng thật.** Đã chứng minh tới "provider thật được gọi và báo
+  lỗi"; phần `VCI.fetch_multiple` async qua `httpx.AsyncClient` singleton trả frame trong
+  thread `ThreadPoolExecutor` vẫn là **giả định chưa kiểm** — và đó là điểm then chốt.
+- 23 integration test live: thiếu `DNSE_API_KEY`/`API_SECRET`/`ACCOUNT_NO`, `TCBS_API_KEY`,
+  SSI key + OTP người dùng.
+- `black`/`isort`/`bandit`/`safety`/`pip-audit`/`pytest-benchmark` không cài trong `.venv`.
+
+#### Ngoài phạm vi — đã ghi nhận, chưa sửa
+
+- **P0 `connector/dnse/trade.py`**: `_require_write` chỉ được gọi ở **4** chỗ; 9 method ghi
+  (`:548`, `:628`, `:813`, `:950`, `:1101`, `:1119`, `:1141`, `:1164`, `:1206`) nhận
+  `dry_run: bool = False` **mặc định** và forward thẳng, không gate nào. Sửa ~9 dòng.
+- **`core/source_router.py:357` `should_failover` bỏ sót `OSError`** và
+  `requests.exceptions.ConnectionError`, trong khi `bulk_router.PROVIDER_ERRORS` có
+  `OSError`. Hai chính sách failover khác nhau cho cùng một lớp lỗi.
+- **`core/utils/async_client.py:34`** định nghĩa class `TokenBucketRateLimiter` **trùng tên**
+  với `core/utils/rate_limiter.py`, cài khác hẳn, chưa qua sửa VN-3; `_acquire_token` ở
+  `:70-79` là `while True` không chặn trên.
+- `core/utils/transform.py` `fillna('unknown')` vô điều kiện mọi provider + heuristic
+  ATO/ATC ⇒ bóp méo `match_type` (DNSE `F`/`U` bị ghi đè `ATO`/`ATC`).
+- `broker/security/redaction.py`: `x-api-key`/`x-apikey` không khớp bộ khoá ⇒ `X-Signature`
+  lộ nguyên văn; `redact_headers` không dùng `SENSITIVE_KEYS`.
+- `connector/dnse/core/http_client.py:53-55`: envelope dry-run chỉ mask `"trading-token"`,
+  header thật gửi là `"Trading-Token"` ⇒ dry-run envelope là **full credential dump**.
+- 12 file vượt quy tắc ≤800 dòng của `CLAUDE.md`, lớn nhất `common/data.py` 1873 dòng
+  (trước 1800). Không cắt trong vòng này.
+
+#### Quy trình
+
+Chạy pipeline `multi-agent-workflow` Stage 0→8: 3 slice file-set rời nhau (19 path, 0
+giao nhau) trên 3 worktree → Stage 2 audit plan trả `NEED_REVISION` (8 vấn đề chặn) → plan
+v3 → Stage 5 audit code trả 0 blocker / **5 major** → vòng 2 sửa 5 major → re-audit của
+supervisor **12/14** (2 FAIL là kỳ vọng sai của probe, đã ghi).
+
 ### Added
 - **Hợp đồng tầng 1 (contract test)** — `tests/contract/` khoá bảo đảm mọi provider ẩn danh
   (VCI, KBS) trả về cùng schema: đủ cột chuẩn, `time` tz-aware, không có dòng ngoài khoảng
