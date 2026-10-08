@@ -721,11 +721,14 @@ class Quote(BaseComponent):
         """Fetch historical price data.
 
         Retry policy:
-        - **Đường không-auto** (một provider cố định): decorator ``@retry`` bọc
-          cả lời gọi provider, giữ hành vi lịch sử (``DEFAULT_RETRIES`` lần).
-        - **Đường auto** (``_auto_sources``): decorator bị bỏ qua, retry áp cho
-          TỪNG provider trong ``_run_with_failover`` — nếu không, hết pool sẽ bị
-          thử lại N lần.
+        - **Cả hai đường**: retry áp cho TỪNG provider bên trong
+          ``_run_with_failover`` (``DEFAULT_RETRIES`` lần). Method này KHÔNG
+          có decorator ``@retry``.
+        - Vì sao không có decorator: ``@retry`` bọc NGOÀI sẽ khiến cả vòng
+          failover bị thử lại N lần - provider đã thử 3 lần rồi lại quay lại
+          thử tiếp. Số lần gọi provider đo được bằng đếm, không đọc bằng
+          `inspect.getsource`: docstring này từng chứa chuỗi ``@retry`` dù
+          không có decorator, khiến phép kiểm bằng text báo giả.
         """
         if symbol:
             self.symbol = symbol.upper()
