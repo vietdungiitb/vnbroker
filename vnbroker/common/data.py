@@ -443,6 +443,21 @@ class Quote(BaseComponent):
         self.api_key = api_key
         self.api_secret = api_secret
         self.show_log = show_log
+        self.symbol = symbol.upper() if symbol else None
+
+        # Set up auto sources for failover when source is AUTO.
+        # Must happen before super().__init__() because _load_data_source()
+        # resolves AUTO to a specific provider.
+        if source.upper() == "AUTO":
+            from vnbroker.core import source_router
+            candidates = source_router.get_auto_candidates("quote")
+            self._auto_sources = {}
+            for src in candidates:
+                try:
+                    self._auto_sources[src] = self._load_direct_provider_for_source(src)
+                except Exception:
+                    pass
+
         super().__init__(symbol, source)
 
     def _load_data_source(self):
@@ -484,6 +499,32 @@ class Quote(BaseComponent):
             return SSIQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
+
+    def _load_direct_provider_for_source(self, source: str):
+        """Create a provider instance for a given source name.
+
+        Used by AUTO mode to pre-instantiate all candidate providers
+        for failover. Mirrors _load_direct_provider but takes an explicit
+        source string instead of using self.source.
+        """
+        source = source.lower()
+        if source == "vci":
+            from vnbroker.explorer.vci.quote import Quote as VCIQuote
+            return VCIQuote(self.symbol, show_log=self.show_log)
+        elif source == "kbs":
+            from vnbroker.explorer.kbs.quote import Quote as KBSQuote
+            return KBSQuote(self.symbol, show_log=self.show_log)
+        elif source == "tcbs":
+            from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
+            return TCBSQuote(self.symbol, auth_token=self.auth_token, show_log=self.show_log)
+        elif source == "dnse":
+            from vnbroker.explorer.dnse.quote import DNSEQuote
+            return DNSEQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.quote import SSIQuote
+            return SSIQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        else:
+            raise ValueError(f"Direct provider not implemented for source: {source}")
 
     def _update_data_source(self, symbol: Optional[str] = None):
         """Update symbol and reload data source if needed."""
@@ -605,8 +646,9 @@ class Quote(BaseComponent):
         result = self._run_with_failover("history", "quote", kwargs)
         # Hợp đồng tầng 1: chuẩn hoá tz + lọc biên ở MỘT chỗ duy nhất để mọi
         # provider ẩn danh trả về cùng schema. Xem _normalize_quote_result.
-        if kwargs.get("to_df", True) and isinstance(result, pd.DataFrame):
-            return _normalize_quote_result(result, kwargs.get("start"), kwargs.get("end"))
+        if kwargs.get("to_df", True):
+            from vnbroker.core.utils.normalizer import Normalizer
+            return Normalizer.normalize_history(result, kwargs.get("start"), kwargs.get("end"))
         return result
 
     @retry(

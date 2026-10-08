@@ -71,15 +71,9 @@ _thread_local = threading.local()
 
 
 def _get_thread_session() -> requests.Session:
-    """Get a per-thread session to reuse TCP connections for faster requests."""
-    session = getattr(_thread_local, "session", None)
-    if session is None:
-        session = requests.Session()
-        adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        _thread_local.session = session
-    return session
+    """Get shared session from connection pool."""
+    from vnbroker.core.utils.connection_pool import ConnectionPool
+    return ConnectionPool.get_instance().get_session()
 
 
 def build_proxy_dict(proxy_url: str) -> Dict[str, str]:
