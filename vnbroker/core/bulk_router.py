@@ -46,6 +46,16 @@ PROVIDER_ERRORS: tuple[type[Exception], ...] = (
 )
 
 
+def _display_key(provider: str) -> str:
+    """Khoá provider trả về cho ``api/bulk.py``.
+
+    Tên nội bộ của router là lower-case (khớp khoá health store), còn
+    ``attrs['sources_used']`` / ``attrs['failed']`` phải đọc như
+    ``df.attrs['source']`` nên upper-case. Chuyển đổi ở đúng MỘT chỗ.
+    """
+    return provider.upper()
+
+
 class BulkRouter:
     """Distributes bulk requests across providers based on health."""
 
@@ -104,6 +114,9 @@ class BulkRouter:
         results: Dict[str, Any] = {}
         errors: Dict[str, str] = {}
 
+        # `selected` (và `provider`) là TÊN lower-case — đúng dạng khoá mà
+        # `source_router._health_state` đọc. Chỉ khoá trả về cho `api/bulk.py`
+        # mới upper-case (xem `_display_key`).
         with ThreadPoolExecutor(max_workers=len(selected)) as executor:
             futures = {
                 executor.submit(
@@ -114,11 +127,12 @@ class BulkRouter:
             }
             for future in as_completed(futures):
                 provider = futures[future]
+                key = _display_key(provider)
                 try:
-                    results[provider] = future.result()
+                    results[key] = future.result()
                 except PROVIDER_ERRORS as e:
                     logger.warning("Bulk fetch failed for provider %s: %s", provider, e)
-                    errors[provider] = str(e)
+                    errors[key] = str(e)
 
         # 4. Merge results
         return {
@@ -136,9 +150,17 @@ class BulkRouter:
     ) -> List[str]:
         """Resolve the provider list to distribute symbols across.
 
-        Names are upper-cased so every downstream key (``results``,
-        ``providers_used``, ``attrs['sources_used']``) reads the same way as
-        ``df.attrs['source']``, regardless of the caller's casing.
+        Names are returned **lower-case**, because that is the form the health
+        store keys on: ``source_router.get_source_health_snapshot`` reads
+        ``_health_state[(module, s)]`` for ``s`` in ``get_auto_candidates(module)``
+        (``['vci', 'kbs']``). Returning upper-case names made every
+        ``record_success`` / ``record_failure`` write ``('quote', 'VCI')`` — a key
+        the snapshot never reads — so the circuit breaker could never engage and
+        the dead keys were still persisted to the SQLite store.
+
+        Upper-casing now happens only where results are handed to the caller
+        (``_display_key``), so ``attrs['sources_used']`` still reads like
+        ``df.attrs['source']``.
 
         With no ``providers`` argument the health router decides — it only
         knows the module's AUTO candidates. When the caller *does* pass a list
@@ -153,12 +175,12 @@ class BulkRouter:
             selected = [
                 p
                 for p in providers
-                if not snapshot.get(p.upper(), {}).get("in_cooldown", False)
+                if not snapshot.get(_display_key(p), {}).get("in_cooldown", False)
             ]
 
         if not selected:
             raise ConnectionError("No healthy providers available")
-        return [p.upper() for p in selected]
+        return [p.lower() for p in selected]
 
     @staticmethod
     def _health_snapshot(module: str) -> Dict[str, Dict[str, Any]]:

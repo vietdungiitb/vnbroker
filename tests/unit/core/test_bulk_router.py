@@ -199,7 +199,8 @@ def test_provider_failure_captured_not_crash():
     router = BulkRouter(health_router=hr)
 
     def mock_fetch_batch(provider, symbols, start, end, module, interval="1D"):
-        if provider == "VCI":
+        # MAJOR-1: `provider` là tên NỘI BỘ, khớp khoá health store (lower-case).
+        if provider == "vci":
             raise ConnectionError("VCI is down")
         return [pd.DataFrame({"symbol": symbols})]
 
@@ -208,7 +209,7 @@ def test_provider_failure_captured_not_crash():
     symbols = ["ACB", "BID", "CTG", "DPG"]
     result = router.fetch_history(symbols, "2024-01-01", "2024-12-31", module="quote")
 
-    # Should have partial results
+    # Khoá trả về cho `api/bulk.py` vẫn UPPER-CASE.
     assert "VCI" in result["errors"]
     assert result["symbols_returned"] > 0  # kbs should have succeeded
 
@@ -421,8 +422,8 @@ def test_ac3_attribute_error_propagates():
 
 def test_ac4_all_providers_runtime_error_is_reported():
     """AC-4: mọi provider ném ``RuntimeError`` (lỗi mạng) → ``errors`` có giá
-    trị VÀ ``HealthRouter.record_failure`` được gọi, tức lỗi không bị nuốt
-    trong ``_fetch_batch``."""
+    trị VÀ lỗi đó **tới được** health store (snapshot thấy failures>0 và
+    cooldown), tức lỗi không bị nuốt trong ``_fetch_batch``."""
 
     class _Down:
         @classmethod
@@ -433,15 +434,6 @@ def test_ac4_all_providers_runtime_error_is_reported():
     ProviderRegistry.register("quote", "kbs", _Down)
     router = BulkRouter(health_router=HealthRouter())
 
-    recorded: list = []
-    original = router._health.record_failure
-
-    def spy_failure(provider, error, module="quote"):
-        recorded.append((provider, module))
-        return original(provider, error, module=module)
-
-    router._health.record_failure = spy_failure
-
     result = router.fetch_history(
         ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
     )
@@ -449,8 +441,17 @@ def test_ac4_all_providers_runtime_error_is_reported():
     assert set(result["errors"]) == {"VCI", "KBS"}
     assert all("network unreachable" in msg for msg in result["errors"].values())
     assert result["symbols_returned"] == 0
-    assert {provider for provider, _ in recorded} == {"VCI", "KBS"}
-    assert {module for _, module in recorded} == {"quote"}
+
+    # MAJOR-5: khẳng định HẬU QUẢ, không phải "hàm có được gọi không".
+    # Spy `record_failure` trước đây vẫn xanh kể cả khi bulk ghi sai khoá
+    # health store, vì nó forward sang bản thật — test chứng minh vô nghĩa.
+    snapshot = source_router.get_source_health_snapshot("quote")
+    for provider in ("VCI", "KBS"):
+        assert snapshot[provider]["failures"] > 0, (
+            f"{provider}: lỗi không tới được health store "
+            f"(failures={snapshot[provider]['failures']})"
+        )
+        assert snapshot[provider]["in_cooldown"] is True
 
 
 def test_ac4_empty_result_counts_as_provider_failure():
@@ -586,3 +587,109 @@ def test_explicit_providers_all_unhealthy_raises(monkeypatch):
         router.fetch_history(
             ["ACB"], "2024-01-01", "2024-01-31", module="quote", providers=["vci", "kbs"]
         )
+
+
+# ---------------------------------------------------------------------------
+# MAJOR-1 — circuit breaker trên bulk path phải thật sự đóng
+#
+# `get_source_health_snapshot` đọc `_health_state[(module, s)]` với `s` lấy từ
+# `get_auto_candidates` ('vci', 'kbs'). `_select_providers` trả tên UPPER-CASE
+# nên `record_failure` ghi ('quote','VCI') — khoá mà snapshot KHÔNG đọc. Hệ quả:
+# sau 6 lần bulk fail, failures=0, in_cooldown=False, circuit breaker không
+# bao giờ đóng, và khoá chết vẫn được `_persist_state` ghi xuống SQLite.
+#
+# Test này khẳng định HẬU QUẢ (snapshot), không khẳng định "hàm có được gọi
+# không" — spy kiểu AC-4 cũ vẫn xanh với key sai vì nó forward sang bản thật.
+# ---------------------------------------------------------------------------
+
+
+def test_bulk_failure_is_visible_in_health_snapshot():
+    """MAJOR-1: failure của bulk phải hiện ra trong health snapshot."""
+
+    class _Down:
+        @classmethod
+        def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
+            raise RuntimeError("network unreachable")
+
+    ProviderRegistry.register("quote", "vci", _Down)
+    ProviderRegistry.register("quote", "kbs", _Down)
+    router = BulkRouter(health_router=HealthRouter())
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert set(result["errors"]) == {"VCI", "KBS"}
+
+    snapshot = source_router.get_source_health_snapshot("quote")
+    for provider in ("VCI", "KBS"):
+        assert snapshot[provider]["failures"] > 0, (
+            f"{provider}: health snapshot không thấy failure của bulk path "
+            f"(failures={snapshot[provider]['failures']})"
+        )
+        assert snapshot[provider]["in_cooldown"] is True, (
+            f"{provider}: circuit breaker chưa đóng"
+        )
+
+
+def test_bulk_failure_uses_health_store_key_that_snapshot_reads():
+    """MAJOR-1: bulk không ghi khoá chết mà snapshot không đọc tới."""
+
+    class _Down:
+        @classmethod
+        def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
+            raise RuntimeError("network unreachable")
+
+    ProviderRegistry.register("quote", "vci", _Down)
+    ProviderRegistry.register("quote", "kbs", _Down)
+    router = BulkRouter(health_router=HealthRouter())
+    router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    readable = set(source_router.get_auto_candidates("quote"))
+    written = {source for module, source in source_router._health_state if module == "quote"}
+    assert written <= readable, (
+        f"bulk ghi khoá health store không ai đọc: {sorted(written - readable)}"
+    )
+
+
+def test_bulk_circuit_breaker_blocks_next_call_after_failure():
+    """MAJOR-1: sau khi provider chết, lần gọi kế tiếp bị chặn thay vì thử lại."""
+
+    class _Down:
+        @classmethod
+        def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
+            raise RuntimeError("network unreachable")
+
+    ProviderRegistry.register("quote", "vci", _Down)
+    ProviderRegistry.register("quote", "kbs", _Down)
+    router = BulkRouter(health_router=HealthRouter())
+
+    # 2 symbol: round-robin phải giao cho CẢ HAI provider, nếu không provider
+    # còn lại chưa bao giờ hỏng thì circuit breaker chưa có lý do đóng.
+    router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    with pytest.raises(ConnectionError, match="No healthy providers"):
+        router.fetch_history(
+            ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+        )
+
+
+def test_bulk_returned_keys_stay_upper_case_for_api_layer():
+    """MAJOR-1 sửa bằng lower-case nội bộ — khoá trả về KHÔNG được đổi.
+
+    `api/bulk.py` đưa khoá này thẳng vào `attrs['sources_used']` và
+    `attrs['failed']`, phải khớp `df.attrs['source']`.
+    """
+    _install_as_vci(_SpyProvider)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["providers_used"] == ["VCI"]
+    assert set(result["results"]) == {"VCI"}

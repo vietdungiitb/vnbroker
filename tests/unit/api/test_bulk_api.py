@@ -222,27 +222,33 @@ class TestBulkAPIDataPath:
         assert {"vci", "kbs"} <= set(available)
 
     def test_ac4_all_providers_down_reports_failed(self, monkeypatch):
-        """AC-4: mọi provider ném ``RuntimeError`` → ``attrs['failed']`` không
-        rỗng và ``HealthRouter.record_failure`` được gọi."""
+        """AC-4: mọi provider ném ``RuntimeError`` → ``attrs['failed']`` không rỗng
+        VÀ lỗi **tới được** health store.
+
+        MAJOR-5: test cũ spy ``HealthRouter.record_failure`` rồi assert
+        ``("DOWNXX", "quote") in recorded``. Đó chỉ chứng minh *hàm được gọi*, và
+        nó vẫn xanh cả khi bulk ghi sai khoá health store vì spy forward sang bản
+        thật. Nay khẳng định hậu quả thật trên ``get_source_health_snapshot``.
+
+        Provider giả phải cài vào slot AUTO thật (``vci``): snapshot chỉ liệt kê
+        ``get_auto_candidates('quote')``, nên "sức khoẻ của provider lạ" như
+        ``downxx`` vốn không quan sát được từ đâu cả.
+        """
         _block_egress(monkeypatch)
-        ProviderRegistry.register("quote", "downxx", _DownProvider)
-        api = _pool_with(monkeypatch, ["downxx"])
-
-        recorded: list = []
-        original = api._health_router.record_failure
-
-        def spy_failure(provider, error, module="quote"):
-            recorded.append((provider, module))
-            return original(provider, error, module=module)
-
-        api._health_router.record_failure = spy_failure
+        ProviderRegistry.register("quote", "vci", _DownProvider)
+        api = _pool_with(monkeypatch, ["vci"])
 
         df = api.history(["ACB", "VNM"], start="2024-01-01", end="2024-01-31")
 
         assert df.empty
         assert df.attrs["failed"], "lỗi provider phải được báo ra, không nuốt im lặng"
-        assert "DOWNXX" in df.attrs["failed"]
-        assert ("DOWNXX", "quote") in recorded
+        assert "VCI" in df.attrs["failed"]
+
+        snapshot = source_router.get_source_health_snapshot("quote")
+        assert snapshot["VCI"]["failures"] > 0, (
+            f"lỗi không tới được health store (failures={snapshot['VCI']['failures']})"
+        )
+        assert snapshot["VCI"]["in_cooldown"] is True
 
     def test_ac5_interval_forwarded_to_router(self, monkeypatch):
         """AC-5: ``interval`` từ ``BulkAPI.history`` phải đi tới
@@ -314,14 +320,27 @@ class TestBulkAPIDataPath:
         assert 'source="KBS"' not in source
         assert "source='KBS'" not in source
 
-    def test_d3_empty_pool_raises_connection_error(self, monkeypatch):
-        """D3: nhánh ``raise ConnectionError`` phải thật sự reachable — pool
-        rỗng thì báo lỗi, thay vì chỉ là dead code như ở ``e5d8133``."""
-        _block_egress(monkeypatch)
-        api = _pool_with(monkeypatch, [])
+    def test_d3_pool_is_never_empty_so_empty_pool_branch_is_dead_code(self):
+        """D3/MAJOR-5: nhánh ``raise ConnectionError("No providers available")``
+        ở ``bulk.py:72`` **chưa reachable**, và test cũ đã che điều đó.
 
-        with pytest.raises(ConnectionError, match="No providers available"):
-            api.history(["ACB"], start="2024-01-01", end="2024-01-31")
+        ``test_d3_empty_pool_raises_connection_error`` (đã xoá) monkeypatch
+        ``get_available_providers`` trả ``[]``. Nhưng ``NO_AUTH_PROVIDERS`` là
+        list hardcode ``["vci", "kbs"]`` nên hàm luôn trả ít nhất 2 phần tử —
+        test xanh ở **cả commit gốc**, tức nó không chứng minh được gì về
+        reachability. Không được dùng nó làm bằng chứng cho bất kỳ fix nào.
+
+        Test thay thế khẳng định điều kiện thật: pool luôn khác rỗng. Nếu ai đó
+        làm rỗng ``NO_AUTH_PROVIDERS`` thì test này ĐỎ, buộc phải xét lại nhánh
+        dead code kia.
+        """
+        from vnbroker.core.provider_pool import ProviderPool
+
+        assert list(ProviderPool.NO_AUTH_PROVIDERS), (
+            "NO_AUTH_PROVIDERS rỗng → nhánh ConnectionError ở bulk.py:72 trở nên "
+            "reachable; phải viết lại test cho nhánh đó"
+        )
+        assert ProviderPool().get_available_providers("quote")
 
     def test_d3_pool_provider_without_implementation_raises(self, monkeypatch):
         """D3: pool có provider nhưng registry không có implementation →
