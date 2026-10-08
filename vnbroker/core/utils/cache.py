@@ -224,6 +224,23 @@ def get_industry_cache() -> TTLCache:
         return _industry_cache
 
 
+def _cache_namespace(func: Callable, args: tuple) -> str:
+    """Namespace that keeps same-named methods of different owners apart.
+
+    The listing cache and the industry cache are single process-wide objects
+    shared by every provider, and providers reuse the same method names
+    (``kbs.Listing.all_symbols`` vs ``vci.Listing.all_symbols``). Keying on
+    ``func.__name__`` alone therefore let one provider's result be served to
+    another. The namespace is built from the defining module/qualname and,
+    when the call is a method, from the instance's own class.
+    """
+    owner = ""
+    if args and not isinstance(args[0], PRIMITIVES) and hasattr(args[0], "__class__"):
+        owner_cls = type(args[0])
+        owner = f"{owner_cls.__module__}.{owner_cls.__qualname__}."
+    return f"{owner}{func.__module__}.{func.__qualname__}"
+
+
 def cached_listing(ttl_seconds: Optional[int] = None):
     """
     Decorator for caching listing functions.
@@ -236,7 +253,7 @@ def cached_listing(ttl_seconds: Optional[int] = None):
         
         @wraps(func)
         def wrapper(*args, **kwargs):
-            key = cache._make_key(func.__name__, *args, **kwargs)
+            key = cache._make_key(_cache_namespace(func, args), *args, **kwargs)
             result = cache.get(key)
             if result is not None:
                 logger.debug(f"Cache HIT for {func.__name__}: {key}")
@@ -263,7 +280,7 @@ def cached_industry(ttl_seconds: Optional[int] = None):
         
         @wraps(func)
         def wrapper(*args, **kwargs):
-            key = cache._make_key(func.__name__, *args, **kwargs)
+            key = cache._make_key(_cache_namespace(func, args), *args, **kwargs)
             result = cache.get(key)
             if result is not None:
                 logger.debug(f"Cache HIT for {func.__name__}: {key}")

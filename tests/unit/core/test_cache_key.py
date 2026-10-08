@@ -3,7 +3,7 @@
 from datetime import date, datetime
 
 import pytest
-from vnbroker.core.utils.cache import TTLCache
+from vnbroker.core.utils.cache import TTLCache, cached_listing, get_listing_cache
 
 
 class _FakeObj:
@@ -21,6 +21,15 @@ class _OtherObj:
 @pytest.fixture
 def cache():
     return TTLCache(ttl_seconds=60, max_size=10, name="test")
+
+
+@pytest.fixture
+def listing_cache():
+    """The process-wide listing cache, cleared around each test."""
+    shared = get_listing_cache()
+    shared.clear()
+    yield shared
+    shared.clear()
 
 
 # ── _make_key tests ──────────────────────────────────────────────────────────
@@ -215,3 +224,108 @@ def test_cache_does_not_serve_another_dict_payload(cache):
 
     assert cache.get(cache._make_key("all_symbols", {"a": 2})) is None
     assert cache.get(cache._make_key("all_symbols", {"a": 1})) == "payload-a=1"
+
+
+# ── Same-named methods of different providers must not share a cache entry ───
+#
+# Found while fixing VN-2, NOT part of AC-9: `cached_listing` keyed on
+# `func.__name__` only, and every listing cache is the SAME global object. So
+# `kbs.Listing.all_symbols` (explorer/kbs/listing.py:66) and
+# `vci.Listing.all_symbols` (explorer/vci/listing.py:49) — two providers whose
+# classes are both named `Listing` — shared one entry, and whichever provider
+# was called first served its DataFrame to the other for LISTING_CACHE_TTL.
+
+def _stub_provider_method(module_name, class_name, payload, calls):
+    """Build a cached_listing-decorated method standing in for a provider."""
+    def all_symbols(self=None):
+        calls.append(module_name)
+        return payload
+
+    all_symbols.__name__ = "all_symbols"
+    all_symbols.__qualname__ = f"{class_name}.all_symbols"
+    all_symbols.__module__ = module_name
+    return cached_listing(ttl_seconds=60)(all_symbols)
+
+
+def test_cached_listing_does_not_cross_serve_same_named_provider_methods(listing_cache):
+    """Two providers' `all_symbols` must not read each other's cache entry."""
+    calls = []
+    kbs = _stub_provider_method(
+        "vnbroker.explorer.kbs.listing", "Listing", "FROM-KBS", calls
+    )
+    vci = _stub_provider_method(
+        "vnbroker.explorer.vci.listing", "Listing", "FROM-VCI", calls
+    )
+
+    assert kbs() == "FROM-KBS"
+    assert vci() == "FROM-VCI"
+    assert calls == [
+        "vnbroker.explorer.kbs.listing",
+        "vnbroker.explorer.vci.listing",
+    ]
+
+
+def test_cached_listing_does_not_cross_serve_across_cache_types(listing_cache):
+    """The same method name in the industry cache stays separate from listing."""
+    from vnbroker.core.utils.cache import cached_industry, get_industry_cache
+
+    industry_cache = get_industry_cache()
+    industry_cache.clear()
+    try:
+        calls = []
+
+        def symbols_by_industries(self=None):
+            calls.append("listing")
+            return "FROM-LISTING"
+
+        symbols_by_industries.__name__ = "shared_name"
+        symbols_by_industries.__qualname__ = "Listing.shared_name"
+        symbols_by_industries.__module__ = "vnbroker.explorer.kbs.listing"
+
+        def shared_name(self=None):
+            calls.append("industry")
+            return "FROM-INDUSTRY"
+
+        shared_name.__name__ = "shared_name"
+        shared_name.__qualname__ = "Industry.shared_name"
+        shared_name.__module__ = "vnbroker.explorer.kbs.industry"
+
+        listing_fn = cached_listing(ttl_seconds=60)(symbols_by_industries)
+        industry_fn = cached_industry(ttl_seconds=60)(shared_name)
+
+        assert listing_fn() == "FROM-LISTING"
+        assert industry_fn() == "FROM-INDUSTRY"
+        assert calls == ["listing", "industry"]
+    finally:
+        industry_cache.clear()
+
+
+def test_cached_listing_still_caches_the_same_provider_method(listing_cache):
+    """Positive case: namespacing must not cost the cache its hits."""
+    calls = []
+    kbs = _stub_provider_method(
+        "vnbroker.explorer.kbs.listing", "Listing", "FROM-KBS", calls
+    )
+
+    assert kbs() == "FROM-KBS"
+    assert kbs() == "FROM-KBS"
+    assert calls == ["vnbroker.explorer.kbs.listing"]  # second call was a hit
+
+
+def test_cached_listing_still_honours_arguments(listing_cache):
+    """Positive case: different arguments of the same method still miss."""
+    calls = []
+
+    def all_symbols(self=None, include_derivatives=False):
+        calls.append(include_derivatives)
+        return f"DERIV={include_derivatives}"
+
+    all_symbols.__name__ = "all_symbols"
+    all_symbols.__qualname__ = "SSIListing.all_symbols"
+    all_symbols.__module__ = "vnbroker.explorer.ssi.listing"
+    cached = cached_listing(ttl_seconds=60)(all_symbols)
+
+    assert cached(include_derivatives=False) == "DERIV=False"
+    assert cached(include_derivatives=True) == "DERIV=True"
+    assert cached(include_derivatives=False) == "DERIV=False"
+    assert calls == [False, True]  # third call was a hit
