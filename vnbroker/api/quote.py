@@ -5,7 +5,7 @@ Unified Quote adapter with dynamic method detection and parameter filtering.
 Module quản lý dữ liệu giá chứng khoán với phát hiện phương thức động và lọc tham số.
 """
 
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 from vnbroker.config import Config
@@ -20,6 +20,39 @@ from vnbroker.core.types import (
 # Backward compatibility aliases
 DataSources = DataSource
 TimeResolutions = TimeFrame
+
+
+def call_provider_sync(func: Callable[..., Any], /, **kwargs: Any) -> Any:
+    """Call a provider callable that may be sync or async, from sync code.
+
+    Single source of truth for the sync/async bridge. ``VCI.fetch_multiple`` is
+    an ``async classmethod`` while ``KBS.fetch_multiple`` is a sync one, so any
+    caller that invokes it blindly gets a coroutine back instead of frames.
+    Callers MUST reuse this instead of writing a second bridge.
+
+    Args:
+        func: Bound method or classmethod to invoke.
+        **kwargs: Forwarded verbatim to ``func``.
+
+    Returns:
+        Whatever ``func`` returns, with coroutines already awaited.
+
+    Raises:
+        RuntimeError: If an async callable is invoked from inside a running
+            event loop, where ``asyncio.run`` cannot be used.
+    """
+    import asyncio
+    import inspect
+
+    if inspect.iscoroutinefunction(func):
+        try:
+            return asyncio.run(func(**kwargs))
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "Cannot call async provider method inside an active event loop. "
+                "Use await provider.method(...) directly."
+            ) from exc
+    return func(**kwargs)
 
 
 class Quote(BaseAdapter):
@@ -293,42 +326,16 @@ class Quote(BaseAdapter):
             )
         
         # Call provider's fetch_multiple (handles both sync and async)
-        import asyncio
-        import inspect
-        
-        fetch_multiple = getattr(self.provider, 'fetch_multiple')
-        
-        if inspect.iscoroutinefunction(fetch_multiple):
-            # Async provider (VCI)
-            try:
-                return asyncio.run(fetch_multiple(
-                    symbols=symbols,
-                    start=start,
-                    end=end,
-                    interval=interval,
-                    show_log=show_log,
-                    count_back=count_back,
-                    floating=floating,
-                    length=length,
-                    max_concurrency=max_concurrency,
-                    adaptive_concurrency=adaptive_concurrency,
-                ))
-            except RuntimeError as exc:
-                raise RuntimeError(
-                    "Cannot call async fetch_multiple inside an active event loop. "
-                    "Use await provider.fetch_multiple(...) directly."
-                ) from exc
-        else:
-            # Sync provider (KBS)
-            return fetch_multiple(
-                symbols=symbols,
-                start=start,
-                end=end,
-                interval=interval,
-                show_log=show_log,
-                count_back=count_back,
-                floating=floating,
-                length=length,
-                max_concurrency=max_concurrency,
-                adaptive_concurrency=adaptive_concurrency,
-            )
+        return call_provider_sync(
+            self.provider.fetch_multiple,
+            symbols=symbols,
+            start=start,
+            end=end,
+            interval=interval,
+            show_log=show_log,
+            count_back=count_back,
+            floating=floating,
+            length=length,
+            max_concurrency=max_concurrency,
+            adaptive_concurrency=adaptive_concurrency,
+        )
