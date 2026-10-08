@@ -20,15 +20,27 @@ from vnbroker.ui.market import Market
 
 @pytest.fixture(autouse=True)
 def _clean_health(monkeypatch):
-    """Cô lập health store cho mọi test trong file.
+    """Cô lập health store **và registry** cho mọi test trong file.
 
-    Không có fixture này thì một test ghi ``record_failure`` sẽ đẩy vci/kbs vào
+    Không có health fixture thì một test ghi ``record_failure`` sẽ đẩy vci/kbs vào
     cooldown và làm các test chạy sau nhận ``ConnectionError``.
+
+    Phần registry là bắt buộc vì ``ProviderRegistry`` là singleton toàn cục:
+    MAJOR-5 buộc provider giả phải cài vào slot AUTO thật (``vci``) để quan sát
+    được health snapshot, mà slot đó cũng chính là slot provider thật. Không khôi
+    phục lại thì ``_DownProvider`` (ném ``RuntimeError("network unreachable")``) sống
+    tới hết phiên và làm ``test_quote_price_unit_consistency`` chết bằng
+    ``tenacity.RetryError`` — đã quan sát thật trước khi thêm fixture này.
     """
+    from vnbroker.core.registry import ProviderRegistry
+
     monkeypatch.setenv("vnbroker_ROUTER_HEALTH_DB", "memory")
     source_router.reload_store()
     source_router.reset_router_state()
+    saved_registry = dict(ProviderRegistry._registry)
     yield
+    ProviderRegistry._registry.clear()
+    ProviderRegistry._registry.update(saved_registry)
     source_router.reset_router_state()
     source_router.reload_store()
 
@@ -68,21 +80,47 @@ def _block_egress(monkeypatch) -> None:
 
 
 class _ServingProvider:
-    """Provider giả phục vụ đủ mọi symbol, có ghi lại lời gọi (spy của AC-1)."""
+    """Provider giả phục vụ đủ mọi symbol, có ghi lại lời gọi (spy của AC-1).
+
+    MAJOR-4: có ``history`` + ``parallel`` + ``__init__(symbol)`` giống provider
+    thật. Fake chỉ có ``fetch_multiple`` sẽ chết vì ``TypeError`` ở
+    ``provider_class(symbol=...)`` — tức test chết vì hình dạng sai.
+    """
 
     calls: list = []
 
-    @classmethod
-    def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
-        cls.calls.append((tuple(symbols), interval))
-        return [_frame(sym) for sym in symbols]
+    def __init__(self, symbol=None):
+        self.symbol = symbol
+
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
+        targets = list(symbols or ([self.symbol] if self.symbol else []))
+        type(self).calls.append((tuple(targets), interval))
+        return [_frame(sym) for sym in targets]
 
 
 class _DownProvider:
     calls: list = []
 
-    @classmethod
-    def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
+    def __init__(self, symbol=None):
+        self.symbol = symbol
+
+    def history(
+        self,
+        start=None,
+        end=None,
+        interval="1D",
+        parallel=False,
+        symbols=None,
+        **kwargs,
+    ):
         raise RuntimeError("network unreachable")
 
 

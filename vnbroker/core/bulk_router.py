@@ -39,6 +39,19 @@ def _is_unusable(result: Any) -> bool:
 
     return _is_unusable_provider_result(result)
 
+
+def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Chỉ giữ kwarg mà ``method`` thật sự nhận.
+
+    MAJOR-4: provider có tham số khác nhau (`history` của DNSE nhận ``symbol``,
+    SSI không nhận ``to_df`` ở vị trí kia...), nên gửi thừa sẽ ném
+    ``TypeError``. Dùng lại helper sẵn có của ``common.data`` thay vì viết
+    lần hai.
+    """
+    from vnbroker.common.data import _filter_kwargs as _data_filter_kwargs
+
+    return _data_filter_kwargs(method, kwargs)
+
 # Lỗi lập trình: dấu hiệu gọi sai API (self bị bind nhầm vào chuỗi symbol,
 # tham số không tồn tại, thiếu import). Nuốt chúng thành `logger.warning` là
 # cách che bug nên chúng phải nổi lên tới caller.
@@ -216,9 +229,17 @@ class BulkRouter:
     ) -> List[pd.DataFrame]:
         """Fetch a batch of symbols from a specific provider.
 
-        Prefers the provider's ``fetch_multiple`` (a classmethod on both VCI and
-        KBS, sync for KBS and async for VCI); falls back to one ``history``
-        call per symbol on a properly constructed instance.
+        Two paths, both through the provider's own ``history``:
+
+        - ``history(symbols=[...], parallel=True)`` when the provider's signature
+          advertises both (VCI, KBS, TCBS). That method already owns the
+          sync/async bridge to ``fetch_multiple`` (``explorer/vci/quote.py:496``).
+        - one ``history`` call per symbol otherwise (SSI, DNSE).
+
+        MAJOR-4: bulk used to import ``call_provider_sync`` from
+        ``vnbroker.api.quote`` — a lower layer reaching into a higher one — and
+        drive ``fetch_multiple`` itself, i.e. a second copy of a bridge that
+        already existed in ``explorer``. The capability is called directly now.
 
         Every returned frame is tagged with ``attrs['symbol']`` when the
         provider did not do it itself, so the caller can attribute each frame
@@ -227,7 +248,7 @@ class BulkRouter:
         Raises:
             Exception: One of ``PROGRAMMING_ERRORS`` always propagates — a
                 programming error is never downgraded to a log line. Provider
-                errors only propagate when the batch produced no frame at all.
+                errors only propagate when the batch produced no usable frame.
         """
         provider_class = self._resolve_provider_class(module, provider)
         if provider_class is None:
@@ -239,15 +260,9 @@ class BulkRouter:
             return []
 
         started = time.perf_counter()
-        fetch_multiple = getattr(provider_class, "fetch_multiple", None)
-        if fetch_multiple is not None:
-            frames = self._frames_from_fetch_multiple(
-                provider, fetch_multiple, symbols, start, end, interval, module
-            )
-        else:
-            frames = self._frames_from_history(
-                provider_class, provider, symbols, start, end, interval, module
-            )
+        frames = self._frames_from_history(
+            provider_class, provider, symbols, start, end, interval, module
+        )
 
         if frames:
             self._health.record_success(
@@ -270,38 +285,83 @@ class BulkRouter:
             logger.debug("No registered %s provider named %s", module, provider)
             return None
 
-    def _frames_from_fetch_multiple(
+    @staticmethod
+    def _supports_parallel_history(provider_class: type) -> bool:
+        """``history`` của provider có nhận ``parallel`` + ``symbols`` không?
+
+        Quyết định dựa trên **tên tham số tường minh**, không dựa trên
+        ``**kwargs``: SSI/DNSE có ``**kwargs`` nên `symbols`/`parallel` gửi vào
+        sẽ bị nuốt im lặng thay vì chạy song song — im lặng là thứ tệ nhất.
+        """
+        import inspect
+
+        history = getattr(provider_class, "history", None)
+        if history is None:
+            return False
+        try:
+            params = inspect.signature(history).parameters
+        except (TypeError, ValueError):
+            return False
+        return "parallel" in params and "symbols" in params
+
+    def _frames_from_history(
         self,
+        provider_class: type,
         provider: str,
-        fetch_multiple: Any,
         symbols: List[str],
         start: Optional[str],
         end: Optional[str],
         interval: str,
         module: str,
     ) -> List[pd.DataFrame]:
-        """Call a provider's ``fetch_multiple`` through the sync/async bridge.
+        """Dispatch a batch to the provider's ``history``.
 
-        ``fetch_multiple`` is an ``async classmethod`` on VCI and a sync one on
-        KBS. Calling it blindly returns a coroutine, whose ``isinstance(...,
-        list)`` and ``isinstance(..., dict)`` are both False — the caller then
-        sees an empty batch and reports success.
-
-        A result carrying no usable schema is treated as a provider failure, not
-        a quiet success: KBS's own ``fetch_multiple`` catches every per-symbol
-        exception and returns ``[]``, so without this the failure would never
-        reach ``errors``. The reverse is equally important — a batch of
-        well-shaped 0-row frames is a market holiday, not a failure (MAJOR-2).
+        MAJOR-4: the provider owns the bridge, not ``core``.
         """
-        from vnbroker.api.quote import call_provider_sync
+        if self._supports_parallel_history(provider_class):
+            return self._parallel_history_frames(
+                provider_class, provider, symbols, start, end, interval, module
+            )
+        return self._sequential_history_frames(
+            provider_class, provider, symbols, start, end, interval, module
+        )
+
+    def _parallel_history_frames(
+        self,
+        provider_class: type,
+        provider: str,
+        symbols: List[str],
+        start: Optional[str],
+        end: Optional[str],
+        interval: str,
+        module: str,
+    ) -> List[pd.DataFrame]:
+        """One ``history(symbols=..., parallel=True)`` call for the batch.
+
+        VCI/KBS/TCBS already route this to their own ``fetch_multiple`` and own
+        the sync/async bridging (``explorer/vci/quote.py:496``), so bulk needs
+        no bridge of its own.
+
+        A result carrying no usable schema is a provider failure, not a quiet
+        success: KBS's ``fetch_multiple`` swallows per-symbol exceptions and
+        returns ``[]``, so without this the failure never reaches ``errors``.
+        The reverse matters equally — a batch of well-shaped 0-row frames is a
+        market holiday, not a failure (MAJOR-2).
+        """
+        instance = self._build_instance(provider_class, symbols, provider)
 
         try:
-            result = call_provider_sync(
-                fetch_multiple,
-                symbols=symbols,
-                start=start,
-                end=end,
-                interval=interval,
+            result = instance.history(
+                **_filter_kwargs(
+                    instance.history,
+                    {
+                        "symbols": symbols,
+                        "start": start,
+                        "end": end,
+                        "interval": interval,
+                        "parallel": True,
+                    },
+                )
             )
         except PROGRAMMING_ERRORS:
             raise
@@ -318,7 +378,20 @@ class BulkRouter:
             raise self._note_failure(provider, empty_result, module) from empty_result
         return frames
 
-    def _frames_from_history(
+    @staticmethod
+    def _build_instance(
+        provider_class: type, symbols: List[str], provider: str
+    ) -> Any:
+        """Dựng instance đúng cách cho provider.
+
+        Mọi provider thật yêu cầu ``symbol`` ở ``__init__``; gọi
+        ``provider_class()`` không tham số sẽ ném ``TypeError``. Ở nhánh song
+        song ``self.symbol`` không được dùng (symbols truyền vào rồi) nhưng
+        constructor vẫn bắt buộc có nó.
+        """
+        return provider_class(symbol=symbols[0] if symbols else None)
+
+    def _sequential_history_frames(
         self,
         provider_class: type,
         provider: str,
@@ -331,6 +404,9 @@ class BulkRouter:
         """Per-symbol fallback: construct one instance per symbol, then call
         ``history`` **on that instance**.
 
+        Used by providers whose ``history`` has no ``parallel``/``symbols``
+        (SSI, DNSE).
+
         Two traps live here. ``__init__`` requires ``symbol``, so
         ``provider_class()`` raises ``TypeError``; and ``history`` takes no
         ``symbol`` parameter (the symbol lives on the instance), so
@@ -342,7 +418,12 @@ class BulkRouter:
         for sym in symbols:
             instance = provider_class(symbol=sym)
             try:
-                df = instance.history(start=start, end=end, interval=interval)
+                df = instance.history(
+                    **_filter_kwargs(
+                        instance.history,
+                        {"start": start, "end": end, "interval": interval},
+                    )
+                )
             except PROGRAMMING_ERRORS:
                 raise
             except PROVIDER_ERRORS as exc:
@@ -403,7 +484,11 @@ class BulkRouter:
     def _normalize_multi_result(
         self, result: Any, symbols: List[str]
     ) -> List[pd.DataFrame]:
-        """Flatten a ``fetch_multiple`` return value into a list of frames.
+        """Flatten a provider ``history`` return value into a list of frames.
+
+        Parallel-capable providers hand back what their ``fetch_multiple``
+        produced: a list (or dict) of frames, or a bare DataFrame for one
+        symbol.
 
         Chỉ frame **không dùng được** (thiếu schema) bị loại; frame đủ schema mà
         0 dòng vẫn được giữ để ngày nghỉch giao dịch không bị tính là lỗi.
@@ -434,6 +519,6 @@ class BulkRouter:
                     self._tag_symbol(df, sym)
             return frames
         raise TypeError(
-            "fetch_multiple returned an unsupported type "
+            "provider history returned an unsupported type "
             f"{type(result).__name__!r}; expected list, tuple, dict or DataFrame"
         )
