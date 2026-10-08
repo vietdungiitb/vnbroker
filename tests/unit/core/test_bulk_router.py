@@ -693,3 +693,128 @@ def test_bulk_returned_keys_stay_upper_case_for_api_layer():
 
     assert result["providers_used"] == ["VCI"]
     assert set(result["results"]) == {"VCI"}
+
+
+# ---------------------------------------------------------------------------
+# MAJOR-2 — tiêu chí "không dùng được" phải là SCHEMA, không phải số dòng
+#
+# `common/data.py:442` phân biệt bằng schema: 0 cột = provider hỏng, đủ cột +
+# 0 dòng = ngày nghỉch giao dịch = thành công. Bulk dùng tiêu chí "0 frame" và
+# `_normalize_multi_result` lọc `not df.empty`, nên mọi ngày nghỉch đều bị quy
+# thành provider chết — giống hệt nhau với provider thật sự hỏng.
+# --------------------------------------------------------------------------
+
+
+QUOTE_COLUMNS = ["time", "open", "high", "low", "close", "volume"]
+
+
+class _HolidayProvider:
+    """Frame ĐÚNG schema nhưng 0 dòng — không có phiên giao dịch trong kỳ."""
+
+    calls: list = []
+
+    @classmethod
+    def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
+        cls.calls.append(tuple(symbols))
+        return [pd.DataFrame(columns=QUOTE_COLUMNS) for _ in symbols]
+
+
+class _ZeroColumnProvider:
+    """Frame 0 cột — provider không sinh ra cấu trúc."""
+
+    calls: list = []
+
+    @classmethod
+    def fetch_multiple(cls, symbols, start=None, end=None, interval="1D"):
+        cls.calls.append(tuple(symbols))
+        return [pd.DataFrame() for _ in symbols]
+
+
+def test_m2_well_shaped_zero_row_frame_is_success():
+    """MAJOR-2: ngày nghỉch giao dịch KHÔNG phải lỗi provider."""
+    _install_as_vci(_HolidayProvider)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["errors"] == {}, (
+        f"ngày nghỉch giao dịch bị quy thành provider hỏng: {result['errors']}"
+    )
+    frames = result["results"]["VCI"]
+    assert len(frames) == 2
+    assert all(list(df.columns) == QUOTE_COLUMNS for df in frames)
+    assert all(df.empty for df in frames)
+
+
+def test_m2_well_shaped_zero_row_frame_does_not_mark_provider_unhealthy():
+    """MAJOR-2: provider sống qua ngày nghỉch thì KHÔNG rơi vào cooldown."""
+    _install_as_vci(_HolidayProvider)
+    router = _router_for_vci()
+
+    router.fetch_history(["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote")
+
+    snapshot = source_router.get_source_health_snapshot("quote")
+    assert snapshot["VCI"]["failures"] == 0
+    assert snapshot["VCI"]["in_cooldown"] is False
+
+
+def test_m2_zero_column_frame_is_failure():
+    """MAJOR-2: 0 cột thì vẫn là provider hỏng — ranh giới nằm ở schema."""
+    _install_as_vci(_ZeroColumnProvider)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert "VCI" in result["errors"], "frame 0 cột phải bị báo lỗi"
+    assert "unusable" in result["errors"]["VCI"]
+
+
+def test_m2_bulk_reuses_the_data_module_schema_criterion():
+    """MAJOR-2: bulk dùng CHUNG helper với `common.data`, không viết lại.
+
+    Nếu ai đó đổi tiêu chí ở một chỗ, chỗ kia phải đổi theo — nếu không hai
+    đường đi lại lệch nhau và lỗi ngày nghỉch quay trở lại.
+    """
+    from vnbroker.common.data import _is_unusable_provider_result as data_criterion
+    from vnbroker.core.bulk_router import _is_unusable
+
+    cases = [
+        None,
+        pd.DataFrame(),
+        pd.DataFrame(columns=QUOTE_COLUMNS),
+        pd.DataFrame({"time": [1]}),
+        [],
+        (),
+        {},
+        {"a"},
+        [pd.DataFrame(columns=QUOTE_COLUMNS)],
+    ]
+    for value in cases:
+        assert _is_unusable(value) == data_criterion(value), (
+            f"bulk va common.data lech tai {value!r}"
+        )
+
+
+def test_m2_history_path_treats_zero_row_frame_as_usable():
+    """MAJOR-2: nhánh fallback `history` cũng phải giữ frame 0 dòng."""
+
+    class _HistoryHoliday:
+        def __init__(self, symbol: str):
+            self.symbol = symbol
+
+        def history(self, start=None, end=None, interval="1D"):
+            return pd.DataFrame(columns=QUOTE_COLUMNS)
+
+    ProviderRegistry.register("quote", "vci", _HistoryHoliday)
+    router = _router_for_vci()
+
+    result = router.fetch_history(
+        ["ACB", "VNM"], "2024-01-01", "2024-01-31", module="quote"
+    )
+
+    assert result["errors"] == {}
+    assert len(result["results"]["VCI"]) == 2

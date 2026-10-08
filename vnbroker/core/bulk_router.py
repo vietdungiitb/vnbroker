@@ -22,6 +22,23 @@ from vnbroker.core.health_router import HealthRouter
 
 logger = logging.getLogger(__name__)
 
+
+def _is_unusable(result: Any) -> bool:
+    """Provider trả về thứ **không dùng được** không?
+
+    MAJOR-2: tiêu chí nằm ở *schema*, KHÔNG phải số dòng. Frame đủ cột mà 0 dòng
+    là ngày nghỉch giao dịch (Tết, cuối tuần, mã chưa có dữ liệu) và phải được coi
+    là thành công; chỉ 0 cột mới là provider hỏng.
+
+    Dùng lại đúng helper của ``common.data`` để hai đường đi không lệch nhau —
+    ``common/data.py:465-467`` đã cảnh báo chính xác cái bẫy "coi 0 dòng thất bại"
+    mà bulk đang mắc. Import trễ (trong hàm) vì ``common.data`` là module nặng
+    và ``core`` nằm DƯỚI nó; đã kiểm tra KHÔNG có vòng import theo cả hai chiều.
+    """
+    from vnbroker.common.data import _is_unusable_provider_result
+
+    return _is_unusable_provider_result(result)
+
 # Lỗi lập trình: dấu hiệu gọi sai API (self bị bind nhầm vào chuỗi symbol,
 # tham số không tồn tại, thiếu import). Nuốt chúng thành `logger.warning` là
 # cách che bug nên chúng phải nổi lên tới caller.
@@ -270,10 +287,11 @@ class BulkRouter:
         list)`` and ``isinstance(..., dict)`` are both False — the caller then
         sees an empty batch and reports success.
 
-        An empty result for a non-empty request is treated as a provider
-        failure, not a quiet success: KBS's own ``fetch_multiple`` catches
-        every per-symbol exception and returns ``[]``, so without this the
-        failure would never reach ``errors``.
+        A result carrying no usable schema is treated as a provider failure, not
+        a quiet success: KBS's own ``fetch_multiple`` catches every per-symbol
+        exception and returns ``[]``, so without this the failure would never
+        reach ``errors``. The reverse is equally important — a batch of
+        well-shaped 0-row frames is a market holiday, not a failure (MAJOR-2).
         """
         from vnbroker.api.quote import call_provider_sync
 
@@ -293,8 +311,9 @@ class BulkRouter:
         frames = self._normalize_multi_result(result, symbols)
         if symbols and not frames:
             empty_result = RuntimeError(
-                f"Provider {provider} returned no data for "
-                f"{len(symbols)} requested symbol(s): {symbols}"
+                f"Provider {provider} returned unusable data for "
+                f"{len(symbols)} requested symbol(s): {symbols} "
+                "(no frame carried a usable schema)"
             )
             raise self._note_failure(provider, empty_result, module) from empty_result
         return frames
@@ -334,7 +353,7 @@ class BulkRouter:
                     "Individual fetch failed for %s on %s: %s", sym, provider, exc
                 )
                 continue
-            if df is not None and not df.empty:
+            if self._is_usable_frame(df):
                 self._tag_symbol(df, sym)
                 frames.append(df)
 
@@ -342,8 +361,9 @@ class BulkRouter:
             raise first_error
         if symbols and not frames:
             empty_result = RuntimeError(
-                f"Provider {provider} returned no data for "
-                f"{len(symbols)} requested symbol(s): {symbols}"
+                f"Provider {provider} returned unusable data for "
+                f"{len(symbols)} requested symbol(s): {symbols} "
+                "(no frame carried a usable schema)"
             )
             raise self._note_failure(provider, empty_result, module) from empty_result
         return frames
@@ -369,14 +389,29 @@ class BulkRouter:
         if not df.attrs.get("symbol"):
             df.attrs["symbol"] = symbol
 
+    @staticmethod
+    def _is_usable_frame(df: Any) -> bool:
+        """Frame này có mang dữ liệu *dùng được* không?
+
+        MAJOR-2: đủ cột + 0 dòng là ngày nghỉch giao dịch — giữ lại. 0 cột là
+        provider trả về rỗng — loại. Trước đây chỗ này lọc ``not df.empty`` nên
+        frame hợp lệ của ngày nghỉch bị loại TRƯỚC khi kịp kiểm tra schema, rồi
+        batch rỗng bị quy thành provider hỏng.
+        """
+        return isinstance(df, pd.DataFrame) and not _is_unusable(df)
+
     def _normalize_multi_result(
         self, result: Any, symbols: List[str]
     ) -> List[pd.DataFrame]:
-        """Flatten a ``fetch_multiple`` return value into a list of frames."""
+        """Flatten a ``fetch_multiple`` return value into a list of frames.
+
+        Chỉ frame **không dùng được** (thiếu schema) bị loại; frame đủ schema mà
+        0 dòng vẫn được giữ để ngày nghỉch giao dịch không bị tính là lỗi.
+        """
         if result is None:
             return []
         if isinstance(result, pd.DataFrame):
-            if result.empty:
+            if _is_unusable(result):
                 return []
             if not result.attrs.get("symbol") and len(symbols) == 1:
                 self._tag_symbol(result, symbols[0])
@@ -385,14 +420,12 @@ class BulkRouter:
             frames = []
             for sym in symbols:
                 df = result.get(sym)
-                if isinstance(df, pd.DataFrame) and not df.empty:
+                if self._is_usable_frame(df):
                     self._tag_symbol(df, sym)
                     frames.append(df)
             return frames
         if isinstance(result, (list, tuple)):
-            frames = [
-                df for df in result if isinstance(df, pd.DataFrame) and not df.empty
-            ]
+            frames = [df for df in result if self._is_usable_frame(df)]
             # Providers return one frame per requested symbol, in order. Only
             # align positionally when the counts match, otherwise guessing
             # would mislabel frames.
