@@ -355,8 +355,19 @@ def health(module_name: str) -> Dict[str, Dict[str, float | bool | int | None]]:
 
 
 def should_failover(exc: Exception) -> bool:
-    # KeyError / LookupError = provider returned payload missing expected keys
-    if isinstance(exc, (ConnectionError, TimeoutError, NotImplementedError, KeyError, LookupError)):
+    # OSError is the base of ConnectionError and TimeoutError, but also of the
+    # entire requests/socket failure family, which is the common case:
+    #   requests.exceptions.RequestException -> IOError -> OSError
+    #   socket.gaierror (DNS), ssl.SSLError, ConnectionResetError, ...
+    # The two routers disagreed: bulk_router.PROVIDER_ERRORS already listed
+    # OSError, here it was missing, so the single-symbol path stopped failover
+    # on a DNS failure while the bulk path continued.
+    #
+    # Programming errors (TypeError, ValueError, AttributeError,
+    # ZeroDivisionError) are deliberately NOT OSError, so a real bug in a
+    # provider still propagates instead of being silently retried elsewhere.
+    # KeyError / LookupError = provider returned payload missing expected keys.
+    if isinstance(exc, (OSError, NotImplementedError, KeyError, LookupError)):
         return True
 
     message = str(exc).lower()

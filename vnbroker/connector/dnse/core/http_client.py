@@ -50,17 +50,27 @@ class DNSEHttpClient:
         if headers:
             req_headers.update(headers)
 
-        masked_headers = dict(req_headers)
-        if "trading-token" in masked_headers:
-            masked_headers["trading-token"] = "***"
+        # The dry-run envelope is what a human reads to verify a call. It must
+        # never be a credential dump.
+        #
+        # It used to mask exactly one header ("trading-token") via a hardcoded
+        # check, so `X-Signature` and `x-api-key` - both transmitted on every
+        # single request - were printed verbatim. The provider's own SDK is
+        # worse: it prints the entire header dict.
+        #
+        # Deriving the mask from Redactor instead of a hand-written list means a
+        # newly added header is covered the day it is added.
+        from vnbroker.broker.security.redaction import Redactor
+
+        masked_headers = Redactor.redact_headers(req_headers)
 
         if dry_run:
             return None, {
-                "url": url,
+                "url": Redactor.redact_url(url),
                 "method": method,
-                "query": query or {},
+                "query": Redactor.redact_dict(query) if query else {},
                 "headers": masked_headers,
-                "body": body,
+                "body": Redactor.redact_dict(body) if isinstance(body, dict) else body,
             }
 
         started = time.perf_counter()
