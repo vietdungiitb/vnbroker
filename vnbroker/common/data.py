@@ -701,12 +701,14 @@ class Quote(BaseComponent):
                 # Provider KHÔNG ném lỗi nhưng cũng không phục vụ được: coi như
                 # thất bại, tuyệt đối không record_success (xem helper để biết vì
                 # sao "rỗng" được hiểu là mất schema chứ không phải ngày nghỉ).
-                exc = EmptyProviderResult(
+                # Tên biến cố ý KHÁC `exc`: `except ... as exc` xoá tên đó ở cuối
+                # khối except, gán lại sẽ bị mypy --strict chặn.
+                unusable_exc = EmptyProviderResult(
                     f"Provider {source!r} trả kết quả không dùng được "
                     f"({method_name}, module={module_name!r}): {_describe_empty(result)}."
                 )
                 source_router.record_failure(module_name, source)
-                last_exc = exc
+                last_exc = unusable_exc
                 continue
             source_router.record_success(module_name, source)
             return source_router.annotate_result_source(result, source)
