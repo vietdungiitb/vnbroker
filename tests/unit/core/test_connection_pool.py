@@ -3,6 +3,13 @@ Tests for vnbroker.core.utils.connection_pool.
 
 Validates singleton behavior, session reuse, thread safety, and
 performance characteristics of the ConnectionPool.
+
+Re: the shared session (plan row N2)
+-------------------------------------
+An earlier plan claimed the shared `requests.Session` was a race because
+"cookie mutation has no lock". That was measured and REFUTED, so the shared
+session was deliberately left alone. `TestSharedSessionIsThreadSafe` below
+pins the refutation so a future agent does not "fix" correct concurrent code.
 """
 
 import threading
@@ -136,6 +143,74 @@ class TestThreadSafety:
 
         # No errors should occur from concurrent session usage
         assert len(errors) == 0
+
+
+class TestSharedSessionIsThreadSafe:
+    """Guard for the REFUTED claim N2 — passes before and after, on purpose.
+
+    This is NOT evidence of a fix: the shared session was never changed.
+    It exists so the measured safety of sharing one session is pinned, and so
+    a future agent cannot reintroduce per-thread sessions on the strength of a
+    document that was wrong.
+    """
+
+    THREADS = 8
+    COOKIES_PER_THREAD = 200
+
+    def test_cookie_jar_is_internally_locked(self):
+        """requests guards its cookie jar; that lock is why sharing is safe."""
+        session = ConnectionPool.get_instance().get_session()
+
+        lock = getattr(session.cookies, "_cookies_lock", None)
+        assert lock is not None, "requests no longer exposes a cookie-jar lock"
+        assert hasattr(lock, "acquire") and hasattr(lock, "release")
+
+    def test_concurrent_cookie_writes_are_not_lost(self):
+        """Every concurrent cookie write must survive on the shared session."""
+        session = ConnectionPool.get_instance().get_session()
+        errors = []
+        lock = threading.Lock()
+
+        def writer(thread_id):
+            try:
+                for index in range(self.COOKIES_PER_THREAD):
+                    session.cookies.set(f"c{thread_id}_{index}", "v")
+            except Exception as exc:  # noqa: BLE001 - recorded and asserted below
+                with lock:
+                    errors.append(exc)
+
+        threads = [
+            threading.Thread(target=writer, args=(i,)) for i in range(self.THREADS)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == []
+        expected = self.THREADS * self.COOKIES_PER_THREAD
+        assert len(session.cookies) == expected
+        assert session.cookies.get("c0_0") == "v"
+        assert session.cookies.get(f"c{self.THREADS - 1}_{self.COOKIES_PER_THREAD - 1}") == "v"
+
+    def test_one_session_is_shared_by_every_thread(self):
+        """Sharing is deliberate — all threads must see the same session."""
+        session = ConnectionPool.get_instance().get_session()
+        seen = []
+        lock = threading.Lock()
+
+        def grab():
+            got = ConnectionPool.get_instance().get_session()
+            with lock:
+                seen.append(got)
+
+        threads = [threading.Thread(target=grab) for _ in range(self.THREADS)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert all(s is session for s in seen)
 
 
 class TestPerformance:
