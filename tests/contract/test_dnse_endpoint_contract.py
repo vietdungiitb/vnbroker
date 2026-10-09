@@ -70,13 +70,23 @@ def capture():
 
 @pytest.fixture
 def http():
+    # `write_enabled=True` because this suite asserts on the path a *write*
+    # call emits (`close_position`, `create_trading_token`). The gate added in
+    # `http_client.py` would otherwise raise before the assertion is reached,
+    # turning a path regression into an unrelated permission error.
+    #
+    # Safe here: `base_url` is `blocked.invalid` and `capture` stubs the
+    # socket, so no request can leave the process regardless of the flag.
+    # Whether the gate itself holds is asserted in
+    # `tests/unit/connector/dnse/test_write_gate_layer.py`.
     return DNSEHttpClient(
         DNSEConfig(
             api_key="FAKE",
             api_secret="FAKE",
             base_url="https://blocked.invalid",
             show_log=False,
-        )
+        ),
+        write_enabled=True,
     )
 
 
