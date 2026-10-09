@@ -185,14 +185,35 @@ Bảng ánh xạ field cụ thể cho từng method: `docs/NORMALISATION_POLICY.
 
 ## 6. Việc cần làm **ngoài** phạm vi bổ sung API (chặn correctness)
 
-Các mục này **không thuộc** "thêm hàm" nhưng ảnh hưởng trực tiếp tới kết quả:
+### 6.1 ✅ ĐÃ XONG — commit `3717306`
 
-| Việc | Căn cứ | Ưu tiên |
+| Việc | Bằng chứng | Kết quả |
 |---|---|---|
-| `api_version` `2026-05-07` → `2026-07-23` | Doc + changelog (version quyết định `orderId` là string) | **cao** |
-| `get_accounts()` nuốt `name`/`custodyCode`/`investorId` | **Đã verify trên sandbox**: `raw=True` → 4 key; `raw=False` → mất 3 | **cao** |
-| `403` = hết quota ngày, không được coi là lỗi failover | Doc: `429` rate/giờ vs `403` quota/24h | **cao** |
-| Bỏ `str(order_id)` nếu có | Changelog nói version mới tự trả string | trung bình |
+| `api_version` `2026-05-07` → `2026-07-23` | Doc + changelog | Sửa `config.py:11` **và** `client.py:24` — sửa một chỗ thì client vẫn truyền bản cũ |
+| `get_accounts()` nuốt `name`/`custodyCode`/`investorId` | **Đã verify trên sandbox** | `_to_dataframe` lặp scalar của envelope vào mọi dòng; xác minh live sau khi sửa |
+| ~~`403` = hết quota ngày, không được coi là lỗi failover~~ | **BỊ BÁC BỎ** | Không phải bug — xem §6.2 |
+
+### 6.2 `403` — tôi đọc sai, đã bác bỏ giả thuyết
+
+Tôi kết luận "cần sửa" sau khi **đọc** danh sách marker trong `source_router.py` mà **chưa chạy** code. Chạy thật:
+
+```
+str(DNSEAuthError('Quota exceeded', status_code=403)) == 'Quota exceeded'
+should_failover(...)                              == False
+```
+
+Marker `"403"` **có** trong danh sách nhưng **chết**: `raise_for_status` lưu 403 vào
+`.status_code`, không đưa vào message. Hành vi đã đúng ngay từ đầu.
+
+3 test tương ứng giữ lại thành **characterisation test** — khoá hành vi đúng để refactor
+sau này không vô tình coi mọi 403 là lỗi retry được.
+
+### 6.3 Còn lại
+
+| Việc | Cần cứu | Ưu tiên |
+|---|---|---|
+| Enum `OrderSide` nhân đôi, **trái giá trị** | `brokerage/base.py:19-21` = `"BUY"` vs `broker/ssi/_enums.py:16-18` = `"B"` | **cao** — `SIDE_NORMALISATION_RESEARCH.md` §2.1 |
+| Bỏ `str(order_id)` nếu có | Changelog nói version mới tự trả string | trung bình — **chưa xác minh có code ép kiểu không** |
 
 ---
 
