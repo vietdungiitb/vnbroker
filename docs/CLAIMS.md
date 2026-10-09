@@ -64,3 +64,26 @@ SKILL="C:/Users/Pham Viet Dung/AppData/Local/hermes/skills/software-development/
 node "$SKILL/scripts/check-overlap.cjs" --file docs/CLAIMS.md
 ```
 Exit 0 = không chồng lấn. Exit 1 = có chồng lấn → DỪNG, không dispatch.
+
+---
+
+## 2026-10-09 — TCBS Rebuild (Mode A, 3 worker)
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| a1-bars | feat/a1-bars | ../tcbs-a1-bars | GĐ1 nối bars + bỏ NotImplementedError | explorer/tcbs/bars.py (mới), explorer/tcbs/quote.py, tests/unit/explorer/tcbs/test_tcbs_bars.py | in-progress | 2026-10-09 | quote.py đã 801L, phải tách module mới |
+| a2-ws | feat/a2-ws | ../tcbs-a2-ws | GĐ2 viết lại WebSocket protocol pipe | explorer/tcbs/websocket.py, ws_models.py, tests/unit/explorer/tcbs/test_tcbs_ws_protocol.py | in-progress | 2026-10-09 | không network trong test |
+| a3-legacy | feat/a3-legacy | ../tcbs-a3-legacy | GĐ3 xoá 19 path legacy | broker/tcbs/account.py, broker/tcbs/equity.py, tests/unit/broker/tcbs/test_tcbs_legacy_removed.py | in-progress | 2026-10-09 | xoá theo quyết định Owner, chưa verify server |
+| coordinator | docs/plan-tcbs | (main) | Plan + claim + audit + merge | docs/PLAN_TCBS_REBUILD.md | in-progress | 2026-10-09 | giai đoạn 4-5 chưa cắt lát |
+
+**Rời nhau đã kiểm bằng script, không bằng mắt:** tập file của 3 agent giao nhau = ∅.
+
+**Baseline gate @ bec8b82** (đo, không ước lượng):
+- pytest tests/ -q --timeout=300 → exit 0, 1497 passed, 26 skipped
+- uff check vnbroker → exit 0
+- scripts/check_mypy_baseline.py → exit 0
+- uff check tests → **exit 1, 13 lỗi KNOWN-RED có sẵn** — không đòi xanh, chỉ đòi không tăng
+- 13 file vượt 800L (4 thuộc TCBS) — CLAUDE.md:15 "800 max"
+
+**Cổng Giai đoạn 0 (probe 19 path) đã bị bỏ** — Owner quyết xoá theo tài liệu chính
+thức, không cần probe. Ghi rõ: **xoá theo quyết định Owner, chưa verify bằng server.**
