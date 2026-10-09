@@ -267,7 +267,7 @@ $py = ".\.venv\Scripts\python.exe"
 **Cần Owner:**
 
 1. Duyệt `post_order` → `/accounts/{account_no}/orders` (đã đủ 3 mức bằng chứng, §3.1).
-2. `side` của DNSE (`NB`/`NS`) có chuẩn hoá sang `BUY`/`SELL` không? Nếu **không**, ghi
-   vào policy là lớp B — tôi đang mặc định giữ nguyên.
+2. ~~`side` DNSE chuẩn hoá không?~~ **ĐÃ CHỐT 2026-10-09:** giữ nguyên `NB`/`NS` (lớp B).
+   Chi tiết + cảnh báo cột `side` của `trades`: `NORMALISATION_POLICY.md` §5a.
 3. Production `openapi.dnse.com.vn` timeout 3/3 dù không giới hạn IP — nguyên nhân?
    Đợt 1-4 chỉ kiểm chứng được trên Sandbox; production phải chờ bạn mở.

@@ -157,9 +157,46 @@ Không được đổi tên, không được "cho đẹp". Mỗi mục phải c�
 
 | Mục | Vì sao chưa chốt |
 |---|---|
-| `side` DNSE gửi `BUY`/`SELL`; vnbroker chuẩn là gì? | Test `test_match_type_contract.py` có `b-Buy → Buy` nhưng đó là **match_type** của KBS/VCI, không phải `side` của DNSE. Phải đọc lại contract trước khi chuẩn hoá |
 | `bid[].qtty` vs `quantity` | Server gửi `qtty` (đã đo). Doc ghi `quantity`. **Tạm giữ `qtty`**, ghi chú trong docstring là tên chuẩn thực tế |
 | Cột chuẩn cho `security_definition`, `market_index` | Chưa có map sẵn — cần thống nhất trước khi viết map |
+
+---
+
+## 5a. `side` — Owner đã chốt 2026-10-09
+
+> "side DNSE giữ đúng chuẩn DNSE vì nó chỉ giành cho mua bán của DNSE."
+
+**Quyết định:** `side` của lệnh DNSE = **lớp B**, giữ nguyên `NB` / `NS`.
+Không ánh xạ sang `BUY` / `SELL`.
+
+### Nhưng `side` xuất hiện ở **hai** nơi, không được gộp
+
+| Nơi | Dùng để làm gì | Lớp |
+|---|---|---|
+| Đặt lệnh `POST /accounts/{a}/orders` | Gửi lệnh **cho DNSE** | **B** — `NB`/`NS`, giữ nguyên |
+| Khớp lệnh `GET /price/{s}/trades` → cột `side` | Vẽ băng đỏ-xanh, **so sánh provider** | **A** — nhưng xem cảnh báo dưới |
+
+### ⚠ Cảnh báo: vnbroker chuẩn hoá **tên cột**, KHÔNG chuẩn hoá **giá trị**
+
+Đo trên code thật (2026-10-09):
+
+| Provider | Giá trị `side` trả về | Nguồn |
+|---|---|---|
+| KBS | `'B'` / `'S'` | `explorer/kbs/const.py:290, 322` |
+| TCBS | `"BUY"` / `"SELL"` | `tests/integration/tcbs/test_tcbs_full_acb.py:244` |
+| SSI | (không kiểm giá trị) | `tests/integration/explorer/test_ssi_live.py:111` **chỉ assert tên cột** |
+| DNSE | `NB`/`NS` (lệnh), chưa đo được (trades) | tài liệu |
+
+⇒ **Không có contract test nào ràng buộc giá trị `side`.** `explorer/dnse/quote.py:95`
+chỉ map `"side": "side"` — ánh xạ danh tính, không chuyển đổi.
+
+**Hệ quả (nói thẳng):** cột `side` là *tên cột lớp A nhưng giá trị lớp B*.
+Người dùng `df.groupby("side")` trên dữ liệu đa provider sẽ nhận 3 giá trị khác nhau
+(`B`, `BUY`, `NB`) và **không có cách nào biết trước** provider nào trả gì.
+
+- Đây là **hành vi có sẵn**, không phải do DNSE port tạo ra. Không sửa trong đợt này.
+- Nếu sau này muốn so sánh chiều giao dịch đa provider thì phải chuẩn hoá **cả 4 provider
+** cùng lúc, theo một bảng tra duy nhất — không được chỉ sửa DNSE. Ticket riêng.
 
 ---
 
