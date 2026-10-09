@@ -53,6 +53,21 @@ pwsh -File scripts/check_all.ps1
 
 ## 4. Tự kiểm chứng (coordinator, **không** tin báo cáo agent)
 
+### ⚠ Bằng chứng cụ thể cho hazard "gate không đại diện máy khác"
+Sau khi merge vào `dev` (`5813327`), `check_all.ps1` chạy **FAIL 1 test**
+(`1 failed, 1695 passed, 26 skipped`). Chạy lại `pytest` trực tiếp: **0 đỏ**
+(`1695 passed, 27 skipped`) — test bị chuyển sang skip là
+`tests/integration/test_news_integration.py`, gọi mạng thật
+`kbbuddywts.kbsec.com.vn` và **read timeout 30s**. Chạy lại `check_all.ps1`
+lần nữa: **PASS, `1696 passed, 26 skipped`**.
+
+⇒ Đây là **flake do mạng**, không phải lỗi code. Nhưng suýt đã khiến tôi báo
+PASS một cách không trung thực nếu chỉ nhìn 1 lần chạy. Đã ghi lại vì đây là
+lần thứ hai trong đợt này cùng một dạng bẫu (lần trước: fixture nằm ngoài
+khoảng ngày của test).
+
+**Số liệu `1696 passed / 26 skipped` trong bảng §3 là của lần chạy PASS thứ hai.**
+
 ### AC S1 — kiểm bằng payload thật Owner đã paste (có `dataT1: null`)
 ```
 cot      : ['time', 'open', 'high', 'low', 'close', 'volume']
