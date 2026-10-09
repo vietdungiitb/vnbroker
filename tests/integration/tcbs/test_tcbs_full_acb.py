@@ -151,148 +151,55 @@ class TestMarketEndpointsACB:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Unit Tests — Phase 1: Erebos Account Endpoints
+# Unit Tests — Phase 1: Erebos Account Endpoints — ĐÃ GỠ (2026-10-09)
+# 13 path /erebos/v1/* và /erebos/v2/accounts/* không có trong openapi-v1.0.0.json
+# lẫn tcbs-openapi-v1.0.0.postman_collection.json. Xoá theo quyết định Owner
+# dựa trên 2 tài liệu chính thức, chưa probe server. Method VẪN CÒN và phải
+# ném NotImplementedError — không được im lặng trả về rỗng.
 # ──────────────────────────────────────────────────────────────────────────────
 
+_REMOVED_ACCOUNT_METHODS = [
+    "get_erebos_v1_asset",
+    "get_erebos_v1_available_balance",
+    "get_erebos_v1_portfolio_asset",
+    "get_erebos_v1_portfolio_asset_token",
+    "get_erebos_v1_portfolio_stock_statistic",
+    "get_erebos_v2_asset",
+    "get_erebos_v2_available_balance",
+    "get_erebos_v2_stock_statistic",
+    "get_erebos_v2_orders_history",
+    "get_erebos_v2_orders_matching",
+    "get_erebos_v2_withdraw_history",
+    "get_erebos_v2_deposit_history",
+    "get_erebos_v2_dividend_history",
+]
+
+
 @pytest.mark.unit
-class TestPhase1ErebosAccount:
-    """Test Phase 1: Erebos v1/v2 account endpoints."""
+class TestPhase1ErebosAccountRemoved:
+    """13 method Erebos v1/v2 đã gỡ — phải ném lỗi, không trả rỗng."""
 
     @pytest.fixture
     def account_service(self, mock_config, mock_session):
         return TCBSAccountService(config=mock_config, session=mock_session)
 
-    def test_get_erebos_v1_asset(self, account_service, mock_response):
-        """GET /erebos/v1/account/asset"""
-        mock_response.json.return_value = {
-            "data": {"accountNo": ACCOUNT_NO, "cash": 100000000, "stock": 250000000}
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v1_asset(account_no=ACCOUNT_NO)
-            assert result is not None
+    @pytest.mark.parametrize("method_name", _REMOVED_ACCOUNT_METHODS)
+    def test_removed_method_raises_not_implemented(self, account_service, method_name):
+        """Method đã gỡ ném NotImplementedError kể cả khi server trả data."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"accountNo": ACCOUNT_NO}]}
+        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_resp):
+            with pytest.raises(NotImplementedError) as exc_info:
+                getattr(account_service, method_name)(account_no=ACCOUNT_NO)
+        assert method_name in str(exc_info.value)
 
-    def test_get_erebos_v1_available_balance(self, account_service, mock_response):
-        """GET /erebos/v1/account/available-balance"""
-        mock_response.json.return_value = {
-            "data": {"accountNo": ACCOUNT_NO, "availableCash": 50000000}
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v1_available_balance(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v1_portfolio_asset(self, account_service, mock_response):
-        """GET /erebos/v1/portfolio-asset"""
-        mock_response.json.return_value = {
-            "data": [{"ticker": SYMBOL, "quantity": 1000, "avgPrice": 25000}]
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v1_portfolio_asset(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v1_portfolio_asset_token(self, account_service, mock_response):
-        """GET /erebos/v1/portfolio-asset/token"""
-        mock_response.json.return_value = {
-            "data": [
-                {"symbol": SYMBOL, "secType": "STOCK", "quantity": 1000, "averageCost": 25000}
-            ]
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v1_portfolio_asset_token(account_no=ACCOUNT_NO)
-            assert result is not None
-            assert len(result) == 1
-
-    def test_get_erebos_v1_portfolio_stock_statistic(self, account_service, mock_response):
-        """GET /erebos/v1/portfolio/stock/{accountNo}/statistic"""
-        mock_response.json.return_value = {
-            "data": {"totalStocks": 5, "totalValue": 500000000}
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v1_portfolio_stock_statistic(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v2_asset(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/asset"""
-        mock_response.json.return_value = {
-            "data": {"accountNo": ACCOUNT_NO, "netAsset": 350000000}
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_asset(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v2_available_balance(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/available-balance"""
-        mock_response.json.return_value = {
-            "data": {"availableCash": 75000000, "availableMargin": 200000000}
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_available_balance(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v2_stock_statistic(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/stock-statistic"""
-        mock_response.json.return_value = {
-            "data": {"totalStocks": 3, "profitLoss": 15000000}
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_stock_statistic(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v2_orders_history(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/orders/history"""
-        mock_response.json.return_value = {
-            "data": [
-                {"orderNo": "123", "ticker": SYMBOL, "side": "BUY", "status": "MATCHED"}
-            ],
-            "total": 1,
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_orders_history(
-                account_no=ACCOUNT_NO, from_date="2026-06-01", to_date="2026-06-20"
-            )
-            assert result is not None
-            assert len(result) == 1
-
-    def test_get_erebos_v2_orders_matching(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/orders/matching"""
-        mock_response.json.return_value = {
-            "data": [
-                {"orderNo": "123", "ticker": SYMBOL, "matchedVolume": 100, "matchedPrice": 25100}
-            ],
-            "total": 1,
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_orders_matching(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v2_withdraw_history(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/withdraw"""
-        mock_response.json.return_value = {
-            "data": [{"withdrawId": "W001", "amount": 50000000, "status": "COMPLETED"}],
-            "total": 1,
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_withdraw_history(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v2_deposit_history(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/deposit"""
-        mock_response.json.return_value = {
-            "data": [{"depositId": "D001", "amount": 100000000, "status": "COMPLETED"}],
-            "total": 1,
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_deposit_history(account_no=ACCOUNT_NO)
-            assert result is not None
-
-    def test_get_erebos_v2_dividend_history(self, account_service, mock_response):
-        """GET /erebos/v2/accounts/{accountNo}/dividend"""
-        mock_response.json.return_value = {
-            "data": [{"ticker": SYMBOL, "dividendAmount": 2500, "payDate": "2026-06-15"}],
-            "total": 1,
-        }
-        with patch("vnbroker.broker.tcbs.account.requests.get", return_value=mock_response):
-            result = account_service.get_erebos_v2_dividend_history(account_no=ACCOUNT_NO)
-            assert result is not None
+    @pytest.mark.parametrize("method_name", _REMOVED_ACCOUNT_METHODS)
+    def test_removed_path_absent_from_PATHS(self, method_name):
+        """Path bị gỡ KHÔNG còn trong _PATHS (chỉ còn trong _REMOVED_PATHS)."""
+        from vnbroker.broker.tcbs.account import _PATHS, _REMOVED_PATHS
+        assert method_name not in _PATHS
+        assert method_name in _REMOVED_PATHS
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -385,78 +292,71 @@ class TestPhase2MoneyMargin:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Unit Tests — Phase 3.4: Stop-Limit Order Endpoints
+# Unit Tests — Phase 3.4: Stop-Limit Order Endpoints — ĐÃ GỠ (2026-10-09)
+# 4 path /erebos/v2/order/stop-limit* không có trong openapi-v1.0.0.json lẫn
+# tcbs-openapi-v1.0.0.postman_collection.json. Xoá theo quyết định Owner dựa
+# trên 2 tài liệu chính thức, chưa probe server.
 # ──────────────────────────────────────────────────────────────────────────────
 
+_REMOVED_STOP_LIMIT_METHODS = [
+    "place_stop_limit_order",
+    "get_stop_limit_orders",
+    "cancel_stop_limit_order",
+    "modify_stop_limit_order",
+]
+
+
 @pytest.mark.unit
-class TestPhase3StopLimitOrders:
-    """Test Phase 3.4: Stop-limit order endpoints."""
+class TestPhase3StopLimitOrdersRemoved:
+    """4 method stop-limit đã gỡ — phải ném lỗi, kể cả khi write đã bật."""
 
     @pytest.fixture
     def equity_service(self, mock_config, mock_session_write):
         return TCBSEquityService(config=mock_config, session=mock_session_write)
 
-    def test_place_stop_limit_order_dry_run(self, equity_service):
-        """Đặt lệnh stop-limit (dry_run=True)."""
-        result = equity_service.place_stop_limit_order(
-            account_no=ACCOUNT_NO,
-            symbol=SYMBOL,
-            side="BUY",
-            order_type="LO",
-            quantity=100,
-            price=25000,
-            stop_price=24500,
-            request_id=REQUEST_ID,
-            dry_run=True,
-        )
-        assert result["dry_run"] is True
-        assert "place_stop_limit" in result["operation"]
-
-    def test_place_stop_limit_order_write_disabled(self, mock_config, mock_session):
-        """Đặt lệnh stop-limit khi write disabled → raise."""
-        service = TCBSEquityService(config=mock_config, session=mock_session)
-        with pytest.raises(Exception):
-            service.place_stop_limit_order(
+    def test_place_stop_limit_order_raises(self, equity_service):
+        """Đặt lệnh stop-limit (dry_run=True) → NotImplementedError, không dry_run dict."""
+        with pytest.raises(NotImplementedError) as exc_info:
+            equity_service.place_stop_limit_order(
                 account_no=ACCOUNT_NO, symbol=SYMBOL, side="BUY",
                 order_type="LO", quantity=100, price=25000,
-                stop_price=24500, request_id=REQUEST_ID, dry_run=False,
+                stop_price=24500, request_id=REQUEST_ID, dry_run=True,
             )
+        assert "place_stop_limit_order" in str(exc_info.value)
 
-    def test_get_stop_limit_orders(self, equity_service, mock_response):
-        """GET /erebos/v1/orders/condition"""
-        mock_response.json.return_value = {
-            "data": [
-                {
-                    "orderNo": "SL001",
-                    "ticker": SYMBOL,
-                    "side": "BUY",
-                    "stopPrice": 24500,
-                    "price": 25000,
-                    "status": "PENDING",
-                }
-            ],
-            "total": 1,
-        }
-        with patch("vnbroker.broker.tcbs.equity.requests.get", return_value=mock_response):
-            result = equity_service.get_stop_limit_orders(account_no=ACCOUNT_NO)
-            assert result is not None
+    def test_get_stop_limit_orders_raises(self, equity_service):
+        """GET /erebos/v2/order/stop-limit/orders → NotImplementedError."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"orderNo": "SL001"}]}
+        with patch("vnbroker.broker.tcbs.equity.requests.get", return_value=mock_resp):
+            with pytest.raises(NotImplementedError) as exc_info:
+                equity_service.get_stop_limit_orders(account_no=ACCOUNT_NO)
+        assert "get_stop_limit_orders" in str(exc_info.value)
 
-    def test_cancel_stop_limit_order_dry_run(self, equity_service):
-        """Hủy lệnh stop-limit (dry_run=True)."""
-        result = equity_service.cancel_stop_limit_order(
-            order_id="SL001", request_id=REQUEST_ID, dry_run=True,
-        )
-        assert result["dry_run"] is True
-        assert "cancel_stop_limit" in result["operation"]
+    def test_cancel_stop_limit_order_raises(self, equity_service):
+        """Hủy lệnh stop-limit → NotImplementedError."""
+        with pytest.raises(NotImplementedError) as exc_info:
+            equity_service.cancel_stop_limit_order(
+                order_id="SL001", request_id=REQUEST_ID, dry_run=True,
+            )
+        assert "cancel_stop_limit_order" in str(exc_info.value)
 
-    def test_modify_stop_limit_order_dry_run(self, equity_service):
-        """Sửa lệnh stop-limit (dry_run=True)."""
-        result = equity_service.modify_stop_limit_order(
-            order_id="SL001", quantity=200, price=25500,
-            stop_price=25000, request_id=REQUEST_ID, dry_run=True,
-        )
-        assert result["dry_run"] is True
-        assert "modify_stop_limit" in result["operation"]
+    def test_modify_stop_limit_order_raises(self, equity_service):
+        """Sửa lệnh stop-limit → NotImplementedError."""
+        with pytest.raises(NotImplementedError) as exc_info:
+            equity_service.modify_stop_limit_order(
+                order_id="SL001", quantity=200, price=25500,
+                stop_price=25000, request_id=REQUEST_ID, dry_run=True,
+            )
+        assert "modify_stop_limit_order" in str(exc_info.value)
+
+    @pytest.mark.parametrize("method_name", _REMOVED_STOP_LIMIT_METHODS)
+    def test_removed_stop_limit_path_absent_from_PATHS(self, method_name):
+        """Path bị gỡ KHÔNG còn trong _PATHS (chỉ còn trong _REMOVED_PATHS)."""
+        from vnbroker.broker.tcbs.equity import _PATHS, _REMOVED_PATHS
+        assert method_name not in _PATHS
+        assert method_name in _REMOVED_PATHS
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -609,21 +509,12 @@ class TestClientFacadeACB:
         assert client.is_authenticated is True
 
     def test_client_has_all_new_methods(self, client):
-        """Verify tất cả methods mới tồn tại."""
+        """Verify các method còn lại (path có trong 2 tài liệu chính thức) tồn tại."""
         methods = [
-            "get_erebos_v1_asset", "get_erebos_v1_available_balance",
-            "get_erebos_v1_portfolio_asset", "get_erebos_v1_portfolio_asset_token",
-            "get_erebos_v1_portfolio_stock_statistic",
-            "get_erebos_v2_asset", "get_erebos_v2_available_balance",
-            "get_erebos_v2_stock_statistic", "get_erebos_v2_orders_history",
-            "get_erebos_v2_orders_matching", "get_erebos_v2_withdraw_history",
-            "get_erebos_v2_deposit_history", "get_erebos_v2_dividend_history",
             "get_purchasing_power_by_symbol", "get_purchasing_power_by_symbol_price",
             "get_customer_accounts", "get_margin_risk",
             "get_margin_subscription_detail", "get_loan_list",
             "get_cash_statements",
-            "place_stop_limit_order", "get_stop_limit_orders",
-            "cancel_stop_limit_order", "modify_stop_limit_order",
             "get_derivative_closed_positions", "get_derivative_condition_orders",
             "place_derivative_order", "place_derivative_condition_order",
             "change_derivative_order", "change_derivative_condition_order",
@@ -631,6 +522,12 @@ class TestClientFacadeACB:
         ]
         for method in methods:
             assert hasattr(client, method), f"Missing method: {method}"
+
+    def test_client_removed_wrappers_still_exist_but_raise(self, client):
+        """18 wrapper đã gỡ VẪN tồn tại (API surface không đổi) và ném lỗi."""
+        removed = _REMOVED_ACCOUNT_METHODS + _REMOVED_STOP_LIMIT_METHODS + ["get_order_history"]
+        for method in removed:
+            assert hasattr(client, method), f"Wrapper biến mất: {method}"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -36,15 +36,22 @@ def _mock_kbs_history_response(*args, **kwargs):
 
 
 def _mock_tcbs_history_response(*args, **kwargs):
+    # Shape theo spec TCBS `GET /nyx/v2/stock/bars-long-term`.
+    # Bản gốc mock `{t,p,v,a}` — đó là shape intraday tick, chính là cái mà
+    # commit nối `bars` đã gỡ bỏ. Giữ shape cũ thì test đang kiểm một hợp
+    # đồng không còn tồn tại.
     return {
+        "ticker": "VNM",
         "data": [
             {
-                "t": "09:30:00",
-                "p": 30400.0,
-                "v": 123456,
-                "a": "BU",
+                "open": 30400.0,
+                "high": 30400.0,
+                "low": 30400.0,
+                "close": 30400.0,
+                "volume": 123456,
+                "tradingDate": "2024-04-01T00:00:00Z",
             }
-        ]
+        ],
     }
 
 
