@@ -34,7 +34,8 @@
 | leader-t2-policy | dev | vnbroker/core/source_router.py,tests/unit/core/test_failover_parity.py | partial | 2026-10-08T15:00:00Z -> b505766 |
 | leader-t2-ws | dev | vnbroker/connector/dnse/websocket.py,tests/unit/connector/dnse/test_websocket_protocol.py | done | 2026-10-09 -> 95f68e6 |
 | pm-audit-doc | docs/pm-audit-2026-10-09 | docs/PM_AUDIT_REPORT_20261009.md | done | 2026-10-09 -> 2c67b3c |
-| pm-gates-local | chore/local-gates-and-handoff | scripts/check_all.ps1,docs/HANDOFF_DNSE_ROUND2_20261009.md,CLAUDE.md | in-progress | 2026-10-09 |
+| pm-gates-local | chore/local-gates-and-handoff | scripts/check_all.ps1,docs/HANDOFF_DNSE_ROUND2_20261009.md,CLAUDE.md,docs/CLAIMS.md | done | 2026-10-09 -> 2b76026 |
+| pm-dnse-gate | feat/dnse-write-gate-layer | vnbroker/connector/dnse/client.py,vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_write_gate_layer.py | in-progress | 2026-10-09 |
 
 ## Ghi chú
 
