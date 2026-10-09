@@ -1,27 +1,36 @@
 """
 vnbroker.broker.tcbs.equity — TCBSEquityService: read + write equity.
 
-READ endpoints:
-  GET /gaia/v1/openapi/account/{accountNo}/orders
-  GET /gaia/v1/openapi/account/{accountNo}/orders/{orderId}
-  GET /gaia/v1/openapi/account/{accountNo}/orders/history
-  GET /gaia/v1/openapi/account/{accountNo}/executions
-  GET /gaia/v1/openapi/account/{accountNo}/portfolio/holdings
+READ endpoints (xem `_PATHS` — nguồn sự thật):
+  GET /aion/v1/accounts/{accountNo}/orders              → get_orders()
+  GET /aion/v1/accounts/{accountNo}/orders/{orderID}    → get_order_detail()
+  GET /aion/v1/accounts/{accountNo}/matching-details    → get_executions()
+  GET /aion/v1/accounts/{accountNo}/se                  → get_holdings()
+  GET /tartarus/v1/tickerCommons                        (enrich giá trong get_holdings)
 
 WRITE endpoints (dry_run=True mặc định, @write_gate bắt buộc):
-  POST   /gaia/v1/openapi/account/{accountNo}/orders          → place_order()
-  PUT    /gaia/v1/openapi/account/{accountNo}/orders/{orderId} → modify_order()
-  DELETE /gaia/v1/openapi/account/{accountNo}/orders/{orderId} → cancel_order()
+  POST /akhlys/v1/accounts/{accountNo}/orders           → place_order()
+  PUT  /akhlys/v1/accounts/{accountNo}/orders/{orderId} → modify_order()
+  PUT  /akhlys/v1/accounts/{accountNo}/cancel-orders    → cancel_order(s)()
 
 SECURITY RULES:
   - pinCode KHÔNG được log. Redacted trong dry_run output.
   - request_id bắt buộc cho mọi write call (idempotency).
   - Dùng requests trực tiếp. KHÔNG dùng core/utils/client.
+
+GỠ 5 PATH LEGACY — 2026-10-09: `/erebos/v2/order/stop-limit` (+ `/orders`,
+`/{orderId}`, `/{orderId}/cancel`) và `/aion/v1/accounts/{a}/orders/history`.
+Cả 5 KHÔNG có trong openapi-v1.0.0.json lẫn
+tcbs-openapi-v1.0.0.postman_collection.json (mỗi tài liệu 48 REST endpoint,
+khớp 48/48). Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức,
+CHƯA probe server (401 chạy trước routing). KHÔNG phải kết luận "path
+không tồn tại trên server". Method công khai VẪN CÒN nhưng ném
+NotImplementedError — xem `_raise_removed()` và `_REMOVED_PATHS`.
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
+from typing import NoReturn, Optional, Union
 
 import pandas as pd
 import requests
@@ -45,7 +54,6 @@ _logger = logging.getLogger("vnbroker.broker.tcbs.equity")
 _PATHS = {
     "orders": "/aion/v1/accounts/{accountNo}/orders",
     "order_detail": "/aion/v1/accounts/{accountNo}/orders/{orderID}",
-    "order_history": "/aion/v1/accounts/{accountNo}/orders/history",
     "matching_details": "/aion/v1/accounts/{accountNo}/matching-details",
     "se": "/aion/v1/accounts/{accountNo}/se",
     "place_order": "/akhlys/v1/accounts/{accountNo}/orders",
@@ -53,12 +61,36 @@ _PATHS = {
     "cancel_orders": "/akhlys/v1/accounts/{accountNo}/cancel-orders",
     # market enrichment (dùng trong get_holdings)
     "ticker_commons": "/tartarus/v1/tickerCommons",
-    # Stop-limit order endpoints (Phase 3.4)
-    "stop_limit_place": "/erebos/v2/order/stop-limit",
-    "stop_limit_orders": "/erebos/v2/order/stop-limit/orders",
-    "stop_limit_cancel": "/erebos/v2/order/stop-limit/{orderId}/cancel",
-    "stop_limit_modify": "/erebos/v2/order/stop-limit/{orderId}",
 }
+
+# 5 path đã gỡ — xoá theo quyết định Owner dựa trên 2 tài liệu chính thức,
+# CHƯA probe server. Key = tên method công khai, value = path đã gỡ.
+_REMOVED_PATHS: dict[str, str] = {
+    "place_stop_limit_order": "/erebos/v2/order/stop-limit",
+    "get_stop_limit_orders": "/erebos/v2/order/stop-limit/orders",
+    "modify_stop_limit_order": "/erebos/v2/order/stop-limit/{orderId}",
+    "cancel_stop_limit_order": "/erebos/v2/order/stop-limit/{orderId}/cancel",
+    "get_order_history": "/aion/v1/accounts/{accountNo}/orders/history",
+}
+
+
+def _raise_removed(method_name: str) -> NoReturn:
+    """
+    Ném lỗi rõ ràng cho method đã gỡ — KHÔNG trả về rỗng im lặng.
+
+    Path bị gỡ không có trong openapi-v1.0.0.json và
+    tcbs-openapi-v1.0.0.postman_collection.json. Đây là quyết định của Owner
+    dựa trên 2 tài liệu chính thức; CHƯA probe server (401 chạy trước
+    routing nên không phân biệt được route có hay không).
+    """
+    path = _REMOVED_PATHS[method_name]
+    raise NotImplementedError(
+        f"{method_name}() đã bị gỡ bỏ: path {path} không có trong "
+        f"openapi-v1.0.0.json và tcbs-openapi-v1.0.0.postman_collection.json. "
+        f"Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server. "
+        f"Dùng endpoint trong spec thay thế: /aion/v1/accounts/{{accountNo}}/orders "
+        f"(đặt lệnh) và /aion/v1/accounts/{{accountNo}}/matching-details (khớp lệnh)."
+    )
 
 # OrderInfo schema từ /aion/v1/accounts/{accountNo}/orders
 _ORDER_COLUMNS = {
@@ -107,7 +139,7 @@ _HOLDING_COLUMNS = {
 
 
 class TCBSEquityService:
-    """Read-only equity service: danh sách lệnh, lịch sử khớp, holdings."""
+    """Equity service: danh sách lệnh, lịch sử khớp, holdings, đặt/sửa/huỷ lệnh."""
 
     def __init__(
         self,
@@ -129,16 +161,9 @@ class TCBSEquityService:
         GET /aion/v1/accounts/{accountNo}/orders
 
         Trả về sổ lệnh trong ngày. TCBS không hỗ trợ phân trang trên endpoint này.
-
-        Args:
-            size: Số lượng lệnh tối đa (mặc định 100).
-
-        DataFrame columns (raw=False):
-            order_id, symbol, side (category: NB/NS),
-            order_type (category: LO/ATO/ATC/MP…),
-            quantity (Int64), filled_quantity (Int64),
-            price (float64), status (category),
-            tx_date (str), tx_time (str)
+        Columns DataFrame (raw=False): order_id, symbol, side (category: NB/NS),
+        order_type (category: LO/ATO/ATC/MP…), quantity/filled_quantity (Int64),
+        price (float64), status (category), tx_date, tx_time.
         """
         _validate_account_no(account_no)
         path = _PATHS["orders"].format(accountNo=account_no)
@@ -161,43 +186,12 @@ class TCBSEquityService:
         symbol: str = "",
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
+        """ĐÃ GỠ — GET /aion/v1/accounts/{accountNo}/orders/history.
+
+        Dùng `get_orders()` (/aion/v1/accounts/{accountNo}/orders) hoặc
+        `get_executions()` (/aion/v1/accounts/{accountNo}/matching-details).
         """
-        GET /aion/v1/accounts/{accountNo}/orders/history
-
-        Trả về lịch sử lệnh trong khoảng thời gian.
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            from_date: Ngày bắt đầu (YYYY-MM-DD).
-            to_date: Ngày kết thúc (YYYY-MM-DD).
-            size: Số lượng lệnh tối đa (mặc định 100).
-            symbol: Lọc theo mã chứng khoán (tùy chọn).
-            raw: True → trả về dict nguyên gốc.
-
-        DataFrame columns (raw=False):
-            order_id, symbol, side (category: NB/NS),
-            order_type (category: LO/ATO/ATC/MP…),
-            quantity (Int64), filled_quantity (Int64),
-            price (float64), status (category),
-            tx_date (str), tx_time (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["order_history"].format(accountNo=account_no)
-        params = {"size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-        if symbol:
-            params["symbol"] = symbol.upper()
-        data = self._get(path, params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
-        df = _build_order_df(records)
-        return df
+        _raise_removed("get_order_history")
 
     def get_order_detail(
         self,
@@ -290,13 +284,9 @@ class TCBSEquityService:
 
         Trả về danh mục cổ phiếu (SeInfoDTO.stock[]). Nếu enrich_prices=True,
         tự động gọi /tartarus/v1/tickerCommons để bổ sung giá thị trường.
-
-        DataFrame columns (raw=False):
-            symbol, sec_type (str),
-            available_quantity (Int64), t0 (Int64), t1 (Int64), t2 (Int64), t3 (Int64),
-            mortgaged (Int64),
-            average_cost (float64), market_price (float64),
-            unrealized_pnl (float64), unrealized_pnl_pct (float64)
+        Columns DataFrame (raw=False): symbol, sec_type (str),
+        available_quantity/t0/t1/t2/t3/mortgaged (Int64), average_cost (float64),
+        market_price (float64), unrealized_pnl (float64), unrealized_pnl_pct (float64).
         """
         _validate_account_no(account_no)
         path = _PATHS["se"].format(accountNo=account_no)
@@ -537,7 +527,8 @@ class TCBSEquityService:
         url = self._config.base_url.rstrip("/") + _PATHS["cancel_orders"].format(accountNo=account_no)
         return self._put(url, payload)
 
-    # ── Stop-Limit Order methods (Phase 3.4) ─────────────────────────────────
+    # ── Stop-Limit Order methods — ĐÃ GỠ (4 path) ────────────────────────────
+    # Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server.
 
     def place_stop_limit_order(
         self,
@@ -552,55 +543,8 @@ class TCBSEquityService:
         *,
         dry_run: bool = True,
     ) -> dict:
-        """
-        POST /erebos/v2/order/stop-limit
-
-        Args:
-            side: 'BUY' hoặc 'SELL' (được map sang 'NB'/'NS').
-            order_type: 'LO', 'ATO', 'ATC', 'MP'.
-            price: Giá đặt lệnh.
-            stop_price: Giá kích hoạt lệnh điều kiện.
-            request_id: ID idempotency key (bắt buộc).
-            dry_run: True (default) → không gửi HTTP.
-        """
-        _validate_account_no(account_no)
-        _validate_order_input(symbol, side, order_type, quantity, price, request_id)
-        if stop_price < 0:
-            raise BrokerValidationError(
-                message="stop_price phải >= 0.",
-                code="INVALID_STOP_PRICE",
-            )
-        return self._gated_place_stop_limit_order(
-            account_no, symbol, side, order_type, quantity, price, stop_price, request_id,
-            dry_run=dry_run,
-        )
-
-    @write_gate
-    def _gated_place_stop_limit_order(
-        self,
-        account_no: str,
-        symbol: str,
-        side: str,
-        order_type: str,
-        quantity: int,
-        price: float,
-        stop_price: float,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        exec_type = "NB" if side.upper() == "BUY" else "NS"
-        payload = {
-            "symbol": symbol.upper(),
-            "execType": exec_type,
-            "priceType": order_type.upper(),
-            "quantity": quantity,
-            "price": int(price),
-            "stopPrice": int(stop_price),
-            "requestId": request_id,
-        }
-        url = self._config.base_url.rstrip("/") + _PATHS["stop_limit_place"]
-        return self._post(url, payload)
+        """ĐÃ GỠ — POST /erebos/v2/order/stop-limit. Xem docstring module."""
+        _raise_removed("place_stop_limit_order")
 
     def get_stop_limit_orders(
         self,
@@ -608,48 +552,8 @@ class TCBSEquityService:
         status: str = "",
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/order/stop-limit/orders
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            status: Lọc theo trạng thái (tùy chọn).
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                order_id, symbol, side (category), order_type (category),
-                quantity (Int64), price (float64), stop_price (float64),
-                status (category), tx_date (str), tx_time (str)
-        """
-        _validate_account_no(account_no)
-        params: dict = {"accountNo": account_no}
-        if status:
-            params["status"] = status
-
-        data = self._get(_PATHS["stop_limit_orders"], params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
-        if not records:
-            return pd.DataFrame(columns=[
-                "order_id", "symbol", "side", "order_type",
-                "quantity", "price", "stop_price", "status", "tx_date", "tx_time"
-            ])
-
-        df = pd.DataFrame(records)
-        for col in ("quantity",):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
-        for col in ("price", "stop_price"):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        for col in ("side", "order_type", "status"):
-            if col in df.columns:
-                df[col] = df[col].astype("category")
-        return df
+        """ĐÃ GỠ — GET /erebos/v2/order/stop-limit/orders. Xem docstring module."""
+        _raise_removed("get_stop_limit_orders")
 
     def cancel_stop_limit_order(
         self,
@@ -658,37 +562,8 @@ class TCBSEquityService:
         *,
         dry_run: bool = True,
     ) -> dict:
-        """
-        PUT /erebos/v2/order/stop-limit/{orderId}/cancel
-
-        Args:
-            order_id: ID lệnh điều kiện cần hủy.
-            request_id: ID idempotency key (bắt buộc).
-            dry_run: True (default) → không gửi HTTP.
-        """
-        if not order_id or not order_id.strip():
-            raise BrokerValidationError(
-                message="order_id không được để trống.",
-                code="INVALID_ORDER_ID",
-            )
-        if not request_id or not request_id.strip():
-            raise BrokerValidationError(
-                message="request_id là bắt buộc cho write methods (idempotency key).",
-                code="MISSING_REQUEST_ID",
-            )
-        return self._gated_cancel_stop_limit_order(order_id, request_id, dry_run=dry_run)
-
-    @write_gate
-    def _gated_cancel_stop_limit_order(
-        self,
-        order_id: str,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        payload = {"requestId": request_id}
-        url = self._config.base_url.rstrip("/") + _PATHS["stop_limit_cancel"].format(orderId=order_id)
-        return self._put(url, payload)
+        """ĐÃ GỠ — PUT /erebos/v2/order/stop-limit/{orderId}/cancel."""
+        _raise_removed("cancel_stop_limit_order")
 
     def modify_stop_limit_order(
         self,
@@ -700,65 +575,8 @@ class TCBSEquityService:
         *,
         dry_run: bool = True,
     ) -> dict:
-        """
-        PUT /erebos/v2/order/stop-limit/{orderId}
-
-        Args:
-            order_id: ID lệnh điều kiện cần sửa.
-            quantity: Khối lượng mới.
-            price: Giá mới.
-            stop_price: Giá kích hoạt mới.
-            request_id: ID idempotency key (bắt buộc).
-            dry_run: True (default) → không gửi HTTP.
-        """
-        if not order_id or not order_id.strip():
-            raise BrokerValidationError(
-                message="order_id không được để trống.",
-                code="INVALID_ORDER_ID",
-            )
-        if quantity <= 0:
-            raise BrokerValidationError(
-                message="quantity phải > 0.",
-                code="INVALID_QUANTITY",
-            )
-        if price < 0:
-            raise BrokerValidationError(
-                message="price phải >= 0.",
-                code="INVALID_PRICE",
-            )
-        if stop_price < 0:
-            raise BrokerValidationError(
-                message="stop_price phải >= 0.",
-                code="INVALID_STOP_PRICE",
-            )
-        if not request_id or not request_id.strip():
-            raise BrokerValidationError(
-                message="request_id là bắt buộc cho write methods (idempotency key).",
-                code="MISSING_REQUEST_ID",
-            )
-        return self._gated_modify_stop_limit_order(
-            order_id, quantity, price, stop_price, request_id, dry_run=dry_run
-        )
-
-    @write_gate
-    def _gated_modify_stop_limit_order(
-        self,
-        order_id: str,
-        quantity: int,
-        price: float,
-        stop_price: float,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        payload = {
-            "quantity": quantity,
-            "price": int(price),
-            "stopPrice": int(stop_price),
-            "requestId": request_id,
-        }
-        url = self._config.base_url.rstrip("/") + _PATHS["stop_limit_modify"].format(orderId=order_id)
-        return self._put(url, payload)
+        """ĐÃ GỠ — PUT /erebos/v2/order/stop-limit/{orderId}."""
+        _raise_removed("modify_stop_limit_order")
 
     # ── Internal HTTP ────────────────────────────────────────────────────────
 

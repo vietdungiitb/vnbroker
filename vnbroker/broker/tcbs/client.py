@@ -15,6 +15,15 @@ SECURITY RULES:
   - dry_run=True mặc định cho tất cả write methods.
   - Dùng requests trực tiếp — KHÔNG dùng vnbroker.core.utils.client.
   - KHÔNG có pin_code trong API TCBS iFlash Open API v1.0.0.
+
+18 WRAPPER ĐÃ GỠ (2026-10-09) — gọi path không có trong 2 tài liệu chính thức
+`openapi-v1.0.0.json` + `tcbs-openapi-v1.0.0.postman_collection.json`
+(mỗi tài liệu 48 REST endpoint, khớp 48/48): 13 wrapper Erebos v1/v2 account
++ 4 wrapper stop-limit + `get_order_history` (/aion/v1/accounts/{a}/orders/history).
+Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, CHƯA probe server
+(401 chạy trước routing). KHÔNG phải kết luận "path không tồn tại trên server".
+Wrapper VẪN CÒN nhưng ném NotImplementedError từ service — xem
+`vnbroker/broker/tcbs/account.py` và `.../equity.py`.
 """
 from __future__ import annotations
 
@@ -120,7 +129,14 @@ class TCBSBrokerClient(BaseBrokerClient):
         self.revoke()
 
     def get_account_list(self) -> list[dict]:
-        """Lấy danh sách tài khoản theo giao diện BaseBrokerClient."""
+        """Lấy danh sách tài khoản theo giao diện BaseBrokerClient.
+
+        Đây là method @abstractmethod (`vnbroker/broker/base.py:55-58`) nên phải
+        có implementation. Dùng `GET /aion/v1/accounts` — path này KHÔNG có
+        trong 2 tài liệu chính thức nhưng được GIỮ LẠI như NGOẠI LỆ vì path
+        thay thế trong spec `/aion/v1/customers/{custodyId}/accounts` cần
+        custodyId, tức là cần chính thông tin mà method này sinh ra.
+        """
         accounts = self.list_accounts(raw=True)
         if isinstance(accounts, list):
             return accounts
@@ -156,45 +172,47 @@ class TCBSBrokerClient(BaseBrokerClient):
         """Lấy sức mua tài khoản."""
         return self._account.get_purchasing_power(account_no=account_no, raw=raw)
 
-    # ── Erebos v1/v2 Account Endpoints ───────────────────────────────────────
+    # ── Erebos v1/v2 Account Endpoints — ĐÃ GỠ (13 path) ──────────────────────
+    # Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server.
+    # Mỗi wrapper ném lại lỗi từ service (NotImplementedError) — không trả rỗng.
 
     def get_erebos_v1_asset(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/account/asset"""
+        """ĐÃ GỠ — /erebos/v1/account/asset."""
         return self._account.get_erebos_v1_asset(account_no=account_no, raw=raw)
 
     def get_erebos_v1_available_balance(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/account/available-balance"""
+        """ĐÃ GỠ — /erebos/v1/account/available-balance."""
         return self._account.get_erebos_v1_available_balance(account_no=account_no, raw=raw)
 
     def get_erebos_v1_portfolio_asset(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/portfolio-asset"""
+        """ĐÃ GỠ — /erebos/v1/portfolio-asset."""
         return self._account.get_erebos_v1_portfolio_asset(account_no=account_no, raw=raw)
 
     def get_erebos_v1_portfolio_asset_token(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/portfolio-asset/token"""
+        """ĐÃ GỠ — /erebos/v1/portfolio-asset/token."""
         return self._account.get_erebos_v1_portfolio_asset_token(account_no=account_no, raw=raw)
 
     def get_erebos_v1_portfolio_stock_statistic(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/portfolio/stock/{accountNo}/statistic"""
+        """ĐÃ GỠ — /erebos/v1/portfolio/stock/{accountNo}/statistic."""
         return self._account.get_erebos_v1_portfolio_stock_statistic(account_no=account_no, raw=raw)
 
     def get_erebos_v2_asset(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/asset"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/asset."""
         return self._account.get_erebos_v2_asset(account_no=account_no, raw=raw)
 
     def get_erebos_v2_available_balance(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/available-balance"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/available-balance."""
         return self._account.get_erebos_v2_available_balance(account_no=account_no, raw=raw)
 
     def get_erebos_v2_stock_statistic(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/stock-statistic"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/stock-statistic."""
         return self._account.get_erebos_v2_stock_statistic(account_no=account_no, raw=raw)
 
     def get_erebos_v2_orders_history(
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/orders/history"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/orders/history."""
         return self._account.get_erebos_v2_orders_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -204,7 +222,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/orders/matching"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/orders/matching."""
         return self._account.get_erebos_v2_orders_matching(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -214,7 +232,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/withdraw"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/withdraw."""
         return self._account.get_erebos_v2_withdraw_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -224,7 +242,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/deposit"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/deposit."""
         return self._account.get_erebos_v2_deposit_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -234,7 +252,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/dividend"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/dividend."""
         return self._account.get_erebos_v2_dividend_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -312,7 +330,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, page: int = 0, page_size: int = 50,
         start_date: Optional[str] = None, end_date: Optional[str] = None, raw: bool = False,
     ) -> pd.DataFrame:
-        """Lấy lịch sử lệnh."""
+        """ĐÃ GỠ — GET /aion/v1/accounts/{accountNo}/orders/history."""
         return self._equity.get_order_history(
             account_no=account_no, page=page, page_size=page_size,
             start_date=start_date, end_date=end_date, raw=raw,
@@ -390,7 +408,8 @@ class TCBSBrokerClient(BaseBrokerClient):
             pin_code=pin_code, dry_run=dry_run,
         )
 
-    # ── Stop-Limit Orders ────────────────────────────────────────────────────
+    # ── Stop-Limit Orders — ĐÃ GỠ (4 path) ────────────────────────────────────
+    # Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server.
 
     def place_stop_limit_order(
         self,
@@ -404,7 +423,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         request_id: str,
         dry_run: bool = True,
     ) -> dict:
-        """Đặt lệnh điều kiện. dry_run=True mặc định."""
+        """ĐÃ GỠ — POST /erebos/v2/order/stop-limit."""
         return self._equity.place_stop_limit_order(
             account_no=account_no, symbol=symbol, side=side,
             order_type=order_type, quantity=quantity, price=price,
@@ -412,18 +431,18 @@ class TCBSBrokerClient(BaseBrokerClient):
         )
 
     def get_stop_limit_orders(self, account_no: str, status: str = "", raw: bool = False) -> pd.DataFrame:
-        """Lấy danh sách lệnh điều kiện."""
+        """ĐÃ GỠ — GET /erebos/v2/order/stop-limit/orders."""
         return self._equity.get_stop_limit_orders(account_no=account_no, status=status, raw=raw)
 
     def cancel_stop_limit_order(self, order_id: str, request_id: str, dry_run: bool = True) -> dict:
-        """Hủy lệnh điều kiện. dry_run=True mặc định."""
+        """ĐÃ GỠ — PUT /erebos/v2/order/stop-limit/{orderId}/cancel."""
         return self._equity.cancel_stop_limit_order(order_id=order_id, request_id=request_id, dry_run=dry_run)
 
     def modify_stop_limit_order(
         self, order_id: str, quantity: int, price: float, stop_price: float,
         request_id: str, dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh điều kiện. dry_run=True mặc định."""
+        """ĐÃ GỠ — PUT /erebos/v2/order/stop-limit/{orderId}."""
         return self._equity.modify_stop_limit_order(
             order_id=order_id, quantity=quantity, price=price,
             stop_price=stop_price, request_id=request_id, dry_run=dry_run,

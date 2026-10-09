@@ -176,35 +176,37 @@ class TestEquityGetOrderDetail:
             self._svc().get_order_detail(ACCOUNT_NO, "  ")
 
 
-# ── TCBSEquityService — get_order_history ─────────────────────────────────────
+# ── TCBSEquityService — get_order_history — ĐÃ GỠ (2026-10-09) ─────────────
+# /aion/v1/accounts/{accountNo}/orders/history KHÔNG có trong openapi-v1.0.0.json
+# lẫn tcbs-openapi-v1.0.0.postman_collection.json. Xoá theo quyết định Owner dựa
+# trên 2 tài liệu chính thức, chưa probe server.
 
-class TestEquityGetOrderHistory:
+class TestEquityGetOrderHistoryRemoved:
     def _svc(self):
         return TCBSEquityService(_make_config(), _make_session())
 
-    def test_get_order_history_returns_dataframe(self):
+    def test_get_order_history_raises_not_implemented(self):
         payload = {"total": 0, "data": []}
         with patch("requests.get", return_value=_mock_resp(200, payload)):
-            df = self._svc().get_order_history(ACCOUNT_NO, from_date="2026-01-01", to_date="2026-05-19")
-        assert isinstance(df, pd.DataFrame)
+            with pytest.raises(NotImplementedError) as exc_info:
+                self._svc().get_order_history(ACCOUNT_NO, from_date="2026-01-01")
+        assert "get_order_history" in str(exc_info.value)
 
-    def test_get_order_history_passes_params_correctly(self):
-        payload = {"total": 0, "data": []}
-        with patch("requests.get", return_value=_mock_resp(200, payload)) as m:
-            self._svc().get_order_history(ACCOUNT_NO, from_date="2026-01-01", symbol="VNM")
-        call_kwargs = m.call_args
-        assert call_kwargs.kwargs["params"]["fromDate"] == "2026-01-01"
-        assert call_kwargs.kwargs["params"]["symbol"] == "VNM"
+    def test_get_order_history_path_removed_from_PATHS(self):
+        """Path bị gỡ KHÔNG còn trong _PATHS của equity.py."""
+        from vnbroker.broker.tcbs.equity import _PATHS, _REMOVED_PATHS
+        assert "order_history" not in _PATHS
+        assert "get_order_history" in _REMOVED_PATHS
 
-    def test_get_order_history_raw_true(self):
-        payload = {"total": 1, "data": [{"orderId": "X"}]}
-        with patch("requests.get", return_value=_mock_resp(200, payload)):
-            result = self._svc().get_order_history(ACCOUNT_NO, raw=True)
-        assert isinstance(result, dict)
-
-    def test_get_order_history_empty_account_no_raises(self):
-        with pytest.raises(BrokerValidationError):
-            self._svc().get_order_history("")
+    def test_get_order_history_error_message_cites_spec(self):
+        """Message phải nói rõ lý do gỡ + chưa probe server (không nói
+        'đã xác nhận path không tồn tại')."""
+        with pytest.raises(NotImplementedError) as exc_info:
+            self._svc().get_order_history(ACCOUNT_NO)
+        msg = str(exc_info.value)
+        assert "openapi-v1.0.0.json" in msg
+        assert "postman_collection.json" in msg
+        assert "chưa probe server" in msg
 
 
 # ── TCBSEquityService — get_executions ───────────────────────────────────────
