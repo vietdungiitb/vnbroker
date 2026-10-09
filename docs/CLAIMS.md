@@ -118,3 +118,38 @@ uff check tests → **exit 1, 13 lỗi KNOWN-RED có sẵn** — không đòi xa
 
 **Cổng Giai đoạn 0 (probe 19 path) đã bị bỏ** — Owner quyết xoá theo tài liệu chính
 thức, không cần probe. Ghi rõ: **xoá theo quyết định Owner, chưa verify bằng server.**
+
+---
+
+## 2026-10-10 — TCBS Round 2 (Mode A, 3 worker) · base `dev @ c8c4618`
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| t-token | feat/t-token | ../tcbs-t-token | GĐ4 TokenManager + 2 endpoint gaia | vnbroker/broker/tcbs/token_manager.py (mới), vnbroker/broker/tcbs/auth.py, tests/unit/broker/tcbs/test_tcbs_token_manager.py (mới) | **in-progress** | 2026-10-10 | Chặn bug 8 giờ bịa tại session.py:87-90 |
+| m-money | feat/m-money | ../tcbs-m-money | GĐ5 4 endpoint tiền/vay (1 read + 3 write) | vnbroker/broker/tcbs/money.py, tests/unit/broker/tcbs/test_tcbs_money_endpoints.py (mới) | **in-progress** | 2026-10-10 | 3 write endpoint bắt buộc @write_gate |
+| e-cond-sec | feat/e-cond-sec | ../tcbs-e-cond-sec | GĐ5 condition/cancel + ananke securities | vnbroker/broker/tcbs/condition_orders.py (mới), vnbroker/explorer/tcbs/listing.py, tests/unit/broker/tcbs/test_tcbs_condition_order.py (mới), tests/unit/explorer/tcbs/test_tcbs_ananke_securities.py (mới) | **in-progress** | 2026-10-10 | equity.py 798L nên KHÔNG thêm vào đó |
+| coordinator | dev | (main) | Plan + audit + claim + merge + verify | docs/PLAN_TCBS_ROUND2.md, docs/PLAN_AUDIT_TCBS_ROUND2.md, docs/references/openapi-v1.0.0.json, scripts/verify_tcbs_coverage.py, .gitignore, vnbroker/broker/tcbs/client.py, vnbroker/broker/tcbs/__init__.py, CHANGELOG.md | **in-progress** | 2026-10-10 | `c8c4618` |
+
+**Rời nhau kiểm bằng script, không bằng mắt:** tập file 3 agent giao nhau = ∅.
+
+**Baseline gate @ b18e47b** (đo, không ước lượng):
+- pytest tests/ -q --timeout=300 → **1696 passed, 26 skipped**. Lần chạy thứ nhất ra
+  `1 failed, 1695 passed` — flake mạng `test_news_integration.py` gọi
+  `kbbuddywts.kbsec.com.vn`. **Ghi cả hai lần.**
+- pytest tests/contract → 72 passed · ruff check vnbroker → exit 0
+- check_mypy_baseline.py → exit 0 (baseline 1266, now 1161)
+- ruff check tests → **exit 1, 13 KNOWN-RED có sẵn** — không đòi xanh, chỉ đòi không tăng
+
+**Phạm vi GĐ5 đo lại bằng script, không đọc từ proposal:**
+`.venv\Scripts\python.exe scripts/verify_tcbs_coverage.py` → spec 48 · đã nối 39 ·
+**còn 9** · `_REMOVED_PATHS` 18 key, **0 còn trong spec** (xác nhận lại lát a3 đợt 1).
+
+**Cố ý hoãn, có lý do:**
+- `/api/v1/derivatives/contracts` — spec tự mâu thuẫn (path REST, mô tả "over WebSocket",
+  response không có `content`). Cần Owner chốt REST hay WS.
+- `derivatives.py` (852L) **cấm chạm**. `equity.py` (798L) chỉ còn 2L dưới ngân sách.
+
+**CHƯA CHẠY — KHÔNG ĐƯỢC GHI LÀ PASS:**
+- **Probe server TCBS thật**: chưa có JWT (cần Smart OTP từ app TCInvest) ⇒ mọi AC về
+  hành vi runtime chỉ dựa trên **spec**, chưa quan sát thực tế.
+- **CI GitHub Actions**: job bị từ chối do billing.
