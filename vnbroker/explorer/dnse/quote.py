@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from vnbroker.common.data import EmptyProviderResult
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import get_asset_type
 from vnbroker.core.utils.transform import normalize_ohlc_prices, normalize_intraday_prices
@@ -288,10 +289,20 @@ class DNSEQuote:
                 "Đăng ký tại: https://developers.dnse.com.vn/"
             )
 
+        # Trước đây **kwargs bị nuốt, nên `base_url` không bao giờ tới được
+        # DNSEClient: tầng explorer chỉ nói được với production. Không có
+        # cách nào chạy đường này trên sandbox để kiểm chứng bằng dữ liệu thật.
+        # Chỉ truyền các khoá DNSEClient thật sự nhận, phần còn lại bỏ qua.
+        _client_opts = {
+            key: kwargs[key]
+            for key in ("base_url", "timeout_seconds", "api_version", "algorithm")
+            if key in kwargs
+        }
         self._client = DNSEClient(
             api_key=resolved_key,
             api_secret=resolved_secret,
             show_log=show_log,
+            **_client_opts,
         )
         self._market = self._client._market
 
@@ -515,21 +526,41 @@ class DNSEQuote:
 
         Trả về:
             pd.DataFrame với thông tin định nghĩa chứng khoán.
+
+        Raises:
+            Lỗi vận chuyển/HTTP được **ném nguyên vẹn** — trước đây hàm bắt
+            ``Exception`` rồi trả ``DataFrame()``, biến "DNSE không trả lời"
+            thành "hôm nay không có giao dịch". Người dùng đọc ``len(df) == 0``
+            sẽ kết luận sai nguyên nhân.
+            EmptyProviderResult: provider trả về rỗng. Đây là trường hợp
+            "không phải lỗi nhưng cũng không dùng được", theo đúng ranh giới
+            đã định nghĩa ở `common/data.py:442`.
         """
         sym = (symbol or self.symbol).upper()
-        try:
-            _, body = self._market.get_security_definition(symbol=sym)
-        except Exception as exc:
-            logger.warning("DNSE get_security_definition lỗi: %s", exc)
-            return pd.DataFrame()
+        # Không bắt lỗi ở đây: `should_failover` cần nhìn thấy loại lỗi để
+        # quyết định có xoay sang provider khác hay không.
+        _, body = self._market.get_security_definition(symbol=sym)
 
         if body is None:
-            return pd.DataFrame()
+            raise EmptyProviderResult(
+                f"DNSE get_security_definition({sym}) tra ve rong: None"
+            )
         if isinstance(body, dict):
+            if not body:
+                raise EmptyProviderResult(
+                    f"DNSE get_security_definition({sym}) tra ve dict rong"
+                )
             return pd.json_normalize(body)
         if isinstance(body, list):
+            if not body:
+                raise EmptyProviderResult(
+                    f"DNSE get_security_definition({sym}) tra ve list rong"
+                )
             return pd.json_normalize(body)
-        return pd.DataFrame()
+        raise EmptyProviderResult(
+            f"DNSE get_security_definition({sym}) tra ve kieu khong mong doi: "
+            f"{type(body).__name__}"
+        )
 
     def close_price(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """
