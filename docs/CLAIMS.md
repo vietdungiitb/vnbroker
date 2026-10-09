@@ -71,19 +71,50 @@ Exit 0 = không chồng lấn. Exit 1 = có chồng lấn → DỪNG, không dis
 
 | agent | branch | worktree | scope | files | status | since | note |
 |---|---|---|---|---|---|---|---|
-| a1-bars | feat/a1-bars | ../tcbs-a1-bars | GĐ1 nối bars + bỏ NotImplementedError | explorer/tcbs/bars.py (mới), explorer/tcbs/quote.py, tests/unit/explorer/tcbs/test_tcbs_bars.py | in-progress | 2026-10-09 | quote.py đã 801L, phải tách module mới |
-| a2-ws | feat/a2-ws | ../tcbs-a2-ws | GĐ2 viết lại WebSocket protocol pipe | explorer/tcbs/websocket.py, ws_models.py, tests/unit/explorer/tcbs/test_tcbs_ws_protocol.py | in-progress | 2026-10-09 | không network trong test |
-| a3-legacy | feat/a3-legacy | ../tcbs-a3-legacy | GĐ3 xoá 19 path legacy | broker/tcbs/account.py, broker/tcbs/equity.py, tests/unit/broker/tcbs/test_tcbs_legacy_removed.py | in-progress | 2026-10-09 | xoá theo quyết định Owner, chưa verify server |
-| coordinator | docs/plan-tcbs | (main) | Plan + claim + audit + merge | docs/PLAN_TCBS_REBUILD.md | in-progress | 2026-10-09 | giai đoạn 4-5 chưa cắt lát |
+| a1-bars | feat/a1-bars | ../tcbs-a1-bars | GĐ1 nối bars + bỏ NotImplementedError | explorer/tcbs/bars.py (mới), explorer/tcbs/quote.py, tests/unit/explorer/tcbs/test_tcbs_bars.py | **done** | 2026-10-09 | `6c88f4b`; quote.py 801→793L; AC 1-4 + 7 tự verify bằng payload thật |
+| a2-ws | feat/a2-ws | ../tcbs-a2-ws | GĐ2 viết lại WebSocket protocol pipe | explorer/tcbs/websocket.py, ws_models.py, stream.py, tests/unit/explorer/tcbs/test_tcbs_ws_protocol.py | **done** | 2026-10-09 | `f2ba384`; +60 test offline; xoá bảng SIT; không có caller `stream_ohlc` bị đổi |
+| a3-legacy | feat/a3-legacy | ../tcbs-a3-legacy | GĐ3 gỡ path không có trong 2 tài liệu | broker/tcbs/account.py, equity.py, client.py, 3 test file | **done** | 2026-10-09 | `de4c7f8`; gỡ **18/19** — `/aion/v1/accounts` giữ làm ngoại lệ (Owner chốt) |
+| coordinator | docs/plan-tcbs | (main) | Plan + claim + audit + merge + verify | docs/PLAN_TCBS_REBUILD.md, CHANGELOG.md | **done** | 2026-10-09 | `a832a84`; tự verify độc lập bằng script, **không** tin lời agent |
 
 **Rời nhau đã kiểm bằng script, không bằng mắt:** tập file của 3 agent giao nhau = ∅.
 
 **Baseline gate @ bec8b82** (đo, không ước lượng):
 - pytest tests/ -q --timeout=300 → exit 0, 1497 passed, 26 skipped
-- uff check vnbroker → exit 0
+- 
+uff check vnbroker → exit 0
 - scripts/check_mypy_baseline.py → exit 0
-- uff check tests → **exit 1, 13 lỗi KNOWN-RED có sẵn** — không đòi xanh, chỉ đòi không tăng
+- 
+uff check tests → **exit 1, 13 lỗi KNOWN-RED có sẵn** — không đòi xanh, chỉ đòi không tăng
 - 13 file vượt 800L (4 thuộc TCBS) — CLAUDE.md:15 "800 max"
+
+**Gate sau merge @ a832a84** (`scripts/check_all.ps1`, đo local):
+- pytest full → **1696 passed, 26 skipped** (baseline 1497 ⇒ **+199**)
+- pytest-contract → 72 passed
+- `check_mypy_baseline.py` → exit 0, baseline **1266 → 1161** (fix 105)
+- `ruff check tests` → 13 KNOWN-RED, **không tăng**
+- Ngân sách 800L khối TCBS: chỉ còn `derivatives.py` 852L (có sẵn, ngoài lát)
+
+**Tự kiểm chứng của coordinator (không tin báo cáo agent):**
+- AC S1 #1-4 + #7 — chạy `bars_to_frame` với payload thật Owner paste (có `dataT1: null`):
+  6 cột chuẩn ✓, tz `Asia/Ho_Chi_Minh` ✓, ngày không dịch ✓, field lạ không lọt ✓, `D/W/M` ✓
+- AC S2 — đọc code thật: `d|a|||` (`:194`), `d|p|||` (`:199`), `ping_interval=None`,
+  không còn bảng `_WS_ENDPOINTS_SIT` (chỉ còn comment giải thích), `use_sit` giữ chữ ký + cảnh báo bỏ qua
+- AC S3 — AST/regex có khoanh đúng khối `{}`: `_REMOVED_PATHS` = **18**, và **18/18 vắng
+  trong spec** (đối chiếu `openapi-v1.0.0.json`). `_PATHS` còn **39** path.
+
+> **ĐÍNH CHÍNH — lỗi của chính audit của tôi.** Ban đầu tôi ghi "19 path legacy là
+> những path có tiền tố `erebos`/`aion`". **Tiêu chí đó sai**: spec chính thức có
+> `/erebos/v2/digital/margin-info` và `/erebos/v2/digital/trans-hist-cashStatements`
+> trong `money.py` (**có** trong cả spec lẫn Postman). Đã sửa tiêu chí thành
+> "vắng ở path cụ thể" và xác minh lại từng cái. Nếu tin tiêu chí cũ thì đã xoá
+> nhầm 2 path đang hoạt động.
+
+**CHƯA CHẠY — KHÔNG ĐƯỢC GHI LÀ PASS:**
+- **Probe server TCBS thật**: chưa có JWT (cần Smart OTP từ app TCInvest).
+  ⇒ `countBack` + bản đồ resolution phút là **hệ số ước lượng**; mặc định 18 path
+  là legacy **chưa** từng gọi server (401 chạy trước routing).
+- **CI GitHub Actions**: job bị từ chối khởi động do billing.
+- **GĐ4 TokenManager + GĐ5 13 endpoint**: chưa làm (ngoài phạm vi 3 lát).
 
 **Cổng Giai đoạn 0 (probe 19 path) đã bị bỏ** — Owner quyết xoá theo tài liệu chính
 thức, không cần probe. Ghi rõ: **xoá theo quyết định Owner, chưa verify bằng server.**

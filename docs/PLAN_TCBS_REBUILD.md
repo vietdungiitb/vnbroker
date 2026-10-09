@@ -31,14 +31,27 @@
 
 ## 2. Slicing — ba lát **không chung file** (§0.5)
 
+> **KẾT QUẢ 2026-10-09 — cả 3 lát DONE, đã merge vào `dev`.**
+> `a1` → `6c88f4b` · `a2` → `f2ba384` · `a3` → `de4c7f8` · fix fixture của
+> coordinator → `a832a84`. Gate: `1696 passed / 26 skipped` (baseline 1497 ⇒
+> **+199**), mypy baseline 1266→1161, contract 72, ruff exit 0.
+> Bàn giao tổng: `docs/SUMMARY_TCBS_REBUILD.md`.
+> **Còn nợ:** GĐ4 TokenManager, GĐ5 13 endpoint, `derivatives.py` 852L.
+
 | Agent | Branch | Phạm vi | File sẽ sửa |
 |---|---|---|---|
-| **a1** | `feat/a1-bars` | GĐ1 — nối `bars` | `explorer/tcbs/bars.py` (mới), `explorer/tcbs/quote.py`, test mới |
-| **a2** | `feat/a2-ws` | GĐ2 — viết lại WebSocket | `explorer/tcbs/websocket.py`, `ws_models.py`, `explorer/tcbs/stream.py`, `tests/unit/explorer/tcbs/test_tcbs_ws_protocol.py` (mới) |
-| **a3** | `feat/a3-legacy` | GĐ3 — xoá path legacy | `broker/tcbs/account.py`, `broker/tcbs/equity.py`, `broker/tcbs/client.py`, `brokerage/tcbs/client.py`, `tests/unit/broker/tcbs/test_tcbs_legacy_removed.py` (mới), `tests/integration/tcbs/test_tcbs_full_acb.py`, `tests/unit/broker/tcbs/test_account_money.py`, `tests/unit/broker/tcbs/test_equity_derivatives.py` |
+| **a1** ✅ | `feat/a1-bars` | GĐ1 — nối `bars` | `explorer/tcbs/bars.py` (mới), `explorer/tcbs/quote.py`, test mới |
+| **a2** ✅ | `feat/a2-ws` | GĐ2 — viết lại WebSocket | `explorer/tcbs/websocket.py`, `ws_models.py`, `explorer/tcbs/stream.py`, `tests/unit/explorer/tcbs/test_tcbs_ws_protocol.py` (mới) |
+| **a3** ✅ | `feat/a3-legacy` | GĐ3 — xoá path legacy | `broker/tcbs/account.py`, `broker/tcbs/equity.py`, `broker/tcbs/client.py`, `brokerage/tcbs/client.py`, `tests/unit/broker/tcbs/test_tcbs_legacy_removed.py` (mới), `tests/integration/tcbs/test_tcbs_full_acb.py`, `tests/unit/broker/tcbs/test_account_money.py`, `tests/unit/broker/tcbs/test_equity_derivatives.py` |
 
 **Kiểm tra rời nhau:** `quote.py`/`bars.py` ∩ `websocket.py`/`ws_models.py` ∩
 `account.py`/`equity.py` = **∅**. Không agent nào chạm file của agent khác.
+
+> **ĐÍNH CHÍNH sau audit độc lập (2026-10-09).** Tiêu chí "legacy" trong lát a3
+> ban đầu được phát biểu là *"path có tiền tố `erebos`/`aion`"*. **Sai**: spec
+> chính thức có các endpoint đúng các tiền tố đó (`money.py` giữ 2 path
+> `/erebos/v2/digital/*`, đều **có** trong spec lẫn Postman). Tiêu chí đúng là
+> **vắng ở path cụ thể**, đã xác minh riêng từng cái (18/18 vắng).
 
 ---
 

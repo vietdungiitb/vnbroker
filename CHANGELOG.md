@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+### TCBS: nối OHLCV, viết lại WebSocket, gỡ 18 path legacy (2026-10-09)
+
+Ba lát song song, mỗi lát một branch. **Toàn bộ kết luận được chứng kiến bằng
+`openapi-v1.0.0.json` + `tcbs-openapi-v1.0.0.postman_collection.json` (48 REST
++ 5 WebSocket, khớp nhau 48/48).**
+
+**S1 — `explorer/tcbs/bars.py` (mới, 369L).** Nối `GET /nyx/v2/stock/bars`
+và `GET /nyx/v2/stock/bars-long-term` vào `quote.history()`. Trước đây `history()`
+ném `NotImplementedError` cho daily OHLCV với lý do **sai** (docstring nói
+"TCBS chỉ có intraday tick data"), trong khi spec có endpoint D/W/M.
+
+Ba lỗi tìm ra khi code, đều dễ đi sai nếu chỉ tin test:
+- `transform.py:402,406` cắt tz và cắt giờ ⇒ `bars.py` **không** đi qua
+  `ohlc_to_df`; `tz_convert('Asia/Ho_Chi_Minh')` gọi **tường minh**. Dùng
+  `Normalizer` thì frame UTC sẽ đi nguyên vẹn (`normalizer.py` chỉ
+  `tz_localize` khi cột chưa có tz).
+- `_INTERVAL_MAP` map `1M → 'ME'` (chuẩn pandas) nhưng spec TCBS quy định
+  `resolution: D | W | M` ⇒ `bars.py` có map riêng.
+- Server thật trả field **không có trong spec** (`dataT1: null`) ⇒ mọi field
+  `.get()` an toàn, frame chỉ giữ 6 cột chuẩn.
+
+**S2 — `explorer/tcbs/websocket.py`.** Tầng wire sai hoàn toàn: code gửi JSON,
+protocol chính thức lại là **TEXT frame phân tách `|`**. Sửa 6 lỗi: auth
+`d|a|||<base64>` thay vì header HTTP, chờ `d|0|{"success":true}` **trước** khi
+subscribe, `d|s|`/`d|u|`, heartbeat `d|p|||` 2s, `ping_interval=None` (để nguyên
+thì thư viện gửi ping RFC 6455 ⇒ server đóng `1002 Protocol Error`), và 2 endpoint
+thesis có channel ID rời nhau (`normal` s|1-8, `derivative` s|21-27) nên không
+dùng chung parser. Xoá bảng endpoint SIT (`openapisit.tcbs.com.vn` DNS FAIL,
+đo được), giữ chữ ký `use_sit` nhưng nay cảnh báo bị bỏ qua.
+
+**S3 — gỡ 18 path legacy** (`broker/tcbs/account.py` 13 path, `equity.py` 5
+path) không có trong cả 2 tài liệu. Method gọi tới **ném lỗi rõ ràng**
+(`_raise_removed`), không trả về rỗng im lặng. `account.py` 937→489L,
+`equity.py` 980→798L.
+
+> **QUAN TRỌNG — tiền tố `erebos`/`aion` KHÔNG phải tiêu chí "legacy".** Audit
+> của tôi từng mô tả "19 path legacy là những path có tiền tố `erebos/v1`,
+> `erebos/v2`, `aion`". **Câu này sai.** Spec chính thức **có** các endpoint
+> dùng đúng các tiền tố đó — `/erebos/v2/digital/margin-info` và
+> `/erebos/v2/digital/trans-hist-cashStatements` trong `money.py` **có** trong
+> cả spec lẫn Postman, và `/eros/v2/get-profile/...` là thật. 18 path bị gỡ đã
+> được **xác minh riêng từng cái** là không có trong spec. Tiêu chí đúng là
+> **vắng ở path đó**, không phải **vắng ở tiền tố**.
+
+**Ngoại lệ (quyết định Owner):** `/aion/v1/accounts` **giữ lại** — nó là
+implementation của `@abstractmethod get_account_list()` (`broker/base.py:55`);
+gỡ thì `TCBSBrokerClient` thành abstract. Path thay thế
+`/aion/v1/customers/{custodyId}/accounts` cần `custodyId` — tức là cần chính
+thông tin mà method đó sinh ra.
+
+**Gate** (`scripts/check_all.ps1`, đo local vì CI không chạy do billing):
+`pytest` **1696 passed / 26 skipped** (baseline 1497 ⇒ **+199 test**) ·
+contract 72 · ruff exit 0 · `check_mypy_baseline` exit 0, baseline **1266→1161**
+(fix 105 lỗi legacy) · `ruff check tests` giữ nguyên 13 lỗi KNOWN-RED.
+
+**CHƯA CHẠY (không phải PASS):** **chưa probe server thật** — chưa có JWT TCBS
+(cần Smart OTP từ app TCInvest). Vì vậy `countBack` và bản đồ resolution phút
+là **hệ số ước lượng**, và mặc định 18 path là legacy **chưa** từng gọi server
+(401 chạy trước routing nên không phân biệt được route có hay không).
+
+**Còn nợ:** GĐ4 TokenManager · GĐ5 **13 endpoint** spec chưa dùng ·
+`derivatives.py` 852L (>800L, `CLAUDE.md:15`, có sẵn, ngoài phạm vi lát này).
+
 ### Hai lỗi tìm ra bằng **live probe** (credential DNSE thật), không phải bằng test server giả
 
 1. **`subscribe()` im lặng với Mapping.** Chữ ký thật là
