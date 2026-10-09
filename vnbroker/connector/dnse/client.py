@@ -21,7 +21,7 @@ class DNSEClient:
         api_key: str,
         api_secret: str,
         base_url: str = "https://openapi.dnse.com.vn",
-        api_version: str = "2026-05-07",
+        api_version: str = "2026-07-23",
         algorithm: str = "hmac-sha256",
         hmac_nonce_enabled: bool = True,
         timeout_seconds: float = 30.0,
@@ -76,7 +76,21 @@ class DNSEClient:
             ):
                 value = payload.get(key)
                 if isinstance(value, list):
-                    return pd.json_normalize(value)
+                    df = pd.json_normalize(value)
+                    # The envelope's scalar siblings describe who the caller is,
+                    # not what is in the list. Unwrapping dropped them silently -
+                    # verified live on the sandbox: `get_accounts()` returned
+                    # name / custodyCode / investorId at the top level and none of
+                    # the three survived into the DataFrame. Repeat them on every
+                    # row instead; a column per envelope, not per list item.
+                    for sibling, scalar in payload.items():
+                        if sibling == key or scalar is None:
+                            continue
+                        if isinstance(scalar, (list, dict)):
+                            continue
+                        if sibling not in df.columns:
+                            df[sibling] = scalar
+                    return df
             return pd.json_normalize(payload)
         return payload
 

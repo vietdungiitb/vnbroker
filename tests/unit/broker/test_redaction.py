@@ -142,12 +142,14 @@ def test_dry_run_envelope_contains_no_transmitted_credential(dry_run_client):
         method="POST",
         path="/accounts/orders",
     )
-    # what the client would really transmit
+    # what the client would really transmit. The version is read from the
+    # config rather than hardcoded: this test is about masking, and pinning the
+    # string here only made it fail on every legitimate DNSE version bump.
     transmitted = {
         "X-Aux-Date": date_value,
         "X-Signature": signature,
         "x-api-key": "REAL_API_KEY",
-        "version": "2026-05-07",
+        "version": dry_run_client._config.api_version,
         "trading-token": "REAL_TRADING_TOKEN",
     }
 
@@ -171,7 +173,7 @@ def test_dry_run_envelope_contains_no_transmitted_credential(dry_run_client):
         )
 
     # non-credential headers stay readable, otherwise the envelope is useless
-    assert envelope["headers"]["version"] == "2026-05-07"
+    assert envelope["headers"]["version"] == transmitted["version"]
     assert envelope["headers"]["X-Aux-Date"] == transmitted["X-Aux-Date"]
 
     blob = repr(envelope)
