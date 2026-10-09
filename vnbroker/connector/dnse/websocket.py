@@ -116,9 +116,10 @@ class DNSEWebSocketClient:
         "security_definition": "security_definition",
         "ohlc": "ohlc",
         "ohlc_closed": "ohlc_closed",
-        "market_index": "market_index",
-        "estimated_market_index": "estimated_market_index",
-        "foreign_investor": "foreign",
+"market_index": "market_index",
+"estimated_market_index": "estimated_market_index",
+"market_index_influence": "market_index_influence",
+"foreign_investor": "foreign",
         "foreign": "foreign",
         "session": "session",
     }
@@ -127,6 +128,12 @@ class DNSEWebSocketClient:
     _RESOLUTION_CHANNELS = frozenset({"ohlc", "ohlc_closed"})
     #: Channels whose middle segment is a market index name.
     _INDEX_CHANNELS = frozenset({"market_index", "estimated_market_index"})
+    #: Channels shaped `{prefix}.{index}.{resolution}.{enc}` - index first,
+    #: resolution second. SDK `python/dnse/websocket/client.py:356`:
+    #:     f"market_index_influence.{index_name}.{resolution}.json"
+    #: Not the same as `_INDEX_CHANNELS` (2 segments, no resolution) nor
+    #: `_RESOLUTION_CHANNELS` (resolution is the *middle* segment).
+    _INDEX_RESOLUTION_CHANNELS = frozenset({"market_index_influence"})
 
     #: Kept as a public alias for backwards compatibility with the old,
     #: incorrect vocabulary.
@@ -261,6 +268,10 @@ class DNSEWebSocketClient:
 
         if prefix in self._RESOLUTION_CHANNELS:
             mid = resolution or "1"
+        elif prefix in self._INDEX_RESOLUTION_CHANNELS:
+            # index comes first, resolution second, and board_id is not part
+            # of this channel name at all.
+            mid = f"{market_index or 'VNINDEX'}.{resolution or '1'}"
         elif prefix in self._INDEX_CHANNELS:
             mid = market_index or "VNINDEX"
         elif prefix == "session":

@@ -371,6 +371,179 @@ class DNSEClient:
             raw=raw,
         )
 
+    # --- Đợt 1 `docs/PLAN_DNSE_API_PARITY.md` ---------------------------------
+    # 7 method read-only port từ SDK `dnse-tech/openapi-sdk`
+    # (`python/dnse/api/client.py`). Tất cả là GET ⇒ không chạm write gate.
+    # Path đã đối chiếu source SDK, xem `tests/.../test_market_data_read_methods.py`.
+
+    def get_quotes(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Nội giá (Lớp A). Cảnh báo `bid[].qtty` — xem NORMALISATION_POLICY §3.1."""
+        return self._resolve_output(
+            self._market.get_quotes(
+                symbol=symbol,
+                board_id=board_id,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_latest_quote(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Báo giá mới nhất (Lớp A)."""
+        return self._resolve_output(
+            self._market.get_latest_quote(
+                symbol=symbol, board_id=board_id, dry_run=dry_run
+            ),
+            raw=raw,
+        )
+
+    def get_expected_price(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Giá kỳ vọng (Lớp A)."""
+        return self._resolve_output(
+            self._market.get_expected_price(
+                symbol=symbol,
+                board_id=board_id,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_foreign_trading(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Giao dịch nước ngoài (Lớp B — giữ nguyên định dạng DNSE)."""
+        return self._resolve_output(
+            self._market.get_foreign_trading(
+                symbol=symbol,
+                board_id=board_id,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_market_index(
+        self,
+        index_name: str,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Chỉ số thị trường (Lớp A). Tham số là `index_name`, không phải `symbol`."""
+        return self._resolve_output(
+            self._market.get_market_index(
+                index_name=index_name,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_trades_volume_profile(
+        self,
+        symbol: str,
+        time: int,
+        board_id: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Phân bổ khối lượng theo giá (Lớp A). `time` bắt buộc, theo SDK."""
+        return self._resolve_output(
+            self._market.get_trades_volume_profile(
+                symbol=symbol, time=time, board_id=board_id, dry_run=dry_run
+            ),
+            raw=raw,
+        )
+
+    def get_loans(
+        self,
+        account_no: str,
+        market_type: str,
+        disbursement_from: int | None = None,
+        disbursement_to: int | None = None,
+        due_date_from: int | None = None,
+        due_date_to: int | None = None,
+        position_id: int | None = None,
+        page_index: int | None = None,
+        page_size: int | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Khoản vay (Lớp B — giữ nguyên định dạng DNSE)."""
+        return self._resolve_output(
+            self._account.get_loans(
+                account_no=account_no,
+                market_type=market_type,
+                disbursement_from=disbursement_from,
+                disbursement_to=disbursement_to,
+                due_date_from=due_date_from,
+                due_date_to=due_date_to,
+                position_id=position_id,
+                page_index=page_index,
+                page_size=page_size,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
     def get_trades(
         self,
         symbol: str,
