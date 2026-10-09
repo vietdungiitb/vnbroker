@@ -50,7 +50,7 @@ import hmac
 import json
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set
 
 import websockets
 
@@ -151,6 +151,9 @@ class DNSEWebSocketClient:
     ) -> None:
         if encoding not in ("json", "msgpack"):
             raise ValueError(f"encoding must be 'json' or 'msgpack', got {encoding!r}")
+        # `msgpack` is deliberately NOT imported here: constructing a client to
+        # inspect its URL or channel names must work without the package. The
+        # failure surfaces in `_decode`, and it names the extra.
         self._config = config
         self._encoding = encoding
         self._reconnect_enabled = reconnect
@@ -290,7 +293,11 @@ class DNSEWebSocketClient:
             except ImportError as exc:  # pragma: no cover - depends on env
                 raise DNSEWebSocketError(
                     "encoding='msgpack' requires the 'msgpack' package, which is "
-                    "not installed. Install it or use encoding='json'."
+                    'an optional extra: pip install "vnbroker[msgpack]". '
+                    "There is deliberately no fallback to JSON — binary frames "
+                    "decoded as text are garbage, and garbage that looks like "
+                    "data is worse than a failure. Use encoding='json' to stream "
+                    "without it."
                 ) from exc
             return msgpack.unpackb(bytes(raw), raw=False)
         if isinstance(raw, str):
@@ -304,7 +311,7 @@ class DNSEWebSocketClient:
             except ImportError as exc:  # pragma: no cover - depends on env
                 raise DNSEWebSocketError(
                     "encoding='msgpack' requires the 'msgpack' package, which is "
-                    "not installed."
+                    'an optional extra: pip install "vnbroker[msgpack]".'
                 ) from exc
             return msgpack.packb(message, use_bin_type=True)
         return json.dumps(message)
@@ -540,6 +547,68 @@ class DNSEWebSocketClient:
             for ch in channels
         ]
 
+    @staticmethod
+    def _validate_subscription_args(
+        channels: List[str],
+        symbols: Optional[List[str]],
+        *,
+        caller: str,
+    ) -> None:
+        """Reject argument shapes that would silently subscribe to nothing.
+
+        Measured against the live provider (2026-10-09): passing
+        `{"quote": ["ACB"]}` as `channels` read the dict keys as channel names,
+        left `symbols` at its default, and put this on the wire:
+
+            {"action":"subscribe","channels":[{"name":"top_price.G1.json","symbols":[]}]}
+
+        The server answered `subscribed` / `active` / `symbols: None`. So the
+        caller believed two symbols were streaming and received a subscription
+        for none — no exception, no warning. A bare string is the same class of
+        slip: `"quote"` iterates to five one-letter channel names.
+
+        Type hints do not help here, because a `dict` satisfies no runtime
+        check against `List[str]` in plain Python.
+        """
+        if isinstance(channels, Mapping):
+            raise TypeError(
+                f"{caller}() takes channels and symbols as two separate "
+                f"arguments, not one mapping. Got {type(channels).__name__} "
+                f"with keys {sorted(channels)!r}.\n"
+                f"Correct call: {caller}({sorted(channels)!r}, "
+                f"{[v for v in channels.values()]!r})\n"
+                f"A mapping here does not raise - it subscribes to zero symbols "
+                f"and the server still reports 'active'."
+            )
+        if isinstance(channels, str) or not isinstance(channels, (list, tuple)):
+            raise TypeError(
+                f"{caller}() expects a list of channel names, got "
+                f"{type(channels).__name__}. Pass a list: {caller}([{channels!r}], "
+                f"[...]) - a bare string would be split into "
+                f"{len(channels) if isinstance(channels, str) else 0} channels."
+            )
+        for channel in channels:
+            if not isinstance(channel, str):
+                raise TypeError(
+                    f"{caller}() channel names must be strings, got "
+                    f"{type(channel).__name__}: {channel!r}"
+                )
+        if symbols is not None and (
+            isinstance(symbols, (str, bytes, Mapping))
+            or not isinstance(symbols, (list, tuple))
+        ):
+            raise TypeError(
+                f"{caller}() expects symbols as a list of strings, got "
+                f"{type(symbols).__name__}. Correct call: "
+                f"{caller}({list(channels)!r}, {list(symbols) if isinstance(symbols, (list, tuple)) else symbols!r})"
+            )
+        for symbol in symbols or ():
+            if not isinstance(symbol, str):
+                raise TypeError(
+                    f"{caller}() symbols must be strings, got "
+                    f"{type(symbol).__name__}: {symbol!r}"
+                )
+
     async def subscribe(
         self,
         channels: List[str],
@@ -557,12 +626,23 @@ class DNSEWebSocketClient:
 
         Args:
             channels: aliases (``"quote"``, ``"trade"``, ...) or full wire names.
+                A **list of strings**; a mapping or a bare string is rejected
+                rather than silently subscribing to nothing.
             symbols: symbols; upper-cased automatically.
             board_id: board segment, e.g. ``G1`` for HOSE.
             resolution: candle resolution for ``ohlc``/``ohlc_closed``.
             market_index: index name for the market-index channels.
             product_group_id: product group for the ``session`` channel.
+
+        Example:
+            >>> await ws.subscribe(["quote", "trade"], ["ACB", "VNM"])
+
+        For ``encoding="msgpack"`` install the extra first —
+        ``pip install "vnbroker[msgpack]"`` — otherwise ``connect()`` raises
+        rather than silently decoding as JSON.
         """
+        self._validate_subscription_args(channels, symbols, caller="subscribe")
+
         if self._ws is None or not self._authenticated.is_set():
             raise DNSEWebSocketError(
                 "Must complete auth before subscribe (server rejects "
@@ -606,6 +686,7 @@ class DNSEWebSocketClient:
         market_index: Optional[str] = None,
         product_group_id: Optional[str] = None,
     ) -> None:
+        self._validate_subscription_args(channels, symbols, caller="unsubscribe")
         if self._ws is None:
             return
         wire = self._wire_names(

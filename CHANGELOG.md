@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+### Hai lỗi tìm ra bằng **live probe** (credential DNSE thật), không phải bằng test server giả
+
+1. **`subscribe()` im lặng với Mapping.** Chữ ký thật là
+   `subscribe(channels: List[str], symbols: Optional[List[str]])` nhưng truyền
+   `{"quote": ["ACB"]}` sẽ lấy key làm channel, để `symbols` rỗng, và gửi
+   `{"channels":[{"name":"top_price.G1.json","symbols":[]}]}`. Server trả
+   `subscribed / active / symbols: None` ⇒ **người dùng tưởng đang stream mà thực tế không
+   nhận gì, không exception, không cảnh báo.** Nay raise `TypeError` kèm **lời gọi đúng**,
+   chặn trước khi gửi. `subscribe("quote", ...)` (bị tách thành 5 kênh một chữ) cũng bị chặn.
+2. **`msgpack` không có trong `pyproject.toml`.** `encoding="msgpack"` raise đúng (giữ nguyên
+   chính sách không fallback im lặng) nhưng người dùng phải tự đoán `pip install msgpack`.
+   Nay có extra: `pip install "vnbroker[msgpack]"`, và message giải thích vì sao không fallback.
+
+### Live probe — xác minh được những thứ test giả không bắt được
+
+Đo với `DNSE_API_KEY`/`DNSE_API_SECRET` thật, **chỉ read + WebSocket auth**, không bật
+write gate, không gọi method ghi:
+
+| Hạng mục | Kết quả |
+|---|---|
+| HMAC-SHA256 signature | ✅ đúng, **không chứa secret** |
+| WebSocket auth in-band | ✅ `session_id=conn_1791515486322648579` |
+| **`rate_limit` shape** | ✅ **đúng như doc**: `{messages_per_second: 100, subscriptions_max: 100}` |
+| Subscribe + dữ liệu thật | ✅ **19 frame**/12s; giá ACB 20.3, VNM 57.8; ISIN + timestamp thật |
+| dry_run envelope | ✅ không lọt secret |
+
+⇒ **Bản viết lại WebSocket chạy thật với server**, không chỉ khớp tài liệu.
+
+**Giải tỏa được nghi ngờ của audit:** `subscriptions_max` tính theo **số kênh**, không phải
+số cặp (5 kênh × 100 symbols = 500 pairs vẫn `active` khi `cap=100`) ⇒ `websocket.py:582`
+đúng, nghi ngờ không thành finding.
+
+**Phát hiện mới cần Owner trả lời:** host **`openapi.dnse.com.vn` không phản hồi**
+(timeout 3/3 lần), trong khi `api.dnse.com.vn` (HTTP 401) và `ws-openapi.dnse.com.vn`
+(HTTP 400) đều sống. DNS OK, TCP 443 mở, TLS bị đóng ngay. ⇒ **toàn bộ 25 method OpenAPI
+không kiểm chứng được từ máy này**, kể cả `post_order`/`close_position`/
+`create_trading_token`. Cần xác nhận: DNSE chặn geo/IP từ VN, host đang down, hay credential
+thuộc môi trường nào. Chi tiết: `docs/PM_AUDIT_REPORT_20261009.md` §11.
+
 ## [Unreleased] - Write gate DNSE chuyen tang + gate local
 
 ### PM-01 — P0 write gate chuyen tu `Trade` xuong tang HTTP (blocker)

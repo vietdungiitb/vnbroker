@@ -56,6 +56,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-timeout"]
+# Binary WebSocket frames for the DNSE stream (`encoding="msgpack"`).
+# Optional on purpose: the client refuses to fall back to JSON, so it raises
+# rather than returning garbage. Install with `pip install "vnbroker[msgpack]"`.
+msgpack = ["msgpack>=1.0"]
 lint = [
     "mypy>=1.10",
     "ruff>=0.4.0",
