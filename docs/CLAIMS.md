@@ -37,7 +37,7 @@
 | pm-gates-local | chore/local-gates-and-handoff | scripts/check_all.ps1,docs/HANDOFF_DNSE_ROUND2_20261009.md,CLAUDE.md,docs/CLAIMS.md | done | 2026-10-09 -> 2b76026 |
 | pm-dnse-gate | feat/dnse-write-gate-layer | vnbroker/connector/dnse/client.py,vnbroker/connector/dnse/core/http_client.py,vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_write_gate_layer.py,tests/contract/test_dnse_endpoint_contract.py,CHANGELOG.md | done | 2026-10-09 -> 12cb29c |
 
-| pm-ws-live | fix/dnse-subscribe-contract | vnbroker/connector/dnse/websocket.py,pyproject.toml,tests/unit/connector/dnse/test_subscribe_contract.py,docs/PM_AUDIT_REPORT_20261009.md,docs/HANDOFF_DNSE_ROUND2_20261009.md,CHANGELOG.md | in-progress | 2026-10-09 |
+| pm-ws-live | fix/dnse-subscribe-contract | vnbroker/connector/dnse/websocket.py,pyproject.toml,tests/unit/connector/dnse/test_subscribe_contract.py,docs/PM_AUDIT_REPORT_20261009.md,docs/HANDOFF_DNSE_ROUND2_20261009.md,CHANGELOG.md | done | 2026-10-09 -> 8efc03d |
 ## Ghi chú
 
 - `in-progress` = đang giữ. Đổi sang `done` ngay sau khi ghi xong file cuối cùng.
