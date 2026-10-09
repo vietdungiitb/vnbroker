@@ -65,11 +65,32 @@ def _make_mock_resp(status_code: int, json_data) -> MagicMock:
     return resp
 
 
-# ── TCBSAccountService — list_accounts ───────────────────────────────────────
+# ── TCBSAccountService — list_accounts (NGOẠI LỆ, được giữ) ───────────────────
+# /aion/v1/accounts (không param) KHÔNG có trong 2 tài liệu chính thức, nhưng
+# được GIỮ vì BaseBrokerClient.get_account_list() là @abstractmethod
+# (vnbroker/broker/base.py:55-58). Path thay thế trong spec
+# /aion/v1/customers/{custodyId}/accounts cần custodyId — tức là cần chính
+# thông tin mà get_account_list() sinh ra.
 
 class TestAccountListAccounts:
     def _svc(self):
         return TCBSAccountService(_make_config(), _make_session())
+
+    def test_list_accounts_path_is_documented_exception(self):
+        """Path được giữ phải được đánh dấu ngoại lệ trong _PATHS."""
+        from vnbroker.broker.tcbs.account import _PATHS, _REMOVED_PATHS
+        assert _PATHS["list_accounts"] == "/aion/v1/accounts"
+        assert "list_accounts" not in _REMOVED_PATHS
+
+    def test_get_account_list_abstract_still_implemented(self):
+        """get_account_list() phải còn implement (hợp đồng @abstractmethod)."""
+        from vnbroker.broker.base import BaseBrokerClient
+        from vnbroker.broker.tcbs.client import TCBSBrokerClient
+        assert "get_account_list" in BaseBrokerClient.__abstractmethods__
+        assert getattr(TCBSBrokerClient.get_account_list, "__isabstractmethod__", False) is False
+        assert not TCBSBrokerClient.__abstractmethods__ or (
+            "get_account_list" not in TCBSBrokerClient.__abstractmethods__
+        )
 
     def test_list_accounts_returns_dataframe_by_default(self):
         payload = [
