@@ -112,8 +112,13 @@ def main() -> int:
         print(f"SAI: khong tim thay spec tai {SPEC_PATH}", file=sys.stderr)
         return 1
 
+    # Chuẩn hoá EOL TRƯỚC khi băm. Lý do (đo được 2026-10-10): repo đặt
+    # core.autocrlf=true, và .gitattributes `-text` KHÔNG thắng ở đây — blob trong
+    # git đúng từng byte (sha 7f97d27b…) nhưng bản làm việc vẫn là CRLF (4105 CRLF),
+    # ra sha 1cf72672…. Normalize CRLF->LF khôi phục đúng sha ⇒ nội dung không sai,
+    # chỉ là khác byte EOL. Băm bản chưa normalize sẽ báo đỏ giả mọi lần trên Windows.
     raw = SPEC_PATH.read_bytes()
-    digest = hashlib.sha256(raw).hexdigest()
+    digest = hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()
     if digest != EXPECTED_SHA256:
         print(f"SAI: spec sha256 lech.", file=sys.stderr)
         print(f"  can   {EXPECTED_SHA256}", file=sys.stderr)
