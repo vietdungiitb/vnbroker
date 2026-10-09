@@ -210,7 +210,12 @@ docs/*.jwt
 docs/*_jwt.txt
 # Live credential dumps (DNSE/TCBS keys, tokens, captured API payloads)
 # NEVER commit: docs/references/ contains real secrets (audited 2026-09-22)
-docs/references/
+docs/references/*
+# EXCEPTION: vendor OpenAPI spec cua TCBS (public, da quet 0 secret: 0 jwt / 0 bearer /
+# 0 apiKey value / 0 long-hex). Commit de moi agent trong worktree co tai lieu doi chieu
+# — khong co spec nay thi P1-P4 va AC M6/E1/E2 khong kiem chung duoc.
+# chi loai tru DUNG file nay; cac file con lai trong docs/references/ van bi ignore.
+!docs/references/openapi-v1.0.0.json
 docs/login_*.py
 docs/smoke_test_*.py
 docs/test_*.py
