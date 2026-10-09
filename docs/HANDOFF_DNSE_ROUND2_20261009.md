@@ -1,7 +1,21 @@
 # HANDOFF — phiên DNSE round 2 (kết thúc 2026-10-09)
 
 Trạng thái tại lúc đóng phiên: `dev` = `95f68e6`, đã push `origin/dev`, working tree sạch.
-Tất cả gate chạy **local** — GitHub Actions của repo này không chạy (`steps: []`, `duration_ms: 0`).
+Tất cả gate chạy **local** — GitHub Actions của repo này **CHƯA CHẠY** vì job bị từ chối khởi
+động do billing (`"recent account payments have failed or your spending limit needs to be
+increased"`; mọi job có `steps: []`, `runner_id: 0`, `duration_ms` 2–3s, `conclusion: failure`).
+Lần chạy thành công cuối cùng: **2026-10-02 09:02**. Từ đó tới `22d3d0a` có **74 commit** merge
+mà không gate nào chạy.
+
+> **Đừng đọc CI là xanh.** Badge GitHub không phải bằng chứng — job chưa bao giờ chạy.
+> Chạy `pwsh -File scripts/check_all.ps1` (gate local, 1 lệnh, có exit code thật).
+> Script in rõ *"CI GITHUB ACTIONS: CHUA CHAY"* ở cuối mỗi lần chạy.
+
+> **Hai số liệu trong file này sai so với thực tế tại `22d3d0a`** (đã đo lại):
+> - §3.5.1 ghi "Ruff toàn bộ `tests/` để **8** lỗi" → thực tế **13** lỗi
+>   (`ruff check tests --output-format=concise`). Ba file đúng là ba file đã nêu, nhưng tổng là 13.
+> - §1.3 ghi "**32 method** dùng host `api.dnse.com.vn`" → thực tế **25 method**
+>   (AST scan `self._api_base_url` trong `trade.py`).
 
 ---
 
@@ -149,13 +163,24 @@ production cũng timeout 30s. Đã sửa bằng cách đọc inline có deadline
 
 ## 2. Gate (đều chạy thật, exit code thật)
 
-| Gate | Trước | Tại `95f68e6` |
-|---|---|---|
-| `pytest tests/unit tests/contract` | 1275 | **1343** |
-| `pytest tests/` | 1346 | **1414** |
-| ruff (`vnbroker`, `tests/unit`, `tests/contract`) | 0 | **0** |
-| mypy baseline | OK | **OK** (baseline 1266 → 1207) |
-| acceptance `test_tier1_dod.py` | 26/26 | **26/26** |
+Đo lại tại `22d3d0a` bằng `pwsh -File scripts/check_all.ps1` — **exit code thật**, không phải suy ra:
+
+| Gate | Lệnh | Kết quả | Exit |
+|---|---|---|---|
+| `pytest tests/` | `pytest tests/ -q --timeout=300` | **1414 passed, 30 skipped** | **0** |
+| `pytest tests/contract` | `pytest tests/contract -q` | **72 passed** | **0** |
+| ruff (scope hẹp) | `ruff check vnbroker tests/unit tests/contract` | All checks passed | **0** |
+| ruff (toàn `tests/`) | `ruff check tests` | **13 errors** (có sẵn ở HEAD) | **1** |
+| version sync | `scripts/check_version_sync.py` | `3.5.0` OK | **0** |
+| mypy baseline | `scripts/check_mypy_baseline.py` | OK (baseline 1266 → 1207) | **0** |
+| acceptance `test_tier1_dod.py` | `pytest tests/acceptance` | 26/26 | **0** |
+| **`mypy vnbroker`** | `mypy vnbroker` | **1207 errors** | **1** |
+| **`mypy vnbroker --strict`** | `mypy vnbroker --strict` | **1207 errors — y hệt** | **1** |
+
+> ⚠ **`--strict` là no-op.** Comment `pyproject.toml:146` *"global --strict is NOT enabled here"*
+> **sai thật**: `strict = true` trong `[[tool.mypy.overrides]]` (`:152-159`) bị mypy nâng thành global.
+> Cả hai lệnh cho ra cùng 1207 lỗi ⇒ `CLAUDE.md:7` và `CLAUDE.md:255` mô tả một cổng chặn
+> không tồn tại. Đừng ghi "strict PASS" trong báo cáo nào.
 
 **Fail-before / pass-after** (đo bằng cách ghi bản cũ ra file, **không** `git checkout --`):
 
@@ -172,9 +197,27 @@ production cũng timeout 30s. Đã sửa bằng cách đọc inline có deadline
 
 ### 3.1 P0 — sửa tiếp `async_client.py` (claim `leader-t2-policy` còn `partial`)
 
-`vnbroker/core/utils/async_client.py` có **TokenBucketRateLimiter trùng lặp** với bản ở
-`vnbroker/core/`. Chưa đụng tới. Cần: xác định bản nào là SSOT, hợp nhất, và phải **giữ
-được bounded wait** — đừng biến thành chặn vô hạn. Gate hiện chưa đổi: `tests/unit/core/test_rate_limiter.py` **chưa được tạo** (claim ghi tên nó nhưng thực tế chưa làm).
+`vnbroker/core/utils/async_client.py:34` có **TokenBucketRateLimiter trùng lặp** với bản ở
+`vnbroker/core/utils/rate_limiter.py:21`. Cần: xác định SSOT, hợp nhất, và phải **giữ được
+bounded wait** — đừng biến thành chặn vô hạn.
+
+**Mức độ đánh giá lại 2026-10-09: `minor`, không phải P0.** Đo thực thi:
+- Bản async (`rpm`/phút) vs bản chuẩn (`rate`/giây, có `wait(max_wait=30.0)`).
+- Bản async **không bao giờ treo** ở cấu hình hiện tại: `capacity = rpm = 300`, `_refill_rate = 5/s`
+  ⇒ có token sau tối đa 0.2s. `rpm=0` thì `_enabled=False`, `__aenter__` return ngay.
+  `_acquire_token` là `while True` **không** có deadline — nhưng điều kiện để nó kẹt không xảy ra.
+- Ràng buổc khi sửa: phải giữ `__aenter__`/`__aexit__`, nếu không `async_client.py:360`
+  (`async with RATE_LIMITER`) sẽ `AttributeError` ngay.
+
+**Hai ghi chú claim sai — đã kiểm lại, đừng tin:**
+- `docs/CLAIMS.md:34` ghi `leader-t2-policy` chưa làm `tests/unit/core/test_rate_limiter.py`.
+  File **đã tồn tại**: 174 dòng, 15 test, tạo ở commit `b2f43ff`.
+- `async_client.py` không được liệt kê trong claim nào (chỉ xuất hiện trong plan). Cần claim
+  mới trước khi sửa.
+
+Ngoài ra có 1 mục **P0 thật** mà phiên này chưa biết — xem `docs/PM_AUDIT_REPORT_20261009.md`:
+write gate đặt trên `Trade` nhưng `Trade.as_openapi_client()` (public) trả `DNSEClient`
+**không có gate nào**, đo được **6 write request** khi gate đang TẮT.
 
 ### 3.2 P1 — không có credential thật nên **chưa xác minh runtime**
 
@@ -183,24 +226,38 @@ Cần DNSE/SSI/TCBS credentials để chạy, cho tới giờ **mọi test là s
 1. `rate_limit` server thật trả về có đúng `{messages_per_second, subscriptions_max}` không
 2. msgpack: server có thực sự gửi binary frame không
 3. `MAX_DURATION_EXCEEDED` + close code 1008 sau 8h
-4. Họ API **legacy** `api.dnse.com.vn` — 32 method dùng host này, **SDK không hề nhắc tới**
+4. Họ API **legacy** `api.dnse.com.vn` — **25 method** dùng host này, **SDK không hề nhắc tới**
 5. Conditional orders (`place`/`cancel_conditional_order`)
 6. Hết hạn token sau 25 phút cho `copilot`-style credential — **chưa áp dụng ở DNSE WS**
+7. **`subscriptions_max` tính theo số kênh hay số cặp (kênh × symbol)?**
+   Phát hiện 2026-10-09: `websocket.py:582` so `len(wire)` = **số kênh**. Nếu server tính
+   theo số cặp thì 2 kênh × 100 symbol = 200 subscription nhưng code coi là 2 ⇒ **vượt
+   trần thật**. Đây là loại lỗi "gate có vẻ đúng nhưng đo sai thứ cần chặn".
+   Phải xác nhận từ doc/server trước khi tin code này.
 
 ### 3.3 P2 — A6: 22 endpoint còn thiếu so với SDK
 
 **Cố ý hoãn.** Thêm `reverse_position` (đảo vị thế) lúc này = thêm **endpoint tiền thật
 chưa có write gate**. Phải làm sau khi có gate ở tầng khác.
 
+> **Điều kiện mở đã rõ hơn sau audit 2026-10-09:** không phải "khi có gate ở tầng khác"
+> mà là **khi PM-01 xong** — tức gate nằm trên `DNSEClient` (tầng thấp nhất, không bypass
+> được qua `Trade.as_openapi_client()`). Nếu làm ngược thứ tự (thêm endpoint trước, vá
+> gate sau) sẽ lặp lại đúng lỗi `eeb1965` vừa vá: vá 10 method thủ công, một tuần sau
+> phát hiện 6 method nữa nằm ngoài tầm gate.
+
 ### 3.4 P2 — `match_type` vẫn là string, chưa đổi sang enum
 
-Bị chặn cùng lý do: thêm type mới cho lệnh là thêm đường gửi lệnh mới.
+Bị chặn cùng lý do: thêm type mới cho lệnh là thêm đường gửi lệnh mới. Điều kiện mở: giống §3.3.
 
 ### 3.5 P3 — housekeeping
 
-1. **Ruff trên toàn bộ `tests/` đỏ 8 lỗi F401/F841 — CÓ SẴN Ở HEAD**, ở
-   `test_tier1_dod.py`, `vci_proxy_demo.py`, `test_acb_all_providers.py`. Không phải của
-   round 2. Gate scope đang chạy là `vnbroker` + `tests/unit` + `tests/contract`.
+1. **Ruff trên toàn bộ `tests/` đỏ 13 lỗi F401/F841 — CÓ SẴN Ở HEAD** (đo lại 2026-10-09,
+   bản gốc của handoff ghi "8" — **sai**), ở `test_tier1_dod.py`, `vci_proxy_demo.py`,
+   `test_acb_all_providers.py`. Không phải của round 2. Gate scope đang chạy là `vnbroker`
+   + `tests/unit` + `tests/contract`; `check_all.ps1` gán nhãn gate này **KNOWN-RED**
+   để không tính vào FAIL nhưng vẫn in ra. Muốn gate xanh toàn bộ `tests/` thì cần
+   **một commit riêng** dọn 13 lỗi này.
    Muốn gate xanh toàn bộ `tests/` thì cần **một commit riêng** dọn 8 lỗi này.
 2. `websockets` 16.0 đã gỡ `WebSocketClientProtocol` khỏi top-level (từ v14 → `websockets.legacy`).
    Annotation cũ đã chết — đã bỏ trong bản viết lại.
@@ -223,6 +280,18 @@ bước fail-before.
 
 Ngoài ra `docs/COMPARE_DNSE_SDK.md` là nơi đối chiếu SDK chính thức với vnbroker — **đọc
 file này trước** khi sửa bất kỳ endpoint DNSE nào, tránh lặp lại việc tin nhầm SDK hơn doc.
+
+> ⚠ **File đó đã STALE 6 commit** (snapshot tại `28db3de`), audit 2026-10-09 đã đối chiếu lại:
+> - **A0 / B10** (`post_order` path `/accounts/orders`, `account_no` nằm trong `payload`) —
+>   **vẫn đúng**. Đây là kết luận tốt nhất của file, giữ nguyên.
+> - **A5** ("3 method hardcode `api.dnse.com.vn`, chưa xử lý") — **đã lỗi thời**: đã thêm tham số
+>   `api_base_url` (`trade.py:23,33`) và 25 method dùng `self._api_base_url`.
+> - **A7** (WebSocket "sai ở mọi mặt", host `wss://openapi.dnse.com.vn/ws`) — **đã lỗi thời**:
+>   đã rewrite ở `95f68e6` sang `wss://ws-openapi.dnse.com.vn/v1/stream`.
+> - **B-gap** (envelope chỉ mask `trading-token`) — **đã lỗi thời**: `http_client.py:63-65` đã
+>   dùng `Redactor.redact_headers`.
+>
+> ⇒ Đừng dùng A5/A7/B-gap làm căn cứ. Đọc code và doc provider, không đọc file này làm chuẩn.
 
 ---
 

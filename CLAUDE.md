@@ -260,6 +260,31 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
    (no `print(`, no `core.utils.client` import in explorers, no secrets in logs) —
    **record the substitution in the PR so CI runs the real gates**.
 
+## Gates — 1 lệnh, và đừng đọc CI
+
+```bash
+pwsh -File scripts/check_all.ps1            # tất cả gate, exit code thật
+pwsh -File scripts/check_all.ps1 -Quick     # bỏ pytest toàn bộ (~3 phút)
+pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate đỏ
+```
+
+> ⚠ **GitHub Actions của repo này KHÔNG chạy** — job bị từ chối khởi động do billing
+> (`"spending limit needs to be increased"`; mọi job có `steps: []`, `duration_ms` 2–3s).
+> Lần chạy thành công cuối: **2026-10-02**. Từ đó tới `22d3d0a` có **74 commit** merge
+> mà không gate nào chạy. **Badge CI không phải bằng chứng — job chưa bao giờ chạy.**
+> Chạy `check_all.ps1`. Script in rõ *"CI GITHUB ACTIONS: CHUA CHAY"* ở cuối mỗi lần chạy.
+
+> ⚠ **`mypy vnbroker --strict` ở dòng 255 là NO-OP.** Cả `mypy vnbroker` và
+> `mypy vnbroker --strict` đều cho **1207 lỗi y hệt** — `strict = true` trong
+> `[[tool.mypy.overrides]]` bị mypy nâng thành global dù comment trong `pyproject.toml`
+> ghi ngược lại. Gate thật của type-check là `scripts/check_mypy_baseline.py`
+> (so với baseline, chỉ fail lỗi MỚI). **Đừng ghi "strict PASS" trong báo cáo nào.**
+
+> Mốc thực trạng đã đo (2026-10-09): `pytest tests/` **1414 passed, 30 skipped** (exit 0) ·
+> `pytest tests/contract` **72 passed** (exit 0) · `ruff check vnbroker tests/unit tests/contract`
+> exit 0 · `ruff check tests` **13 lỗi có sẵn** (exit 1, gate KNOWN-RED) · `mypy vnbroker`
+> **1207 lỗi** (exit 1).
+
 ## Common Patterns
 
 ### Adding New Provider
