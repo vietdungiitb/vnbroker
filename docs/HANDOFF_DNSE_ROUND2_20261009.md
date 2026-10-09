@@ -221,6 +221,28 @@ write gate đặt trên `Trade` nhưng `Trade.as_openapi_client()` (public) tr�
 
 ### 3.2 P1 — không có credential thật nên **chưa xác minh runtime**
 
+> **Cập nhật 2026-10-09: ĐÃ THỬ VỚI CREDENTIAL THẬT.** Owner cấp `DNSE_API_KEY` +
+> `DNSE_API_SECRET`. Kết quả đầy đủ: `docs/PM_AUDIT_REPORT_20261009.md` §11.
+>
+> **Đã đóng (không cần làm lại):**
+> - `rate_limit` shape ⇒ **đúng như doc**: `{messages_per_second: 100, subscriptions_max: 100}`
+> - WebSocket auth in-band ⇒ **thành công**, `session_id` thật, streaming **19 frame dữ liệu thật**
+>   (giá ACB 20.3, VNM 57.8) trong 12 giây
+> - HMAC-SHA256 signature ⇒ đúng, không chứa secret
+> - `subscriptions_max` (mục 7 bên dưới) ⇒ tính theo **số KÊNH**, không phải số cặp
+>
+> **Vẫn chưa xác minh, và lý do đã đổi:**
+> - **Host `openapi.dnse.com.vn` KHÔNG phản hồi** (timeout 3/3 lần), trong khi
+>   `api.dnse.com.vn` (401) và `ws-openapi.dnse.com.vn` (400) đều sống. ⇒ **toàn bộ 25 method
+>   OpenAPI không kiểm chứng được từ máy này.** Cần Owner xác nhận: DNSE chặn geo/IP, host
+>   down, hay credential thuộc môi trường nào.
+> - msgpack: extra **vừa được khai báo** (`pip install "vnbroker[msgpack]"`) nhưng chưa cài
+>   trong `.venv` ⇒ chưa chạy được binary frame.
+> - `MAX_DURATION_EXCEEDED` + close code 1008 sau 8h — cần chạy liên tục 8 giờ.
+> - 25 method legacy `api.dnse.com.vn` — host **sống** nhưng cần `DNSE_USERNAME`/`PASSWORD`
+>   + OTP để có token. **SDK không hề nhắc tới họ API này** nên rủi ro path sai vẫn nguyên.
+> - Conditional orders — cần trading token thật.
+
 Cần DNSE/SSI/TCBS credentials để chạy, cho tới giờ **mọi test là server giả theo doc**:
 
 1. `rate_limit` server thật trả về có đúng `{messages_per_second, subscriptions_max}` không
@@ -230,10 +252,9 @@ Cần DNSE/SSI/TCBS credentials để chạy, cho tới giờ **mọi test là s
 5. Conditional orders (`place`/`cancel_conditional_order`)
 6. Hết hạn token sau 25 phút cho `copilot`-style credential — **chưa áp dụng ở DNSE WS**
 7. **`subscriptions_max` tính theo số kênh hay số cặp (kênh × symbol)?**
-   Phát hiện 2026-10-09: `websocket.py:582` so `len(wire)` = **số kênh**. Nếu server tính
-   theo số cặp thì 2 kênh × 100 symbol = 200 subscription nhưng code coi là 2 ⇒ **vượt
-   trần thật**. Đây là loại lỗi "gate có vẻ đúng nhưng đo sai thứ cần chặn".
-   Phải xác nhận từ doc/server trước khi tin code này.
+   ~~Cần xác nhận từ doc/server.~~ **ĐÃ XÁC MINH 2026-10-09: theo số KÊNH.**
+   Đo thật: 5 kênh × 100 symbols = **500 pairs** vẫn `active` trong khi `cap = 100`.
+   ⇒ `websocket.py:582` so `len(wire)` là **đúng**. Câu hỏi này đóng, đừng mở lại.
 
 ### 3.3 P2 — A6: 22 endpoint còn thiếu so với SDK
 

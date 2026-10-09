@@ -5,6 +5,134 @@
 **Cơ sở:** codebase trên đĩa + thực thi thật. **Không** lấy tài liệu làm nguồn sự thật.
 **Trạng thái sau audit:** `git status --short` = 0 dòng. Không sửa, không commit.
 
+> **Cập nhật 2026-10-09 (sau audit):** PM-01 đã **sửa xong** (`12cb29c`, merge `8cb3e8e`) và
+> `async_client.py` đã hạ xuống `minor`. Mục 11 ghi kết quả **live probe** với credential
+> DNSE thật — 2 phát hiện mới, 1 nghi ngờ được giải tỏa, và 1 giới hạn quan trọng.
+> Báo cáo gốc bên dưới giữ nguyên như bản gốc `22d3d0a`.
+
+---
+
+## 11. KẾT QUẢ LIVE PROBE (2026-10-09) — bổ sung sau báo cáo gốc
+
+Owner cấp `DNSE_API_KEY` + `DNSE_API_SECRET` trong `.env` (chưa từng được commit — đã verify
+619 commit lịch sử). Probe **chỉ read + WebSocket auth**: không `enable_write()`, không
+method ghi. `.env` đọc bằng parser thuần vì `python-dotenv` chưa cài (xem C11).
+
+### 11.1 Xác minh được — những thứ 1414 test server giả không bắt được
+
+| Hạng mục | Kết quả thật |
+|---|---|
+| HMAC-SHA256 signature | ✅ sinh đúng, **không chứa `api_secret`** |
+| WebSocket auth in-band | ✅ `authenticated=True`, `session_id=conn_1791515486322648579` |
+| **`rate_limit` shape** | ✅ **ĐÚNG NHƯ DOC**: `{'messages_per_second': 100, 'subscriptions_max': 100}` |
+| `capabilities` | ✅ `{action: auth_success, capabilities: {batch_delivery: False}, user_id: <jwt>}` |
+| Subscribe + dữ liệu thật | ✅ **19 frame** trong 12s; giá bán ACB **20.3**, VNM **57.8**; ISIN, boardId, `multicastReceiveTime` thật |
+| dry_run envelope | ✅ không lọt secret; `trading-token` → `***REDACTED***` |
+
+**Kết luận quan trọng:** bản rewrite WebSocket `95f68e6` **hoạt động thật** — không chỉ khớp
+tài liệu mà đã chạy với server thật và nhận dữ liệu thị trường. `rate_limit` là mục handoff
+§3.2.1 ghi "chưa xác minh được" — nay đã đóng.
+
+### 11.2 PHÁT HIỆN MỚI 1 (major) — `openapi.dnse.com.vn` không phản hồi
+
+Đo 3 lần, cùng kết quả:
+
+```
+openapi.dnse.com.vn/accounts      -> timeout 15.002s   (3/3 lần, curl exit 28)
+api.dnse.com.vn/user-service/api/me -> HTTP 401 trong 1.249s   (SỐNG)
+ws-openapi.dnse.com.vn/v1/stream    -> HTTP 400 trong 1.220s   (SỐNG)
+```
+
+Không phải DNS (resolve OK, `103.151.242.24`), không phải firewall (TCP 443 mở), TLS bị
+đóng ngay (`unexpected EOF`). Chỉ **một** host trong ba không trả lời.
+
+**Hệ quả — nghiêm trọng hơn vẻ ngoài:**
+1. **Toàn bộ OpenAPI surface (25 method) không kiểm chứng được từ máy này**, kể cả
+   `post_order`, `close_position`, `create_trading_token`. Fix PM-01 chỉ được chứng minh
+   bằng egress tripwire, **không** bằng server thật.
+2. 25 method `api.dnse.com.vn` (legacy) — host này **đang sống** (401 = thiếu token, đúng
+   như mong đợi), nhưng **SDK chính thức không hề nhắc tới**. Rủi ro path sai vẫn nguyên
+   và **không ai có thể dò** từ phía này.
+3. `send_email_otp` (không gate, chủ đích) cũng nằm trên host OpenAPI ⇒ **luồng đăng nhập
+   OpenAPI không hoạt động từ Việt Nam** với code hiện tại.
+
+**Câu hỏi cho Owner:** đây là DNSE chặn IP/geo từ VN, host đang down, hay credential này
+thuộc môi trường nào đó? Trả lời quyết định có thể mở được tầng xác minh thứ 2 hay không.
+
+### 11.3 PHÁT HIỆN MỚI 2 (minor, đã sửa) — `subscribe` im lặng với Mapping
+
+Đây là **sai lầm của chính probe tôi**, và nó chỉ lộ ra vì tôi đọc output thay vì tin nó.
+Lỗi gọi: `subscribe({"quote": ["ACB", "VNM"]})`. API thật là
+`subscribe(channels: List[str], symbols: Optional[List[str]])` — tôi truyền dict nên
+`symbols` = `None`. Frame gửi đi:
+
+```json
+{"action":"subscribe","channels":[{"name":"top_price.G1.json","symbols":[]}]}
+```
+
+Server trả:
+
+```
+{'action':'subscribed','channel':'top_price.G1.msgpack','status':'active','symbols':None}
+```
+
+⇒ **subscribe thành công, không exception, không cảnh báo, nhưng 0 symbol.** Người dùng
+tưởng đang stream 2 mã và thực tế không nhận gì. `List[str]` không bắt được dict trong
+Python thuần. Cùng loại lỗi: `subscribe("quote", [...])` bị tách thành 5 kênh một chữ.
+
+**Đã sửa** (`test_subscribe_contract.py`, 9 test): validate ở `subscribe`/`unsubscribe`,
+raise `TypeError` với **lời gọi đúng** trong message, và chặn trước khi gửi/ghi mirror nội bộ.
+
+### 11.4 PHÁT HIỆN MỚI 3 (minor, đã sửa) — `msgpack` không khai báo dependency
+
+`encoding="msgpack"` raise đúng (giữ nguyên chính sách **không fallback im lặng**), nhưng
+`msgpack` không có trong `pyproject.toml` ⇒ người dùng phải tự đoán `pip install msgpack`.
+**Đã sửa:** thêm extra `msgpack = ["msgpack>=1.0"]`, message nói rõ
+`pip install "vnbroker[msgpack]"` và giải thích vì sao không fallback.
+
+Ghi chú thiết kế: **không** import msgpack ở `__init__` — dựng client để xem URL/tên kênh
+phải hoạt động không cần package. Lần đầu tôi raise ở `__init__`, làm hỏng 2 test có sẵn
+(`test_msgpack_encoding_is_reflected_in_the_url`, `test_channel_name_follows_the_encoding`)
+vì chúng dựng client msgpack chỉ để kiểm protocol. Đã ghi nhận và đảo lại.
+
+### 11.5 NGHI NGỜ ĐƯỢC GIẢI TỎA — `subscriptions_max` tính theo SỐ KÊNH
+
+Báo cáo gốc §4.2 nghi ngờ `websocket.py:582` so `len(wire)` (số kênh) trong khi server có
+thể tính theo **số cặp** (kênh × symbol). **Đo thật: server tính theo số KÊNH.**
+
+| subscribe | channels | pairs | server |
+|---|---|---|---|
+| 1 kênh × 120 symbols | 1 | 120 | `active` |
+| 2 kênh × 60 symbols | 2 | 120 | `active` |
+| 5 kênh × 100 symbols | 5 | **500** | `active` ×5 |
+
+500 pairs trong khi `cap = 100` vẫn OK ⇒ `websocket.py:582` **đúng**. Nghi ngờ **không
+thành finding**. Đóng mục handoff §3.2.7.
+
+### 11.6 Vẫn CHƯA xác minh được
+
+| Nội dung | Vì sao |
+|---|---|
+| 25 method OpenAPI bất kỳ | `openapi.dnse.com.vn` không phản hồi (§11.2) |
+| 25 method legacy `api.dnse.com.vn` | Host sống nhưng cần `DNSE_USERNAME`/`PASSWORD` + OTP để có token |
+| msgpack binary frame thật | Extra mới khai báo, `msgpack` chưa cài trong `.venv` |
+| `MAX_DURATION_EXCEEDED` + close 1008 | Cần chạy liên tục 8 giờ |
+| Conditional orders | Cần trading token thật |
+
+### 11.7 Ba lỗi của probe — ghi lại để không ai tin nhầm
+
+Cả ba đều là lỗi **của tôi**, phát hiện trước khi báo cáo, và là lý do "ACCEPTED" xuất hiện
+trong một lần chạy là **kết quả giả**:
+
+1. Dùng sai signature `__init__` (nhận `DNSEConfig`, không nhận `api_key=`).
+2. Không `await subscribe()` — coroutine không bao giờ chạy, nên "ACCEPTED" nghĩa là
+   *client không từ chối*, **không** phải *server chấp nhận*. Đã chạy lại với `await`.
+3. Truyền dict vào `channels` → `symbols` rỗng; tưởng là bug code, hoá ra lỗi probe.
+
+Hai "phát hiện" (`connect()` trả `False`, `ws.url` không tồn tại) **không phải bug**:
+`connect()` khai báo `-> None` đúng thiết kế (raise khi thất bại), `ws.url` không phải API
+công khai. Đã bỏ khỏi báo cáo.
+
 ---
 
 ## 0. TÓM TẮT 5 PHÁT HIỆN NGHIÊM TRỌNG NHẤT
@@ -14,6 +142,7 @@
    `_write_enabled`/`enable_write`. Tôi đã **tự chạy lại** và đo được **6 request tiền thật** (POST đặt lệnh,
    PUT sửa lệnh, DELETE huỷ, POST đóng vị thế, PATCH, POST cấp token) **với gate đang TẮT**.
    ⇒ Commit `eeb1965` vá 10/10 method trên `Trade` là đúng, nhưng đặt gate ở **sai tầng**.
+   **[ĐÃ SỬA 2026-10-09 — xem §11 và commit `12cb29c`]**
 
 2. **`major` — Rò credential thật trong 3 file docs được track.** Số tài khoản TCBS 11 chữ số + 8 hex ký tự
    đầu API key (`TCBS_AUTH_TOKEN`) nằm trong `docs/TCBS_CONNECTION_TEST_REPORT.md:11`,
@@ -250,12 +379,13 @@ Thứ tự này **khác** handoff. Lý do: PM-01 là gốc, và 3 mục P1/P2 c�
 |---|---|---|---|
 | 1 | **PM-02** rotate TCBS API key, **rồi** purge 3 file docs | blocker | Rotate trước — purge trước thì 8 hex đã public, sửa file không còn tác dụng |
 | 2 | **PM-12** khôi phục CI (billing / self-hosted runner) + branch protection | blocker | 74 commit không gate. **Mọi việc khác đều vô nghĩa khi merge tự do** |
-| 3 | **PM-01** đưa write gate xuống `DNSEClient` | blocker | Chặn đúng thứ cần chặn, ở tầng không bypass được |
-| 4 | **PM-03** redact `api_key` trong `BrokerSession.__repr__` | major | 1 dòng, PII |
-| 5 | **PM-17** thêm `X-TCBS-*`/`consumer_id` vào `SENSITIVE_KEYS` | major | HMAC signature tái dùng được |
-| 6 | **PM-04 + PM-05** 4 chính sách failover → 1 | major | Đo được bằng thực thi, không tranh luận |
-| 7 | **PM-10 + PM-11** `setuptools>=77`, khai báo `numpy` | major | Sửa `pyproject.toml`, 10 phút, không đụng code |
-| 8 | **PM-22** fix encoding `check_dist_contents.py` | minor | Đang báo đỏ giả ⇒ mất niềm tin vào gate |
+| 3 | ~~**PM-01** đưa write gate xuống `DNSEClient`~~ | ~~blocker~~ | **XONG 2026-10-09** (`12cb29c` / `8cb3e8e`). Gate chuyển xuống `DNSEHttpClient.request`, quyết định theo HTTP verb. 6 request lọt → **0**. Breaking change: `DNSEClient` cần `enable_write()` |
+| 3b | **PM-26** (mới, §11.2) làm rõ `openapi.dnse.com.vn` không phản hồi | major | Chặn **toàn bộ** xác minh OpenAPI. Cần Owner trả lời: chặn geo/IP, host down, hay credential thuộc môi trường nào |
+| 3c | **PM-03** redact `api_key` trong `BrokerSession.__repr__` | major | 1 dòng, PII |
+| 3d | **PM-17** thêm `X-TCBS-*`/`consumer_id` vào `SENSITIVE_KEYS` | major | HMAC signature tái dùng được |
+| 3e | **PM-04 + PM-05** 4 chính sách failover → 1 | major | Đo được bằng thực thi, không tranh luận |
+| 3f | **PM-10 + PM-11** `setuptools>=77`, khai báo `numpy` | major | Sửa `pyproject.toml`, 10 phút, không đụng code |
+| 3g | **PM-22** fix encoding `check_dist_contents.py` | minor | Đang báo đỏ giả ⇒ mất niềm tin vào gate |
 | 9 | Sửa 5 số liệu sai trong handoff (§1) + 10 contradictions §5 | minor | Rẻ, ngăn session sau điều tra nhầm |
 | 10 | P3 dọn 13 lỗi ruff (commit riêng) | minor | |
 | 11 | **PM-14 + PM-15** WebSocket task leak + `CancelledError` | major nhưng **chưa tới** | Cần test trước; hiện 0 test chạm `_reconnect` |
@@ -289,9 +419,9 @@ Thứ tự này **khác** handoff. Lý do: PM-01 là gốc, và 3 mục P1/P2 c�
 
 | Nội dung | Lý do |
 |---|---|
-| **Toàn bộ hành vi với server DNSE/TCBS/SSI thật** | Không có credential. Mọi kết luận dựa trên provider giả + exception thật từ stdlib/requests |
-| `rate_limit` shape, msgpack binary frame, `MAX_DURATION_EXCEEDED` | Cần server thật — giống handoff §3.2 |
-| `subscriptions_max` tính theo kênh hay cặp (kênh × symbol) | Cần doc/server; đây là điểm tôi **nghi ngờ nhất** trong phần WebSocket |
+| **Toàn bộ hành vi với server DNSE/TCBS/SSI thật** | Đã thử với credential DNSE thật 2026-10-09. **WebSocket xanh hoàn toàn** (§11.1). OpenAPI **không** — host không phản hồi (§11.2). TCBS/SSI vẫn chưa có credential |
+| `rate_limit` shape, msgpack binary frame, `MAX_DURATION_EXCEEDED` | `rate_limit` **ĐÃ XÁC MINH** (§11.1). msgpack cần `pip install "vnbroker[msgpack]"` rồi chạy lại. `MAX_DURATION_EXCEEDED` cần chạy 8 giờ |
+| `subscriptions_max` tính theo kênh hay cặp (kênh × symbol) | **ĐÃ XÁC MINH: theo số KÊNH** — 5 kênh × 100 symbols = 500 pairs vẫn `active` khi `cap=100` (§11.5). `websocket.py:582` **đúng**, nghi ngờ của báo cáo gốc không thành finding |
 | 22 endpoint A6 có đúng như SDK không | Chưa clone `dnse-tech/openapi-sdk` để so |
 | Dependency CVE | Chưa chạy `pip-audit`/`safety`/`bandit` (CI cũng chưa từng chạy) |
 | Secret trong dangling git object | Chỉ quét `git log --all -p` (619 commit); chưa `git fsck` — nếu repo push public thì cần `filter-repo --analyze` |
