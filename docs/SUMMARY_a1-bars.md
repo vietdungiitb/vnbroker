@@ -18,7 +18,7 @@
 
 | | |
 |---|---|
-| Hash | `REPLACE_HASH` |
+| Hash | `6c88f4b` |
 | Subject | `feat(tcbs): noi 2 endpoint OHLCV (bars + bars-long-term) vao quote.history()` |
 
 Tái lập: `git -C "C:\Mujoco Projects\tcbs-a1-bars" log -1 --format=%H`
