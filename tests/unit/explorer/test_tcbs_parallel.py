@@ -7,13 +7,20 @@ from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
 
 @pytest.mark.unit
 def test_tcbs_fetch_multiple_basic(monkeypatch):
+    # Shape theo spec `GET /nyx/v2/stock/bars-long-term`. Bản gốc mock
+    # `{t,p,v,a}` — shape intraday tick, đã bị gỡ khi nối `bars`.
     mock_response = {
+        "ticker": "VNM",
         "data": [
-            {"t": "09:15:00", "p": 100.0, "v": 200000, "a": "BU"},
-            {"t": "09:30:00", "p": 105.0, "v": 300000, "a": "BU"},
-            {"t": "10:00:00", "p": 98.0, "v": 100000, "a": "BU"},
-            {"t": "14:30:00", "p": 103.0, "v": 400000, "a": "BU"},
-        ]
+            {
+                "open": 100.0,
+                "high": 105.0,
+                "low": 98.0,
+                "close": 103.0,
+                "volume": 200000,
+                "tradingDate": "2024-01-01T00:00:00Z",
+            }
+        ],
     }
 
     called_urls = []
