@@ -9,10 +9,11 @@ from datetime import datetime, timedelta
 from vnbroker.core.utils.execution import optimize_execution
 from vnbroker.core.utils.interval import normalize_interval
 from .const import (
-    _BASE_URL, NYX_PATH, _INTERVAL_MAP,
+    _BASE_URL, NYX_PATH, _INTERVAL_MAP, _TIMEFRAME_MAP,
     _OHLC_MAP, _OHLC_DTYPE, _INTRADAY_MAP, _INTRADAY_COLUMNS, _INTRADAY_DTYPE,
     _INDEX_MAPPING
 )
+from . import bars
 from vnbroker.core.models import TickerModel
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.market import trading_hours
@@ -40,19 +41,6 @@ _TCBS_ADAPTIVE_FAIL_THRESHOLD_ENV = "vnbroker_TCBS_ADAPTIVE_FAIL_THRESHOLD"
 _TCBS_ADAPTIVE_P95_HIGH_ENV = "vnbroker_TCBS_ADAPTIVE_P95_HIGH_SECONDS"
 _TCBS_ADAPTIVE_P95_LOW_ENV = "vnbroker_TCBS_ADAPTIVE_P95_LOW_SECONDS"
 
-
-# TimeFrame to interval key mapping
-# Standard format: m/1m=minute, h/1H=hour, d/1D=day, w/1W=week, M/1M=month
-_TIMEFRAME_MAP = {
-    '1m': '1m',
-    '5m': '5m',
-    '15m': '15m',
-    '30m': '30m',
-    '1H': '1H',
-    '1D': '1D',
-    '1W': '1W',
-    '1M': '1M'
-}
 
 class Quote:
     """
@@ -222,8 +210,16 @@ class Quote:
         # Combine all chunks
         df = pd.concat(combined_data, ignore_index=True)
 
-        # Filter to ensure we only get data in the requested range
-        df = df[(df['time'] >= start) & (df['time'] <= end)]
+        # Filter to ensure we only get data in the requested range.
+        # `time` là tz-aware Asia/Ho_Chi_Minh (xem `bars.py`), nên biên phải
+        # cùng tz — so sánh với chuỗi ngày trần sẽ ném TypeError.
+        lower = pd.Timestamp(start).tz_localize("Asia/Ho_Chi_Minh")
+        upper = (
+            pd.Timestamp(end).tz_localize("Asia/Ho_Chi_Minh")
+            + pd.Timedelta(days=1)
+            - pd.Timedelta(seconds=1)
+        )
+        df = df[(df['time'] >= lower) & (df['time'] <= upper)]
 
         return df
 
@@ -341,31 +337,25 @@ class Quote:
                 f"Invalid timeframe value: {timeframe.value}"
             )
 
-        # TCBS iFlash OpenAPI does not support multi-day daily OHLC bars
-        if interval_key in ["1D", "1W", "1M"] and days > 0:
-            raise NotImplementedError(
-                "TCBS iFlash OpenAPI does not support historical multi-day daily/weekly/monthly OHLC bars. "
-                "TCBS OpenAPI only provides intraday tick data for the current session. "
-                "For historical daily/weekly/monthly OHLC data, please use source='VCI' or source='KBS' "
-                "(e.g., vn.quote(symbol, source='VCI').history(...)). "
-                "For intraday data on TCBS, use interval='1m', '5m', or quote.intraday()."
-            )
-
         # Only check for long date ranges if not explicitly skipped
         if not _skip_long_check and days > 365:
             return self._long_history(start, end, show_log, asset_type)
         else:
-            # For the new iFlash OpenAPI, OHLC bars endpoint is not available
-            # We can only compute single-session OHLC from intraday data
-            if interval_key in ["1D", "1W", "1M"]:
-                if show_log:
-                    logger.info(f"Computing single session OHLC from intraday data for {self.symbol}")
-                return self._compute_ohlc_from_intraday(start, end, interval_key, show_log)
-            elif interval_key in ["1m", "5m", "15m", "30m", "1H"]:
-                # For intraday intervals, return the raw intraday data
-                if show_log:
-                    logger.info(f"Fetching intraday data for {self.symbol}")
-                return self.intraday(page_size=count_back, show_log=show_log)
+            # `/nyx/v2/stock/bars` (phút) và `/nyx/v2/stock/bars-long-term`
+            # (D/W/M) phủ đủ các khung. `bars.py` tự chọn endpoint theo
+            # interval và giữ cột `time` tz-aware Asia/Ho_Chi_Minh.
+            if interval_key in bars.LONG_TERM_INTERVALS + bars.INTRADAY_INTERVALS:
+                return bars.fetch_bars(
+                    symbol=self.symbol,
+                    headers=self.headers,
+                    asset_type=asset_type,
+                    start=start,
+                    end=end,
+                    interval_key=interval_key,
+                    proxy_mode=self.proxy_mode,
+                    proxy_list=self.proxy_list,
+                    show_log=show_log,
+                )
             else:
                 raise ValueError(f"Unsupported interval: {interval_key}")
         
@@ -400,29 +390,31 @@ class Quote:
         show_log: bool = False,
     ) -> pd.DataFrame:
         """
-        Compute single-session OHLC data from intraday tick data using /nyx/v1/intraday endpoint.
-        
-        Since TCBS iFlash OpenAPI does not provide daily OHLC bars directly,
-        this method computes a single session's bar from current intraday tick data.
-        
+        Compute a single-session OHLC bar from intraday ticks
+        (`/nyx/v1/intraday`).
+
+        ⚠ **Không còn là đường chính của `history()`.** `history()` giờ gọi
+        `bars.fetch_bars()`, tức `/nyx/v2/stock/bars` và
+        `/nyx/v2/stock/bars-long-term`, vốn trả OHLCV sẵn cho cả D/W/M lẫn các
+        khung trong phiên. Hàm này giữ lại làm fallback: nó dựng nến từ tick
+        nên chỉ đúng trong **một** phiên giao dịch.
+
         Args:
             start: Start date (YYYY-MM-DD)
             end: End date (YYYY-MM-DD)
             interval_key: Interval key (1D, 1W, 1M)
             show_log: Whether to show log messages.
-            
+
         Returns:
             DataFrame with OHLC data.
         """
         start_date = datetime.strptime(start, "%Y-%m-%d")
         end_date = datetime.strptime(end, "%Y-%m-%d")
         if start_date != end_date:
-            raise NotImplementedError(
-                "TCBS iFlash OpenAPI does not support multi-day historical daily/weekly/monthly OHLC bars. "
-                "TCBS OpenAPI only provides intraday tick data for the current session. "
-                "For historical daily/weekly/monthly OHLC data, please use source='VCI' or source='KBS' "
-                "(e.g., vn.quote(symbol, source='VCI').history(...)). "
-                "For intraday data on TCBS, use interval='1m', '5m', or quote.intraday()."
+            raise ValueError(
+                "_compute_ohlc_from_intraday chỉ dựng được nến của MỘT phiên "
+                "giao dịch. Với khoảng nhiều ngày, hãy dùng history() — nó gọi "
+                "/nyx/v2/stock/bars-long-term (resolution D/W/M) trả OHLCV thật."
             )
 
         if interval_key not in ["1D", "1W", "1M"]:
