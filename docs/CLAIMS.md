@@ -31,12 +31,22 @@
 | agent-t1-netpool | feat/tier1-netpool | vnbroker/core/utils/cache.py,vnbroker/core/utils/rate_limiter.py,vnbroker/core/utils/client.py,vnbroker/core/provider_pool.py,tests/unit/core/test_cache_key.py,tests/unit/core/test_rate_limiter.py,tests/unit/core/test_connection_pool.py,tests/unit/core/test_provider_pool.py | done | 2026-10-08T13:00:00Z |
 | leader-t2-trade | dev | vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_trade_write_gate.py,tests/contract/test_dnse_endpoint_contract.py | done | 2026-10-08T15:00:00Z -> eeb1965 |
 | leader-t2-secrecy | dev | vnbroker/broker/security/redaction.py,vnbroker/connector/dnse/core/http_client.py,tests/unit/broker/test_redaction.py | done | 2026-10-08T15:00:00Z -> b505766 |
-| leader-t2-policy | dev | vnbroker/core/source_router.py,tests/unit/core/test_failover_parity.py. **CHUA LAM: vnbroker/core/utils/async_client.py (TokenBucketRateLimiter trung lap)** | partial | 2026-10-08T15:00:00Z -> b505766 |
+| leader-t2-policy | dev | vnbroker/core/source_router.py,tests/unit/core/test_failover_parity.py | partial | 2026-10-08T15:00:00Z -> b505766 |
 | leader-t2-ws | dev | vnbroker/connector/dnse/websocket.py,tests/unit/connector/dnse/test_websocket_protocol.py | done | 2026-10-09 -> 95f68e6 |
+| pm-audit-doc | docs/pm-audit-2026-10-09 | docs/PM_AUDIT_REPORT_20261009.md | done | 2026-10-09 -> 2c67b3c |
+| pm-gates-local | chore/local-gates-and-handoff | scripts/check_all.ps1,docs/HANDOFF_DNSE_ROUND2_20261009.md,CLAUDE.md | in-progress | 2026-10-09 |
 
 ## Ghi chú
 
 - `in-progress` = đang giữ. Đổi sang `done` ngay sau khi ghi xong file cuối cùng.
+- **`leader-t2-policy` — ĐÃ SỬA GHI CHÚ SAI (2026-10-09).** Bản gốc ghi *"CHUA LAM:
+  `async_client.py` (TokenBucketRateLimiter trùng lặp)"* kèm *"gate chưa đổi:
+  `tests/unit/core/test_rate_limiter.py` chưa được tạo"*. Cả hai vế đều sai:
+  - `tests/unit/core/test_rate_limiter.py` **đã tồn tại** — 174 dòng, 15 test, tạo ở `b2f43ff`.
+  - Việc còn lại thật sự là hợp nhất class trùng trong `async_client.py`, và audit 2026-10-09
+    đã hạ mức từ P0 xuống **minor** (đo: `capacity=300`, refill 5/s ⇒ không bao giờ treo).
+  - `async_client.py` **không được claim ở đâu cả** — chỉ xuất hiện trong plan. Cần claim mới
+    trước khi sửa.
 - KHÔNG agent nào được claim: `CLAUDE.md` (Hermes bảo vệ), `vnbroker/**` (không có
   bug code), `~/.hermes/config.yaml` (hook toàn cục trỏ dự án khác), và các file
   thuộc việc dở của người dùng.
