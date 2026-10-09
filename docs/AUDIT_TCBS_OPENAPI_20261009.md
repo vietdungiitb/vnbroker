@@ -298,3 +298,58 @@ WebSocket market data sẵn trong code.
 
 ⚠ Mục 1 **không verify được bằng live test** khi token chết. Ghi "đúng theo spec,
 chưa gọi thật", không báo PASS.
+---
+
+## 6. Bảo mật — **đã xử lý 2026-10-09**
+
+### 6.1 Đã làm (commit `b0dca5e`)
+
+Khóa API TCBS từng nằm trong git. Đã xoá ở HEAD:
+
+| Vị trí | Nội dung | Xử lý |
+|---|---|---|
+| `TCBS_CONNECTION_TEST_REPORT.md:11` | tiền tố khóa `10000928344-488b082e-…` | ✅ xoá |
+| `TCBS_CONNECTION_TEST_REPORT.md:22` | OTP thật | ✅ xoá |
+
+Quét lại: không còn fragment khóa hay OTP trong bất kỳ file tracked nào.
+
+**Cách xác minh khóa mà không phải lộ nó** — thay cho giá trị thật trong tài liệu:
+
+```
+POST /gaia/v1/oauth2/openapi/apikey/info  {"apiKey": <từ .env>}
+  -> 200 {"expireDate": "..."}                    khoa hop le
+POST /gaia/v1/oauth2/openapi/token    {"apiKey": …, "otp": sai}
+  -> 400 {"code":"203033","message":"Invalid OTP"}  khoa duoc chap nhan
+```
+
+### 6.2 Owner quyết định: phương án **A + revoke**
+
+| | Cách | Đánh giá |
+|---|---|---|
+| **A** | Xoá ở HEAD | ✅ **đã làm** — chặn tái phát |
+| B | `git filter-repo` + force-push | ❌ bị từ chối — ghi đè lịch sử chung |
+| C | Rotate/revoke khóa | **Owner tự thực hiện** |
+
+**Vì sao A + revoke là đủ:** sau khi revoke, khóa cũ **vô hiệu lực** dù còn trong
+lịch sử git. Bỏ phương án B là đổi lấy hiệu quả gần như bằng 0 với rủi ro cao.
+
+### 6.3 Việc còn tồn đọng
+
+- **Khóa vẫn còn trong lịch sử git** ở commit `2696334`, đã push lên `origin/dev`:
+  `git show 2696334:docs/TCBS_CONNECTION_TEST_REPORT.md`
+  Chấp nhận rủi ro này sau khi revoke — khoá cũ không còn dùng được.
+- **Số tiểu khoản + `custodyID`** (`10000928344`, `105C836591`) còn ở 7 chỗ.
+  Không phải credential, nhưng là dữ liệu định danh tài khoản thật. **Chưa có ý
+  kiến từ Owner.**
+
+### 6.4 Hệ quả với việc kiểm chứng
+
+Khóa hiện tại còn hiệu lực đến **19/05/2027** (đo bằng `apikey/info`). Sau khi
+Owner revoke:
+
+1. `.env` → `TCBS_AUTH_TOKEN` **mất hiệu lực** ⇒ mọi lệnh TCBS dừng.
+2. Cần **API key mới** tạo trên TCInvest.
+3. Vẫn cần **Smart OTP** để đổi key → JWT. Bước này **không tự động hoá được**.
+
+⇒ Giai đoạn 0 (probe 19 path) **bị chặn** cho tới khi có key mới + OTP. Giai đoạn 1
+(nối `bars`) viết và test offline được — **không** phụ thuộc token.
