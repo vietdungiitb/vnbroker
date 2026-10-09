@@ -2,6 +2,72 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - Write gate DNSE chuyen tang + gate local
+
+### PM-01 — P0 write gate chuyen tu `Trade` xuong tang HTTP (blocker)
+
+`eeb1965` dat hang rao tren `Trade` va lam dung 10/10 method. Nhung hang rao do
+**vong qua duoc bang mot dong code hop le**: `Trade.as_openapi_client()` la method
+**public**, tra ve mot `DNSEClient` **khong co** `_write_enabled`/`enable_write`,
+va moi method tien that cua no deu `dry_run=False` mac dinh.
+
+Do bang thuc thi (khong doc ten ham) — voi `Trade._write_enabled = False`:
+
+```
+POST   /accounts/orders?marketType=...&orderCategory=NORMAL   <-- dat lenh that
+PUT    /accounts/A/orders/O
+DELETE /accounts/A/orders/O
+PATCH  /accounts/A/orders/O
+POST   /positions/P/close
+POST   /registration/trading-token
+=> 6 request tien that, gate dang TAT
+```
+
+**Sua:** chuyen hang rao xuong `DNSEHttpClient.request` — **diem ngheo duy nhat** moi
+request deu di qua, khong bypass duoc bang bat ky duong nao.
+
+- Quyet dinh tu **HTTP verb** (`POST/PUT/PATCH/DELETE`), khong phai danh sach method.
+  Them endpoint moi **khong the quen gate**, vi khong co gi de quen.
+  Gate theo method se tai lap dung bug vua sua: them 1 endpoint = them 1 lo.
+- `dry_run=True` **khong** can quyen — envelope la cach nguoi dung kiem tra payload
+  truoc khi gui. Gate no la bien "xem" thanh hanh dong nguy hiem.
+- `send_email_otp` **khong** gate: no la buoc dang nhap, gate no la dong luong dang
+  nhap (quyet dinh Owner 2026-10-08). **Khong** gate `/registration/trading-token` —
+  cap trading token la buoc uy quyen `post_order`.
+
+**Breaking change:**
+
+4. **`DNSEClient` gio co `write_enabled` (mac dinh `False`) va `enable_write()`.**
+   Code dang goi `DNSEClient().post_order(...)` / `put_order` / `cancel_order` /
+   `replace_order` / `close_position` / `create_trading_token` **se nhan
+   `BrokerPermissionError(WRITE_NOT_ENABLED)`** cho den khi goi `enable_write()`.
+   ```python
+   client = DNSEClient(api_key=..., api_secret=...)
+   client.enable_write()               # <- moi them
+   client.post_order("STOCK", payload, trading_token)
+   ```
+   Doc (`get_*`, `get_ohlc`, `get_trades`, `get_instruments`) va `dry_run=True`
+   **khong doi** — khong can `enable_write()`.
+   `Trade.as_openapi_client()` / `Trade._get_openapi_client()` truyen tiep quyen
+   write cua `Trade`, nen `trade.enable_write()` van la mot diem bat buoc duy nhat
+   tren duong `Trade`.
+
+Bang chung fail-before / pass-after: `tests/unit/connector/dnse/test_write_gate_layer.py`
+(**11 test moi**) — truoc **6 failed / 4 passed**, sau **11/11 passed**. Probe doc lap
+(viet truoc khi sua, khong dung test cua ho) do lai tu **6 request => 0**.
+`test_dnse_endpoint_contract.py` bo sung `write_enabled=True` trong fixture: bo test do
+dung `blocked.invalid` nen khong the gui ra ngoai, va no kiem path chu khong kiem gate.
+
+### Gate local thay the CI (CI khong chay)
+
+GitHub Actions cua repo nay **khong chay** — job bi tu choi khoi dong do billing
+(`"spending limit needs to be increased"`). Lan chay thanh cong cuoi: **2026-10-02**.
+Tu do toi nay **74 commit** merge ma khong gate nao chay.
+
+- Moi: `scripts/check_all.ps1` — 1 lenh, exit code that, co `-Quick` va `-SelfTest`.
+- `CLAUDE.md` + `HANDOFF_DNSE_ROUND2_20261009.md`: ghi ro CI **CHUA CHAY** va
+  `mypy --strict` la **no-op** (ca hai lenh deu 1207 loi y het).
+
 ## [Unreleased] - DNSE round 2: write gate, ro credential, failover, WebSocket
 
 **Breaking changes - doc truoc khi nang cap:**
@@ -44,7 +110,8 @@ All notable changes to this project will be documented in this file.
   reset, `requests.*`) khong failover o duong single-symbol trong khi duong bulk van
   chay. Loi code provider (`TypeError`/`ValueError`/`AttributeError`) van lot len nhu cu.
 - `Trade` nhan them tham so `api_base_url` de cau hinh ho API **legacy**
-  (`api.dnse.com.vn`, 32 method dung host nay - SDK khong nhac toi). Mac dinh **khong doi**.
+   (`api.dnse.com.vn`, **25 method** dung host nay - SDK khong nhac toi; so do la
+   25, khong phai 32 nhu ghi o ban nhap ban dau). Mac dinh **khong doi**.
 
 **Khong sua (co chu dich):**
 

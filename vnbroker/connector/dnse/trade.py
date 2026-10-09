@@ -87,15 +87,23 @@ class Trade:
                 api_key=self._api_key,
                 api_secret=self._api_secret,
                 base_url=self._openapi_base_url,
+                write_enabled=self._write_enabled,
             )
         return self._openapi_client
 
     def as_openapi_client(self, api_key: str, api_secret: str) -> DNSEClient:
-        """Create a DNSE OpenAPI client for authenticated market and order calls."""
+        """Create a DNSE OpenAPI client for authenticated market and order calls.
+
+        The returned client carries this `Trade`'s write permission. Before
+        PM-01 it carried none, so this public method was a one-line way past
+        the gate: the client had no `_write_enabled` and every one of its money
+        methods defaulted to `dry_run=False`.
+        """
         return DNSEClient(
             api_key=api_key,
             api_secret=api_secret,
             base_url=self._openapi_base_url,
+            write_enabled=self._write_enabled,
         )
 
     def login(self, user_name: str, password: str) -> Optional[str]:

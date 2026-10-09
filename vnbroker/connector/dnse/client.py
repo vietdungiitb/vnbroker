@@ -26,6 +26,7 @@ class DNSEClient:
         hmac_nonce_enabled: bool = True,
         timeout_seconds: float = 30.0,
         show_log: bool = False,
+        write_enabled: bool = False,
     ):
         self._config = DNSEConfig(
             api_key=api_key,
@@ -37,12 +38,28 @@ class DNSEClient:
             timeout_seconds=timeout_seconds,
             show_log=show_log,
         )
-        self._http = DNSEHttpClient(self._config)
+        # `write_enabled` is off by default and enforced inside
+        # `DNSEHttpClient.request`, the one place every request passes through.
+        self._http = DNSEHttpClient(self._config, write_enabled=write_enabled)
         self._account = AccountService(self._http)
         self._market = MarketService(self._http)
         self._order = OrderService(self._http)
         self._position = PositionService(self._http)
         self._token = TokenService(self._http)
+
+    def enable_write(self, enabled: bool = True) -> None:
+        """Allow (or forbid) state-changing requests.
+
+        Required before ``post_order``, ``put_order``, ``cancel_order``,
+        ``replace_order``, ``close_position`` or ``create_trading_token``
+        actually reaches the provider. Reads and ``dry_run=True`` need no
+        permission.
+
+        Example:
+            >>> client.enable_write()
+            >>> client.post_order("STOCK", payload, trading_token)
+        """
+        self._http.enable_write(enabled)
 
     @staticmethod
     def _to_dataframe(payload: Any):
