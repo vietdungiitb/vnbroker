@@ -267,10 +267,16 @@ class TCBSAuthService:
         khi `expires_at` khác None ⇒ gọi thẳng với `expires_at=None` sẽ khiến
         session tự chế **8 giờ bịa đặt** (bug F-2). Xoá lại ở đây cho khớp
         AC T7(c). Không sửa `session.py` — nằm ngoài phạm vi lát T.
+
+        Việc xoá phải nằm **trong `_lock`** của session: `token` property đọc
+        `token_expires_at` dưới cùng lock đó (session.py:116), nên ghi ngoài lock là
+        race — thread đang đọc có thể thấy `expires_at=None` (chưa xoá) rồi đổi
+        sang `(now + 8h)` (đã set_token), tức lại quay về bug F-2 một cách im lặng.
         """
-        self._session.set_token(token, expires_at=expires_at)
-        if expires_at is None:
-            self._session.token_expires_at = None
+        with self._session._lock:
+            self._session.set_token(token, expires_at=expires_at)
+            if expires_at is None:
+                self._session.token_expires_at = None
 
     @staticmethod
     def _parse_expires(expired_time: object) -> Optional[datetime]:
