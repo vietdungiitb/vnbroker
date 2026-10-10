@@ -289,18 +289,47 @@ class NetworkError(vnbrokerError):
         )
 
 
-class RateLimitError(NetworkError):
-    """Raised when upstream provider throttles requests."""
+class RateLimitError(NetworkError, ConnectionError):
+    """Server trả 429 — provider đang throttle, không phải provider chết.
+
+    ⚠ **Vì sao kế thừa thêm `ConnectionError`** (chứ không chỉ `NetworkError`):
+    `source_router.should_failover()` xét `isinstance(exc, OSError, ...)` **trước**
+    khi xét marker chuỗi, mà `ConnectionError` là con của `OSError`. Trước đây
+    MRO chỉ có `NetworkError → vnbrokerError` ⇒ `RateLimitError` **không** phải
+    `OSError`; chuỗi `"temporarily throttled requests"` cũng **không** chứa marker
+    `"429"`/`"rate limit"` ⇒ `should_failover` trả `False` ⇒ `base.py` rơi vào
+    nhánh `raise`: không `record_failure`, không chuyển provider. Tệ hơn hiện
+    trạng. Đo ở `4cd0f2d`: `should_failover(RateLimitError('kbs', 120)) == False`.
+
+    Giữ `NetworkError` để không phá `except vnbrokerError` đang có; thêm
+    `ConnectionError` để `should_failover` **và** `tenacity` nhìn thấy. Sửa kế
+    thừa rẻ hơn sửa `should_failover` và không đổi hợp đồng của hàm đó.
+    Hệ quả có lợi: code người dùng bắt `except ConnectionError` vẫn bắt được.
+
+    Attributes:
+        retry_after: Số giây server bảo chờ (header `Retry-After`), hoặc `None`
+            khi server không nói / nói thứ không parse được. Đây là nguồn sự
+            thật cho cooldown; `details["retry_after"]` chỉ là bản ghi để log.
+    """
+
+    retry_after: Optional[float]
 
     def __init__(
         self,
         provider: str,
-        retry_after: Optional[int] = None,
+        retry_after: Optional[float] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
+        # `Retry-After: 0` (hoặc âm) = server không giới hạn thực tế. Coi như
+        # "không có thông tin" để cooldown rơi về suy đoán lũy thừa, không
+        # phải 0 giây.
+        if retry_after is not None and retry_after <= 0:
+            retry_after = None
+        self.retry_after = retry_after
+
         msg = f"Provider '{provider}' temporarily throttled requests"
         if retry_after:
-            msg += f". Retry after {retry_after} seconds"
+            msg += f". Retry after {int(retry_after)} seconds"
 
         details = details or {}
         details["provider"] = provider

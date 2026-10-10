@@ -13,9 +13,12 @@ Functions:
 
 import requests
 import random
+import math
 from typing import Dict, Any, Optional, Union, List
 from enum import Enum
+from urllib.parse import urlparse
 from pydantic import BaseModel
+from vnbroker.core.exceptions import RateLimitError
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.proxy_manager import proxy_manager
 from vnbroker.core.utils.rate_limiter import TokenBucketRateLimiter
@@ -43,6 +46,44 @@ def configure_rate_limiter(rate: float, capacity: Optional[float] = None) -> Non
 def get_rate_limiter() -> Optional[TokenBucketRateLimiter]:
     """Get the current rate limiter instance (None if disabled)."""
     return _rate_limiter
+
+
+def parse_retry_after(headers: Any) -> Optional[float]:
+    """Đọc header ``Retry-After`` (RFC 9110 §10.2.4) thành số giây.
+
+    ⚠ **Chỉ đọc `Retry-After`, cố ý KHÔNG đọc `X-RateLimit-*`.** Đo ở `4cd0f2d`:
+    `git grep -n 'X-RateLimit' 4cd0f2d` → **0** kết quả, và khảo sát provider của
+    chính repo (`REPORT_TIER1_EXPLORER_SURVEY.md`) ghi "Đọc header `X-RateLimit-*`
+    | **0** | Không provider nào công bố giới hạn". Đọc một header không tồn tại
+    là **bịa đặc tả** — code trông thông minh nhưng không bao giờ chạy.
+
+    Chỉ hỗ trợ dạng ``<số giây>``. Dạng ``HTTP-date`` (RFC đủ cho cả hai) **không**
+    cài parser: không provider nào trong repo gửi dạng đó, thêm parser là bịa
+    nhu cầu (nợ N10). Giá trị không parse được ⇒ trả ``None`` ⇒ coi như server
+    **không nói gì** ⇒ cooldown rơi về suy đoán lũy thừa. ``None`` nghĩa là
+    "không có thông tin", KHÔNG phải "chờ 0 giây".
+
+    Args:
+        headers: Mapping header của response (thường là ``CaseInsensitiveDict``).
+
+    Returns:
+        Số giây server bảo chờ, hoặc ``None`` nếu thiếu / không phải số.
+    """
+    if not headers:
+        return None
+    try:
+        raw = headers.get("Retry-After")
+    except AttributeError:  # object không phải mapping
+        return None
+    if raw is None:
+        return None
+    try:
+        seconds = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None  # HTTP-date hoặc rác -> coi như không có thông tin
+    if not math.isfinite(seconds) or seconds < 0:
+        return None
+    return seconds
 
 
 # Proxy configuration model for use across the project
@@ -295,9 +336,13 @@ def send_request_direct(
         
     Returns:
         Dict[str, Any]: Returned JSON data
-        
+
     Raises:
-        ConnectionError: If request fails or returns error code
+        RateLimitError: If server answers HTTP 429 (throttling). Kế thừa
+            ``ConnectionError`` nên code bắt ``except ConnectionError`` vẫn
+            bắt được; khác ở chỗ mang theo ``retry_after`` đọc từ header
+            ``Retry-After`` để circuit breaker đặt cooldown đúng số.
+        ConnectionError: If request fails or returns other error code
     """
     try:
         session = _get_thread_session()
@@ -326,6 +371,16 @@ def send_request_direct(
         response = session.request(method_upper, url, **request_kwargs)
         # Check response status
         if response.status_code != 200:
+            if response.status_code == 429:
+                # 429 là lời mời "chậm lại", KHÔNG phải "provider chết" — nên nó
+                # phải mang theo Retry-After thay vì nằm chung với 403/500.
+                # Trước đây 429 ra `ConnectionError` chung, nên cooldown chỉ
+                # lớn theo suy đoán và retry thêm 3 lần vô ích.
+                raise RateLimitError(
+                    provider=urlparse(url).netloc or url,
+                    retry_after=parse_retry_after(getattr(response, "headers", None)),
+                    details={"url": url, "status_code": 429},
+                )
             msg = (
                 f"Failed to fetch data: "
                 f"{response.status_code} - {response.reason}"

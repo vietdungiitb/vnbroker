@@ -18,13 +18,21 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
     retry_if_exception_type,
+    retry_if_not_exception_type,
 )
 from pandas.api.types import is_numeric_dtype
 
 from vnbroker.core.utils.logger import get_logger
-from vnbroker.core.exceptions import UnsupportedMethodError
+from vnbroker.core.exceptions import RateLimitError, UnsupportedMethodError
 
 logger = get_logger(__name__)
+
+# 429 KHÔNG được retry: server đã bảo "chờ", retry lập tức chỉ nhận lại 429 rồi
+# xoay vòng tiếp — phải chuyển thẳng provider kế tiếp. Đây là GIAO của tập lỗi
+# mạng cũ (lỗi lập trình vẫn phải ném ngay), y hệt lý do ở `base.py::history`.
+_RETRY_EXCEPT_RATE_LIMIT = retry_if_exception_type((
+    requests.exceptions.RequestException, ConnectionError, TimeoutError,
+)) & retry_if_not_exception_type(RateLimitError)
 
 
 PUBLIC_VN_SOURCES = {"KBS", "VCI", "TCBS", "DNSE", "SSI"}
@@ -640,24 +648,20 @@ class Quote(BaseComponent):
         sources = getattr(self, "_auto_sources", None)
         if not sources:
             # Đường không-auto: một provider cố định, retry cả lời gọi provider
-            # theo hành vi lịch sử (DEFAULT_RETRIES lần).
+            # theo hành vi lịch sử (DEFAULT_RETRIES lần), trừ 429.
             self._update_data_source()
             method = getattr(self.data_source, method_name)
             filtered = _filter_kwargs(method, kwargs)
             return Retrying(
                 stop=stop_after_attempt(Config.DEFAULT_RETRIES),
                 wait=wait_exponential(multiplier=1, min=2, max=10),
-                retry=retry_if_exception_type((
-                    requests.exceptions.RequestException,
-                    ConnectionError,
-                    TimeoutError,
-                )),
+                retry=_RETRY_EXCEPT_RATE_LIMIT,
                 reraise=True,
             )(method, **filtered)
 
         # Retry áp cho TỪNG provider: một provider gặp lỗi mạng tạm thời thì thử
         # lại chính nó vài lần trước khi chuyển sang provider kế tiếp. Retry cả vòng
-        # failover sẽ khiến mỗi provider bị thử N lần khi hết pool.
+        # failover sẽ khiến mỗi provider bị thử N lần khi hết pool. 429 thì không retry.
         def _call_once() -> Any:
             method = getattr(self.data_source, method_name)
             return method(**_filter_kwargs(method, kwargs))
@@ -665,11 +669,7 @@ class Quote(BaseComponent):
         per_provider_retry = Retrying(
             stop=stop_after_attempt(Config.DEFAULT_RETRIES),
             wait=wait_exponential(multiplier=1, min=2, max=10),
-            retry=retry_if_exception_type((
-                requests.exceptions.RequestException,
-                ConnectionError,
-                TimeoutError,
-            )),
+            retry=_RETRY_EXCEPT_RATE_LIMIT,
             reraise=True,
         )
 
@@ -693,7 +693,7 @@ class Quote(BaseComponent):
                 if not source_router.should_failover(exc):
                     # Lỗi lập trình, không phải lỗi mạng: ném ra, đừng che.
                     raise
-                source_router.record_failure(module_name, source)
+                source_router.record_failure(module_name, source, retry_after=getattr(exc, "retry_after", None))
                 last_exc = exc
                 continue
             if _is_unusable_provider_result(result):
