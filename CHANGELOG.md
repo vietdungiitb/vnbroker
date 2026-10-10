@@ -2,6 +2,66 @@
 
 All notable changes to this project will be documented in this file.
 
+### 3.6.0 — Hop dong du lieu tang 1 (2026-10-10)
+
+Dong nay dong **Wave 1 + Wave 2** cua `docs/PLAN_TIER1_PROVIDER_AGNOSTIC.md`.
+Ba loi duoi day **dang xay ra voi nguoi dung** va deu sai **am thanh** — khong nem
+loi, chi cho ra so sai. Moi so do duoc tren du lieu that (ma `TCB`, `VCB`).
+
+**Sua 3 loi du lieu (uut tien cao nhat):**
+
+| Loi | Truoc | Sau |
+|:--|:--|:--|
+| `match_type` lech casing giua provider | KBS `buy/sell/atc` · VCI `Buy/Sell/ATC`; `df[df.match_type=='Buy']` → KBS **0** dong, VCI **67** | ca hai `['ATC','Buy','Sell']`; KBS **74** dong |
+| Cot `time` lech don vi luu tru | KBS `[us]` · VCI `[s]`; `DataFrame.concat` → **`object`** | ca hai `[ns, Asia/Ho_Chi_Minh]` |
+| `market_cap` phong dai **1000 lan** | VCB **473 766 777.83** ty | **473 766.78** ty |
+
+Nguyen nhan goc cua loi 1 chi la **mot dong**: `explorer/kbs/quote.py` goi
+`.str.lower()` ngay sau `process_match_types`, pha dung hop dong vua lap 3 dong
+tren. Do la **dung mot** choi `str.lower()` tren `match_type` trong toan repo.
+
+Nguyen nhan goc cua loi 3: `api/snapshot.py` suy don vi gia tu **tham so**
+`price_unit` thay vi doc `df.attrs['price_unit']` ma provider dan. Do live:
+`price_board(price_unit=None)` va `price_board(price_unit='VND')` tra **cung**
+`close_price = 56700`.
+
+**Sua chuoi TCBS (5 loi, sua 1 chong du):**
+
+1. `explorer/tcbs/auth.py` chi doc `TCBS_AUTH_TOKEN` — bien 48 ky tu ma server
+   tra `401 validate.token.error` tren 4/4 endpoint.
+2. `core/provider_pool.py` doi `TCBS_API_SECRET` — bien **khong ton tai** o dau.
+3. `get_auto_candidates()` gap trong → khong bao gio dua TCBS vao AUTO.
+4. Cong khong kiem duoc provider co credential bi lo khoi AUTO.
+5. `common/client.py` **ghi de** token da dung cua provider bang bien sai.
+
+Sau khi sua ca 5: `Vnbroker(source='TCBS').stock('TCB').quote.history()` → **20
+dong** (truoc: `ConnectionError`).
+
+**Cong moi:** `scripts/check_provider_consistency.py` (C0–C5) + `--self-test` 5
+truong hop am, wire vao `check_all.ps1`. Cong nay **da duoc phong thu**: inject
+lai 3 loi ma phien ban gate im lang → ca 3 deu exit 1, cay sach exit 0.
+
+**Sua loi test phu thuoc may:** `pytest tests/unit tests/contract` xanh nhung
+`pytest tests/` **14 failed** — do `tests/conftest.py` nap `.env` that vao
+`os.environ`. Da them fixture `autouse` (`tests/isolation.py`).
+
+**Dinh chinh 3 dieu phien truoc noi sai** (chi tiet: `docs/HANDOFF_TIER1_WAVE12.md` §2):
+- "KBS intraday tz-naive" — **SAI**, no tz-**aware**; loi that la lech **don vi**.
+- "TCBS nho bien sai" — **DUNG** nhung chi la 1/5 loi trong chuoi.
+- "DNSE loi mang chop chon" — dung trieu chung, da tim ra nguyen nhan tang mang:
+  TLS handshake toi `openapi.dnse.com.vn` **timeout**.
+
+**Audit doc lap:** 2 vong, 0 blocker + 7 major + 4 minor (vong 1) va 0 blocker +
+7 major + 4 minor (vong 2). **Tat ca da sua va co test khoa lai.** Chi tiet:
+`docs/AUDIT_TIER1_WAVE12.md`.
+
+**CHUA CHAY (khong phai PASS):** CI GitHub Actions (job bi tu choi khoi dong do
+billing) · DNSE market data (TLS timeout) · doi chieu `market_cap` bang provider
+thu hai (screener cua VCI/KBS tra 0 dong).
+
+**Gate:** `check_all.ps1` exit **0** · pytest **1978 passed / 26 skipped** ·
+contract **91** · mypy baseline 1138 (khong loi moi) · ruff 0.
+
 ### TCBS round 3: cong chan payload + tach derivatives.py 852L -> 462L (2026-10-10)
 
 Round 3 **khong sua loi** — no **dung cong chan** roi bao cao Owner. Sua body write

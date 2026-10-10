@@ -130,14 +130,28 @@ class Vnbroker:
             key = None
             secret = None
 
+        # Bearer token cho TCBS phải do MỘT chỗ quyết định.
+        #
+        # Bản cũ đọc thẳng `TCBS_AUTH_TOKEN` ở đây và truyền xuống làm
+        # `auth_token`, **ghi đè** mọi thứ provider tự giải quyết — kể cả khi
+        # provider đã chọn đúng. Đo 2026-10-10: `TCBS_AUTH_TOKEN` là mã 48 ký
+        # tự mà server từ chối (`401 validate.token.error`), còn `TCBS_JWT_TOKEN`
+        # là JWT thật; truyền thẳng mã 48 ký tự xuống làm
+        # `Vnbroker(source="TCBS").stock("TCB").quote.history()` ném
+        # `ConnectionError` trong khi `explorer.tcbs.quote.Quote` gọi trực tiếp
+        # với cùng `.env` thì chạy được (20 dòng).
+        if effective_source == "TCBS":
+            from vnbroker.explorer.tcbs.auth import resolve_auth_token
+
+            tcbs_auth_token = resolve_auth_token()
+        else:
+            tcbs_auth_token = None
+
         return StockComponents(
             self.symbol,
             effective_source,
             show_log=self.show_log,
-            auth_token=os.getenv("vnbroker_TCBS_AUTH_TOKEN")
-            or os.getenv("TCBS_AUTH_TOKEN")
-            if effective_source == "TCBS"
-            else None,
+            auth_token=tcbs_auth_token,
             api_key=(
                 os.getenv("vnbroker_TCBS_OPENAPI_API_KEY")
                 or os.getenv("TCBS_OPENAPI_API_KEY")

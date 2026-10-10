@@ -16,6 +16,7 @@ from vnbroker.core.bulk_router import BulkRouter
 from vnbroker.core.health_router import HealthRouter
 from vnbroker.core.provider_pool import ProviderPool
 from vnbroker.core.registry import ProviderRegistry
+from vnbroker.core.utils.normalizer import Normalizer
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,15 @@ class BulkAPI:
             symbols, start, end, "quote", interval=interval, providers=servable
         )
 
-        # 4. Merge results into single DataFrame
+        # 4. Merge results into single DataFrame.
+        #
+        # Chuẩn hoá TRƯỚC `concat`: mỗi provider giữ đơn vị lưu trữ `time` và
+        # tập giá trị `match_type` riêng (đo live @ 9d5db1d: KBS
+        # `datetime64[us]` + `buy/sell/atc`, VCI `datetime64[s]` +
+        # `Buy/Sell/ATC`). `DataFrame.concat` hai frame lệch đơn vị rơi về
+        # `dtype object` — mọi phép tính thời gian phía dưới hỏng mà không
+        # ném lỗi. Đây là lý do bulk đổi provider là hỏng dữ liệu, không chỉ
+        # chậm.
         frames: List[pd.DataFrame] = []
         sources_used: Dict[str, str] = {}
 
@@ -97,6 +106,7 @@ class BulkAPI:
                 for df in provider_results:
                     if isinstance(df, pd.DataFrame) and not df.empty:
                         sym = df.attrs.get("symbol", "unknown")
+                        df = Normalizer.normalize_history(df, start, end)
                         df["symbol"] = sym
                         frames.append(df)
                         sources_used[sym] = provider

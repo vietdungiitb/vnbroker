@@ -52,7 +52,15 @@ class TestSSIWiringP1:
 
             GĐ2: provider trả tz-naive, nhưng tầng ``data.py`` gắn
             ``Asia/Ho_Chi_Minh`` để mọi provider ẩn danh cùng schema (xem
-            ``_normalize_quote_result``). Test này khoá hành vi đó.
+            ``vnbroker/core/utils/normalizer.py``).
+
+            ⚠ Từ 2026-10-10 hợp đồng gồm **cả đơn vị lưu trữ**: tz-aware chưa
+            đủ. pandas ≥ 2 giữ nguyên đơn vị của nguồn — `pd.to_datetime` cho
+            ra `datetime64[us]`, các provider khác cho `[s]` — và
+            ``DataFrame.concat`` giữa hai đơn vị rơi về ``dtype object``.
+            Tầng chuẩn hoá vì thế ép về `datetime64[ns]`. Khẳng định cũ (chỉ
+            `tz_localize` rồi so) xanh với *cả hai* hành vi nên không bắt được
+            lỗi.
             """
             raw = pd.DataFrame(
                 {
@@ -71,7 +79,9 @@ class TestSSIWiringP1:
                 out = q.history(start="2024-01-01", end="2024-01-31")
 
             expected = raw.copy()
-            expected["time"] = expected["time"].dt.tz_localize("Asia/Ho_Chi_Minh")
+            expected["time"] = (
+                expected["time"].dt.tz_localize("Asia/Ho_Chi_Minh").dt.as_unit("ns")
+            )
             pd.testing.assert_frame_equal(out, expected)
 
             # Hợp đồng tầng 1: kết quả qua facade luôn tz-aware.

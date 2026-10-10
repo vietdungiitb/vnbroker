@@ -5,7 +5,7 @@ Unified Quote adapter with dynamic method detection and parameter filtering.
 Module quản lý dữ liệu giá chứng khoán với phát hiện phương thức động và lọc tham số.
 """
 
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 from vnbroker.config import Config
@@ -169,7 +169,10 @@ class Quote(BaseAdapter):
         # Add any remaining kwargs
         params.update(kwargs)
             
-        return self._delegate_to_provider(M.HISTORY, symbol, **params)
+        result = self._delegate_to_provider(M.HISTORY, symbol, **params)
+        # `_post_process_result` chuẩn hoá kết quả. Dòng này chỉ để lời gọi
+        # tường minh khi đọc code; không có nó thì hợp đồng vẫn được áp ở hook.
+        return result
 
     @retry(
         stop=stop_after_attempt(Config.RETRIES),
@@ -207,7 +210,8 @@ class Quote(BaseAdapter):
         # Add any remaining kwargs
         params.update(kwargs)
         
-        return self._delegate_to_provider(M.INTRADAY, symbol, **params)
+        result = self._delegate_to_provider(M.INTRADAY, symbol, **params)
+        return result  # chuẩn hoá ở `_post_process_result`
 
     @retry(
         stop=stop_after_attempt(Config.RETRIES),
@@ -236,6 +240,66 @@ class Quote(BaseAdapter):
         """
         return self._delegate_to_provider(M.PRICE_DEPTH, symbol, **kwargs)
         
+    def _post_process_result(self, result: Any, method_name: str, kwargs: Dict[str, Any]) -> Any:
+        """Áp hợp đồng tầng 1 lên kết quả provider.
+
+        `history` và `intraday` được trang bị `@dynamic_method`, và decorator
+        đó rẽ sang `_call_dynamic_method` **trước khi thân hàm chạy**. Đặt
+        `self._normalize(...)` vào trong thân hàm là dead code: đo 2026-10-10,
+        `_delegate_to_provider` được gọi **0** lần và kết quả trả về y nguyên
+        frame thô của provider (tz-naive, `match_type` chưa chuẩn hoá).
+
+        Vì vậy điểm móc đúng là `_post_process_result` trên `BaseAdapter`, điểm
+        mà mọi lời gọi provider — kể cả qua `@dynamic_method` — đều đi qua.
+
+        `price_depth` không có cột `time` nên `Normalizer` trả nguyên frame.
+        `to_df=False` nghĩa là caller muốn dữ liệu thô ⇒ không chuẩn hoá.
+        """
+        result = super()._post_process_result(result, method_name, kwargs)
+
+        if method_name not in ("history", "intraday"):
+            return result
+        if kwargs.get("to_df", True) is False:
+            return result
+
+        if method_name == "intraday":
+            return self._normalize(result, boundaries=False)
+        return self._normalize(result, kwargs.get("start"), kwargs.get("end"))
+
+    def _normalize(
+        self,
+        result: Any,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        *,
+        boundaries: bool = True,
+    ) -> Any:
+        """Đưa kết quả provider về hợp đồng tầng 1.
+
+        `vnbroker.common.data.Quote` đã làm việc này, nhưng `api.quote.Quote`
+        là bề mặt import được của riêng nó (``from vnbroker.api.quote import
+        Quote``) và trước đây trả thẳng frame của provider — nên `time` có
+        thể tz-naive, đơn vị lưu trữ khác nhau và `match_type` khác casing
+        tuỳ provider. Đo live @ 9d5db1d: KBS `[us, Asia/Ho_Chi_Minh]` +
+        `buy/sell/atc` vs VCI `[s, Asia/Ho_Chi_Minh]` + `Buy/Sell/ATC`;
+        `pd.concat` hai frame đó ra `dtype object`.
+
+        Hợp đồng và cách hiện thực nằm ở MỘT chỗ:
+        ``vnbroker/core/utils/normalizer.py``. Không viết lần hai ở đây.
+
+        Args:
+            result: Frame (hoặc list frame) provider trả về.
+            start: Biên đầu; ``None`` nghĩa là không lọc.
+            end: Biên cuối; ``None`` nghĩa là không lọc.
+            boundaries: ``False`` cho intraday — provider tự xử lý ngày giao
+                dịch, lọc thêm ở đây sẽ cắt nhầm dữ liệu trong phiên.
+        """
+        from vnbroker.core.utils.normalizer import Normalizer
+
+        if boundaries:
+            return Normalizer.normalize_history(result, start, end)
+        return Normalizer.normalize_intraday(result)
+
     def _delegate_to_provider(self, method_name: str, symbol: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Delegate method call to the provider with symbol update if needed.
@@ -326,7 +390,7 @@ class Quote(BaseAdapter):
             )
         
         # Call provider's fetch_multiple (handles both sync and async)
-        return call_provider_sync(
+        frames = call_provider_sync(
             self.provider.fetch_multiple,
             symbols=symbols,
             start=start,
@@ -339,3 +403,7 @@ class Quote(BaseAdapter):
             max_concurrency=max_concurrency,
             adaptive_concurrency=adaptive_concurrency,
         )
+        # `Normalizer.normalize_history` nhận list frame và chuẩn hoá từng
+        # frame, nên list trả về cũng tuân thủ hợp đồng tầng 1 — không để
+        # `concat` phía người dùng phải tự gánh.
+        return self._normalize(frames, start, end)

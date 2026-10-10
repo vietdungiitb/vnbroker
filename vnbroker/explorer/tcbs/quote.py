@@ -473,7 +473,7 @@ class Quote:
                     "TCBS iFlash OpenAPI requires valid JWT token. "
                     "Get JWT token by exchanging API key + OTP via "
                     "POST /gaia/v1/oauth2/openapi/token, then set "
-                    "TCBS_AUTH_TOKEN=<JWT> environment variable."
+                    "TCBS_JWT_TOKEN=<JWT> environment variable."
                 )
             raise
         
@@ -763,7 +763,7 @@ class Quote:
                         "TCBS iFlash OpenAPI requires valid JWT token. "
                         "Get JWT token by exchanging API key + OTP via "
                         "POST /gaia/v1/oauth2/openapi/token, then set "
-                        "TCBS_AUTH_TOKEN=<JWT> environment variable."
+                        "TCBS_JWT_TOKEN=<JWT> environment variable."
                     )
                 raise
 
