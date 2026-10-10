@@ -1,8 +1,8 @@
 # Broker Risk — An toàn tiền thật (TCBS / broker lane)
 
-> Nhóm bài học **chỉ có ở repo này**: `vnbroker` nối tài khoản thật. Ở đây một "chi tiết
-> nhỏ" có thể thành **nạp tiền sai, rút tiền nhầm, hoặc báo thành công khi lệnh đã bị từ
-> chối**. Đọc nhóm này **bắt buộc** trước mọi thay đổi trong `vnbroker/broker/`.
+> Nhóm bài học **chỉ có ở repo này**: `vnbroker` nối tài khoản thật — một "chi tiết
+> nhỏ" có thể thành **nạp tiền sai** hoặc **báo thành công khi lệnh đã bị từ chối**.
+> Đọc nhóm này **bắt buộc** trước mọi thay đổi trong `vnbroker/broker/`.
 
 ## L-R01: HTTP 200 KHÔNG đồng nghĩa thành công
 
@@ -87,9 +87,8 @@
   ⇒ `session.py:90` rơi vào nhánh `else` ⇒ `token_expires_at = now + 28800s` — **tự chế
   8 giờ**.
 - **Hậu quả thật:** Token chết vẫn được dùng tới 8 giờ ⇒ mọi request sau đó **401 từ
-  server**, thay vì `BrokerSessionExpiredError` sạch kèm hướng dẫn. Người dùng thấy
-  lỗi mạng chứ không thấy "token hết hạn, cần OTP mới".
-- **Proof:** `vnbroker/broker/session.py:76,87-90` @ `ddc1a8a`; đo lại trên cây cũ:
+  server**, thay vì `BrokerSessionExpiredError` sạch kèm hướng dẫn ("cần OTP mới").
+- **Proof:** `session.py:76,87-90` @ `ddc1a8a`; đo lại trên cây cũ:
   `token_expires_at = now + 8h` (ĐỎ) → cây mới `None` (XANH). Sửa ở `d7d75ca`.
 - **Tags:** `auth`, `token`, `jwt`, `exp`, `ttl`, `session`, `tcbs`
 - **QUY TẮC:** Khi server **không** nói hạn, **không bịa** — để `None` (không biết) và để
@@ -98,24 +97,39 @@
   - [ ] Field hạn lấy từ đâu — có **thực sự** trong spec không?
   - [ ] Không decode được thì có **không** rơi về giá trị mặc định bịa không?
   - [ ] `session.py` có nhánh fallback `expires_in_seconds=28800` không?
-  - [ ] Đã kiểm JWT `exp` là **nguồn duy nhất**; buffer lấy từ hằng `BrokerSession` chứ không đặt lần 2?
+  - [ ] Đã kiểm JWT `exp` là **nguồn duy nhất**; buffer lấy từ hằng `BrokerSession`?
 
 ## L-R06: Mọi HTTP 4xx ở write path phải map thành `BrokerError`
 
-- **Sai lầm:** `_check_status` của `money.py` chỉ map `401`/`403`/`>=500`. `400` `404`
-  `422` `429` **rơi qua** và `resp.json()` được trả về như thành công. Trong cùng đợt,
-  `condition_orders.py` map **đủ** ⇒ hai write path khác nhau về hành vi trong cùng thư viện.
+- **Sai lầm:** `_check_status` của `money.py` chỉ map `401`/`403`/`>=500`, nên `400` `404`
+  `422` `429` **rơi qua** và `resp.json()` trả về như thành công. Cùng đợt,
+  `condition_orders.py` map **đủ** ⇒ hai write path khác nhau trong cùng thư viện.
 - **Hậu quả thật:** Server trả 422 "không đủ tiền" → caller nhận dict trông bình thường →
-  hành vi **tệ hơn không có write endpoint**, vì nó tạo cảm giác an toàn giả.
-- **Proof:** `bc9d786`; đo hành vi trên `money.py` bản cũ `90ead64`: 4/4 test
-  **`DID NOT RAISE`** cho `400/404/422/429`; sau sửa 32/32 xanh. Helper dùng chung:
-  `vnbroker/broker/tcbs/_write_http.py` (155L).
+  tạo cảm giác an toàn giả, tệ hơn không có write endpoint.
+- **Proof:** `bc9d786`; đo trên `money.py` bản cũ `90ead64`: 4/4 test **`DID NOT RAISE`**
+  cho `400/404/422/429`; sau sửa 32/32 xanh. Helper: `broker/tcbs/_write_http.py` (155L).
 - **Tags:** `write`, `status`, `4xx`, `error-mapping`, `money`, `_write_http`
-- **QUY TẮC:** Write path phải map **mọi** `>= 400` thành exception. Đây là AC nên có
-  trong mọi lát có write endpoint: *"mọi HTTP 4xx/5xx phải raise `BrokerError`, không
-  trả body lỗi"*.
+- **QUY TẮC:** Write path phải map **mọi** `>= 400` thành exception. AC nên có cho mọi
+  lát có write endpoint: *"mọi HTTP 4xx/5xx phải raise `BrokerError`, không trả body lỗi"*.
 - **CHECKLIST:**
   - [ ] Bảng map status → exception **đầy đủ**, không bỏ trống mã nào?
-  - [ ] Có test parametrized cho **từng** mã lỗi không?
-  - [ ] Lỗi không kèm body JSON vẫn raise (không `KeyError`/`ValueError`)?
+  - [ ] Test parametrized cho **từng** mã lỗi, và lỗi không có body JSON vẫn raise?
   - [ ] Các write path khác trong repo có map **giống nhau** không?
+
+## L-R07: Đừng để công cụ gợi ý "sửa" theo hướng mất tiền
+
+- **Sai lầm:** Cổng đối chiếu payload báo `pinCode -> spec gọi là price` (heuristic
+  trùng 4/5 ký tự). Người đọc làm theo sẽ **gửi PIN giao dịch vào ô giá**.
+- **Hậu quả thật:** Lỗi gốc chỉ là gửi thừa 1 field không có trong spec. Bản "sửa"
+  theo gợi ý sai là **mất tiền thật**. Công cụ **gây ra** lỗi nguy hiểm hơn lỗi nó
+  phát hiện.
+- **Proof:** `scripts/check_tcbs_bodies.py` sửa ở `ee0fbc5` —
+  `_looks_semantically_different()` không gợi tên thay thế khi tên chứa `pin`; `price`
+  vẫn bị bắt bằng đường `MISSING required`.
+- **Tags:** `money`, `pin`, `field name`, `heuristic`, `gate`, `dangerous`, `write`
+- **QUY TẮC:** Gợi ý của cổng **phải là điều người đọc không thể hành động sai**. Khi
+  tên trùng ký tự nhưng **nghĩa khác** ⇒ chỉ báo lệch, **không** đề xuất đổi tên.
+- **CHECKLIST:**
+  - [ ] Gợi ý nào của cổng có thể gây **sai sót mới**?
+  - [ ] Field nhạy cảm (`pin` `otp` `api_key` `password`) có bị gợi ý đổi tên không?
+  - [ ] Phân biệt được "sai chính tả" (`orderId`↔`orderNo`) với "khác nghĩa" (`pinCode`↔`price`) không?

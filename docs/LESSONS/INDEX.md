@@ -27,7 +27,8 @@
 |:--|:--|:--|
 | `count` `measure` `plan` `doc-drift` `spec` `pin` `evidence` `reproducible` `drift` `sha256` `crlf` `gitattributes` `autocrlf` `false-alarm` `flake` `network` `pytest` `collect` `skip` `baseline` `compare` `criteria` `legacy` `remove` `test` `fail-before` `proof` `proxy` `vacuuous` `regression` | [`evidence.md`](./evidence.md) | Đo lường, bằng chứng, trích dẫn, self-verify |
 | `worktree` `env` `venv` `claim` `slice` `ownership` `init` `export` `facade` `plan` `contradiction` `budget` `fat-file` `design` `agent` `trust` `audit` `AC` `review` `junction` `rmdir` `cleanup` `windows` `destructive` `feasible` `unsatisfiable` | [`process.md`](./process.md) | Chia việc multi-agent, worktree, claim, kết quả trung thực |
-| `money` `write` `gate` `guards` `signature` `safety` `dry-run` `rc` `business-code` `idempotency` `tcbs` `json` `get` `null` `optional` `response` `parse` `probe` `401` `routing` `unverifiable` `legacy` `auth` `token` `jwt` `exp` `ttl` `session` `status` `4xx` `error-mapping` `_write_http` | [`broker-risk.md`](./broker-risk.md) | **An toàn tiền thật** — đọc bắt buộc trước mọi sửa `vnbroker/broker/` |
+| `money` `write` `gate` `guards` `signature` `safety` `dry-run` `rc` `business-code` `idempotency` `tcbs` `json` `get` `null` `optional` `response` `parse` `probe` `401` `routing` `unverifiable` `legacy` `auth` `token` `jwt` `exp` `ttl` `session` `status` `4xx` `error-mapping` `_write_http` `pin` `field name` `heuristic` `dangerous` | [`broker-risk.md`](./broker-risk.md) | **An toàn tiền thật** — đọc bắt buộc trước mọi sửa `vnbroker/broker/` |
+| `gate` `gates` `coverage` `AST` `AnnAssign` `keywords` `blind spot` `self-test` `exit code` `enforce` `baseline` `ratchet` `waiver` `false green` `scope` | [`gate-integrity.md`](./gate-integrity.md) | Cổng tự báo xanh nhưng không kiểm đủ; baseline xanh giả; gợi ý gây sai |
 
 ### Quy tắc an toàn (fallback) — ưu tiên bắt hơn suy luận
 
@@ -41,6 +42,9 @@ Task có `PASS` `CHUA CHẠY` `measure` `verify` `proof` `fail-before` `sha256` 
 
 Task chạm `broker/` `money` `write` `token` `auth` `order` `tcbs` `rc` `dry_run`
 → **luôn** nạp [`broker-risk.md`](./broker-risk.md). Đây là lane tiền thật.
+
+Sửa hoặc viết **cổng/script kiểm tra** (`scripts/`, hook, `check_*`)
+→ **luôn** nạp [`gate-integrity.md`](./gate-integrity.md).
 
 ---
 
@@ -117,11 +121,16 @@ gây lỗi** thì viết thành checklist ngắn ở đây.
 |:--|:--|:--|
 | [`evidence.md`](./evidence.md) | L-E01..L-E07 (7) | Đợt TCBS 1–2: `docs/SUMMARY_TCBS_REBUILD.md:98-109,158-161` · `docs/PLAN_TCBS_ROUND2.md` §0,§1 · commit `3e252ac`, `bc9d786` |
 | [`process.md`](./process.md) | L-P01..L-P06 (6) | `docs/PLAN_AUDIT_TCBS_ROUND2.md` C-5/F-3/F-5 · `docs/PLAN_TCBS_ROUND2.md` §5b · commit `c8c4618`, `f23786f` |
-| [`broker-risk.md`](./broker-risk.md) | L-R01..L-R06 (6) | `docs/REPORT_TCBS_ROUND2.md` §6 R1/R2 · commit `d7d75ca`, `bc9d786` · `session.py:76,87-90` |
+| [`broker-risk.md`](./broker-risk.md) | L-R01..L-R07 (7) | `docs/REPORT_TCBS_ROUND2.md` §6 R1/R2 · `docs/AUDIT_ROUND3.md` F-5 (gợi ý `pinCode->price`) · commit `d7d75ca`, `bc9d786`, `ee0fbc5` |
+| [`gate-integrity.md`](./gate-integrity.md) | L-G01..L-G04 (4) | Audit round 3 (bản 3 lỗi phủ + self-test không ép + baseline quá thô) · commit `93a89e8`, `ee0fbc5` |
 
-**Tổng: 19 lesson / 3 file** — dưới C2 (40), mọi file dưới C1 (120 dòng).
-Citation kiểm chứng tại `sha = ddc1a8a`. Gate `check_lessons.py` tự kiểm C1/C2 + số liệu
+**Tổng: 24 lesson / 4 file** — dưới C2 (40), mọi file dưới C1 (120 dòng).
+Citation kiểm chứng tại `sha = ee0fbc5`. Gate `check_lessons.py` tự kiểm C1/C2 + số liệu
 bảng này — sửa bảng mà quên sửa file thì gate báo `DRIFT`.
+
+> **Round 3 là vòng sinh ra nhiều bài học nhất về chính công cụ kiểm tra**: 4/4 lesson
+> trong `gate-integrity.md` đều là lỗi của cổng do tôi viết trong cùng phiên. Đó là
+> lý do nhóm này tồn tại: **cổng mới luôn cần audit độc lập, không tự chứng minh được**.
 
 > Nguồn mẫu từ `vninvestcharts-widget` (`check-lessons.cjs`) và `vninvest`
 > (`docs/LESSONS/`). Ở vninvest **chưa có** machine gate cho thư mục này; ở đây có —
