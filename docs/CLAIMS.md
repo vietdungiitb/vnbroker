@@ -38,6 +38,25 @@
 | pm-dnse-gate | feat/dnse-write-gate-layer | vnbroker/connector/dnse/client.py,vnbroker/connector/dnse/core/http_client.py,vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_write_gate_layer.py,tests/contract/test_dnse_endpoint_contract.py,CHANGELOG.md | done | 2026-10-09 -> 12cb29c |
 
 | pm-ws-live | fix/dnse-subscribe-contract | vnbroker/connector/dnse/websocket.py,pyproject.toml,tests/unit/connector/dnse/test_subscribe_contract.py,docs/PM_AUDIT_REPORT_20261009.md,docs/HANDOFF_DNSE_ROUND2_20261009.md,CHANGELOG.md | done | 2026-10-09 -> 8efc03d |
+
+<!-- ===== WAVE 3+4 (2026-10-10) ===== -->
+
+| agent | branch | files | status | since | note |
+|---|---|---|---|---|---|
+| coordinator-w34 | (main) | docs/PLAN_TIER1_WAVE34.md, docs/PLAN_AUDIT_TIER1_WAVE34.md, docs/CLAIMS.md, docs/TEST_REPORT_TIER1_WAVE34.md, docs/AUDIT_TIER1_WAVE34.md, docs/HANDOFF_TIER1_WAVE34.md, docs/REPORT_FINAL_TIER1_WAVE34.md, CHANGELOG.md, CLAUDE.md | **in-progress** | 2026-10-10 | Plan + audit + claim + merge. Base `4cd0f2d` |
+| w34-ratelimit | feat/w34-ratelimit | vnbroker/core/exceptions.py, vnbroker/core/utils/client.py, vnbroker/core/source_router.py, vnbroker/base.py, vnbroker/config.py, vnbroker/common/data.py, tests/unit/core/test_rate_limit_cooldown.py | **in-progress** | 2026-10-10 | worktree `../vnbroker-w34-ratelimit`. ⚠ `common/data.py` là đường người dùng THẬT (audit v2 blocker); chỉ sửa `_run_with_failover`, file đang 1823L ⇒ **không được dài thêm** |
+| w34-logger | feat/w34-logger | vnbroker/core/utils/logger.py, tests/unit/core/test_logger_redaction.py | **in-progress** | 2026-10-10 | worktree `../vnbroker-w34-logger`. KHÔNG đụng `broker/security/` (money lane) |
+
+<!-- Các claim `in-progress` ở trên (t-token, m-money, e-cond-sec, coordinator TCBS)
+     đã STALE: cả 3 branch `feat/t-token`, `feat/m-money`, `feat/e-cond-sec` KHÔNG
+     còn tồn tại (`git rev-parse` fail) và thư mục worktree tương ứng đã bị xoá.
+     Không xoá hàng — chỉ chuyển status. Cột `files` của chúng KHÔNG giao với
+     wave 3+4, nên không chặn. -->
+
+| ~~t-token~~ (STALE) | feat/t-token (đã xoá) | — | **superseded** | 2026-10-10 | branch + worktree không còn; đã merge qua đợt trước |
+| ~~m-money~~ (STALE) | feat/m-money (đã xoá) | — | **superseded** | 2026-10-10 | branch + worktree không còn; đã merge qua đợt trước |
+| ~~e-cond-sec~~ (STALE) | feat/e-cond-sec (đã xoá) | — | **superseded** | 2026-10-10 | branch + worktree không còn; đã merge qua đợt trước |
+| ~~coordinator~~ (TCBS, STALE) | dev | — | **superseded** | 2026-10-10 | claim của đợt TCBS trước; các file đã merge, còn `CHANGELOG.md` nay do coordinator-w34 giữ |
 ## Ghi chú
 
 - `in-progress` = đang giữ. Đổi sang `done` ngay sau khi ghi xong file cuối cùng.
