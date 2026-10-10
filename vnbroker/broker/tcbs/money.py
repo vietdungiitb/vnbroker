@@ -38,6 +38,7 @@ from vnbroker.broker.exceptions import (
 from vnbroker.broker.security.credentials import TCBSCredentialConfig
 from vnbroker.broker.security.guards import write_gate
 from vnbroker.broker.session import BrokerSession
+from vnbroker.broker.tcbs._write_http import post_json
 from vnbroker.broker.tcbs.account import _validate_account_no
 
 _logger = logging.getLogger("vnbroker.broker.tcbs.money")
@@ -570,6 +571,13 @@ class TCBSMoneyService:
             amount: Số tiền nạp, phải > 0.
             payment_content: Mô tả giao dịch (tuỳ chọn — rỗng thì không gửi).
             dry_run: True (mặc định) → không gửi HTTP, trả envelope dry-run.
+
+        Returns:
+            Dict nguyên văn của TCBS. **HTTP 200 KHÔNG đồng nghĩa thành công**:
+            TCBS trả mã nghiệp vụ trong `rc` ("1" = thành công, <0 = lỗi).
+            Thư viện không tự raise theo `rc` vì spec không liệt kê đủ tập mã và
+            chưa có JWT để probe server — **caller PHẢI tự kiểm `rc`**
+            (xem `vnbroker.broker.tcbs._write_http.describe_business_code`).
         """
         _require_text(account_id, "account_id", "INVALID_ACCOUNT_ID")
         _require_text(sub_account_id, "sub_account_id", "INVALID_SUB_ACCOUNT_ID")
@@ -603,6 +611,9 @@ class TCBSMoneyService:
         POST /khronos/v1/cash/withdraw/update
 
         Rút tiền margin khỏi tài khoản phái sinh. Tham số giống deposit_margin().
+
+        **HTTP 200 KHÔNG đồng nghĩa thành công** — caller PHẢI tự kiểm `rc`.
+        Xem Returns của deposit_margin().
         """
         _require_text(account_id, "account_id", "INVALID_ACCOUNT_ID")
         _require_text(sub_account_id, "sub_account_id", "INVALID_SUB_ACCOUNT_ID")
@@ -637,6 +648,9 @@ class TCBSMoneyService:
 
         Chuyển tiền giữa các tài khoản con. Cả 4 field đều bắt buộc theo spec,
         amount phải > 0. dry_run=True (mặc định) → không gửi HTTP, trả envelope.
+
+        **HTTP 200 KHÔNG đồng nghĩa thành công** — caller PHẢI tự kiểm `rc`.
+        Xem Returns của deposit_margin().
         """
         _require_text(source_account_number, "source_account_number", "INVALID_SOURCE_ACCOUNT")
         _require_text(destination_account_number, "destination_account_number", "INVALID_DESTINATION_ACCOUNT")
@@ -701,45 +715,13 @@ class TCBSMoneyService:
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         """
-        POST JSON. Bản riêng của money.py — trùng lệnh với `_write_request` ở
-        derivatives.py:714 và `_post` ở equity.py:651 (nợ nhân bản có sẵn, N8).
+        POST JSON — ủy quyền cho `_write_http.post_json`.
+
+        Trước đây money.py tự `_post` và chỉ map 401/403/5xx, khiến 400/404/422/429
+        rơi qua và **thân lỗi bị trả về y như thành công** (audit F-1 — major, write
+        động tiền). Nay dùng helper dùng chung, map đủ 400/404/422/429.
         """
-        try:
-            token = self._session.token
-        except BrokerSessionExpiredError:
-            raise
-
-        if not token:
-            raise BrokerPermissionError(
-                message="Session chưa được xác thực. Gọi authenticate() trước.",
-                code="NOT_AUTHENTICATED",
-                http_status=403,
-            )
-
-        url = self._config.base_url.rstrip("/") + path
-        headers = {"Authorization": f"Bearer {token}"}
-
-        try:
-            resp = requests.post(
-                url,
-                json=payload,
-                headers=headers,
-                timeout=self._config.timeout_seconds,
-            )
-        except requests.exceptions.Timeout as exc:
-            raise BrokerNetworkError(
-                message=f"Timeout khi gọi {path}.",
-                code="NETWORK_TIMEOUT",
-            ) from exc
-        except requests.exceptions.RequestException as exc:
-            raise BrokerNetworkError(
-                message=f"Lỗi mạng: {type(exc).__name__}",
-                code="NETWORK_ERROR",
-            ) from exc
-
-        self._check_status(resp)
-        data: dict[str, Any] = resp.json()
-        return data
+        return post_json(self._session, self._config, path, payload)
 
     def _check_status(self, resp: requests.Response) -> None:
         """Map status code → exception. Dùng chung cho _get và _post."""
