@@ -4,8 +4,15 @@ from abc import ABC
 from functools import wraps
 import pandas as pd
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    retry_if_not_exception_type,
+)
 from vnbroker.config import Config
+from vnbroker.core.exceptions import RateLimitError
 from vnbroker.core.registry import ProviderRegistry
 from vnbroker.core.source_router import (
     annotate_result_source,
@@ -169,7 +176,7 @@ class BaseAdapter(ABC):
                 f"AUTO source is not configured for '{self._module_name}'. Available open sources: {get_auto_candidates(self._module_name)}"
             )
 
-        last_error = None
+        last_error: Optional[Exception] = None
         for candidate in candidates:
             try:
                 if candidate != self._resolved_source:
@@ -177,6 +184,14 @@ class BaseAdapter(ABC):
                 result = self._invoke_provider_method(method_name, *args, **kwargs)
                 record_success(self._module_name, candidate)
                 return annotate_result_source(result, candidate)
+            except RateLimitError as exc:
+                # 429 luôn đáng chuyển provider, không cần xét should_failover:
+                # lớp này đã kế thừa ConnectionError nên nếu một ai đó sửa
+                # should_failover theo hướng khác thì 429 vẫn phải thoát.
+                # Cooldown lấy theo Retry-After server thật trả về.
+                last_error = exc
+                record_failure(self._module_name, candidate, retry_after=exc.retry_after)
+                continue
             except Exception as exc:
                 last_error = exc
                 if should_failover(exc):
@@ -204,7 +219,18 @@ class BaseAdapter(ABC):
             min=Config.BACKOFF_MIN,
             max=Config.BACKOFF_MAX
         ),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
+        # 429 (rate-limit) KHÔNG được retry: server đã trả lời bằng lời "chậm
+        # lại", retry ngay lập tức chỉ đốt thêm lượt truy cập rồi lại nhận 429
+        # — phải chuyển provider (xem `_call_provider_method`).
+        #
+        # ⚠ Vì sao KHÔNG dùng `retry=retry_if_not_exception_type(RateLimitError)`
+        # thuần như plan ghi: biểu thức đó nới retry ra **mọi** exception còn lại,
+        # gồm cả lỗi lập trình (TypeError/ValueError/AttributeError) — đúng những
+        # lỗi mà chính `should_failover` ghi rõ phải ném ra chứ không che. Nên
+        # đây là GIAO của tập cũ và tập cấm, không phải thay tập cũ.
+        retry=retry_if_exception_type((
+            requests.exceptions.RequestException, ConnectionError, TimeoutError,
+        )) & retry_if_not_exception_type(RateLimitError),
         reraise=True,
     )
     def history(self, *args, **kwargs):
