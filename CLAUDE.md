@@ -52,6 +52,12 @@
     call raises `ConnectionResetError(10054)`. It may serve traffic as a candidate
     in `AUTO` only because the router health-checks first; never describe DNSE as
     "stable" without a fresh measurement.
+    ⚠ **TCBS `intraday()` carries no buy/sell side.** Measured 2026-10-10 against
+    `/nyx/v1/intraday/TCB/his/paging`: every record has `"a": ""`, so
+    `match_type` is `unknown` for **all** rows while KBS/VCI give `Buy`/`Sell`.
+    This is the server, not the mapping — `""` → `unknown` is the documented
+    canonical value. If `AUTO` selects TCBS for `intraday`, expect a
+    `match_type`-less result; prefer KBS/VCI for buy/sell analysis.
   - **Tier 2 — personalized broker data.** Provider is chosen EXPLICITLY, each
     broker keeps its own OpenAPI shape (SSI RSA/ConsumerID + fixed IP, TCBS API
     Key + OTP, DNSE HMAC). Do NOT force these behind one interface.

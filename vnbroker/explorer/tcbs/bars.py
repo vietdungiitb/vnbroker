@@ -354,7 +354,7 @@ def fetch_bars(
                 "TCBS iFlash OpenAPI requires valid JWT token cho endpoint "
                 "bars. Get JWT by exchanging API key + OTP via "
                 "POST /gaia/v1/oauth2/openapi/token, then set "
-                "TCBS_AUTH_TOKEN=<JWT> environment variable."
+                "TCBS_JWT_TOKEN=<JWT> environment variable."
             ) from exc
         raise
 
