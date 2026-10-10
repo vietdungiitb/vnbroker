@@ -74,16 +74,29 @@ def _gated_body_call(fn: ast.FunctionDef) -> Optional[ast.Dict]:
 
     ⚠ KHONG loai dict vi chua `Call` trong value — `symbol.upper()` la binh thuong.
     """
-    # 1. bang bien -> dict literal gan trong body
+    # 1. bang bien -> dict literal gan trong body.
+    #    ⚠ Phai bat ca `Assign` (`payload = {...}`) LAN `AnnAssign`
+    #    (`payload: dict = {...}`). `money.py` va `condition_orders.py` viet
+    #    co **annotation** ⇒ chi bat `Assign` se bo sot 4 write method, van
+    #    bao xanh. Da gap that o audit round 3.
     var_dict: Dict[str, ast.Dict] = {}
     for node in ast.walk(fn):
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict):
-            for tgt in node.targets:
-                if isinstance(tgt, ast.Name) and all(
+        pairs: List[tuple] = []
+        if isinstance(node, ast.Assign):
+            pairs = [(t, node.value) for t in node.targets]
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            pairs = [(node.target, node.value)]
+        for tgt, val in pairs:
+            if (
+                isinstance(tgt, ast.Name)
+                and isinstance(val, ast.Dict)
+                and val.keys
+                and all(
                     isinstance(k, ast.Constant) and isinstance(k.value, str)
-                    for k in node.value.keys
-                ):
-                    var_dict[tgt.id] = node.value
+                    for k in val.keys
+                )
+            ):
+                var_dict[tgt.id] = val
 
     # 2. tim loi goi _post/_put/_write_request/post_json
     for node in ast.walk(fn):
@@ -95,12 +108,24 @@ def _gated_body_call(fn: ast.FunctionDef) -> Optional[ast.Dict]:
         )
         if name not in ("_post", "_put", "_write_request", "post_json"):
             continue
+        # arg vi tri
         for arg in node.args[1:]:
             if isinstance(arg, ast.Dict) and arg.keys:
                 if all(isinstance(k, ast.Constant) and isinstance(k.value, str) for k in arg.keys):
                     return arg
             if isinstance(arg, ast.Name) and arg.id in var_dict:
                 return var_dict[arg.id]
+        # ⚠ KWARG: `self._post(url, payload=payload)` — bo qua `node.keywords` thi
+        # method bi bo sot **va gate van bao xanh**. Da gap that o audit round 3.
+        for kw in node.keywords:
+            if kw.arg is None:
+                continue
+            if isinstance(kw.value, ast.Dict) and kw.value.keys:
+                if all(isinstance(k, ast.Constant) and isinstance(k.value, str)
+                       for k in kw.value.keys):
+                    return kw.value
+            if isinstance(kw.value, ast.Name) and kw.value.id in var_dict:
+                return var_dict[kw.value.id]
     return None
 
 
@@ -245,6 +270,10 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
 
         for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
             for fn in [n for n in cls.body if isinstance(n, ast.FunctionDef)]:
+                # Skip lop HTTP: `_post` / `_put` la *tang gui*, khong phai lenh.
+                # Neu quet chung, chung se co "payload" rong va duoc dem nham.
+                if fn.name in ("_post", "_put", "_write_request", "post_json"):
+                    continue
                 payload_node = _gated_body_call(fn)
                 if payload_node is None:
                     continue
@@ -268,6 +297,23 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
     return found
 
 
+def _looks_semantically_different(a: str, b: str) -> bool:
+    """
+    Co phai 2 ten chi trung **ky tu** ma khac **nghia** khong?
+
+    `pinCode` vs `price`: chung 4/5 ky tu (`p,i,c,e`) nhung `pinCode` la PIN giao
+    dich, `price` la gia. Ratio cao nhung nghia khac hoan toan — truong hop nay
+    KHONG duoc ghi "spec goi la `price`", vi nguoi sua theo se gui PIN vao o gia.
+
+    Heuristic: `pin` (va `pinCode`) la truong hop biet truoc. Ngoai ra coi nhu
+    cung nghia — dung hon la bao EXTRA (an toan) hon la ghi goi y sai.
+    """
+    low = a.lower()
+    if "pin" in low:
+        return True
+    return False
+
+
 def compare(payload: Dict[str, Any], op: Dict[str, Any]) -> List[Tuple[str, str]]:
     """Tra ve danh sach (loai_lech, chi_tiet)."""
     issues: List[Tuple[str, str]] = []
@@ -283,7 +329,11 @@ def compare(payload: Dict[str, Any], op: Dict[str, Any]) -> List[Tuple[str, str]
 
     for field in sorted(sent - props):
         close = _closest_spec_field(field, props)
-        if close:
+        # ⚠ CHỈ gợi ý khi tên nghi sát từ. Neu ten mang **nghia khac** (vd `pinCode`
+        # khop 4/5 voi `price` do chung `p,i,c,e`), goi y "doi ten thanh price" se
+        # khien nguoi sua **gui PIN giao dich vao o gia** — nguy hiem hon loi hien tai.
+        # Vay chi bao EXTRA; `price` van bi bat bang duong `MISSING required`.
+        if close and not _looks_semantically_different(field, close):
             issues.append(("SUSPECT", f"`{field}` -> spec goi la `{close}`"))
         else:
             issues.append(("EXTRA", f"`{field}` (khong ton tai trong spec)"))

@@ -44,9 +44,41 @@ def _run(*args: str) -> tuple[int, str]:
 # ── 1. Cổng thật sự quét được payload ──────────────────────────────────────────
 
 
-def test_gate_tim_thay_du_8_write_method() -> None:
+def test_gate_tim_thay_du_12_write_method() -> None:
+    """
+    Khoa **phu** cua cổng, khong phai con so "8".
+
+    Vì sao 12: `money.py` va `condition_orders.py` viet `payload: dict = {...}`
+    (**co annotation**) ⇒ gate bo sot 4 method do neu chi bat `ast.Assign`.
+    Đã xảy ra: phu hiện 8/12 mà gate van bao xanh (audit round 3, major).
+
+    ⚠ Khi them 1 write method moi, **sua con so nay** — va cung sua dong
+    `docs/tcbs_body_baseline.json` bang `--write-baseline` roi xem `lech moi`.
+    """
     rows = gate.collect_payloads()
-    assert len(rows) == 8, f"ky vong 8 payload write, thuc te {len(rows)}"
+    assert len(rows) == 12, f"ky vong 12 payload write, thuc te {len(rows)}"
+    files = {w.split(":")[0] for w, *_ in rows}
+    assert files == {
+        "vnbroker\\broker\\tcbs\\derivative_orders.py",
+        "vnbroker\\broker\\tcbs\\equity.py",
+        "vnbroker\\broker\\tcbs\\money.py",
+        "vnbroker\\broker\\tcbs\\condition_orders.py",
+    }, f"thieu file nao khong duoc quet: {files}"
+
+
+def test_gate_bat_duoc_kwarg_payload() -> None:
+    """
+    Khoa lỗ phủ thứ 2: `self._post(url, payload=payload)` — **kwarg**, khác
+    `self._post(url, payload)`. Bỏ qua `node.keywords` thì method bi bỏ sót
+    mà gate vẫn xanh (đã đo: 7 payload → 0 lệch → exit 0).
+    """
+    import inspect
+
+    src = inspect.getsource(gate._gated_body_call)
+    assert "keywords" in src, (
+        "_gated_body_call khong xu ly `node.keywords` ⇒ bo sot payload truyen "
+        "bang kwarg (`post(url, payload=payload)`)"
+    )
 
 
 def test_moi_payload_deu_biet_path_that() -> None:

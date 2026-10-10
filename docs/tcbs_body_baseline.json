@@ -9,6 +9,7 @@
     "EXTRA vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_place_derivative_order `quantity` (khong ton tai trong spec)",
     "EXTRA vnbroker\\broker\\tcbs\\equity.py:TCBSEquityService._gated_cancel_order `requestId` (khong ton tai trong spec)",
     "EXTRA vnbroker\\broker\\tcbs\\equity.py:TCBSEquityService._gated_modify_order `requestId` (khong ton tai trong spec)",
+    "EXTRA vnbroker\\broker\\tcbs\\equity.py:TCBSEquityService._gated_place_order `pinCode` (khong ton tai trong spec)",
     "EXTRA vnbroker\\broker\\tcbs\\equity.py:TCBSEquityService._gated_place_order `requestId` (khong ton tai trong spec)",
     "MISSING vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_cancel_derivative_order `accountId` (spec BAT BUOC)",
     "MISSING vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_cancel_derivative_order `orderNo` (spec BAT BUOC)",
@@ -37,7 +38,6 @@
     "SUSPECT vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_change_derivative_order `price` -> spec goi la `nprice`",
     "SUSPECT vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_change_derivative_order `requestId` -> spec goi la `refId`",
     "SUSPECT vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_place_derivative_condition_order `requestId` -> spec goi la `refId`",
-    "SUSPECT vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_place_derivative_order `requestId` -> spec goi la `refId`",
-    "SUSPECT vnbroker\\broker\\tcbs\\equity.py:TCBSEquityService._gated_place_order `pinCode` -> spec goi la `price`"
+    "SUSPECT vnbroker\\broker\\tcbs\\derivative_orders.py:DerivativeWriteMixin._gated_place_derivative_order `requestId` -> spec goi la `refId`"
   ]
 }

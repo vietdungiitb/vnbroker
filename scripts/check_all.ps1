@@ -145,17 +145,32 @@ if ($SelfTest) {
 
 # Chạy self-test của các gate mới (chứng minh chúng thật sự FAIL khi bị vi phạm).
     # Không phải gate repo, nhưng phải xanh - một self-test đỏ nghĩa là gate đó vô dụng.
-    Write-Host ''
+Write-Host ''
     Write-Host '=== SELF-TEST GATE MOI ===' -ForegroundColor Cyan
+    $selfTestFails = 0
     foreach ($st in @(
         @{ name = 'lessons-selftest'; cmd = { & $python scripts/check_lessons.py --self-test } }
         @{ name = 'tcbs-bodies-selftest'; cmd = { & $python scripts/check_tcbs_bodies.py --self-test } }
     )) {
-        & $st.cmd 2>&1 | Select-Object -Last 1 | ForEach-Object { Write-Host "  [SELFTEST] $($st.name): $_" }
+        # Bat exit code THAT. Khong doc $LASTEXITCODE thi dong "phai xanh" ben tren
+        # chi la chu — self-test do chay FAIL ma van khong chan gi (audit round 3).
+        $stOut = & $st.cmd 2>&1
+        $stCode = $LASTEXITCODE
+        $last = @($stOut | Where-Object { ([string]$_).Trim() -ne '' })[-1]
+        if ($stCode -eq 0) {
+            Write-Host ("  [SELFTEST] {0}: PASS | {1}" -f $st.name, ([string]$last).Trim()) -ForegroundColor Green
+        } else {
+            Write-Host ("  [SELFTEST] {0}: FAIL exit={1} | {2}" -f $st.name, $stCode, ([string]$last).Trim()) -ForegroundColor Red
+            $selfTestFails++
+        }
+    }
+    if ($selfTestFails -gt 0) {
+        Write-Host ("FAIL: {0} self-test gate that FAIL. Gate do KHONG duoc tin." -f $selfTestFails) -ForegroundColor Red
+        exit 1
     }
     Write-Host ''
 
-    $results = [System.Collections.Generic.List[object]]::new()
+$results = [System.Collections.Generic.List[object]]::new()
 $failures = 0
 $skipped = 0
 

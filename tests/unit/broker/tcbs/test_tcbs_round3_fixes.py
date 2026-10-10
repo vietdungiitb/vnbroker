@@ -11,7 +11,6 @@ Ca hai deu la sua **hanh vi**, nen test phai khoa hanh vi chu khong khoa hinh th
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -62,7 +61,9 @@ def test_write_gate_chu_ky_con() -> None:
 
     sig = inspect.signature(write_gate)
     assert list(sig.parameters) == ["fn"]
-    assert sig.return_annotation in ("R", Any) or True  # TypeVar, khong assert gia tri
+    # Trước đây dòng này là `... or True` — assert **chết**, luôn xanh.
+    # Chữ ký trả về là `Callable[P, R]` (decorator giữ nguyên kiểu hàm gốc).
+    assert str(sig.return_annotation).endswith("]") and "R" in str(sig.return_annotation)
 
 
 # ── F-4: ghi token_expires_at phai nam trong lock ─────────────────────────────
@@ -166,11 +167,18 @@ def test_check_and_update_state_chua_co_caller() -> None:
         ["git", "grep", "-n", "check_and_update_state"],
         capture_output=True, text=True, shell=False, cwd=str(REPO_ROOT),
     )
-    # Chi doc file .py — tai lieu markdown nhac lai "khong co caller" cung duoc
+    # Chi doc file .py - tai lieu markdown nhac lai "khong co caller" cung duoc
     # tinh la tai lieu, khong phai code dang chay.
+    #
+    # ⚠ PHẢI loại **chính file test này**: nó chứa chuỗi `check_and_update_state`
+    # trong docstring + `git grep`, nên grep sẽ khớp chính nó ⇒ đỏ vĩnh viễn.
+    # Đã xảy ra: test đỏ ở **cả** hai chế độ `PYTHONUTF8` (audit round 3, blocker).
+    self_rel = Path(__file__).relative_to(REPO_ROOT).as_posix()
     callers = [
         ln for ln in proc.stdout.splitlines()
-        if "def check_and_update_state" not in ln and ln.split(":")[0].endswith(".py")
+        if "def check_and_update_state" not in ln
+        and ln.split(":")[0].endswith(".py")
+        and not ln.startswith(self_rel)
     ]
     assert callers == [], (
         f"check_and_update_state da co caller moi trong code: {callers}. "
