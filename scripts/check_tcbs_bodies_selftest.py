@@ -182,7 +182,7 @@ def run_self_test() -> int:
         tmp = Path(td)
         cases += 1
         try:
-            _build(tmp, _module_source({**good, "requestId": '"x"'}), REAL_SPEC)
+            _build(tmp, _module_source({**good, "zzz_bogus": '"x"'}), REAL_SPEC)
             baseline = tmp / "b.json"
             subprocess.run(  # noqa: S603 - goi chinh python.exe cua bo test
                 [sys.executable, str(tmp / "scripts" / "check_tcbs_bodies.py"),
@@ -198,6 +198,48 @@ def run_self_test() -> int:
         else:
             failures += 1
             print(f"  FAIL  BASELINE: mong doi exit 0, nhan {code}\n{out.strip()[:500]}")
+
+    # CLASS_ATTR - module lay path tu class attribute (`self._ORDER_PATHS`) o module KHAC.
+    # Khong co fallback toan package thi gate bo qua method do va im lang bao xanh.
+    # Da gap that sau khi tach `derivative_orders.py`: 8 payload -> 3, van exit 0.
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        cases += 1
+        try:
+            tcbs = tmp / "vnbroker" / "broker" / "tcbs"
+            tcbs.mkdir(parents=True, exist_ok=True)
+            (tcbs / "__init__.py").write_text("", encoding="utf-8")
+            # module A: noi du `_PATHS`
+            (tcbs / "a.py").write_text(
+                '_PATHS = {"p": "/khronos/v1/order/place"}\n', encoding="utf-8"
+            )
+            # module B: chi co `self._ORDER_PATHS`, khong co `_PATHS`
+            body = "\n".join(f'        "{k}": {v},' for k, v in {**good, "zzz_bogus": '"x"'}.items())
+            (tcbs / "b.py").write_text(
+                "class Mixin:\n"
+                "    _ORDER_PATHS = {}\n\n"
+                "    def place(self, dry_run: bool = True):\n"
+                "        payload = {\n" + body + "\n        }\n"
+                '        return self._post(self._ORDER_PATHS["p"], payload)\n',
+                encoding="utf-8",
+            )
+            scripts = tmp / "scripts"
+            scripts.mkdir(parents=True, exist_ok=True)
+            for name in ("check_tcbs_bodies.py", "check_tcbs_bodies_selftest.py"):
+                (scripts / name).write_text(
+                    (HERE / name).read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            docs = tmp / "docs" / "references"
+            docs.mkdir(parents=True, exist_ok=True)
+            (docs / "openapi-v1.0.0.json").write_bytes(REAL_SPEC.read_bytes())
+            code, out = _run(tmp)
+        except Exception as exc:  # noqa: BLE001
+            code, out = -1, str(exc)
+        if code != 0 and "b.py" in out:
+            print("  ok   CLASS_ATTR: path o module khac van duoc quet  exit=1")
+        else:
+            failures += 1
+            print(f"  FAIL  CLASS_ATTR: gate bo qua module lay path tu class attr (exit={code})\n{out.strip()[:400]}")
 
     if failures:
         print(

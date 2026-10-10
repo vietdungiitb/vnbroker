@@ -104,13 +104,19 @@ def _gated_body_call(fn: ast.FunctionDef) -> Optional[ast.Dict]:
     return None
 
 
-def _path_used(fn: ast.FunctionDef, path_values: Dict[str, str]) -> Optional[str]:
+def _path_used(
+    fn: ast.FunctionDef,
+    path_values: Dict[str, str],
+    package_index: Optional[Dict[str, str]] = None,
+) -> Optional[str]:
     """
     File method nay tro toi path spec nao?
 
-    Nhan duoi ca `_PATHS["kieu"]` (bien module) va `self._PATHS["kieu"]` (class attr) -
-    code that duoc ca hai dang nen gate khong duoc chi nhat mot.
+    Nhan duoi ca `_PATHS["kieu"]` (bien module) va `self._ORDER_PATHS["kieu"]` (class
+    attribute o module khac) - code that duoc ca hai dang nen gate khong duoc chi nhat
+    mot. `package_index` la fallback khi key khong ton tai trong module hien tai.
     """
+    package_index = package_index or {}
     for node in ast.walk(fn):
         if isinstance(node, ast.Subscript):
             base = node.value
@@ -119,10 +125,11 @@ def _path_used(fn: ast.FunctionDef, path_values: Dict[str, str]) -> Optional[str
                 name = base.id
             elif isinstance(base, ast.Attribute):
                 name = base.attr
-            if name == "_PATHS":
+            if name and name.endswith("PATHS"):
                 sl = node.slice
                 if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
-                    return path_values.get(sl.value)
+                    key = sl.value
+                    return path_values.get(key) or package_index.get(key)
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             v = node.value.strip()
             if v.startswith("/") and "/" in v[1:] and " " not in v:
@@ -174,10 +181,41 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
     """
     Tra ve danh sach (file, method, path, payload).
     Doc bang AST nen khong nham string trong docstring/comment.
+
+    ⚠ Phai co **fallback toan package**. Sau khi tach `derivative_orders.py`, 5 write
+    method lay path tu `self._ORDER_PATHS` (class attribute gan o module khac) thay vi
+    `_PATHS` module-level. Khong co fallback thi gate **bo qua 5 method do** va im lang
+    bao xanh — con 3 method cua `equity.py` van xanh. Bat ngay o bai test cua chinh S2.
     """
     found: List[Tuple[str, str, str, Dict[str, Any]]] = []
 
-    for path in sorted(TCBS_DIR.glob("*.py")):
+    files = sorted(TCBS_DIR.glob("*.py"))
+
+    # 0) index toan package: key -> path, dung khi module hien tai khong co `_PATHS`
+    package_index: Dict[str, str] = {}
+    for f in files:
+        try:
+            t = ast.parse(f.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for node in ast.walk(t):
+            d = None
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict):
+                d = node.value
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.value, ast.Dict):
+                d = node.value
+            if d is None:
+                continue
+            for k, v in zip(d.keys, d.values):
+                if (
+                    isinstance(k, ast.Constant)
+                    and isinstance(v, ast.Constant)
+                    and isinstance(v.value, str)
+                    and v.value.startswith("/")
+                ):
+                    package_index.setdefault(k.value, v.value)
+
+    for path in files:
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except (OSError, SyntaxError):
@@ -210,7 +248,7 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
                 payload_node = _gated_body_call(fn)
                 if payload_node is None:
                     continue
-                spec_path = _path_used(fn, path_values)
+                spec_path = _path_used(fn, path_values, package_index)
                 if not spec_path:
                     continue
                 payload: Dict[str, Any] = {}
@@ -307,21 +345,32 @@ def _leach_key(problem: str) -> str:
     """
     Khoa dinh danh on dinh: `<KIND> <file>:<Class>.<method> <chi tiet field>`.
 
+    Nhan duoi ca 2 dang dong: co tien do `LECH`/`KNOWN` (khi in report) va khong
+    (dong tho tu `scan()`). Sai o day thi key sinh ra la rác (`? EXTRA ...`) va
+    baseline kiem tra khong bao gio khop.
+
     ⚠ Bat buoc **co ca ten field**. Khi chi khoa theo `KIND + method`, mot method da
     bi gan co danh thì MOI field sai them vao deu lot qua im lang — do la gate xanh
     gia. Da bat ngay khi chay fail-truoc: them `totallyBogusField` vao
     `_gated_cancel_derivative_order` van ra `lech moi: 0`.
     """
     lines = [ln.strip() for ln in problem.strip().splitlines() if ln.strip()]
-    head = lines[0] if lines else ""
-    m = re.match(r"^\w+\s+(\w+)\s+(\S.*)$", head)
-    kind, where = (m.group(1), m.group(2).strip()) if m else ("?", head)
+    if not lines:
+        return ""
+    tokens = lines[0].split(None, 1)
+    if len(tokens) == 2 and tokens[0] in ("LECH", "KNOWN"):
+        kind, where = tokens[0], tokens[1].strip()
+    else:
+        kind, where = tokens[0], (tokens[1] if len(tokens) > 1 else "")
+    # `where` = `vnbroker\...\file.py:Class.method` - tach phan file ra rieng
+    where = where.split()
+    kind_and_file = f"{kind} {where[0]}" if where else kind
     detail = ""
     for ln in lines[1:]:
         if ln.startswith("gui "):
             detail = ln[4:].strip()
             break
-    return f"{kind} {where} {detail}".strip()
+    return f"{kind_and_file} {detail}".strip()
 
 
 def _in_baseline(problem: str, baseline: Optional[set]) -> bool:
