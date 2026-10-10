@@ -188,6 +188,49 @@ def is_auto_source(source: str | None) -> bool:
     return str(source or "").strip().lower() == AUTO_SOURCE
 
 
+def _gap_fill_candidates(module_name: str) -> List[str]:
+    """Provider cho module **chưa có** bất kỳ mục nào trong `OPEN_SOURCE_CANDIDATES`.
+
+    `OPEN_SOURCE_CANDIDATES` là bảng **ưu tiên định tuyến**, và mọi mục trong đó
+    đều đã được chọn có chủ ý — ví dụ `trading` đặt `kbs` trước vì benchmark
+    cho thấy ổn định hơn dưới tải. Hàm này **không** được ý vào các module đó:
+    thêm provider vào giữa danh sách là thay đổi thiết kế định tuyến mà không
+    có số đo nào đứng sau.
+
+    Nó chỉ lấp chỗ trống: module vốn không có mục nào ⇒ `get_auto_candidates`
+    trả `[]` ⇒ `source="AUTO"` chết ngay mà không báo lỗi. Đo 2026-10-10:
+    `screener` có `kbs`/`vci`/`ssi` trong registry nhưng AUTO = `[]`.
+
+    Thứ tự ưu tiên: `PRIMARY_SOURCE_POOLS` (nếu có) → phần còn lại của
+    `OPEN_SOURCE_CANDIDATES` → pool. Pool là nguồn sự thật về *tính khả dụng*
+    (credential thật trong môi trường + implementation đã đăng ký).
+
+    Import trong hàm: `ProviderRegistry` liệt kê từ các module explorer, và
+    `source_router` nằm dưới tầng đó.
+    """
+    if module_name in OPEN_SOURCE_CANDIDATES:
+        return []
+
+    try:
+        from vnbroker.core.provider_pool import ProviderPool
+        from vnbroker.core.registry import ProviderRegistry
+    except Exception:  # pragma: no cover - import cycle guard
+        return []
+
+    try:
+        usable = {p.lower() for p in ProviderPool().get_available_providers(module_name)}
+        registered = {p.lower() for p in ProviderRegistry.list_available(module_name)}
+    except Exception:  # pragma: no cover - registry not initialised yet
+        return []
+
+    available = usable & registered
+    if not available:
+        return []
+    return sorted(available, key=lambda p: (PRIMARY_SOURCE_POOLS.get(module_name, []).index(p)
+                                            if p in PRIMARY_SOURCE_POOLS.get(module_name, [])
+                                            else len(PRIMARY_SOURCE_POOLS.get(module_name, []))))
+
+
 def get_auto_candidates(module_name: str) -> List[str]:
     candidates = list(OPEN_SOURCE_CANDIDATES.get(module_name, []))
     if module_name == "trading":
@@ -197,6 +240,13 @@ def get_auto_candidates(module_name: str) -> List[str]:
     for extra in SSI_AUTO_CANDIDATES.get(module_name, []):
         if extra not in candidates and has_ssi_credentials():
             candidates.append(extra)
+
+    # Chỉ lấp chỗ trống cho module chưa có mục nào. Module đã có mục thì giữ
+    # nguyên bảng ưu tiên — xem `_gap_fill_candidates`.
+    known = {source.lower() for source in candidates}
+    for source in _gap_fill_candidates(module_name):
+        if source not in known:
+            candidates.append(source)
     return candidates
 
 

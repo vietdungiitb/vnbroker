@@ -169,7 +169,8 @@ class Quote(BaseAdapter):
         # Add any remaining kwargs
         params.update(kwargs)
             
-        return self._delegate_to_provider(M.HISTORY, symbol, **params)
+        result = self._delegate_to_provider(M.HISTORY, symbol, **params)
+        return self._normalize(result, start, end)
 
     @retry(
         stop=stop_after_attempt(Config.RETRIES),
@@ -207,7 +208,8 @@ class Quote(BaseAdapter):
         # Add any remaining kwargs
         params.update(kwargs)
         
-        return self._delegate_to_provider(M.INTRADAY, symbol, **params)
+        result = self._delegate_to_provider(M.INTRADAY, symbol, **params)
+        return self._normalize(result, boundaries=False)
 
     @retry(
         stop=stop_after_attempt(Config.RETRIES),
@@ -236,6 +238,40 @@ class Quote(BaseAdapter):
         """
         return self._delegate_to_provider(M.PRICE_DEPTH, symbol, **kwargs)
         
+    def _normalize(
+        self,
+        result: Any,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        *,
+        boundaries: bool = True,
+    ) -> Any:
+        """Đưa kết quả provider về hợp đồng tầng 1.
+
+        `vnbroker.common.data.Quote` đã làm việc này, nhưng `api.quote.Quote`
+        là bề mặt import được của riêng nó (``from vnbroker.api.quote import
+        Quote``) và trước đây trả thẳng frame của provider — nên `time` có
+        thể tz-naive, đơn vị lưu trữ khác nhau và `match_type` khác casing
+        tuỳ provider. Đo live @ 9d5db1d: KBS `[us, Asia/Ho_Chi_Minh]` +
+        `buy/sell/atc` vs VCI `[s, Asia/Ho_Chi_Minh]` + `Buy/Sell/ATC`;
+        `pd.concat` hai frame đó ra `dtype object`.
+
+        Hợp đồng và cách hiện thực nằm ở MỘT chỗ:
+        ``vnbroker/core/utils/normalizer.py``. Không viết lần hai ở đây.
+
+        Args:
+            result: Frame (hoặc list frame) provider trả về.
+            start: Biên đầu; ``None`` nghĩa là không lọc.
+            end: Biên cuối; ``None`` nghĩa là không lọc.
+            boundaries: ``False`` cho intraday — provider tự xử lý ngày giao
+                dịch, lọc thêm ở đây sẽ cắt nhầm dữ liệu trong phiên.
+        """
+        from vnbroker.core.utils.normalizer import Normalizer
+
+        if boundaries:
+            return Normalizer.normalize_history(result, start, end)
+        return Normalizer.normalize_intraday(result)
+
     def _delegate_to_provider(self, method_name: str, symbol: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Delegate method call to the provider with symbol update if needed.
@@ -326,7 +362,7 @@ class Quote(BaseAdapter):
             )
         
         # Call provider's fetch_multiple (handles both sync and async)
-        return call_provider_sync(
+        frames = call_provider_sync(
             self.provider.fetch_multiple,
             symbols=symbols,
             start=start,
@@ -339,3 +375,7 @@ class Quote(BaseAdapter):
             max_concurrency=max_concurrency,
             adaptive_concurrency=adaptive_concurrency,
         )
+        # `Normalizer.normalize_history` nhận list frame và chuẩn hoá từng
+        # frame, nên list trả về cũng tuân thủ hợp đồng tầng 1 — không để
+        # `concat` phía người dùng phải tự gánh.
+        return self._normalize(frames, start, end)

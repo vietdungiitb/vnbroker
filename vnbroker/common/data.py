@@ -11,7 +11,6 @@ import inspect
 from typing import Optional, Any, Dict
 from functools import lru_cache
 import pandas as pd
-import pytz
 import requests
 from tenacity import (
     Retrying,
@@ -733,8 +732,9 @@ class Quote(BaseComponent):
         if symbol:
             self.symbol = symbol.upper()
         result = self._run_with_failover("history", "quote", kwargs)
-        # Hợp đồng tầng 1: chuẩn hoá tz + lọc biên ở MỘT chỗ duy nhất để mọi
-        # provider ẩn danh trả về cùng schema. Xem _normalize_quote_result.
+        # Hợp đồng tầng 1: chuẩn hoá tz + đơn vị + match_type + lọc biên ở MỘT
+        # chỗ duy nhất để mọi provider ẩn danh trả về cùng schema.
+        # Xem `vnbroker/core/utils/normalizer.py`.
         if kwargs.get("to_df", True):
             from vnbroker.core.utils.normalizer import Normalizer
             return Normalizer.normalize_history(result, kwargs.get("start"), kwargs.get("end"))
@@ -768,8 +768,10 @@ class Quote(BaseComponent):
         result = self._run_with_failover("intraday", "quote", kwargs)
         if kwargs.get("to_df", True) and isinstance(result, pd.DataFrame):
             # Không truyền start/end: intraday trả dữ liệu trong phiên, lọc theo
-            # ngày là việc của provider.
-            return _normalize_quote_result(result)
+            # ngày là việc của provider. Cùng tầng chuẩn hoá với `history` nên
+            # `concat` giữa hai hàm không hỏng.
+            from vnbroker.core.utils.normalizer import Normalizer
+            return Normalizer.normalize_intraday(result)
         return result
 
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
@@ -790,51 +792,6 @@ class Quote(BaseComponent):
         return self._run_with_failover("price_depth", "quote", kwargs)
 
 
-def _canonical_tz() -> Any:
-    """Timezone chuẩn của thị trường Việt Nam (giờ giao dịch)."""
-    return pytz.timezone("Asia/Ho_Chi_Minh")
-
-
-def _to_canonical_tz(series: "pd.Series") -> "pd.Series":
-    """Chuẩn hoá cột ``time`` thành tz-aware Asia/Ho_Chi_Minh.
-
-    Vì sao cần (GĐ2 của kế hoạch hai tầng):
-
-    - ``ohlc_to_df`` chỉ ``tz_convert`` cho nhánh ``source == 'VCI'``; nhánh
-      ``else`` để nguyên ``pd.to_datetime(...)`` nên ra tz-naive
-      (vnbroker/core/utils/transform.py:331-338).
-    - Hệ quả: provider tz-naive + provider tz-aware khiến ``pd.concat`` sinh
-      dtype ``object`` — phá mọi phép tính thời gian phía downstream, và
-      **không** ném exception.
-
-    Naive được hiểu là giờ Việt Nam chứ không phải UTC: provider trả
-    ``'2024-01-02 09:00'`` nghĩa là 09:00 VN. Nếu localize UTC rồi convert sang
-    VN thì nó thành 16:00 — sai 7 tiếng, và sai này rất khó phát hiện vì vẫn là
-    timestamp hợp lệ.
-    """
-    if getattr(series.dt, "tz", None) is None:
-        return series.dt.tz_localize(_canonical_tz())
-    return series
-
-
-def _parse_boundary(value: Any, *, inclusive_end: bool) -> "pd.Timestamp | None":
-    """Parse ngày biên của lời gọi. Trả None nếu thiếu/không parse được."""
-    if value is None or value == "":
-        return None
-    try:
-        ts = pd.to_datetime(value)
-    except (ValueError, TypeError):
-        return None
-    if pd.isna(ts):
-        return None
-    if getattr(ts, "tzinfo", None) is None:
-        ts = ts.tz_localize(_canonical_tz())
-    if inclusive_end and ts.hour == 0 and ts.minute == 0 and ts.second == 0:
-        # Người dùng truyền '2024-01-31' nghĩa là hết ngày đó, không phải 00:00.
-        ts = ts + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-    return ts
-
-
 def _normalize_quote_result(
     result: Any,
     start: Any = None,
@@ -844,14 +801,19 @@ def _normalize_quote_result(
 
     Hợp đồng mà mọi provider ẩn danh phải tuân thủ, khoá ở MỘT chỗ duy nhất:
 
-    1. ``time`` luôn tz-aware ``Asia/Ho_Chi_Minh``.
+    1. ``time`` luôn tz-aware ``Asia/Ho_Chi_Minh`` **và cùng một đơn vị lưu trữ**
+       (``datetime64[ns]``). Thiếu điều kiện thứ hai thì ``DataFrame.concat``
+       giữa KBS (``[us]``) và VCI (``[s]``) rơi về ``dtype object``.
     2. Không có dòng nào ngoài khoảng ``[start, end]`` (bỏ qua nếu không truyền).
     3. ``time`` tăng dần.
-    4. Không thêm/bớt cột, không mutate DataFrame của provider.
+    4. ``match_type`` dùng chung một tập giá trị.
+    5. Không thêm/bớt cột, không mutate DataFrame của provider.
 
-    Vì sao ở đây mà không sửa từng provider: đây là điểm kiểm soát duy nhất
-    người dùng đi qua (``Vnbroker``); provider mới thêm vào sau này tự động
-    tuân thủ. Gọi provider trực tiếp (``VCIQuote(...).history()``) giữ hành vi cũ.
+    ⚠ **Đây là lớp gọi, KHÔNG phải nơi hiện thực.** Trước đây hàm này và
+    ``core/utils/normalizer.py::Normalizer._normalize_frame`` là hai bản
+    trùng nhau, và ``api/quote.py`` chẳng đi qua bản nào. Nay toàn bộ logic nằm
+    ở :class:`vnbroker.core.utils.normalizer.Normalizer`; hàm này giữ lại tên
+    cũ vì ``data.py`` và test tham chiếu tới nó.
 
     Args:
         result: DataFrame trả về từ provider (có thể không phải DataFrame).
@@ -861,24 +823,9 @@ def _normalize_quote_result(
     Returns:
         DataFrame đã chuẩn hoá, hoặc nguyên ``result`` nếu không phải DataFrame.
     """
-    if not isinstance(result, pd.DataFrame) or "time" not in result.columns:
-        return result
+    from vnbroker.core.utils.normalizer import Normalizer
 
-    df = result.copy()
-
-    df["time"] = _to_canonical_tz(pd.to_datetime(df["time"], errors="coerce"))
-    # Timestamp không parse được thì loại bỏ thay vì để NaT làm hỏng phép so sánh.
-    df = df[df["time"].notna()]
-
-    lo = _parse_boundary(start, inclusive_end=False)
-    if lo is not None:
-        df = df[df["time"] >= lo]
-
-    hi = _parse_boundary(end, inclusive_end=True)
-    if hi is not None:
-        df = df[df["time"] <= hi]
-
-    return df.sort_values("time").reset_index(drop=True)
+    return Normalizer.normalize_history(result, start, end)
 
 
 def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:

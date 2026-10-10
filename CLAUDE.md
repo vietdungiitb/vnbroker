@@ -38,28 +38,46 @@
     Providers: VCI, KBS (no auth required), **plus TCBS and DNSE when their
     credentials are present in `.env`** — Owner decision 2026-10-10: both now
     serve public market data on equal footing and must not be excluded.
-    ⚠ Auto-detection was **broken until 2026-10-10**: `get_auto_candidates()`
-    used a hardcoded list, and `ProviderPool` demanded `TCBS_API_SECRET`, a
-    variable that exists nowhere in production. See
-    `docs/REPORT_TIER1_EXPLORER_SURVEY.md` §2 and
-    `docs/PLAN_TIER1_PROVIDER_AGNOSTIC.md`.
+    ⚠ Auto-detection was **broken until 2026-10-10**, three separate ways, all
+    measured and all fixed: (a) `get_auto_candidates()` used a hardcoded list, so
+    `screener` returned `[]` while the registry had `kbs`/`vci`; (b)
+    `ProviderPool` demanded `TCBS_API_SECRET`, a variable that exists nowhere in
+    production; (c) `explorer/tcbs/auth.py` read only `TCBS_AUTH_TOKEN` (a 48-char
+    non-JWT that the server rejects with HTTP 401) and never read
+    `TCBS_JWT_TOKEN` (a real 1290-char JWT that returns HTTP 200).
+    Gate: `scripts/check_provider_consistency.py` (+ `--self-test`).
+    See `docs/REPORT_TIER1_WAVE12.md` and `docs/PLAN_TIER1_WAVE12_EXECUTION.md`.
+    ⚠ **DNSE is not verified working.** Measured 2026-10-10: the TLS handshake to
+    `openapi.dnse.com.vn` **times out** from this host, so every DNSE market-data
+    call raises `ConnectionResetError(10054)`. It may serve traffic as a candidate
+    in `AUTO` only because the router health-checks first; never describe DNSE as
+    "stable" without a fresh measurement.
   - **Tier 2 — personalized broker data.** Provider is chosen EXPLICITLY, each
     broker keeps its own OpenAPI shape (SSI RSA/ConsumerID + fixed IP, TCBS API
     Key + OTP, DNSE HMAC). Do NOT force these behind one interface.
   - Contract enforced by `tests/contract/`: all anonymous providers must return
     the same schema (`time` tz-aware `Asia/Ho_Chi_Minh`, required columns, no rows
     outside `[start, end]`).
-    ⚠ **Two enforcement gaps measured 2026-10-10** — this doc used to call
-    `_normalize_quote_result` "the single enforcement point", which was **false**:
-    (1) there are two byte-identical copies, `core/utils/normalizer.py:55-78` and
-    `common/data.py:838-881`; (2) `api/quote.py` and `api/bulk.py` never call the
-    normaliser at all. Consequence, measured live: `intraday()` from **KBS**
-    returns tz-**naive** `datetime64[us]` with `match_type` values `buy/sell/atc`,
-    while **VCI** returns tz-**aware** `datetime64[s, Asia/Ho_Chi_Minh]` with
-    `Buy/Sell/ATC`. `pd.concat` of the two yields `dtype=object`, and
-    `df[df.match_type == "Buy"]` returns 0 rows from KBS and 5 from VCI.
-    Tracking: `docs/REPORT_TIER1_EXPLORER_SURVEY.md` §4, Wave 2 of
-    `docs/PLAN_TIER1_PROVIDER_AGNOSTIC.md`.
+    **Single enforcement point: `vnbroker/core/utils/normalizer.py::Normalizer`.**
+    Three defects made this false until 2026-10-10, all fixed and all now locked
+    by `tests/contract/test_normalizer_contract.py`:
+    1. *Two copies* of the normalizer (`core/utils/normalizer.py` and
+       `common/data.py::_normalize_quote_result`) that could drift apart.
+       `common/data.py` now delegates — it is a call site, not an implementation.
+    2. *`api/quote.py` bypassed both* (and `api/bulk.py` `pd.concat`-ed raw
+       frames). Both now route through `Normalizer`.
+    3. *tz-aware was not enough.* pandas ≥2 keeps the source **unit**, so KBS
+       returned `datetime64[us, Asia/Ho_Chi_Minh]` and VCI
+       `datetime64[s, Asia/Ho_Chi_Minh]`. Both are tz-aware; `pd.concat` of the
+       two live frames still produced `dtype=object`, silently breaking every
+       downstream time operation. The Normalizer now casts to one unit,
+       `datetime64[ns, Asia/Ho_Chi_Minh]`.
+    4. *`match_type` was not normalized.* `process_match_types`
+       (`core/utils/transform.py`) already maps every provider spelling to
+       `Buy`/`Sell`/`unknown`, but `explorer/kbs/quote.py` called `.str.lower()`
+       on the next line and undid it — so `df[df.match_type == "Buy"]` returned
+       **0 rows from KBS** and 67 from VCI for the same session.
+    Tracking: `docs/REPORT_TIER1_WAVE12.md`, `docs/PLAN_TIER1_WAVE12_EXECUTION.md`.
 - **No PAT/Gateway**: Direct access to provider APIs (VCI, KBS, TCBS, DNSE)
 - **Adapter Pattern**: `BaseAdapter` with dynamic method delegation to provider-specific explorers
 - **Provider Registry**: Centralized provider discovery via `ProviderRegistry`
