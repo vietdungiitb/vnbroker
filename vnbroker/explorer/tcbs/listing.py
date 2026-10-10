@@ -7,7 +7,7 @@ API: POST _BASE_URL/ligo/v1/watchlist/preview
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 
 _WATCHLIST_URL = f"{_BASE_URL}{LIGO_PATH}/watchlist/preview"
 _DERIVATIVES_URL = f"{_BASE_URL}{TARTARUS_PATH}/derivatives"
+_SECURITIES_PATH = "/ananke/v1/securities"
 
 _GROUP_CODE: Dict[str, str] = {
     "VN30": "VN30",
@@ -275,6 +276,53 @@ class Listing:
         if show_log:
             logger.info(f"TCBS derivatives: {len(s)} symbols.")
         return s
+
+    @optimize_execution("TCBS")
+    def get_securities_info(
+        self,
+        fields: Optional[str] = None,
+        filter_expr: Optional[str] = None,
+        show_log: Optional[bool] = False,
+    ) -> Dict[str, Any]:
+        """
+        GET /ananke/v1/securities — thông tin chứng khoán (cổ phiếu, trái phiếu, phái sinh).
+
+        Args:
+            fields: Danh sách field muốn nhận, ngăn cách bởi dấu phẩy. Bỏ trống ⇒ không gửi.
+            filter_expr: Biểu thức lọc dạng ``field=value``, ví dụ ``symbol=TCB``.
+                Bỏ trống ⇒ không gửi.
+            show_log: Hiển thị log. Mặc định False.
+
+        Returns:
+            Dict — raw response của TCBS, **không** ép DataFrame.
+
+        ⚠ Shape của response **chưa được tài liệu hoá**: trong spec,
+        `responses.200` không có `content` ⇒ không có schema để dựng cột.
+        Thiếu tài liệu KHÔNG phải schema rỗng, nên hàm trả nguyên dict server trả về
+        (rỗng `{}` nếu request lỗi). Bịa tên cột ở đây là hư cấu.
+        """
+        params: Dict[str, str] = {}
+        if fields:
+            params["fields"] = fields
+        if filter_expr:
+            params["filter"] = filter_expr
+
+        try:
+            response = client.send_request(
+                url=f"{self.base_url}{_SECURITIES_PATH}",
+                headers=self.headers,
+                method="GET",
+                params=params,
+                show_log=bool(show_log),
+            )
+        except Exception as exc:
+            if show_log:
+                logger.error(f"TCBS securities fetch failed: {exc}")
+            return {}
+
+        if isinstance(response, dict):
+            return response
+        return {"data": response}
 
     @optimize_execution("TCBS")
     def all_covered_warrant(self, show_log: Optional[bool] = False) -> pd.Series:
