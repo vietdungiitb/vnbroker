@@ -208,6 +208,141 @@ def test_frame_without_match_type_column_is_untouched():
     assert list(out.columns) == ["time", "close"]
 
 
+def test_utc_aware_frame_is_converted_not_left_alone():
+    """Frame tz-aware ở vùng khác phải được `tz_convert`, không để nguyên.
+
+    Đo 2026-10-10 (audit A2): `ohlc_to_df` nhánh `else`
+    (`core/utils/transform.py:379`) giữ nguyên UTC từ chuỗi provider, nên
+    `Normalizer` có thể nhận `datetime64[ns, UTC]`. Trước khi sửa, hàm chỉ
+    `localize` khi thiếu tz nên UTC lọt xuyên qua, trái hợp đồng "tz-aware
+    `Asia/Ho_Chi_Minh`", và `concat` với frame Việt Nam ra `object` — đúng cái
+    lỗi mà phần còn lại của hợp đồng sinh ra để chặn.
+    """
+    df = pd.DataFrame(
+        {
+            "time": pd.to_datetime(["2024-01-01T02:00:00+00:00", "2024-01-01T02:01:00+00:00"]),
+            "close": [1.0, 2.0],
+        }
+    )
+    assert str(df["time"].dtype).endswith("UTC]")
+
+    out = Normalizer.normalize_history(df, None, None)
+    assert str(out["time"].dtype) == f"datetime64[{CANONICAL_TIME_UNIT}, {TZ}]", (
+        f"UTC phai duoc convert sang {TZ}, thuc te {out['time'].dtype}"
+    )
+    # Cùng một MỐC THỜI GIAN — chỉ đổi nhãn múi giờ, không dịch 7 tiếng.
+    assert out["time"].iloc[0] == pd.Timestamp("2024-01-01 09:00", tz=TZ)
+
+    merged = pd.concat([out, Normalizer.normalize_intraday(VCI_LIKE)], ignore_index=True)
+    assert merged["time"].dtype != object
+
+
+def test_other_offsets_are_converted_too():
+    """Mọi múi giờ khác Asia/Ho_Chi_Minh đều phải về một múi giờ, giữ mốc thời gian."""
+    cases = {
+        "2024-01-01T02:00:00+00:00": "2024-01-01 09:00",   # UTC
+        "2024-01-01T11:00:00+04:00": "2024-01-01 14:00",   # +04
+        "2024-01-01T00:00:00+00:00": "2024-01-01 07:00",   # UTC nửa đêm
+    }
+    for stamp, expected in cases.items():
+        df = pd.DataFrame({"time": pd.to_datetime([stamp]), "close": [1.0]})
+        out = Normalizer.normalize_history(df, None, None)
+        assert str(out["time"].dtype) == f"datetime64[{CANONICAL_TIME_UNIT}, {TZ}]", (
+            f"{stamp}: dtype {out['time'].dtype}"
+        )
+        assert out["time"].iloc[0] == pd.Timestamp(expected, tz=TZ), (
+            f"{stamp}: bang {out['time'].iloc[0]}, mong doi {expected} {TZ}"
+        )
+
+
+def test_out_of_ns_range_timestamp_does_not_escape_the_unit_contract():
+    """Năm 3000 không nâng được sang `ns` — và KHÔNG được lọt đơn vị lệch.
+
+    Đo (audit A3): bản cũ trả nguyên series khi ép đơn vị thất bại, nên frame
+    đó là `datetime64[us, …]` còn frame khác là `[ns, …]` ⇒ `pd.concat` ném
+    `OutOfBoundsDatetime`. Giá trị vô dụng phải thành `NaT` để bị loại, đúng như
+    timestamp không parse được.
+    """
+    df = pd.DataFrame(
+        {
+            "time": pd.to_datetime(["3000-01-01 00:00:00", "2024-01-01 09:00:00"]),
+            "close": [1.0, 2.0],
+        }
+    )
+    out = Normalizer.normalize_history(df, None, None)
+    assert str(out["time"].dtype) == f"datetime64[{CANONICAL_TIME_UNIT}, {TZ}]"
+    assert len(out) == 1, "timestamp vo dung phai bi loai, khong duoc giu lai"
+
+    merged = pd.concat([out, Normalizer.normalize_intraday(VCI_LIKE)], ignore_index=True)
+    assert merged["time"].dtype != object
+
+
+def test_normalize_match_type_does_not_mutate_its_argument():
+    """Hàm private cũng phải giữ lời hứa của module: không mutate frame vào.
+
+    Đo (audit A4): bản cũ gán thẳng `df["match_type"] = ...` nên sửa tại chỗ
+    frame của người gọi. Vô hại qua hợp đồng công khai vì `_normalize_frame` copy
+    trước, nhưng đó là lỗ hổng tiềm ẩn, không phải lý do để giữ.
+    """
+    from vnbroker.core.utils.normalizer import _normalize_match_type
+
+    src = pd.DataFrame(
+        {
+            "time": pd.to_datetime(["2024-01-02 09:15:00"]),
+            "match_type": ["b"],
+        }
+    )
+    before = src["match_type"].tolist()
+    out = _normalize_match_type(src)
+    assert src["match_type"].tolist() == before
+    assert out["match_type"].tolist() == ["Buy"]
+
+
+def test_api_quote_adapter_normalizes_even_though_body_is_dead_code():
+    """`api.quote.Quote.history`/`intraday` có `@dynamic_method` — thân hàm
+    KHÔNG chạy. Hợp đồng chỉ được áp ở `_post_process_result`.
+
+    Đo (audit A1): đặt `self._normalize(...)` vào thân `history` khiến
+    `_delegate_to_provider` được gọi **0** lần và kết quả là frame thô của
+    provider (tz-naive, `match_type` chưa chuẩn hoá). Bản vá đầu tiên rơi
+    đúng vào chỗ đó và là dead code — test này khoá lại điểm móc đúng.
+    """
+    from unittest.mock import patch
+
+    from vnbroker.api.quote import Quote as ApiQuote
+
+    class RawProvider:
+        def __init__(self, symbol):
+            self.symbol = symbol
+
+        def history(self, symbol=None, start=None, end=None, interval="1D", **kw):
+            return pd.DataFrame(
+                {
+                    # `tz_localize` phải đi trước `astype`: `astype` không biến
+                    # được dtype naive thành tz-aware.
+                    "time": pd.to_datetime(["2024-01-01"])
+                    .tz_localize(TZ)
+                    .astype(f"datetime64[s, {TZ}]"),
+                    "close": [25.0],
+                    "match_type": ["buy"],
+                }
+            )
+
+    q = ApiQuote(source="KBS", symbol="ACB")
+    # Giữ nguyên `_call_dynamic_method` — đó CHÍNH là đường đi thật mà
+    # `@dynamic_method` rẽ sang, và là lý do thân hàm là dead code.
+    q._provider = RawProvider("ACB")
+
+    with patch.object(RawProvider, "history", RawProvider("ACB").history):
+        out = q.history(start="2024-01-01", end="2024-01-31")
+
+    assert str(out["time"].dtype) == f"datetime64[{CANONICAL_TIME_UNIT}, {TZ}]", (
+        f"api.quote.Quote.history tra frame tho cua provider: {out['time'].dtype}. "
+        "Sua trong than ham la vo hieu — @dynamic_method cat no."
+    )
+    assert out["match_type"].tolist() == ["Buy"]
+
+
 # ------------------------------------------------------- không mutate + biên
 
 

@@ -5,7 +5,7 @@ Unified Quote adapter with dynamic method detection and parameter filtering.
 Module quản lý dữ liệu giá chứng khoán với phát hiện phương thức động và lọc tham số.
 """
 
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 from vnbroker.config import Config
@@ -170,7 +170,9 @@ class Quote(BaseAdapter):
         params.update(kwargs)
             
         result = self._delegate_to_provider(M.HISTORY, symbol, **params)
-        return self._normalize(result, start, end)
+        # `_post_process_result` chuẩn hoá kết quả. Dòng này chỉ để lời gọi
+        # tường minh khi đọc code; không có nó thì hợp đồng vẫn được áp ở hook.
+        return result
 
     @retry(
         stop=stop_after_attempt(Config.RETRIES),
@@ -209,7 +211,7 @@ class Quote(BaseAdapter):
         params.update(kwargs)
         
         result = self._delegate_to_provider(M.INTRADAY, symbol, **params)
-        return self._normalize(result, boundaries=False)
+        return result  # chuẩn hoá ở `_post_process_result`
 
     @retry(
         stop=stop_after_attempt(Config.RETRIES),
@@ -238,6 +240,32 @@ class Quote(BaseAdapter):
         """
         return self._delegate_to_provider(M.PRICE_DEPTH, symbol, **kwargs)
         
+    def _post_process_result(self, result: Any, method_name: str, kwargs: Dict[str, Any]) -> Any:
+        """Áp hợp đồng tầng 1 lên kết quả provider.
+
+        `history` và `intraday` được trang bị `@dynamic_method`, và decorator
+        đó rẽ sang `_call_dynamic_method` **trước khi thân hàm chạy**. Đặt
+        `self._normalize(...)` vào trong thân hàm là dead code: đo 2026-10-10,
+        `_delegate_to_provider` được gọi **0** lần và kết quả trả về y nguyên
+        frame thô của provider (tz-naive, `match_type` chưa chuẩn hoá).
+
+        Vì vậy điểm móc đúng là `_post_process_result` trên `BaseAdapter`, điểm
+        mà mọi lời gọi provider — kể cả qua `@dynamic_method` — đều đi qua.
+
+        `price_depth` không có cột `time` nên `Normalizer` trả nguyên frame.
+        `to_df=False` nghĩa là caller muốn dữ liệu thô ⇒ không chuẩn hoá.
+        """
+        result = super()._post_process_result(result, method_name, kwargs)
+
+        if method_name not in ("history", "intraday"):
+            return result
+        if kwargs.get("to_df", True) is False:
+            return result
+
+        if method_name == "intraday":
+            return self._normalize(result, boundaries=False)
+        return self._normalize(result, kwargs.get("start"), kwargs.get("end"))
+
     def _normalize(
         self,
         result: Any,

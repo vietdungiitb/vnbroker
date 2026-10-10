@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 import inspect
 from abc import ABC
 from functools import wraps
@@ -131,6 +131,23 @@ class BaseAdapter(ABC):
             return df
         return result
 
+    def _post_process_result(self, result: Any, method_name: str, kwargs: Dict[str, Any]) -> Any:
+        """Hook chạy sau khi provider trả về, trước khi kết quả ra tới người dùng.
+
+        Mặc định chỉ xử lý danh sách hợp đồng phái sinh. Lớp con override để
+        áp thêm chuẩn hoá của module mình (ví dụ `api.quote.Quote` ép hợp đồng
+        tầng 1 lên `history`/`intraday`).
+
+        ⚠ **Đây là điểm móc duy nhất dùng được cho `history`/`intraday` của
+        `api.quote`.** Hai method đó được trang bị `@dynamic_method`
+        (`base.py:21`), và decorator đó rẽ sang `_call_dynamic_method` **trước
+        khi thân hàm chạy** — nên bất kỳ dòng nào viết trong thân hàm đều là
+        dead code. Đo 2026-10-10: đặt `self._normalize(...)` vào thân
+        `api/quote.py::history` khiến `_delegate_to_provider` được gọi **0**
+        lần. Dữ liệu trả về y nguyên frame thô của provider.
+        """
+        return self._normalize_derivative_listing(result, method_name)
+
     def _invoke_provider_method(self, method_name: str, *args, **kwargs):
         if not hasattr(self._provider, method_name):
             raise NotImplementedError(
@@ -140,7 +157,7 @@ class BaseAdapter(ABC):
         sig = inspect.signature(provider_method)
         filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
         result = provider_method(*args, **filtered)
-        return self._normalize_derivative_listing(result, method_name)
+        return self._post_process_result(result, method_name, kwargs)
 
     def _call_provider_method(self, method_name: str, *args, **kwargs):
         if not is_auto_source(self._requested_source):

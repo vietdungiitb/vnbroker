@@ -37,6 +37,11 @@ import pytz
 #: providers is what makes ``pd.concat`` produce a datetime instead of object.
 CANONICAL_TIME_UNIT = "ns"
 
+#: Biên của `datetime64[ns]`. Ngoài khoảng này `as_unit` ném
+#: `OutOfBoundsDatetime`; những dòng đó bị đổi thành `NaT` rồi loại.
+_NS_MIN = "1677-09-21 00:00:00"
+_NS_MAX = "2262-04-11 23:47:16"
+
 
 def _canonical_tz() -> Any:
     """Timezone chuẩn của thị trường Việt Nam (giờ giao dịch)."""
@@ -46,23 +51,36 @@ def _canonical_tz() -> Any:
 def _to_canonical_unit(series: pd.Series) -> pd.Series:
     """Ép cột ``time`` về đơn vị lưu trữ ``CANONICAL_TIME_UNIT``.
 
-    pandas >= 2 keeps the source unit (``[s]``, ``ms``, ``[us]``, ``[ns]``) in
-    ``Series.dtype``. Two frames that are both tz-aware but carry different
-    units cannot be concatenated into a datetime: ``DataFrame.concat`` falls
-    back to ``object`` because it finds no common dtype.
+    pandas >= 2 giữ nguyên đơn vị nguồn (``[s]``, ``ms``, ``[us]``, ``[ns]``) trong
+    ``Series.dtype``. Hai frame đều tz-aware nhưng khác đơn vị không thể
+    ``concat`` thành datetime: ``DataFrame.concat`` không tìm thấy dtype chung
+    nên rơi về ``object``.
 
-    ``astype`` is the fallback for pandas < 2.0 where ``.dt.as_unit`` does not
-    exist. It can overflow for timestamps outside the target unit's range, so
-    a failure there leaves the series untouched rather than raising into a
-    user's data call.
+    Timestamp nằm ngoài phạm vi của ``ns`` (ví dụ năm 3000) không nâng được và
+    sẽ làm hỏng chính cái hợp đồng này. Những dòng đó thành ``NaT`` để bị điều
+    kiện lọc ở ``_normalize_frame`` loại bỏ — đúng như xử lý timestamp không
+    parse được. **Không** trả nguyên series: làm vậy là để lọt ra một đơn vị
+    lệch và tái tạo đúng lỗi ta đang sửa.
     """
     try:
         return series.dt.as_unit(CANONICAL_TIME_UNIT)
     except (AttributeError, TypeError, ValueError, OverflowError):
-        try:
-            return series.astype(f"datetime64[{CANONICAL_TIME_UNIT}, {_canonical_tz()}]")
-        except (TypeError, ValueError, OverflowError):
-            return series
+        pass
+
+    # Biên của datetime64[ns]; ngoài khoảng này `as_unit` ném
+    # OutOfBoundsDatetime (đo 2026-10-10 với năm 3000). Dựng biên ở UTC:
+    # so sánh Timestamp giữa hai múi giờ khác nhau vẫn hợp lệ, còn
+    # `tz_localize` mốc năm 1677 vào giờ VN sẽ vướng quy tắc LMT/DST của pytz.
+    low = pd.Timestamp(_NS_MIN, tz="UTC")
+    high = pd.Timestamp(_NS_MAX, tz="UTC")
+    masked = series.mask((series < low) | (series > high))
+    try:
+        return masked.dt.as_unit(CANONICAL_TIME_UNIT)
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        # pandas >= 2 luôn có `.dt.as_unit`, nên nhánh này gần như không tới.
+        # Trả `masked` chứ KHÔNG trả `series`: `masked` đã loại dòng vô dụng,
+        # còn `series` thì vẫn mang đơn vị lệch và phá hỏng `concat`.
+        return masked
 
 
 def _to_canonical_tz(series: pd.Series) -> pd.Series:
@@ -70,11 +88,20 @@ def _to_canonical_tz(series: pd.Series) -> pd.Series:
 
     Naive được hiểu là **giờ Việt Nam**, không phải UTC: provider trả
     ``'2024-01-02 09:00'`` nghĩa là 09:00 VN. Localize UTC rồi convert sang VN
-    sẽ thành 16:00 — sai 7 tiếng mà vẫn là timestamp hợp lệ, nên rất khó phát
+    sẽ thành 16:00 — sai 7 tiổng mà vẫn là timestamp hợp lệ, nên rất khó phát
     hiện.
+
+    Frame đã tz-aware nhưng ở **vùng khác** thì ``tz_convert``, không
+    ``tz_localize``: đây là cùng một *thời điểm* nên phải giữ nguyên mốc thời
+    gian, chỉ đổi nhãn múi giờ. Để y như cũ thì frame UTC lọt xuống dưới với
+    ``datetime64[ns, UTC]`` — trái hợp đồng "tz-aware Asia/Ho_Chi_Minh" và
+    ``concat`` với frame Việt Nam lại ra ``object``.
     """
-    if getattr(series.dt, "tz", None) is None:
+    tz = getattr(series.dt, "tz", None)
+    if tz is None:
         series = series.dt.tz_localize(_canonical_tz())
+    elif str(tz) != str(_canonical_tz()):
+        series = series.dt.tz_convert(_canonical_tz())
     return _to_canonical_unit(series)
 
 
@@ -120,8 +147,11 @@ def _normalize_match_type(df: pd.DataFrame) -> pd.DataFrame:
     canonical = canonical.mask(
         key.isin({"ATO", "ATC"}), key
     )
-    df["match_type"] = canonical
-    return df
+    # `assign` trả về frame MỚI: hàm này không được mutate frame của người gọi.
+    # Trước đây nó gán thẳng `df["match_type"] = ...` và sửa tại chỗ — vô hại
+    # vì `_normalize_frame` đã copy trước, nhưng docstring của module hứa "không
+    # bao giờ mutate" thì hàm private này là ngoại lệ chưa được nói ra.
+    return df.assign(match_type=canonical)
 
 
 class Normalizer:
