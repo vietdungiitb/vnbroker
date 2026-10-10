@@ -48,6 +48,24 @@ def get_rate_limiter() -> Optional[TokenBucketRateLimiter]:
     return _rate_limiter
 
 
+def _url_without_query(url: str) -> str:
+    """URL bỏ query string — dùng khi GHI LOG.
+
+    Client HMAC (DNSE, KBS) ký request bằng query string kiểu
+    ``?api_key=…&signature=…``, nên URL thô **là** credential. Regex ở tầng
+    logger không phải lưới an toàn: nó bắt ``key=value`` nhưng bỏ sót
+    ``signature=…`` khi thứ tự tham số đảo (đo 2026-10-10). Bỏ query ngay tại
+    nguồn thì không còn gì để lọt.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not parts.query:
+        return url
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", parts.fragment))
+
+
 def parse_retry_after(headers: Any) -> Optional[float]:
     """Đọc header ``Retry-After`` (RFC 9110 §10.2.4) thành số giây.
 
@@ -240,7 +258,15 @@ def send_request(
             raise ValueError(f"Invalid request_mode: {request_mode}")
     # Log thông tin request nếu cần
     if show_log:
-        logger.info(f"{method.upper()} request to {url} (mode: {request_mode.value})")
+        # URL thô có thể mang credential TRONG query string: client HMAC (DNSE,
+        # KBS) ký bằng `?api_key=…&signature=…`. `redact_sensitive_data` ở tầng
+        # logger chỉ bắt được `key=value` đúng thứ tự — `?signature=abc&api_key=X`
+        # để lọt `signature=abc` (đo 2026-10-10, audit vòng 5 finding 2). Vì vậy
+        # bỏ query ngay tại nguồn thay vì trông chờ regex ở tầng log.
+        logger.info(
+            f"{method.upper()} request to {_url_without_query(url)} "
+            f"(mode: {request_mode.value})"
+        )
         if params:
             logger.info(f"Params: {params}")
         if payload:
