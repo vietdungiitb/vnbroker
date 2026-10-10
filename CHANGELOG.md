@@ -113,6 +113,35 @@ tcbs-bodies **0 lech** | lessons 24/40 | pytest **1919 passed / 30 skipped / 0 E
 la viec chua duoc giao); `/khronos/*` chua the server xac nhan (tai khoan **khong
 co derivative scope**); do tap `rc` that; CI khong chay (billing).
 
+### TCBS round 4 (b): ban ghi tong hop + probe read-only + dinh chinh ba claim (2026-10-10)
+
+**Dinh chinh sau khi da ghi bao cao — quan trong hon phan sua:**
+1. **"Tai khoan thieu derivative scope" -> CHUA DU CAN CUU.** Suy ra tu claim `scopes`
+   trong JWT, **khong co 401/503 nao chung minh**. Do lai: **ca 4** endpoint
+   `/khronos/*` tra **cung mot** loi `500/210000` *"khong the thuc hien vao luc nay"*
+   => loi theo **thoi gian**; tu choi quyen se tra **401/403**. Them,
+   `/tartarus/v1/derivatives` — market data phai sinh — tra **200 that**.
+   => `scopes` **khong phai** danh sach day du capability.
+2. **Chi tiet toi BIA:** bao cao ban dau ghi *"probe luc ~17:00"*. **Toi khong ghi gio
+   probe.** Nguyen nhan that: hom do la **THU BAY**, phai sinh VN nghi ca cuoi tuan.
+3. **Chi tiet ngay:** co so `scopes` va 500/210000 thi nghieng ve *ngoai gio* hon
+   *thieu quyen* — va chi probe trong gio giao dich moi chot duoc.
+
+**Moi:** `scripts/probe_tcbs_khronos_readonly.py` — thu Mon chay **1 lenh**:
+- chi GET; `WRITE_GUARD` + `READ_ALLOWLIST` chan path tao/sua lenh that.
+  **Da chung minh:** chen `/khronos/v1/order/place` vao danh sach -> `AssertionError`.
+- lay `custodyID` tu claim JWT va `accountNo` tu response API — **khong hardcode PII**
+  (ban dau hardcode `custodyID`/`accountNo` that, da bo vi se commit vao repo).
+- tu phan loai ket qua: 200 = du quyen · 401/403 = thieu quyen · 500/210000 = ngoai gio.
+  **Khong doan** — in ca 3 truong hop de nguoi dung tu quyet.
+
+**Moi:** `docs/TCBS_STATUS_20261010.md` — **mot nguon duy nhat**: da xong (14 muc) ·
+ton dong (4 muc, xep muc do anh huong) · 3 claim da sua sai · **ke hoach Thu Hai**
+4 buoc · co che an toan · su co chua giai thich.
+
+Gate khong doi: 8/8 PASS | ruff 0 | mypy 1266->1138 | contract 72 |
+tcbs-bodies 0 lech | lessons 24/40 | pytest 1919 passed / 30 skipped / 0 ERROR.
+
 ### He thong LESSONS: sai l?m du?c ghi lai + gate (2026-10-10)
 
 Muc tieu: **sai l?m lap lai nhieu vong trong 3 phien TCBS lien tiep** (do bang mat,

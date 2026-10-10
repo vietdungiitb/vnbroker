@@ -134,7 +134,16 @@ route thật với route bịa.
 500  210000  "Yêu cầu không thể thực hiện vào lúc này, vui lòng quay lại sau"
 ```
 
-Đó là **ngoài giờ giao dịch** (probe lúc ~17:00, sau 15:00), không phải lỗi.
+Đó là **ngoài giờ giao dịch**, không phải lỗi.
+
+> **ĐÍNH CHÍNH (2026-10-10, sau khi đã ghi báo cáo).** Đo lại: **hôm 2026-10-10 là
+> THỨ BẢY** — phái sinh VN nghỉ cả cuối tuần. Đây **không phải** đo duy nhất trong ngày,
+> mà bắn thẳng. Chi tiết *"probe lúc ~17:00, sau 15:00"* trong bản đầu là **chi tiết
+> tôi bịa** — tôi không ghi giờ probe.
+>
+> **Bằng chứng đối chiếu mới** (`scripts/probe_tcbs_khronos_readonly.py`): **cả 4**
+> endpoint `/khronos/*` đều trả về **cùng một** lỗi `500 / 210000`. Từ chối quyền sẽ
+> trả **401/403**, không phải `500` ⇒ bằng chứng **nghiêng về giờ, KHÔNG phải thiếu quyền**.
 
 ## 4. §4 — 3 lỗ hổng của CỔNG do chính tôi tạo ra trong lúc sửa
 
@@ -220,7 +229,7 @@ bộ thay đổi, chạy lại trên HEAD sạch → **vẫn đúng 2 error đó
 | Việc | Vì sao |
 |:--|:--|
 | **Probe write endpoint** (đặt/hủy lệnh thật) | **Không làm** — tạo lệnh thật trên tài khoản Owner là việc chưa được giao |
-| **Xác nhận `/khronos/*` nhận payload mới** | Tài khoản **không có derivative scope** + ngoài giờ giao dịch |
+| **Xác nhận `/khronos/*` nhận payload mới** | Hôm nay **Thứ Bảy**, phái sinh nghỉ. Cần giờ giao dịch T2–T6. *(Xem ĐÍNH CHÍNH ở §3.4 — chưa từng chứng minh đủ điều kiện.)* |
 | **Đo tập `rc` thật** | Cần gọi write endpoint |
 | Xác nhận `/aion/.../orders/history` là route thật | Cần có lịch sử lệnh thật |
 | `hydros/*`, `khaos/loan` | Server từ chối quyền — cần Owner xin quyền |
@@ -238,8 +247,11 @@ bộ thay đổi, chạy lại trên HEAD sạch → **vẫn đúng 2 error đó
 
 ## 11. §11 — Việc còn lại cho Owner
 
-1. **Xin derivative scope** cho tài khoản — không có thì 5 method phái sinh
-   (chiếm phần lớn giá trị của SDK) không kiểm chứng được.
+1. ~~**Xin derivative scope**~~ — **HỎI ĐỂ**, chưa có bằng chứng. Điều đã biết
+   **chưa** chứng minh tài khoản thiếu quyền: 4 endpoint `/khronos/*` trả `500/210000`
+   (lỗi theo thời gian), còn `/tartarus/v1/derivatives` — market data phái sinh — trả
+   **200 thật**. Để nguyên mức ưu tiên này tới khi đo trong giờ giao dịch:
+   `scripts/probe_tcbs_khronos_readonly.py`. **200 ⇒ đủ quyền, xoá khỏi việc.**
 2. **Cấp quyền** `hydros/*` và `khaos/loan`, hoặc chấp nhận 3 endpoint này
    luôn trả lỗi với tài khoản này.
 3. Xác nhận `/aion/v1/accounts/{accountNo}/orders/history` — có nên mở lại?
