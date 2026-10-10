@@ -450,24 +450,46 @@ class TestPhase4Derivatives:
     def test_change_derivative_order_dry_run(self, derivatives_service_write):
         """Sửa lệnh phái sinh (dry_run=True)."""
         result = derivatives_service_write.change_derivative_order(
+            account_id=ACCOUNT_ID, sub_account_id=SUB_ACCOUNT_ID,
             order_id="ORD001", quantity=20, price=1260.0,
             request_id=REQUEST_ID, dry_run=True,
         )
         assert result["dry_run"] is True
         assert "change_derivative_order" in result["operation"]
 
+    def test_change_derivative_order_thieu_account_id_then_loi(self, derivatives_service_write):
+        """Bỏ `account_id` phải ném lỗi ngay — không âm thầm gửi payload thiếu field."""
+        with pytest.raises(TypeError):
+            derivatives_service_write.change_derivative_order(
+                order_id="ORD001", quantity=20, price=1260.0,
+                request_id=REQUEST_ID, dry_run=True,
+            )
+
     def test_change_derivative_condition_order_dry_run(self, derivatives_service_write):
         """Sửa lệnh phái sinh điều kiện (dry_run=True)."""
         result = derivatives_service_write.change_derivative_condition_order(
-            order_id="COND001", quantity=15, price=1255.0,
-            trigger_price=1245.0, request_id=REQUEST_ID, dry_run=True,
+            account_id=ACCOUNT_ID,
+            order_id="COND001", trigger_price=1245.0,
+            request_id=REQUEST_ID, dry_run=True,
         )
         assert result["dry_run"] is True
         assert "change_derivative_condition" in result["operation"]
 
+    def test_change_derivative_condition_order_che_quantity_price_then_loi(self, derivatives_service_write):
+        """
+        `quantity`/`price` KHÔNG có trong spec `/khronos/v2/order/condition/change`
+        và đã bị gỡ khỏi chữ ký. Gọi bằng chữ ký cũ phải ném TypeError.
+        """
+        with pytest.raises(TypeError):
+            derivatives_service_write.change_derivative_condition_order(
+                account_id=ACCOUNT_ID, order_id="COND001", quantity=15, price=1255.0,
+                trigger_price=1245.0, request_id=REQUEST_ID, dry_run=True,
+            )
+
     def test_cancel_derivative_order_dry_run(self, derivatives_service_write):
         """Hủy lệnh phái sinh (dry_run=True)."""
         result = derivatives_service_write.cancel_derivative_order(
+            account_id=ACCOUNT_ID,
             order_id="ORD001", request_id=REQUEST_ID, dry_run=True,
         )
         assert result["dry_run"] is True

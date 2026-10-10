@@ -133,6 +133,7 @@ def _path_used(
     fn: ast.FunctionDef,
     path_values: Dict[str, str],
     package_index: Optional[Dict[str, str]] = None,
+    order_paths: Optional[Dict[str, str]] = None,
 ) -> Optional[str]:
     """
     File method nay tro toi path spec nao?
@@ -140,8 +141,19 @@ def _path_used(
     Nhan duoi ca `_PATHS["kieu"]` (bien module) va `self._ORDER_PATHS["kieu"]` (class
     attribute o module khac) - code that duoc ca hai dang nen gate khong duoc chi nhat
     mot. `package_index` la fallback khi key khong ton tai trong module hien tai.
+
+    ⚠ `order_paths` la `_PATHS` cua module GAN `_ORDER_PATHS = _PATHS` (vd
+    `derivatives.py`). Khong duoc bo qua no: `package_index` la map TOAN CUC
+    theo TEN key, nen key trung se ghi de nhau.
+
+      LỖ HỔNG ĐÃ GẬP THẬT 2026-10-10 (L-G06): khi tach `equity_orders.py` +
+      `_equity_common.py`, file `_equity_common.py` sort TRƯỚC `derivatives.py`
+      (do `_` < `d`) ⇒ `setdefault` cho key `place_order` bị chiếm bởi
+      `/akhlys/...` ⇒ 5 method derivative bị quét nhầm sang path cổ phiếu, báo
+      9 lệch SAI. Đây là lỗi của CỔNG, không phải của payload.
     """
     package_index = package_index or {}
+    order_paths = order_paths or {}
     for node in ast.walk(fn):
         if isinstance(node, ast.Subscript):
             base = node.value
@@ -154,7 +166,14 @@ def _path_used(
                 sl = node.slice
                 if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
                     key = sl.value
-                    return path_values.get(key) or package_index.get(key)
+                    if name == "_ORDER_PATHS":
+                        hit = order_paths.get(key)
+                        if hit:
+                            return hit
+                    hit = path_values.get(key)
+                    if hit:
+                        return hit
+                    return order_paths.get(key) or package_index.get(key)
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             v = node.value.strip()
             if v.startswith("/") and "/" in v[1:] and " " not in v:
@@ -240,6 +259,50 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
                 ):
                     package_index.setdefault(k.value, v.value)
 
+    # --- Phan giai `_PATHS` theo MODULE, khong theo thu tu file -------------
+    # `package_index` (map toan cuc theo TEN key) bi va cham khi hai module
+    # cung dat mot key. `_ORDER_PATHS` va `_PATHS` import cross-module deu
+    # can den dung module chu so huu.
+    module_paths: Dict[str, Dict[str, str]] = {}
+    order_owner: Optional[str] = None
+    for f in files:
+        try:
+            t = ast.parse(f.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        own: Dict[str, str] = {}
+        for n in ast.walk(t):
+            d = None
+            if isinstance(n, ast.Assign) and any(
+                isinstance(tg, ast.Name) and tg.id == "_PATHS" for tg in n.targets
+            ):
+                d = n.value
+            elif (
+                isinstance(n, ast.AnnAssign)
+                and isinstance(n.target, ast.Name)
+                and n.target.id == "_PATHS"
+            ):
+                d = n.value
+            if isinstance(d, ast.Dict):
+                for k, v in zip(d.keys, d.values):
+                    if (
+                        isinstance(k, ast.Constant)
+                        and isinstance(v, ast.Constant)
+                        and isinstance(v.value, str)
+                    ):
+                        own[k.value] = v.value
+        if own:
+            module_paths[f.stem] = own
+        if order_owner is None and any(
+            isinstance(n, ast.Assign)
+            and any(isinstance(tg, ast.Name) and tg.id == "_ORDER_PATHS" for tg in n.targets)
+            and isinstance(n.value, ast.Name)
+            and n.value.id == "_PATHS"
+            for n in ast.walk(t)
+        ):
+            order_owner = f.stem
+    order_paths: Dict[str, str] = module_paths.get(order_owner or "", {})
+
     for path in files:
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -247,6 +310,7 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
             continue
 
         path_values: Dict[str, str] = {}
+        # Module nay dinh nghia `_PATHS` o dau?
         for node in ast.walk(tree):
             if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
                 if node.target.id == "_PATHS" and isinstance(node.value, ast.Dict):
@@ -267,6 +331,17 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
                                 and isinstance(v.value, str)
                             ):
                                 path_values[k.value] = v.value
+        # `_PATHS` co the duoc IMPORT vao (vd `equity_orders.py` lay tu
+        # `_equity_common.py`) — khi do module nay khong co dict rieng.
+        if not path_values:
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and any(
+                    a.name == "_PATHS" for a in node.names
+                ):
+                    src = (node.module or "").rsplit(".", 1)[-1]
+                    path_values.update(module_paths.get(src, {}))
+        if not path_values:
+            path_values = module_paths.get(path.stem, {})
 
         for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
             for fn in [n for n in cls.body if isinstance(n, ast.FunctionDef)]:
@@ -277,7 +352,7 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
                 payload_node = _gated_body_call(fn)
                 if payload_node is None:
                     continue
-                spec_path = _path_used(fn, path_values, package_index)
+                spec_path = _path_used(fn, path_values, package_index, order_paths)
                 if not spec_path:
                     continue
                 payload: Dict[str, Any] = {}
@@ -286,6 +361,25 @@ def collect_payloads() -> List[Tuple[str, str, str, Dict[str, Any]]]:
                         payload[k.value] = (
                             v.value if isinstance(v, ast.Constant) else "<dynamic>"
                         )
+                # Field them SAU khi tao dict: `payload["soPrice"] = x`.
+                #
+                # ⚠ LỖ HỔNG ĐÃ GẶP THẬT 2026-10-10 (L-G05): quét chỉ đọc dict
+                # literal truyền vào lời gọi, nên BỎ SÓT mọi field ghi bằng
+                # subscript. Hậu quả: `_gated_place_derivative_condition_order`
+                # gửi `callbackPoint`/`activationPrice` trong nhánh `if TSO`
+                # nhưng cổng báo MISSING → cảnh báo SAI, dễ dẫn tới người sau
+                # ghi 2 dòng này vào baseline để làm xanh.
+                #
+                # Bắt được bằng cách thêm lỗ hổng thật trong hàm:
+                # thêm `payload["zzzBogus"] = 1` → phải ra EXTRA.
+                for sub in ast.walk(fn):
+                    if (
+                        isinstance(sub, ast.Assign)
+                        and isinstance(sub.targets[0], ast.Subscript)
+                        and isinstance(sub.targets[0].slice, ast.Constant)
+                        and isinstance(sub.targets[0].slice.value, str)
+                    ):
+                        payload.setdefault(sub.targets[0].slice.value, "<dynamic>")
                 found.append(
                     (
                         f"{path.relative_to(REPO)}:{cls.name}.{fn.name}",

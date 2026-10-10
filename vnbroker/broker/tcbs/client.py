@@ -441,7 +441,12 @@ class TCBSBrokerClient(BaseBrokerClient):
         return self._equity.place_order(
             account_no=account_no, symbol=symbol, side=side,
             order_type=order_type, quantity=quantity, price=price,
-            pin_code=pin_code, request_id=request_id, dry_run=dry_run,
+            pin_code=pin_code,
+            # `place_order` (equity_orders.py) validate `request_id` là bắt buộc
+            # (nội bộ, idempotency key) dù spec không gửi nó lên TCBS. Facade
+            # cho phép `None` ⇒ phải nâng lên str thay vì truyền None xuống.
+            request_id=request_id or "",
+            dry_run=dry_run,
         )
 
     def modify_order(
@@ -450,26 +455,38 @@ class TCBSBrokerClient(BaseBrokerClient):
         order_id: str,
         quantity: int,
         price: float,
-        pin_code: str,
+        request_id: str,
         dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh. dry_run=True mặc định."""
+        """
+        Sửa lệnh. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: `pin_code` → `request_id`.
+        Bản cũ truyền `pin_code=...` cho `modify_order()`, hàm đó **không có**
+        tham số này ⇒ `TypeError` mỗi lần gọi. Lỗi có sẵn từ trước, chỉ lộ ra
+        khi mypy phân giải lại qua `EquityWriteMixin`. `request_id` là tham số
+        thật mà method dưới vẫn yêu cầu (dù spec không gửi nó lên wire).
+        """
         return self._equity.modify_order(
             account_no=account_no, order_id=order_id,
-            quantity=quantity, price=price, pin_code=pin_code, dry_run=dry_run,
+            quantity=quantity, price=price, request_id=request_id, dry_run=dry_run,
         )
 
     def cancel_order(
         self,
         account_no: str,
         order_id: str,
-        pin_code: str,
+        request_id: str,
         dry_run: bool = True,
     ) -> dict:
-        """Hủy lệnh. dry_run=True mặc định."""
+        """
+        Hủy lệnh. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: `pin_code` → `request_id`, giống `modify_order`.
+        """
         return self._equity.cancel_order(
             account_no=account_no, order_id=order_id,
-            pin_code=pin_code, dry_run=dry_run,
+            request_id=request_id, dry_run=dry_run,
         )
 
     # ── Stop-Limit Orders — ĐÃ GỠ (4 path) ────────────────────────────────────
@@ -614,6 +631,9 @@ class TCBSBrokerClient(BaseBrokerClient):
         trigger_price: float,
         request_id: str,
         dry_run: bool = True,
+        *,
+        callback_point: Optional[float] = None,
+        activation_price: Optional[float] = None,
     ) -> dict:
         """Đặt lệnh phái sinh điều kiện. dry_run=True mặc định."""
         return self._derivatives.place_derivative_condition_order(
@@ -621,32 +641,67 @@ class TCBSBrokerClient(BaseBrokerClient):
             symbol=symbol, side=side, order_type=order_type,
             quantity=quantity, price=price, trigger_price=trigger_price,
             request_id=request_id, dry_run=dry_run,
+            callback_point=callback_point, activation_price=activation_price,
         )
 
     def change_derivative_order(
-        self, order_id: str, quantity: int, price: float,
-        request_id: str, dry_run: bool = True,
+        self,
+        account_id: str,
+        sub_account_id: str,
+        order_id: str,
+        quantity: int,
+        price: float,
+        request_id: str,
+        dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh phái sinh thường. dry_run=True mặc định."""
+        """
+        Sửa lệnh phái sinh thường. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: thêm `account_id` + `sub_account_id`.
+        Spec `/khronos/v1/order/change` liệt kê cả hai trong `required`; bản cũ
+        không gửi ⇒ TCBS từ chối yêu cầu.
+        """
         return self._derivatives.change_derivative_order(
+            account_id=account_id, sub_account_id=sub_account_id,
             order_id=order_id, quantity=quantity, price=price,
             request_id=request_id, dry_run=dry_run,
         )
 
     def change_derivative_condition_order(
-        self, order_id: str, quantity: int, price: float, trigger_price: float,
-        request_id: str, dry_run: bool = True,
+        self,
+        account_id: str,
+        order_id: str,
+        trigger_price: float,
+        request_id: str,
+        dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh phái sinh điều kiện. dry_run=True mặc định."""
+        """
+        Sửa lệnh phái sinh điều kiện. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: bỏ `quantity` + `price`, thêm `account_id`.
+        Spec `/khronos/v2/order/condition/change` không định nghĩa 2 field đã bỏ
+        (lệnh điều kiện chỉ sửa được giá kích hoạt) và bắt buộc có `accountId`.
+        """
         return self._derivatives.change_derivative_condition_order(
-            order_id=order_id, quantity=quantity, price=price,
+            account_id=account_id, order_id=order_id,
             trigger_price=trigger_price, request_id=request_id, dry_run=dry_run,
         )
 
-    def cancel_derivative_order(self, order_id: str, request_id: str, dry_run: bool = True) -> dict:
-        """Hủy lệnh phái sinh. dry_run=True mặc định."""
+    def cancel_derivative_order(
+        self,
+        account_id: str,
+        order_id: str,
+        request_id: str,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        Hủy lệnh phái sinh. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: thêm `account_id` (spec yêu cầu `accountId`).
+        """
         return self._derivatives.cancel_derivative_order(
-            order_id=order_id, request_id=request_id, dry_run=dry_run,
+            account_id=account_id, order_id=order_id,
+            request_id=request_id, dry_run=dry_run,
         )
 
     # ── Market ─────────────────────────────────────────────────────────

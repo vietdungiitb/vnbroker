@@ -45,23 +45,12 @@ from vnbroker.broker.exceptions import (
     BrokerValidationError,
 )
 from vnbroker.broker.security.credentials import TCBSCredentialConfig
-from vnbroker.broker.security.guards import write_gate
 from vnbroker.broker.session import BrokerSession
 from vnbroker.broker.tcbs.account import _validate_account_no
+from vnbroker.broker.tcbs._equity_common import _PATHS
+from vnbroker.broker.tcbs.equity_orders import EquityWriteMixin
 
 _logger = logging.getLogger("vnbroker.broker.tcbs.equity")
-
-_PATHS = {
-    "orders": "/aion/v1/accounts/{accountNo}/orders",
-    "order_detail": "/aion/v1/accounts/{accountNo}/orders/{orderID}",
-    "matching_details": "/aion/v1/accounts/{accountNo}/matching-details",
-    "se": "/aion/v1/accounts/{accountNo}/se",
-    "place_order": "/akhlys/v1/accounts/{accountNo}/orders",
-    "modify_order": "/akhlys/v1/accounts/{accountNo}/orders/{orderId}",
-    "cancel_orders": "/akhlys/v1/accounts/{accountNo}/cancel-orders",
-    # market enrichment (dùng trong get_holdings)
-    "ticker_commons": "/tartarus/v1/tickerCommons",
-}
 
 # 5 path đã gỡ — xoá theo quyết định Owner dựa trên 2 tài liệu chính thức,
 # CHƯA probe server. Key = tên method công khai, value = path đã gỡ.
@@ -138,7 +127,7 @@ _HOLDING_COLUMNS = {
 }
 
 
-class TCBSEquityService:
+class TCBSEquityService(EquityWriteMixin):
     """Equity service: danh sách lệnh, lịch sử khớp, holdings, đặt/sửa/huỷ lệnh."""
 
     def __init__(
@@ -329,203 +318,6 @@ class TCBSEquityService:
                 _logger.warning("get_holdings: bỏ qua enrich_prices — %s", exc)
 
         return df
-
-    # ── Write methods (dry_run=True default) ────────────────────────────────
-    # Pattern: validation chạy TRƯỚC write_gate check.
-    # Public method validate → delegate sang @write_gate internal method.
-
-    def place_order(
-        self,
-        account_no: str,
-        symbol: str,
-        side: str,
-        order_type: str,
-        quantity: int,
-        price: float,
-        pin_code: str,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        """
-        POST /akhlys/v1/accounts/{accountNo}/orders
-
-        Args:
-            side: 'BUY' hoặc 'SELL' (được map sang 'NB'/'NS' theo spec).
-            order_type: 'LO', 'ATO', 'ATC', 'MP', 'MTL', 'MOK', 'MAK', 'PLO'.
-            price: Giá tính theo đơn vị đồng (float).
-            pin_code: Mã PIN giao dịch (bắt buộc theo TCBS spec).
-            request_id: ID idempotency key (bắt buộc theo TCBS spec).
-            dry_run: True (default) → không gửi HTTP, trả về dry_run dict.
-                     False → gửi thực. Yêu cầu session.enable_write() trước.
-
-        Returns:
-            {'error': '0', 'message': '...', 'orderId': '...'} khi dry_run=False.
-        """
-        _validate_account_no(account_no)
-        _validate_order_input(symbol, side, order_type, quantity, price, request_id)
-        return self._gated_place_order(
-            account_no, symbol, side, order_type, quantity, price, pin_code, request_id,
-            dry_run=dry_run,
-        )
-
-    @write_gate
-    def _gated_place_order(
-        self,
-        account_no: str,
-        symbol: str,
-        side: str,
-        order_type: str,
-        quantity: int,
-        price: float,
-        pin_code: str,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        exec_type = "NB" if side.upper() == "BUY" else "NS"
-        payload = {
-            "symbol": symbol.upper(),
-            "execType": exec_type,
-            "priceType": order_type.upper(),
-            "quantity": quantity,
-            "price": int(price),
-            "pinCode": pin_code,
-            "requestId": request_id,
-        }
-        url = self._config.base_url.rstrip("/") + _PATHS["place_order"].format(accountNo=account_no)
-        return self._post(url, payload)
-
-    def modify_order(
-        self,
-        account_no: str,
-        order_id: str,
-        quantity: int,
-        price: float,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        """
-        PUT /akhlys/v1/accounts/{accountNo}/orders/{orderId}
-
-        Args:
-            price: Giá mới (float, đơn vị đồng).
-            quantity: Khối lượng mới.
-            request_id: ID idempotency key (bắt buộc theo TCBS spec).
-        """
-        _validate_account_no(account_no)
-        if not order_id or not order_id.strip():
-            raise BrokerValidationError(
-                message="order_id không được để trống.",
-                code="INVALID_ORDER_ID",
-            )
-        if quantity <= 0:
-            raise BrokerValidationError(
-                message="quantity phải > 0.",
-                code="INVALID_QUANTITY",
-            )
-        if price < 0:
-            raise BrokerValidationError(
-                message="price phải >= 0.",
-                code="INVALID_PRICE",
-            )
-        if not request_id or not request_id.strip():
-            raise BrokerValidationError(
-                message="request_id là bắt buộc cho write methods (idempotency key).",
-                code="MISSING_REQUEST_ID",
-            )
-        return self._gated_modify_order(account_no, order_id, quantity, price, request_id, dry_run=dry_run)
-
-    @write_gate
-    def _gated_modify_order(
-        self,
-        account_no: str,
-        order_id: str,
-        quantity: int,
-        price: float,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        payload = {
-            "quantity": quantity,
-            "price": int(price),
-            "requestId": request_id,
-        }
-        url = self._config.base_url.rstrip("/") + _PATHS["modify_order"].format(
-            accountNo=account_no, orderId=order_id
-        )
-        return self._put(url, payload)
-
-    def cancel_order(
-        self,
-        account_no: str,
-        order_id: str,
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        """
-        PUT /akhlys/v1/accounts/{accountNo}/cancel-orders
-
-        Body: {ordersList: [{orderID: order_id}], requestId: request_id}
-        Hỗ trợ huỷ nhiều lệnh: truyền list order_id qua cancel_orders().
-        """
-        _validate_account_no(account_no)
-        if not order_id or not order_id.strip():
-            raise BrokerValidationError(
-                message="order_id không được để trống.",
-                code="INVALID_ORDER_ID",
-            )
-        if not request_id or not request_id.strip():
-            raise BrokerValidationError(
-                message="request_id là bắt buộc cho write methods (idempotency key).",
-                code="MISSING_REQUEST_ID",
-            )
-        return self._gated_cancel_order(account_no, [order_id], request_id, dry_run=dry_run)
-
-    def cancel_orders(
-        self,
-        account_no: str,
-        order_ids: list[str],
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        """
-        PUT /akhlys/v1/accounts/{accountNo}/cancel-orders
-
-        Huỷ nhiều lệnh cùng lúc.
-        """
-        _validate_account_no(account_no)
-        if not order_ids:
-            raise BrokerValidationError(
-                message="order_ids không được rỗng.",
-                code="INVALID_ORDER_ID",
-            )
-        if not request_id or not request_id.strip():
-            raise BrokerValidationError(
-                message="request_id là bắt buộc cho write methods (idempotency key).",
-                code="MISSING_REQUEST_ID",
-            )
-        return self._gated_cancel_order(account_no, order_ids, request_id, dry_run=dry_run)
-
-    @write_gate
-    def _gated_cancel_order(
-        self,
-        account_no: str,
-        order_ids: list[str],
-        request_id: str,
-        *,
-        dry_run: bool = True,
-    ) -> dict:
-        payload = {
-            "ordersList": [{"orderID": oid} for oid in order_ids],
-            "requestId": request_id,
-        }
-        url = self._config.base_url.rstrip("/") + _PATHS["cancel_orders"].format(accountNo=account_no)
-        return self._put(url, payload)
 
     # ── Stop-Limit Order methods — ĐÃ GỠ (4 path) ────────────────────────────
     # Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server.
@@ -751,48 +543,3 @@ def _ensure_columns(df: pd.DataFrame, columns) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = pd.NA
     return df
-
-
-_VALID_PRICE_TYPES = frozenset({"LO", "ATO", "ATC", "PLO", "MP", "MTL", "MOK", "MAK"})
-
-
-def _validate_order_input(
-    symbol: str,
-    side: str,
-    order_type: str,
-    quantity: int,
-    price: float,
-    request_id: str,
-) -> None:
-    """Validate đầu vào cho place_order theo TCBS iFlash spec."""
-    if not symbol or not symbol.strip():
-        raise BrokerValidationError(
-            message="symbol không được để trống.",
-            code="INVALID_SYMBOL",
-        )
-    if side.upper() not in ("BUY", "SELL"):
-        raise BrokerValidationError(
-            message="side phải là 'BUY' hoặc 'SELL'.",
-            code="INVALID_SIDE",
-        )
-    if order_type.upper() not in _VALID_PRICE_TYPES:
-        raise BrokerValidationError(
-            message=f"order_type không hợp lệ. Hỗ trợ: {', '.join(sorted(_VALID_PRICE_TYPES))}.",
-            code="INVALID_ORDER_TYPE",
-        )
-    if quantity <= 0:
-        raise BrokerValidationError(
-            message="quantity phải > 0.",
-            code="INVALID_QUANTITY",
-        )
-    if price < 0:
-        raise BrokerValidationError(
-            message="price phải >= 0.",
-            code="INVALID_PRICE",
-        )
-    if not request_id or not request_id.strip():
-        raise BrokerValidationError(
-            message="request_id là bắt buộc cho write methods (idempotency key).",
-            code="MISSING_REQUEST_ID",
-        )
-

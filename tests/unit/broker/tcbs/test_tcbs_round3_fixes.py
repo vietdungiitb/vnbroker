@@ -166,6 +166,17 @@ def test_check_and_update_state_chua_co_caller() -> None:
     proc = subprocess.run(
         ["git", "grep", "-n", "check_and_update_state"],
         capture_output=True, text=True, shell=False, cwd=str(REPO_ROOT),
+        # ⚠ BẮT BUỘC (2026-10-10): `text=True` MÀ KHÔNG khai báo `encoding` thì
+        # Python decode theo locale Windows = cp1252. Output `git grep` chứa
+        # byte tiếng Việt (0x90…) ⇒ UnicodeDecodeError **trong thread reader** ⇒
+        # `proc.stdout` trả về `None` ⇒ `None.splitlines()` ném
+        # AttributeError. Test ĐỎ trong khi logic test vẫn đúng.
+        # Đây là bẫy chung của MỌI test dùng subprocess+text=True trên repo này.
+        encoding="utf-8", errors="replace",
+    )
+    assert proc.stdout is not None, (
+        "subprocess tra stdout=None — nghi ngay decode loi. "
+        "Luon truyen encoding='utf-8', errors='replace'."
     )
     # Chi doc file .py - tai lieu markdown nhac lai "khong co caller" cung duoc
     # tinh la tai lieu, khong phai code dang chay.

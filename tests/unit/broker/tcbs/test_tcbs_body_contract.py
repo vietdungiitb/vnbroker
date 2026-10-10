@@ -60,7 +60,9 @@ def test_gate_tim_thay_du_12_write_method() -> None:
     files = {w.split(":")[0] for w, *_ in rows}
     assert files == {
         "vnbroker\\broker\\tcbs\\derivative_orders.py",
-        "vnbroker\\broker\\tcbs\\equity.py",
+        # 2026-10-10: 3 write method cổ phiếu tách ra `equity_orders.py` vì sửa
+        # payload làm `equity.py` vượt 800L. Cùng pattern `derivative_orders.py`.
+        "vnbroker\\broker\\tcbs\\equity_orders.py",
         "vnbroker\\broker\\tcbs\\money.py",
         "vnbroker\\broker\\tcbs\\condition_orders.py",
     }, f"thieu file nao khong duoc quet: {files}"
@@ -104,13 +106,19 @@ def test_read_method_khong_bi_nham_nhapayload() -> None:
 def test_baseline_co_ten_field_chu_khong_chi_ten_method() -> None:
     """
     Khoa L-I: baseline chi khoa theo `KIND + method` thi field sai moi lot qua.
-    O day moi field bat buoc.
+
+    ⚠ **ĐÃ ĐẢO (2026-10-10).** Owner chot "sua thang theo spec"; 38 lech da
+    duoc sua het nen baseline **rong**. Bai test nay KHONG con kiem tra
+    "baseline co khoa duoi day khong" ma kiem tra **no phai rong** — neu ai do
+    them 1 dong baseline lan nua, tien do se quay lai doc mo va khong ai nhin
+    thay.
     """
     data = json.loads(BASELINE.read_text(encoding="utf-8"))
     keys = data["known_mismatches"]
-    assert keys, "baseline rong"
-    # moi key phai co >= 3 phan: KIND, file:Class.method, chi tiet field
-    assert all(len(k.split()) >= 3 for k in keys), keys[:3]
+    assert keys == [], (
+        f"baseline phai RONG — 38 lech da duoc sua theo spec 2026-10-10, "
+        f"nhung con {len(keys)} dong no. Xem docs/REPORT_TCBS_ROUND4.md."
+    )
 
 
 def test_baseline_che_biet_het_lech_dang_co() -> None:
@@ -161,11 +169,18 @@ def test_suspect_khong_phai_nguon_su_hoi() -> None:
 
 
 def test_moi_lech_deu_co_do_phan_loai() -> None:
+    """
+    ⚠ **ĐÃ ĐẢO (2026-10-10).** Truoc day bai nay chi can *co* lech — nghia la
+    no PASSED **danh cho gate dang con 38 lech**. Sau khi sua het, lech = 0 nen
+    bao phai doi thanh bat buoc 0: bat ky lech moi nao xuat hien sau nay la
+    **hoi quy**, va bai nay lo chung ngay.
+    """
     spec = json.loads((REPO / "docs/references/openapi-v1.0.0.json").read_text(encoding="utf-8"))
     problems, _ = gate.scan(spec)
-    assert problems
-    for p in problems:
-        assert p.split()[0] in ("EXTRA", "MISSING", "SUSPECT"), p
+    assert problems == [], (
+        f"{len(problems)} lech payload — phai 0 sau khi sua theo spec:\n"
+        + "\n".join(problems[:8])
+    )
 
 
 # ── 4. Exit code ──────────────────────────────────────────────────────────────
@@ -187,16 +202,17 @@ def test_report_luon_exit_0() -> None:
     assert code == 0
 
 
-# ── 5. HỢP ĐỒNG TIỀN THẬT — bug dang ton tai, khoa lai ───────────────────────
+# ── 5. HỢP ĐỒNG — bug ĐÃ sửa, khoá lại bằng assertion ngược ────────────────
 #
-# ⚠ Cac test dưới đây KHÔNG phải test "code đúng". Chúng là **tác giả** của bug:
-# payload hiện tại KHÔNG khớp spec, và cổng check_tcbs_bodies sẽ báo đỏ nếu ai sửa.
-# Khi Owner chốt sửa, các test này **phải sửa theo** — đừng xoá, vì xoá nghĩa là
-# quên mất lý do tồn tại.
+# ⚠ Cac test dưới đây từng là **tác giả** của bug: chúng chứng minh payload
+# hiện tại KHÔNG khớp spec. Owner chốt "sửa thẳng theo spec" 2026-10-10 và 38
+# lệch đã được sửa hết. Comment gốc yêu cầu "sửa theo, đừng xoá" — nay chúng
+# được **đảo dấu** thành khẳng định payload ĐÃ ĐÚNG, để không ai vô tình xoá
+# field mà ngỡ là thừa.
 
 
 @pytest.mark.parametrize(
-    ("method", "missing_required"),
+    ("method", "now_present"),
     [
         ("_gated_place_derivative_order", {"volume", "refId"}),
         ("_gated_change_derivative_order",
@@ -204,22 +220,38 @@ def test_report_luon_exit_0() -> None:
         ("_gated_cancel_derivative_order", {"accountId", "orderNo"}),
     ],
 )
-def test_bug_dang_ton_tai_field_required_thieu(
-    method: str, missing_required: set
-) -> None:
+def test_field_required_da_duoc_bo_sung(method: str, now_present: set) -> None:
     """
-    KHÔNG phai "code dung" — day la **ghi nhan lo leech dang co**.
+    Đảo của `test_bug_dang_ton_tai_field_required_thieu`.
 
-    Spec bao buoc cac field nay; payload hien tai gui thieu ⇒ server TCBS se
-    TU CHOI lenh. Chua co JWT nen khong probe duoc. Xem `docs/PLAN_TCBS_ROUND3.md` §0.
+    Trước: khẳng định các field `required` **thiếu** (tức bug còn sống).
+    Nay:  khẳng định chúng **đã có** — đúng theo spec `/khronos/v1/order/*`.
     """
     rows = {fn: pl for _w, _p, fn, pl in gate.collect_payloads()}
     assert method in rows, f"{method} khong con trong code"
     payload = rows[method]
-    assert missing_required & set(payload) == set(), (
-        f"{method} da gui duoc {missing_required & set(payload)} — "
-        "cap nhat test + docs/PLAN_TCBS_ROUND3.md + baseline"
+    missing = now_present - set(payload)
+    assert missing == set(), (
+        f"{method} THIEU {missing} — spec /khronos/ bat buoc. "
+        "Xem docs/REPORT_TCBS_ROUND4.md §1."
     )
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["_gated_place_order", "_gated_modify_order", "_gated_cancel_order"],
+)
+def test_equity_khong_gui_field_ngoai_spec(method: str) -> None:
+    """
+    `/akhlys/...` không định nghĩa `pinCode`/`requestId`. Owner: "spec không có
+    thì loại bỏ". Test này ngăn việc ai đó thêm lại chúng (chính tác giả của
+    lỗi 422 mà Owner đã gặp ở `pinCode`).
+    """
+    rows = {fn: pl for _w, _p, fn, pl in gate.collect_payloads()}
+    assert method in rows, f"{method} khong con trong code"
+    sent = set(rows[method])
+    assert "pinCode" not in sent, "spec /akhlys/ khong co pinCode"
+    assert "requestId" not in sent, "spec /akhlys/ khong co requestId"
 
 
 def test_requestId_khong_ton_tai_trong_toan_spec() -> None:
