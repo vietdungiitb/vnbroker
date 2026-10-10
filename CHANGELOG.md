@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+### TCBS round 2: TokenManager + 9 endpoint — phu API 39/48 → 47/48 (2026-10-10)
+
+Ba lát song song (Mode A, 3 worker trên 3 worktree). Base `b18e47b` → `68ab1ce`.
+
+**Phủ API (đo bằng script, không đọc tài liệu):** spec 48 path · **47 đã nối** · còn 1
+(`/api/v1/derivatives/contracts`, cố ý hoãn vì spec tự mâu thuẫn). Lệnh tái lập:
+`python scripts/verify_tcbs_coverage.py`.
+
+**Spec được commit vào repo lần đầu.** `docs/references/openapi-v1.0.0.json`
+(sha256 `7f97d27b…42bd4a`). Đợt 1 chạy được nhưng spec chỉ nằm ở `~/Downloads` ⇒ không ai
+tái lập lại được. `scripts/verify_tcbs_coverage.py` **tự kiểm sha256** và chuẩn hoá CRLF
+trước khi băm (repo bật `core.autocrlf=true`, `.gitattributes -text` không thắng).
+
+**TokenManager (`broker/tcbs/token_manager.py`, 303L).** Giải mã JWT `exp`/`iat` cục bộ
+bằng stdlib — không thêm dependency, không gọi mạng. Cache trong bộ nhớ, seam
+`token_provider`, callback `on_expiring`. **KHÔNG tự refresh**: đếm chuỗi `refresh` trong
+toàn spec = **0 lần**; TCBS chỉ cấp token qua `apiKey + otp` (Smart OTP từ app TCInvest),
+`apikey/extend` gia hạn **API key** chứ không phải JWT.
+
+**Chặn bug 8 giờ bịa.** `auth.py` đọc `expiredTime` — field **không tồn tại** trong spec
+(0 lần) ⇒ `session.py:87-90` rơi vào nhánh `else` và **tự chế** hạn 8 giờ. Nay lấy hạn từ
+claim `exp`; không decode được thì **không bịa nữa** (`is_expired()` trả `None` để caller
+quyết). `session.py` **không** bị sửa.
+
+**9 endpoint mới.** 2 `gaia` (`apikey/info`, `apikey/extend`) · 4 tiền/vay
+(`pricing-policy` + `deposit`/`withdraw`/`transfer`, 3 cái sau qua `@write_gate`) ·
+`condition/cancel` (phái sinh, module mới) · `ananke/v1/securities`. Phủ 39 → **47/48**.
+
+**`requestId` là field hư cấu.** Đếm trong toàn spec = **0 lần**, nhưng `equity.py` và
+`derivatives.py` vẫn gửi. Lát mới **không** copy — sửa bản cũ để ở ticket riêng.
+
+**Audit độc lập bắt 2 major, đã sửa trước khi push:**
+- Write 4xx của money bị trả về **y như thành công** (`_post` chỉ map 401/403/5xx).
+  Bằng chứng đo: trên bản cũ `90ead64` 4/4 test **DID NOT RAISE** cho 400/404/422/429;
+  sau sửa 32 passed. Tách `_write_http.py` (155L) — `money.py` 791L → **773L**, vẫn dưới
+  ngân sách.
+- Không chỗ nào kiểm mã nghiệp vụ `rc` (TCBS trả HTTP 200 kèm `rc`). Thư viện **không**
+  raise tự động — spec không liệt kê đủ tập mã và chưa có JWT để đo; thay bằng
+  `describe_business_code()` + cảnh báo trong docstring.
+
+**Gate:** `1881 passed / 26 skipped` (đợt 1: 1696 ⇒ **+185**) · contract 72 ·
+`ruff check vnbroker` exit 0 · mypy strict OK (baseline 1266→1161) ·
+`ruff check tests` **13 KNOWN-RED, không tăng**.
+
+**Chưa probe server thật** — chưa có JWT (cần Smart OTP từ app TCInvest). Mọi AC về hành
+vi runtime chỉ dựa trên **spec**, chưa quan sát thực tế.
+
 ### TCBS: nối OHLCV, viết lại WebSocket, gỡ 18 path legacy (2026-10-09)
 
 Ba lát song song, mỗi lát một branch. **Toàn bộ kết luận được chứng kiến bằng
