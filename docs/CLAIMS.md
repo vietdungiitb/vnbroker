@@ -153,3 +153,26 @@ thức, không cần probe. Ghi rõ: **xoá theo quyết định Owner, chưa ve
 - **Probe server TCBS thật**: chưa có JWT (cần Smart OTP từ app TCInvest) ⇒ mọi AC về
   hành vi runtime chỉ dựa trên **spec**, chưa quan sát thực tế.
 - **CI GitHub Actions**: job bị từ chối do billing.
+
+## 2026-10-10 — TCBS Round 2 KẾT THÚC — cập nhật trạng thái claim
+
+| agent | branch | worktree | status | commit | kết quả |
+|---|---|---|---|---|---|
+| t-token | feat/t-token | ../tcbs-t-token | **released** | `f056318` (merge `090034a`) | TokenManager 303L · AC T1-T10 10/10 · coverage 39→41 · chặn bug 8 giờ bịa |
+| m-money | feat/m-money | ../tcbs-m-money | **released** | `6922d02` (merge `90ead64`) | 4 endpoint tiền/vay · AC M1-M9 9/9 · coverage 41→45 · money.py 791L |
+| e-cond-sec | feat/e-cond-sec | ../tcbs-e-cond-sec | **released** | `2e48d99` (merge `8e4f959`) | condition/cancel + ananke · AC E1-E5 5/5 · coverage 45→47 |
+| coordinator | dev | (main) | **released** | `f23786f` + fix F-1/F-2 | wire facade + `__init__` · audit fix |
+
+**Phủ API:** spec 48 path · **đã nối 47** · còn **1** (`/api/v1/derivatives/contracts`)
+· `_REMOVED_PATHS` 18 key, **0 còn trong spec** (xác nhận lại lát a3 đợt 1).
+
+**Gate cuối ở `dev`:** pytest **1881 passed / 26 skipped** (baseline đợt 1: 1696 ⇒ +185) ·
+contract 72 · ruff vnbroker exit 0 · mypy OK (baseline 1266→1161) ·
+ruff tests **13 KNOWN-RED, không tăng** · `verify_tcbs_coverage.py` exit 0.
+
+**Audit code độc lập:** `NEED_REVISION` — 0 blocker, 2 major, 13 minor, confidence high.
+Cả 2 major đã sửa ở commit fix: F-1 (write 4xx) có bằng chứng fail-trước/pass-sau đo
+được; F-2 (`rc`) ghi hợp đồng vào docstring + helper, phần raise tự động hoãn vì thiếu
+tập mã.
+
+**Chưa xử lý (chuyển session sau):** xem `docs/HANDOFF_TCBS_20261010.md`.
