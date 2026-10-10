@@ -101,6 +101,8 @@ $gates = @(
     @{ name = 'ruff-src';      cmd = { & $python -m ruff check vnbroker tests/unit tests/contract } }
     @{ name = 'ruff-tests-all'; cmd = { & $python -m ruff check tests } }
     @{ name = 'version-sync';  cmd = { & $python scripts/check_version_sync.py } }
+    @{ name = 'lessons';        cmd = { & $python scripts/check_lessons.py } }
+    @{ name = 'tcbs-coverage';  cmd = { & $python scripts/verify_tcbs_coverage.py } }
     @{ name = 'mypy-baseline'; cmd = { & $python scripts/check_mypy_baseline.py } }
     @{ name = 'pytest-contract'; cmd = { & $python -m pytest tests/contract -q -p no:cacheprovider } }
     @{ name = 'pytest-full';   cmd = { & $python -m pytest tests/ -q --timeout=300 -p no:cacheprovider }; skipIfQuick = $true }
@@ -140,7 +142,18 @@ if ($SelfTest) {
     exit $expectedExit
 }
 
-$results = [System.Collections.Generic.List[object]]::new()
+# Chạy self-test của các gate mới (chứng minh chúng thật sự FAIL khi bị vi phạm).
+    # Không phải gate repo, nhưng phải xanh - một self-test đỏ nghĩa là gate đó vô dụng.
+    Write-Host ''
+    Write-Host '=== SELF-TEST GATE MOI ===' -ForegroundColor Cyan
+    foreach ($st in @(
+        @{ name = 'lessons-selftest'; cmd = { & $python scripts/check_lessons.py --self-test } }
+    )) {
+        & $st.cmd 2>&1 | Select-Object -Last 1 | ForEach-Object { Write-Host "  [SELFTEST] $($st.name): $_" }
+    }
+    Write-Host ''
+
+    $results = [System.Collections.Generic.List[object]]::new()
 $failures = 0
 $skipped = 0
 
@@ -175,8 +188,11 @@ foreach ($gate in $gates) {
         if ($text -match '\d+ (passed|failed|error|skipped|warning)s?\b.*in [\d.]+s' `
             -or $text -match 'All checks passed' `
             -or $text -match '^OK: no new strict errors' `
-            -or $text -match 'version-sync OK' `
-            -or $text -match 'dist-contents OK' `
+            -or $text -match '^version-sync OK' `
+            -or $text -match '^dist-contents OK' `
+            -or $text -match 'check_lessons: .*- sach' `
+            -or $text -match '^spec sha256.*KHOOP' `
+            -or $text -match 'SELF-TEST PASS' `
             -or $text -match '^Found \d+ errors?') {
             $tail = $text
         }

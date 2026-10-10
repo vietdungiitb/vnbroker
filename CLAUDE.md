@@ -1,5 +1,17 @@
 # vnbroker - Project Instructions
 
+> ⚠ **ĐỌC TRƯỚC MỌI VIỆC — repo này nối tài khoản chứng khoán thật.**
+> Nạp skill [`project-lessons`](.opencode/skills/project-lessons/SKILL.md) **trước khi**
+> lập kế hoạch / khai claim / sửa dòng code đầu tiên. Skill chỉ đọc 1–2 nhóm lesson theo
+> tag (không đọc hết) và trả về `MANDATORY CHECKLIST` phải được tick.
+> - Chạm `vnbroker/broker/**`, `money`, `write`, `token`, `order`, `tcbs`
+>   → **luôn** nạp [`docs/LESSONS/broker-risk.md`](docs/LESSONS/broker-risk.md).
+> - Đo lường, bằng chứng, spec, gate → [`docs/LESSONS/evidence.md`](docs/LESSONS/evidence.md).
+> - Chia việc, worktree, claim, ngân sách dòng → [`docs/LESSONS/process.md`](docs/LESSONS/process.md).
+>
+> Mọi plan phải có dòng `Lessons áp dụng: [L-...]` hoặc `Lessons áp dụng: NONE - <lý do>`.
+> Cổng gate: `.venv\Scripts\python.exe scripts\check_lessons.py` (chạy trong `check_all.ps1`).
+
 ## Tech Stack
 - Language: Python 3.10+
 - Core: requests, pandas, beautifulsoup4, pydantic, tenacity

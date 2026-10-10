@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file.
 
+### He thong LESSONS: sai l?m du?c ghi lai + gate (2026-10-10)
+
+Muc tieu: **sai l?m lap lai nhieu vong trong 3 phien TCBS lien tiep** (do bang mat,
+gate chay 1 lan roi ket luan, tin loi agent). Gio co quy trinh de **tu dong** ghi lai
+va **bat** sai l?m do.
+
+**Noi dung — 19 lesson / 3 file** (`docs/LESSONS/`, theo nhom):
+
+| File | Nhom | Lesson |
+|:--|:--|:--|
+| `evidence.md` | Do luong, bang chung, trich dan | L-E01..L-E07 (7) |
+| `process.md` | Chia viec multi-agent, worktree, claim | L-P01..L-P06 (6) |
+| `broker-risk.md` | **An toan tien that** | L-R01..L-R06 (6) |
+
+Moi lesson deu co **Proof** (`path:line @ sha` / commit hash / output lenh) va
+**CHECKLIST** tra loi duoc Co/Khong — khong nen "co the gay loi".
+
+**Cuong cho biet**:
+
+- `docs/LESSONS/INDEX.md` — bang tag -> file, quy tac fallback (an toan hon suy luan),
+  va 3 quy tac cung C1 (file <= 120 dong) · C2 (tong <= 40 lesson) · C3 (bao du ten
+  file da doc).
+- `scripts/check_lessons.py` — **cong machine** kiem C1/C2/DRIFT, co `--self-test`
+  9 case am thuc (CONTROL mau sach, C1, C2, 3× DRIFT, MISSING, exit 2).
+- `.opencode/skills/project-lessons/SKILL.md` — skill **chi doc 1-2 file theo tag**,
+  tra checklist ngan, khong doc ca so tay.
+- Da **gắn vao `scripts/check_all.ps1`** (`lessons` + `tcbs-coverage`) va chay
+  `--self-test` cho cac gate moi o moi vong.
+
+**Ba sai l?m lon nhat duoc ghi lai (de lau hon se lap lai neu khong co quy trinh):**
+
+1. **Tin con so trong tai lieu cu** — "13 endpoint chua dung" thuc te **9**; `refresh`
+   trong spec = **0 lan** nen AC "tu refresh token" **khong thi hanh duoc**;
+   `requestId` = **0 lan** trong spec nhung code van gui.
+2. **Spec nam ngoai repo** — dot 1 doi chieu moi thu voi `~/Downloads`, khong ai tai
+   lap lai duoc; lai ton tai 1 ban spec CU trong `docs/references/` **co du 18 path**
+   da bi go, doi chieu nham se ket luan nguoc. Nay spec da commit + gate tu kiem sha256.
+3. **HTTP 200 != thanh cong** — TCBS tra `rc` nghiep vu. `money.py._post` chi map
+   401/403/5xx nen **400/404/422/429 rot qua**, `resp.json()` tra ve y nhu thanh cong.
+   Bang chung do: 4/4 test `DID NOT RAISE` tren ban cu.
+
+**Adapt khong copy:** cau truc lay tu `vninvestcharts-widget/scripts/check-lessons.cjs`
+va `vninvest/docs/LESSONS/`; cong machine viet bang **Python** cho khop stack repo nay
+(`scripts/` khong co Node). 3 sai lech co chu dich duoc ghi trong docstring: doc UTF-8
+(console cp1252 lam mat tieng Viet co dau), bo BOM khi dem dong, regex DRIFT chiu dau.
+
+**Khac biet co chu dich so voi vninvest:** vninvest co `docs/LESSONS/` nhung **khong co
+cong machine** cho no — con day co. Khong sua vninvest.
+
 ### TCBS round 2: TokenManager + 9 endpoint — phu API 39/48 → 47/48 (2026-10-10)
 
 Ba lát song song (Mode A, 3 worker trên 3 worktree). Base `b18e47b` → `68ab1ce`.
