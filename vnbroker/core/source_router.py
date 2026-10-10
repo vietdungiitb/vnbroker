@@ -188,29 +188,37 @@ def is_auto_source(source: str | None) -> bool:
     return str(source or "").strip().lower() == AUTO_SOURCE
 
 
-def _gap_fill_candidates(module_name: str) -> List[str]:
-    """Provider cho module **chưa có** bất kỳ mục nào trong `OPEN_SOURCE_CANDIDATES`.
+def _trailing_candidates(module_name: str) -> List[str]:
+    """Provider có credential được **nối vào cuối** danh sách AUTO của module.
 
-    `OPEN_SOURCE_CANDIDATES` là bảng **ưu tiên định tuyến**, và mọi mục trong đó
-    đều đã được chọn có chủ ý — ví dụ `trading` đặt `kbs` trước vì benchmark
-    cho thấy ổn định hơn dưới tải. Hàm này **không** được ý vào các module đó:
-    thêm provider vào giữa danh sách là thay đổi thiết kế định tuyến mà không
-    có số đo nào đứng sau.
+    Vì sao nối cuối chứ không chen giữa và không chỉ lấp chỗ trống
+    ---------------------------------------------------------------
+    Đo 2026-10-10: `tcbs` khai hỗ trợ `quote, trading, listing, financial,
+    company` — **cả 5 đều đã có mục trong `OPEN_SOURCE_CANDIDATES`**. Một
+    bản vá chỉ "lấp chỗ trống cho module chưa có mục" vì vậy **không bao giờ**
+    đưa TCBS vào AUTO: sửa xong, đo lại, vẫn `tcbs_in_auto=False` ở cả 10
+    module. Đó là sửa lỗi mà không sửa được lỗi.
 
-    Nó chỉ lấp chỗ trống: module vốn không có mục nào ⇒ `get_auto_candidates`
-    trả `[]` ⇒ `source="AUTO"` chết ngay mà không báo lỗi. Đo 2026-10-10:
-    `screener` có `kbs`/`vci`/`ssi` trong registry nhưng AUTO = `[]`.
+    Mặt khác, `OPEN_SOURCE_CANDIDATES` là bảng **ưu tiên** có chủ ý — `trading`
+    đặt `kbs` trước vì benchmark cho thấy ổn định hơn dưới tải. Vì vậy:
 
-    Thứ tự ưu tiên: `PRIMARY_SOURCE_POOLS` (nếu có) → phần còn lại của
-    `OPEN_SOURCE_CANDIDATES` → pool. Pool là nguồn sự thật về *tính khả dụng*
-    (credential thật trong môi trường + implementation đã đăng ký).
+    - **không** chen provider mới vào giữa hay lên đầu;
+    - **không** đụng vào thứ tự các mục đang có;
+    - provider có credential chỉ được **nối cuối**, tức chỉ dùng khi mọi
+      provider ưu tiên đã hỏng.
+
+    Đây đúng là ngữ nghĩa mà `SSI_AUTO_CANDIDATES` đã dùng từ trước: SSI cũng
+    được nối cuối, và `vnbroker_SSI_AUTO_PRIMARY=1` mới cho lên đầu. Không có
+    phép đo hiệu năng nào thì không ai được lên đầu.
+
+    Thứ tự trong nhóm nối cuối là **tất định**: theo thứ tự trong
+    `ProviderPool.AUTH_PROVIDERS`, rồi theo tên. Sắp xếp theo hash của `set`
+    làm thứ tự định tuyến đổi theo `PYTHONHASHSEED` giữa các tiến trình — đo
+    được 5 thứ tự khác nhau trong 12 lần chạy chỉ khác `PYTHONHASHSEED`.
 
     Import trong hàm: `ProviderRegistry` liệt kê từ các module explorer, và
     `source_router` nằm dưới tầng đó.
     """
-    if module_name in OPEN_SOURCE_CANDIDATES:
-        return []
-
     try:
         from vnbroker.core.provider_pool import ProviderPool
         from vnbroker.core.registry import ProviderRegistry
@@ -226,9 +234,8 @@ def _gap_fill_candidates(module_name: str) -> List[str]:
     available = usable & registered
     if not available:
         return []
-    return sorted(available, key=lambda p: (PRIMARY_SOURCE_POOLS.get(module_name, []).index(p)
-                                            if p in PRIMARY_SOURCE_POOLS.get(module_name, [])
-                                            else len(PRIMARY_SOURCE_POOLS.get(module_name, []))))
+    declared = [name for name in ProviderPool.AUTH_PROVIDERS if name in available]
+    return sorted(declared) + sorted(available - set(declared))
 
 
 def get_auto_candidates(module_name: str) -> List[str]:
@@ -241,10 +248,9 @@ def get_auto_candidates(module_name: str) -> List[str]:
         if extra not in candidates and has_ssi_credentials():
             candidates.append(extra)
 
-    # Chỉ lấp chỗ trống cho module chưa có mục nào. Module đã có mục thì giữ
-    # nguyên bảng ưu tiên — xem `_gap_fill_candidates`.
+    # Nối provider có credential vào CUỐI, không đụng thứ tự sẵn có.
     known = {source.lower() for source in candidates}
-    for source in _gap_fill_candidates(module_name):
+    for source in _trailing_candidates(module_name):
         if source not in known:
             candidates.append(source)
     return candidates

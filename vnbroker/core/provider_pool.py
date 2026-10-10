@@ -47,8 +47,11 @@ class ProviderPool:
         },
     }
 
-    # No-auth providers always available
-    NO_AUTH_PROVIDERS: List[str] = ["vci", "kbs"]
+    # Providers that need no credential. `rss_cafef` / `rss_vneconomy` là
+    # nguồn RSS công khai — chúng có trong `OPEN_SOURCE_CANDIDATES['news']`
+    # nhưng thiếu ở đây, tức ba danh sách đã lệch nhau trước khi có cổng
+    # kiểm tra (đo 2026-10-10).
+    NO_AUTH_PROVIDERS: List[str] = ["vci", "kbs", "rss_cafef", "rss_vneconomy"]
 
     def __init__(self) -> None:
         self._auth_providers: Dict[str, Dict[str, Any]] = {}

@@ -98,7 +98,7 @@ $knownRed = @{
 }
 
 $gates = @(
-    @{ name = 'ruff-src';      cmd = { & $python -m ruff check vnbroker tests/unit tests/contract } }
+    @{ name = 'ruff-src';      cmd = { & $python -m ruff check vnbroker scripts tests/unit tests/contract } }
     @{ name = 'ruff-tests-all'; cmd = { & $python -m ruff check tests } }
     @{ name = 'version-sync';  cmd = { & $python scripts/check_version_sync.py } }
     @{ name = 'lessons';        cmd = { & $python scripts/check_lessons.py } }
@@ -113,6 +113,12 @@ $gates = @(
 function Get-GateStatus {
     param([string]$Name, [int]$Code)
     if ($Code -eq 0) { return 'PASS' }
+    # Exit 2 = gate KHONG CHAY DUOC (khong import duoc, thieu moi truong).
+    # Day KHONG phai "that", va cung KHONG phai "xanh": bao loi bi phu dinh
+    # dang in ra chu "khong co vi pham nao" khi gate that ra su do khong chay.
+    # Do tai doc lap 2026-10-10: dong tom tat "FAIL provider-consistency exit=2
+    # OK: khong co vi pham nao." — vua do vua that.
+    if ($Code -eq 2) { return 'CHUA CHAY' }
     if ($knownRed.ContainsKey($Name)) { return 'KNOWN-RED' }
     return 'FAIL'
 }
@@ -152,6 +158,7 @@ Write-Host ''
     foreach ($st in @(
         @{ name = 'lessons-selftest'; cmd = { & $python scripts/check_lessons.py --self-test } }
         @{ name = 'tcbs-bodies-selftest'; cmd = { & $python scripts/check_tcbs_bodies.py --self-test } }
+        @{ name = 'provider-consistency-selftest'; cmd = { & $python scripts/check_provider_consistency.py --self-test } }
     )) {
         # Bat exit code THAT. Khong doc $LASTEXITCODE thi dong "phai xanh" ben tren
         # chi la chu — self-test do chay FAIL ma van khong chan gi (audit round 3).
@@ -174,6 +181,7 @@ Write-Host ''
 $results = [System.Collections.Generic.List[object]]::new()
 $failures = 0
 $skipped = 0
+$notRun = 0
 
 foreach ($gate in $gates) {
     if ($gate.skipIfQuick -and $Quick) {
@@ -211,7 +219,10 @@ foreach ($gate in $gates) {
             -or $text -match 'check_lessons: .*- sach' `
             -or $text -match '^spec sha256.*KHOOP' `
             -or $text -match 'SELF-TEST PASS' `
-            -or $text -match '^Found \d+ errors?') {
+            -or $text -match '^Found \d+ errors?' `
+            -or $text -match '^OK: khong co vi pham' `
+            -or $text -match '^check_provider_consistency' `
+            -or $text -match '^VI PHAM \(' ) {
             $tail = $text
         }
     }
@@ -224,6 +235,7 @@ foreach ($gate in $gates) {
 
     $status = Get-GateStatus -Name $gate.name -Code $code
     if ($status -eq 'FAIL') { $failures++ }
+    if ($status -eq 'CHUA CHAY') { $notRun++ }
 
     $results.Add([pscustomobject]@{
         Gate = $gate.name; Status = $status; Detail = $tail; Exit = $code
@@ -232,6 +244,7 @@ foreach ($gate in $gates) {
     $colour = switch ($status) {
         'PASS' { 'Green' }
         'KNOWN-RED' { 'DarkYellow' }
+        'CHUA CHAY' { 'DarkYellow' }
         default { 'Red' }
     }
     Write-Host ("[{0}] {1}  exit={2}  {3:N1}s  {4}" -f $status.PadRight(9), $gate.name, $code, $sw.Elapsed.TotalSeconds, $tail) -ForegroundColor $colour
@@ -253,6 +266,12 @@ Write-Host ''
 
 if ($skipped -gt 0) {
     Write-Host ("SKIPPED: {0} gate (do -Quick). Chay lai khong -Quick truoc khi merge." -f $skipped) -ForegroundColor Yellow
+    Write-Host ''
+}
+
+if ($notRun -gt 0) {
+    Write-Host ("CHUA CHAY: {0} gate KHONG chay duoc (exit=2). Ket qua do KHONG phai xanh," -f $notRun) -ForegroundColor DarkYellow
+    Write-Host 'va cung KHONG phai do. Doc dong "KHONG KIEM DUOC" cua tung gate.' -ForegroundColor DarkYellow
     Write-Host ''
 }
 

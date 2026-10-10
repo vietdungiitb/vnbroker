@@ -85,17 +85,19 @@ def test_auto_candidates_never_name_a_provider_that_is_not_registered():
             )
 
 
-def test_credentialed_provider_does_not_displace_the_priority_table():
-    """AC-4: có credential KHÔNG đồng nghĩa được chen vào bảng ưu tiên.
+def test_credentialed_provider_is_appended_and_never_displaces():
+    """Provider có credential được **nối cuối**, không chen vào bảng ưu tiên.
 
-    `OPEN_SOURCE_CANDIDATES` là bảng ưu tiên **có chủ ý** — `trading` đặt `kbs`
-    trước vì benchmark cho thấy ổn định hơn dưới tải. Tự động nhét thêm
-    provider có credential vào giữa danh sách đó là thay đổi thiết kế định
-    tuyến không có số đo nào đứng sau, và nó đã làm hỏng 13 test của
-    `test_bulk_router.py` / `test_source_router_ssi.py` khi thử làm vậy
-    (đo 2026-10-10).
+    `OPEN_SOURCE_CANDIDATES` là bảng ưu tiên có chủ ý — `trading` đặt `kbs`
+    trước vì benchmark cho thấy ổn định hơn dưới tải. Không có phép đo
+    hiệu năng thì không ai được lên đầu. Đây cũng là ngữ nghĩa mà
+    `SSI_AUTO_CANDIDATES` đã dùng từ trước.
 
-    Thêm provider có credential vào `PRIMARY_SOURCE_POOLS` cần một phép đo riêng.
+    ⚠ Một bản vá trước chỉ "lấp chỗ trống cho module chưa có mục nào" thì
+    **không bao giờ** đưa TCBS vào AUTO: TCBS khai hỗ trợ `quote, trading,
+    listing, financial, company` — cả 5 đều đã có mục. Đo lại sau khi sửa
+    xong: `tcbs_in_auto=False` ở cả 10 module. Sửa lỗi mà không sửa được lỗi.
+    Cổng `check_provider_consistency.py` quy tắc **C5** giữ điều này.
     """
     with patch.dict(
         "os.environ",
@@ -103,11 +105,43 @@ def test_credentialed_provider_does_not_displace_the_priority_table():
          "DNSE_API_SECRET": "s"},
         clear=False,
     ):
-        for module in ("quote", "company", "financial", "listing", "trading", "news"):
+        for module in ("quote", "company", "financial", "listing", "trading"):
             candidates = [c.lower() for c in get_auto_candidates(module)]
-            assert "tcbs" not in candidates, (
-                f"'{module}' đã có mục riêng trong OPEN_SOURCE_CANDIDATES — "
-                f"provider có credential không được tự chen vào bảng ưu tiên."
+            head = [c for c in candidates if c in {"vci", "kbs"}]
+            tail = [c for c in candidates if c not in {"vci", "kbs", "rss_cafef",
+                                                      "rss_vneconomy", "ssi"}]
+            assert tail, f"'{module}': provider co credential phai duoc noi vao, {candidates}"
+            assert candidates[: len(head)] == head, (
+                f"'{module}': provider co credential chen vao giua bang uu tien: "
+                f"{candidates}"
+            )
+            if "tcbs" in candidates:
+                assert candidates.index("tcbs") >= len(head), (
+                    f"'{module}': tcbs phai o CUOI, dang o vi tri "
+                    f"{candidates.index('tcbs')} trong {candidates}"
+                )
+
+
+def test_every_usable_provider_reaches_auto():
+    """C5: pool phục vụ được provider nào cho module đó thì AUTO phải có nó.
+
+    Không chỉ "AUTO không rỗng" — phải là **từng provider** pool xác nhận.
+    """
+    with patch.dict(
+        "os.environ",
+        {**NO_CREDENTIALS, "TCBS_JWT_TOKEN": "a.b.c", "DNSE_API_KEY": "k",
+         "DNSE_API_SECRET": "s"},
+        clear=False,
+    ):
+        pool = ProviderPool()
+        for module in ("quote", "company", "financial", "listing", "trading", "news"):
+            registered = {p.lower() for p in ProviderRegistry.list_available(module)}
+            usable = {p.lower() for p in pool.get_available_providers(module)} & registered
+            candidates = {c.lower() for c in get_auto_candidates(module)}
+            missing = usable - candidates
+            assert not missing, (
+                f"module '{module}': pool phuc vu duoc {sorted(missing)} nhung "
+                f"AUTO khong co ({sorted(candidates)})."
             )
 
 
