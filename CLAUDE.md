@@ -30,7 +30,7 @@
 ## Architecture: Direct Provider Architecture (v3.0+)
 
 ### Core Principles
-- **Two-tier data model (v3.5.0)**:
+- **Two-tier data model (v3.6.0)**:
   - **Tier 1 — anonymous market data.** User does NOT pick a provider; the system
     prefers the most stable one and rotates on rate-limit / connection loss.
     Enable with `Market(auto=True)` or `Vnbroker(source="AUTO")`. Failover covers
@@ -356,7 +356,7 @@ pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate 
 - Version defined in `pyproject.toml` (single source of truth)
 - `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
 - Upgrade notice checks GitHub release tags (not PyPI)
-- Current version: **3.5.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
+- Current version: **3.6.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
 - Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
 
 ## Deprecated/Removed (v3.1.0)
