@@ -103,6 +103,7 @@ $gates = @(
     @{ name = 'version-sync';  cmd = { & $python scripts/check_version_sync.py } }
     @{ name = 'lessons';        cmd = { & $python scripts/check_lessons.py } }
     @{ name = 'tcbs-coverage';  cmd = { & $python scripts/verify_tcbs_coverage.py } }
+    @{ name = 'tcbs-bodies';    cmd = { & $python scripts/check_tcbs_bodies.py --baseline docs/tcbs_body_baseline.json } }
     @{ name = 'mypy-baseline'; cmd = { & $python scripts/check_mypy_baseline.py } }
     @{ name = 'pytest-contract'; cmd = { & $python -m pytest tests/contract -q -p no:cacheprovider } }
     @{ name = 'pytest-full';   cmd = { & $python -m pytest tests/ -q --timeout=300 -p no:cacheprovider }; skipIfQuick = $true }
@@ -148,6 +149,7 @@ if ($SelfTest) {
     Write-Host '=== SELF-TEST GATE MOI ===' -ForegroundColor Cyan
     foreach ($st in @(
         @{ name = 'lessons-selftest'; cmd = { & $python scripts/check_lessons.py --self-test } }
+        @{ name = 'tcbs-bodies-selftest'; cmd = { & $python scripts/check_tcbs_bodies.py --self-test } }
     )) {
         & $st.cmd 2>&1 | Select-Object -Last 1 | ForEach-Object { Write-Host "  [SELFTEST] $($st.name): $_" }
     }
