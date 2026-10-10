@@ -1,0 +1,30 @@
+{
+  "e": {
+    "doc": null,
+    "keys": [
+      "T",
+      "boardId",
+      "expectedTradePrice",
+      "expectedTradeQuantity",
+      "isin",
+      "marketId",
+      "multicastReceiveTime",
+      "symbol",
+      "time"
+    ]
+  },
+  "q": {
+    "doc": null,
+    "keys": [
+      "T",
+      "bid",
+      "boardId",
+      "isin",
+      "marketId",
+      "multicastReceiveTime",
+      "offer",
+      "symbol",
+      "time"
+    ]
+  }
+}

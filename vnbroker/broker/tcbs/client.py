@@ -15,11 +15,21 @@ SECURITY RULES:
   - dry_run=True mặc định cho tất cả write methods.
   - Dùng requests trực tiếp — KHÔNG dùng vnbroker.core.utils.client.
   - KHÔNG có pin_code trong API TCBS iFlash Open API v1.0.0.
+
+18 WRAPPER ĐÃ GỠ (2026-10-09) — gọi path không có trong 2 tài liệu chính thức
+`openapi-v1.0.0.json` + `tcbs-openapi-v1.0.0.postman_collection.json`
+(mỗi tài liệu 48 REST endpoint, khớp 48/48): 13 wrapper Erebos v1/v2 account
++ 4 wrapper stop-limit + `get_order_history` (/aion/v1/accounts/{a}/orders/history).
+Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, CHƯA probe server
+(401 chạy trước routing). KHÔNG phải kết luận "path không tồn tại trên server".
+Wrapper VẪN CÒN nhưng ném NotImplementedError từ service — xem
+`vnbroker/broker/tcbs/account.py` và `.../equity.py`.
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
+from datetime import datetime
+from typing import Any, Optional, Union
 
 import pandas as pd
 
@@ -29,6 +39,7 @@ from vnbroker.broker.session import BrokerSession
 from vnbroker.broker.tcbs.account import TCBSAccountService
 from vnbroker.broker.tcbs.auth import TCBSAuthService
 from vnbroker.broker.tcbs.equity import TCBSEquityService
+from vnbroker.broker.tcbs.condition_orders import TCBSConditionOrderService
 from vnbroker.broker.tcbs.derivatives import TCBSDerivativesService
 from vnbroker.broker.tcbs.market import TCBSMarketService
 from vnbroker.broker.tcbs.money import TCBSMoneyService
@@ -82,6 +93,9 @@ class TCBSBrokerClient(BaseBrokerClient):
         self._account = TCBSAccountService(config=self._config, session=self.session)
         self._money = TCBSMoneyService(config=self._config, session=self.session)
         self._equity = TCBSEquityService(config=self._config, session=self.session)
+        self._condition_orders = TCBSConditionOrderService(
+            config=self._config, session=self.session
+        )
         self._derivatives = TCBSDerivativesService(config=self._config, session=self.session)
         self._market = TCBSMarketService(config=self._config, session=self.session)
         self.portfolio = TCBSPortfolioEngine  # Pure compute engine — truy cập trực tiếp
@@ -120,7 +134,14 @@ class TCBSBrokerClient(BaseBrokerClient):
         self.revoke()
 
     def get_account_list(self) -> list[dict]:
-        """Lấy danh sách tài khoản theo giao diện BaseBrokerClient."""
+        """Lấy danh sách tài khoản theo giao diện BaseBrokerClient.
+
+        Đây là method @abstractmethod (`vnbroker/broker/base.py:55-58`) nên phải
+        có implementation. Dùng `GET /aion/v1/accounts` — path này KHÔNG có
+        trong 2 tài liệu chính thức nhưng được GIỮ LẠI như NGOẠI LỆ vì path
+        thay thế trong spec `/aion/v1/customers/{custodyId}/accounts` cần
+        custodyId, tức là cần chính thông tin mà method này sinh ra.
+        """
         accounts = self.list_accounts(raw=True)
         if isinstance(accounts, list):
             return accounts
@@ -156,45 +177,47 @@ class TCBSBrokerClient(BaseBrokerClient):
         """Lấy sức mua tài khoản."""
         return self._account.get_purchasing_power(account_no=account_no, raw=raw)
 
-    # ── Erebos v1/v2 Account Endpoints ───────────────────────────────────────
+    # ── Erebos v1/v2 Account Endpoints — ĐÃ GỠ (13 path) ──────────────────────
+    # Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server.
+    # Mỗi wrapper ném lại lỗi từ service (NotImplementedError) — không trả rỗng.
 
     def get_erebos_v1_asset(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/account/asset"""
+        """ĐÃ GỠ — /erebos/v1/account/asset."""
         return self._account.get_erebos_v1_asset(account_no=account_no, raw=raw)
 
     def get_erebos_v1_available_balance(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/account/available-balance"""
+        """ĐÃ GỠ — /erebos/v1/account/available-balance."""
         return self._account.get_erebos_v1_available_balance(account_no=account_no, raw=raw)
 
     def get_erebos_v1_portfolio_asset(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/portfolio-asset"""
+        """ĐÃ GỠ — /erebos/v1/portfolio-asset."""
         return self._account.get_erebos_v1_portfolio_asset(account_no=account_no, raw=raw)
 
     def get_erebos_v1_portfolio_asset_token(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/portfolio-asset/token"""
+        """ĐÃ GỠ — /erebos/v1/portfolio-asset/token."""
         return self._account.get_erebos_v1_portfolio_asset_token(account_no=account_no, raw=raw)
 
     def get_erebos_v1_portfolio_stock_statistic(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v1/portfolio/stock/{accountNo}/statistic"""
+        """ĐÃ GỠ — /erebos/v1/portfolio/stock/{accountNo}/statistic."""
         return self._account.get_erebos_v1_portfolio_stock_statistic(account_no=account_no, raw=raw)
 
     def get_erebos_v2_asset(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/asset"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/asset."""
         return self._account.get_erebos_v2_asset(account_no=account_no, raw=raw)
 
     def get_erebos_v2_available_balance(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/available-balance"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/available-balance."""
         return self._account.get_erebos_v2_available_balance(account_no=account_no, raw=raw)
 
     def get_erebos_v2_stock_statistic(self, account_no: str, raw: bool = False) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/stock-statistic"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/stock-statistic."""
         return self._account.get_erebos_v2_stock_statistic(account_no=account_no, raw=raw)
 
     def get_erebos_v2_orders_history(
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/orders/history"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/orders/history."""
         return self._account.get_erebos_v2_orders_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -204,7 +227,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/orders/matching"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/orders/matching."""
         return self._account.get_erebos_v2_orders_matching(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -214,7 +237,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/withdraw"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/withdraw."""
         return self._account.get_erebos_v2_withdraw_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -224,7 +247,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/deposit"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/deposit."""
         return self._account.get_erebos_v2_deposit_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -234,7 +257,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, from_date: str = "", to_date: str = "",
         page: int = 0, size: int = 50, raw: bool = False,
     ) -> pd.DataFrame:
-        """GET /erebos/v2/accounts/{accountNo}/dividend"""
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/dividend."""
         return self._account.get_erebos_v2_dividend_history(
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, raw=raw,
@@ -300,6 +323,65 @@ class TCBSBrokerClient(BaseBrokerClient):
             page=page, size=size, transaction_code=transaction_code, raw=raw,
         )
 
+    def get_pricing_policy(
+        self, account_no: str, product_id: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """GET /hydros/v1/account/{accountNo}/pricing-policy"""
+        return self._money.get_pricing_policy(
+            account_no=account_no, product_id=product_id,
+        )
+
+    def deposit_margin(
+        self, account_id: str, sub_account_id: str, amount: float,
+        payment_content: str = "", *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /khronos/v1/cash/deposit/update — nộp tiền margin."""
+        return self._money.deposit_margin(
+            account_id=account_id, sub_account_id=sub_account_id, amount=amount,
+            payment_content=payment_content, dry_run=dry_run,
+        )
+
+    def withdraw_margin(
+        self, account_id: str, sub_account_id: str, amount: float,
+        payment_content: str = "", *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /khronos/v1/cash/withdraw/update — rút tiền margin."""
+        return self._money.withdraw_margin(
+            account_id=account_id, sub_account_id=sub_account_id, amount=amount,
+            payment_content=payment_content, dry_run=dry_run,
+        )
+
+    def transfer_between_sub_accounts(
+        self, source_account_number: str, destination_account_number: str,
+        amount: float, description: str, *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /physis/v1/stock/transfer — chuyển tiền giữa 2 sub-account."""
+        return self._money.transfer_between_sub_accounts(
+            source_account_number=source_account_number,
+            destination_account_number=destination_account_number,
+            amount=amount, description=description, dry_run=dry_run,
+        )
+
+    # �� Condition order (phái sinh) ������������������������������������������
+
+    def cancel_condition_order(
+        self, account_id: str, order_no: str,
+        sub_account_id: str = "", *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /khronos/v1/order/condition/cancel — huỷ lệnh điều kiện."""
+        return self._condition_orders.cancel_condition_order(
+            account_id=account_id, sub_account_id=sub_account_id,
+            order_no=order_no, dry_run=dry_run,
+        )
+
+    def get_api_key_expiration(self) -> Optional[datetime]:
+        """POST /gaia/v1/oauth2/openapi/apikey/info — hạn API key."""
+        return self._auth.get_api_key_expiration()
+
+    def extend_api_key(self, otp: str) -> Optional[datetime]:
+        """POST /gaia/v1/oauth2/openapi/apikey/extend — gia hạn API key (cần Smart OTP)."""
+        return self._auth.extend_api_key(otp=otp)
+
     # ── Equity ───────────────────────────────────────────────────────────────
 
     def get_orders(
@@ -312,7 +394,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         self, account_no: str, page: int = 0, page_size: int = 50,
         start_date: Optional[str] = None, end_date: Optional[str] = None, raw: bool = False,
     ) -> pd.DataFrame:
-        """Lấy lịch sử lệnh."""
+        """ĐÃ GỠ — GET /aion/v1/accounts/{accountNo}/orders/history."""
         return self._equity.get_order_history(
             account_no=account_no, page=page, page_size=page_size,
             start_date=start_date, end_date=end_date, raw=raw,
@@ -359,7 +441,12 @@ class TCBSBrokerClient(BaseBrokerClient):
         return self._equity.place_order(
             account_no=account_no, symbol=symbol, side=side,
             order_type=order_type, quantity=quantity, price=price,
-            pin_code=pin_code, request_id=request_id, dry_run=dry_run,
+            pin_code=pin_code,
+            # `place_order` (equity_orders.py) validate `request_id` là bắt buộc
+            # (nội bộ, idempotency key) dù spec không gửi nó lên TCBS. Facade
+            # cho phép `None` ⇒ phải nâng lên str thay vì truyền None xuống.
+            request_id=request_id or "",
+            dry_run=dry_run,
         )
 
     def modify_order(
@@ -368,29 +455,42 @@ class TCBSBrokerClient(BaseBrokerClient):
         order_id: str,
         quantity: int,
         price: float,
-        pin_code: str,
+        request_id: str,
         dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh. dry_run=True mặc định."""
+        """
+        Sửa lệnh. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: `pin_code` → `request_id`.
+        Bản cũ truyền `pin_code=...` cho `modify_order()`, hàm đó **không có**
+        tham số này ⇒ `TypeError` mỗi lần gọi. Lỗi có sẵn từ trước, chỉ lộ ra
+        khi mypy phân giải lại qua `EquityWriteMixin`. `request_id` là tham số
+        thật mà method dưới vẫn yêu cầu (dù spec không gửi nó lên wire).
+        """
         return self._equity.modify_order(
             account_no=account_no, order_id=order_id,
-            quantity=quantity, price=price, pin_code=pin_code, dry_run=dry_run,
+            quantity=quantity, price=price, request_id=request_id, dry_run=dry_run,
         )
 
     def cancel_order(
         self,
         account_no: str,
         order_id: str,
-        pin_code: str,
+        request_id: str,
         dry_run: bool = True,
     ) -> dict:
-        """Hủy lệnh. dry_run=True mặc định."""
+        """
+        Hủy lệnh. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: `pin_code` → `request_id`, giống `modify_order`.
+        """
         return self._equity.cancel_order(
             account_no=account_no, order_id=order_id,
-            pin_code=pin_code, dry_run=dry_run,
+            request_id=request_id, dry_run=dry_run,
         )
 
-    # ── Stop-Limit Orders ────────────────────────────────────────────────────
+    # ── Stop-Limit Orders — ĐÃ GỠ (4 path) ────────────────────────────────────
+    # Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server.
 
     def place_stop_limit_order(
         self,
@@ -404,7 +504,7 @@ class TCBSBrokerClient(BaseBrokerClient):
         request_id: str,
         dry_run: bool = True,
     ) -> dict:
-        """Đặt lệnh điều kiện. dry_run=True mặc định."""
+        """ĐÃ GỠ — POST /erebos/v2/order/stop-limit."""
         return self._equity.place_stop_limit_order(
             account_no=account_no, symbol=symbol, side=side,
             order_type=order_type, quantity=quantity, price=price,
@@ -412,18 +512,18 @@ class TCBSBrokerClient(BaseBrokerClient):
         )
 
     def get_stop_limit_orders(self, account_no: str, status: str = "", raw: bool = False) -> pd.DataFrame:
-        """Lấy danh sách lệnh điều kiện."""
+        """ĐÃ GỠ — GET /erebos/v2/order/stop-limit/orders."""
         return self._equity.get_stop_limit_orders(account_no=account_no, status=status, raw=raw)
 
     def cancel_stop_limit_order(self, order_id: str, request_id: str, dry_run: bool = True) -> dict:
-        """Hủy lệnh điều kiện. dry_run=True mặc định."""
+        """ĐÃ GỠ — PUT /erebos/v2/order/stop-limit/{orderId}/cancel."""
         return self._equity.cancel_stop_limit_order(order_id=order_id, request_id=request_id, dry_run=dry_run)
 
     def modify_stop_limit_order(
         self, order_id: str, quantity: int, price: float, stop_price: float,
         request_id: str, dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh điều kiện. dry_run=True mặc định."""
+        """ĐÃ GỠ — PUT /erebos/v2/order/stop-limit/{orderId}."""
         return self._equity.modify_stop_limit_order(
             order_id=order_id, quantity=quantity, price=price,
             stop_price=stop_price, request_id=request_id, dry_run=dry_run,
@@ -531,6 +631,9 @@ class TCBSBrokerClient(BaseBrokerClient):
         trigger_price: float,
         request_id: str,
         dry_run: bool = True,
+        *,
+        callback_point: Optional[float] = None,
+        activation_price: Optional[float] = None,
     ) -> dict:
         """Đặt lệnh phái sinh điều kiện. dry_run=True mặc định."""
         return self._derivatives.place_derivative_condition_order(
@@ -538,32 +641,67 @@ class TCBSBrokerClient(BaseBrokerClient):
             symbol=symbol, side=side, order_type=order_type,
             quantity=quantity, price=price, trigger_price=trigger_price,
             request_id=request_id, dry_run=dry_run,
+            callback_point=callback_point, activation_price=activation_price,
         )
 
     def change_derivative_order(
-        self, order_id: str, quantity: int, price: float,
-        request_id: str, dry_run: bool = True,
+        self,
+        account_id: str,
+        sub_account_id: str,
+        order_id: str,
+        quantity: int,
+        price: float,
+        request_id: str,
+        dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh phái sinh thường. dry_run=True mặc định."""
+        """
+        Sửa lệnh phái sinh thường. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: thêm `account_id` + `sub_account_id`.
+        Spec `/khronos/v1/order/change` liệt kê cả hai trong `required`; bản cũ
+        không gửi ⇒ TCBS từ chối yêu cầu.
+        """
         return self._derivatives.change_derivative_order(
+            account_id=account_id, sub_account_id=sub_account_id,
             order_id=order_id, quantity=quantity, price=price,
             request_id=request_id, dry_run=dry_run,
         )
 
     def change_derivative_condition_order(
-        self, order_id: str, quantity: int, price: float, trigger_price: float,
-        request_id: str, dry_run: bool = True,
+        self,
+        account_id: str,
+        order_id: str,
+        trigger_price: float,
+        request_id: str,
+        dry_run: bool = True,
     ) -> dict:
-        """Sửa lệnh phái sinh điều kiện. dry_run=True mặc định."""
+        """
+        Sửa lệnh phái sinh điều kiện. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: bỏ `quantity` + `price`, thêm `account_id`.
+        Spec `/khronos/v2/order/condition/change` không định nghĩa 2 field đã bỏ
+        (lệnh điều kiện chỉ sửa được giá kích hoạt) và bắt buộc có `accountId`.
+        """
         return self._derivatives.change_derivative_condition_order(
-            order_id=order_id, quantity=quantity, price=price,
+            account_id=account_id, order_id=order_id,
             trigger_price=trigger_price, request_id=request_id, dry_run=dry_run,
         )
 
-    def cancel_derivative_order(self, order_id: str, request_id: str, dry_run: bool = True) -> dict:
-        """Hủy lệnh phái sinh. dry_run=True mặc định."""
+    def cancel_derivative_order(
+        self,
+        account_id: str,
+        order_id: str,
+        request_id: str,
+        dry_run: bool = True,
+    ) -> dict:
+        """
+        Hủy lệnh phái sinh. dry_run=True mặc định.
+
+        ⚠ ĐỔI CHỮ KÝ 2026-10-10: thêm `account_id` (spec yêu cầu `accountId`).
+        """
         return self._derivatives.cancel_derivative_order(
-            order_id=order_id, request_id=request_id, dry_run=dry_run,
+            account_id=account_id, order_id=order_id,
+            request_id=request_id, dry_run=dry_run,
         )
 
     # ── Market ─────────────────────────────────────────────────────────

@@ -88,7 +88,7 @@ TCBS **không** có Open API chính thức hỗ trợ đặt lệnh phái sinh c
 > Khác với tài khoản cơ sở sử dụng `accountNo` (gồm 6 hoặc 10 chữ số), API phái sinh của TCBS bắt buộc sử dụng **Mã lưu ký (Custody Code)** làm `accountId` (định dạng `105Cxxxxxx`). Ví dụ: `105C334455`.
 
 #### B. Quy trình xác thực
-Khách hàng khởi tạo kết nối thông qua việc gửi API Key và mã OTP tại endpoint `/gaia/v1/oauth2/openapi/token` để nhận Bearer Token (JWT). Token này có giá trị khoảng 8 giờ.
+Khách hàng khởi tạo kết nối thông qua việc gửi API Key và mã OTP tại endpoint `/gaia/v1/oauth2/openapi/token` để nhận Bearer Token (JWT). Token này có giá trị khoảng 24 giờ (đo được 2026-10-10 từ JWT thật: `exp - iat` = 86400s).
 
 #### C. Các API Truy Vấn Tiền & Vị Thế Phái Sinh
 *   **Lấy danh sách vị thế đang nắm giữ (Positions):**

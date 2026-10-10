@@ -12,10 +12,10 @@ Target users:
 
 For reproducible deployments, pin a version or commit.
 
-Stable from PyPI:
+Từ PyPI:
 
 ```bash
-pip install "vnbroker==1.0.2"
+pip install "vnbroker==3.5.0"
 ```
 
 From GitHub branch/commit:

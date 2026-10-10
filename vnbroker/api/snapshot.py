@@ -11,8 +11,8 @@ Module này gộp ba nguồn dữ liệu thành một JSON list chuẩn hoá:
 Schema đầu ra (mỗi phần tử trong list):
   {
     "symbol":        str   — Mã chứng khoán (VD: "VCB")
-    "current_price": float — Giá khớp hiện tại (nghìn VND mặc định)
-    "prev_price":    float — Giá tham chiếu hôm qua (nghìn VND mặc định)
+    "current_price": float — Giá khớp hiện tại (VND, xem "Ghi chú đơn vị")
+    "prev_price":    float — Giá tham chiếu hôm qua (cùng đơn vị current_price)
     "change_pct":    float — % thay đổi so với tham chiếu (VD: -1.5)
     "volume":        int   — Khối lượng giao dịch lũy kế (cổ phiếu)
     "market_cap":    float — Vốn hoá thị trường (tỷ VND)
@@ -35,16 +35,20 @@ Sử dụng:
     df = snap.heatmap_df(["VCB", "TCB", "BID"])
 
 Ghi chú đơn vị:
-    - Giá (current_price, prev_price): nghìn VND (×1000 = VND thực)
-    - market_cap: tỷ VND  (= close_price_VND × listed_shares / 1e9)
-    - Nếu cần đổi đơn vị giá sang VND: truyền price_unit="VND"
-      khi đó market_cap vẫn tính về tỷ VND
+- ``current_price``/``prev_price``: đơn vị **thực** của provider, đọc từ
+  ``df.attrs['price_unit']``. Mặc định thư viện là **VND** (đo live 2026-10-10:
+  KBS ``price_board(price_unit=None)`` trả ``close_price=56700`` với
+  ``attrs['price_unit']=='VND'``, y hệt ``price_unit="VND"``).
+- ``market_cap``: **luôn** tỷ VND, dù giá đang ở đơn vị nào:
+  ``market_cap = current_price_VND × listed_shares / 1e9``.
+- Đổi đơn vị giá bằng ``price_unit="THOUSAND_VND"`` **hoặc** đặt biến môi
+  trường ``vnbroker_PRICE_UNIT``; không dùng con số nhân 1000 thủ công.
 """
 
 from __future__ import annotations
 
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -54,6 +58,11 @@ logger = get_logger(__name__)
 
 # TTL (giây) cho industry cache — tránh gọi lại API quá nhiều
 _INDUSTRY_CACHE_TTL_SECONDS = 300  # 5 phút
+
+# Nhân thêm để đưa giá về VND khi frame đang ở nghìn VND.
+_VND_MULTIPLIER = 1_000
+_PRICE_UNIT_VND = "VND"
+_PRICE_UNIT_THOUSAND_VND = "THOUSAND_VND"
 
 
 class MarketSnapshot:
@@ -72,18 +81,18 @@ class MarketSnapshot:
 
     Examples:
         >>> snap = MarketSnapshot()
-        >>> data = snap.heatmap_data(["VCB", "VNM", "HPG"])
-        >>> print(data[0])
-        {
-          "symbol": "VCB",
-          "current_price": 88.5,
-          "prev_price": 89.0,
-          "change_pct": -0.56,
-          "volume": 1234567,
-          "market_cap": 315432.1,
-          "industry": "Ngân hàng",
-          "company_name": "Ngân hàng TMCP Ngoại Thương Việt Nam"
-        }
+    >>> data = snap.heatmap_data(["VCB", "VNM", "HPG"])
+    >>> print(data[0])
+    {
+        "symbol": "VCB",
+        "current_price": 56700.0,
+        "prev_price": 56600.0,
+        "change_pct": -0.56,
+        "volume": 3049500,
+        "market_cap": 473766.78,
+        "industry": "Ngân hàng",
+        "company_name": "Ngân hàng TMCP Ngoại Thương Việt Nam"
+    }
     """
 
     def __init__(
@@ -114,7 +123,7 @@ class MarketSnapshot:
         symbols_list: List[str],
         price_unit: Optional[str] = None,
         refresh_cache: bool = False,
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Trả về JSON list chuẩn cho heatmap với đầy đủ 8 field.
 
@@ -152,14 +161,14 @@ class MarketSnapshot:
         if df.empty:
             return []
 
-        return df.to_dict(orient="records")
+        return df.to_dict(orient="records")  # type: ignore[no-any-return]
 
     def heatmap_data_by_group(
         self,
         group: str = "VN30",
         price_unit: Optional[str] = None,
         refresh_cache: bool = False,
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Trả về JSON list chuẩn cho một nhóm chỉ số (VN30, VN100, v.v.).
 
@@ -268,6 +277,11 @@ class MarketSnapshot:
             logger.warning("price_board trả về DataFrame rỗng.")
             return pd.DataFrame()
 
+        # Đơn vị giá THỰC của frame, đọc trước khi mọi thao tác cắt/rename làm
+        # rơi `attrs`. `price_unit` chỉ là ý muốn của caller: `None` nghĩa là
+        # "không ép", và provider rơi về mặc định VND — xem `_compute_market_cap`.
+        effective_price_unit = self._effective_price_unit(price_df)
+
         # Bước 2: Industry map (symbol → industry_name)
         industry_map = self._get_industry_map(refresh=refresh_cache)
 
@@ -311,7 +325,7 @@ class MarketSnapshot:
             df_out["volume"] = pd.to_numeric(df_out["volume"], errors="coerce").astype("Int64")
 
         # Metadata
-        df_out.attrs["price_unit"] = price_unit or "nghìn VND"
+        df_out.attrs["price_unit"] = effective_price_unit
         df_out.attrs["market_cap_unit"] = "tỷ VND"
         df_out.attrs["source"] = self.source.upper()
 
@@ -349,13 +363,37 @@ class MarketSnapshot:
         """
         Tính vốn hoá thị trường (tỷ VND).
 
-        Công thức:
-            Nếu price_unit=None  → giá đang ở nghìn VND
-                market_cap = close_price × 1_000 × listed_shares / 1e9
-            Nếu price_unit="VND" → giá đang ở VND
-                market_cap = close_price × listed_shares / 1e9
+        Đơn vị giá lấy từ ``df.attrs['price_unit']`` — nhãn **chính provider**
+        dán vào lúc chuẩn hoá giá (``core/utils/transform.py``), không đoán
+        theo tham số ``price_unit``.
+
+        Vì sao không được đoán (đo live 2026-10-10, KBS, mã VCB):
+
+        - ``price_board(price_unit=None)`` và ``price_board(price_unit="VND")``
+          trả **cùng một** ``close_price = 56700`` với
+          ``attrs['price_unit'] == "VND"``. Vì ``None`` chỉ có nghĩa là
+          *"không ép đơn vị"*, provider rơi về mặc định
+          ``vnbroker_PRICE_UNIT`` (= ``VND``).
+        - Công thức cũ nhân ``×1000`` khi ``price_unit is None`` ⇒
+          ``market_cap = 473 766 777.83`` tỷ thay vì ``473 766.78`` tỷ:
+          **phóng đại 1000 lần**, và sai này vẫn là một con số hợp lệ nên
+          rất khó phát hiện.
+
+        Hệ quả phải nhớ khi đọc lại dòng này: giá ở **nghìn VND** thì CẦN
+        nhân ``×1000`` để về VND; giá đã ở **VND** thì nhân ``×1``. Công thức
+        cũ đảo ngược hai nhánh này.
+
+        Args:
+            df: Bảng giá đã chuẩn hoá, có ``close_price`` + ``listed_shares``.
+            price_unit: Ý muốn của *caller*. Giữ tham số để tương thích, nhưng
+                KHÔNG dùng nó để suy ra đơn vị — tham số là ý muốn, nhãn trên
+                frame mới là sự thật.
+
+        Returns:
+            ``df`` có thêm cột ``market_cap`` (tỷ VND).
         """
-        multiplier = 1_000 if (price_unit is None or price_unit.upper() != "VND") else 1
+        unit = self._effective_price_unit(df)
+        multiplier = _VND_MULTIPLIER if unit == _PRICE_UNIT_THOUSAND_VND else 1
 
         if "close_price" in df.columns and "listed_shares" in df.columns:
             cp = pd.to_numeric(df["close_price"], errors="coerce")
@@ -377,6 +415,28 @@ class MarketSnapshot:
             )
 
         return df
+
+    @staticmethod
+    def _effective_price_unit(df: pd.DataFrame) -> str:
+        """Đơn vị giá **thực** của frame, theo thứ tự ưu tiên giảm dần.
+
+        1. ``df.attrs['price_unit']`` — provider dán sau khi chuẩn hoá, đây là
+           sự thật về dữ liệu đang nằm trong frame.
+        2. ``df.attrs['price_unit_hint']`` — chỉ khi provider tự chủ động ghi.
+        3. ``"VND"`` — mặc định của chính thư viện
+           (``transform._resolve_target_price_unit``). Chọn VND chứ không phải
+           nghìn VND vì đó là giá trị provider **thực sự** trả về khi không
+           được ép; chọn ngược lại là phóng đại 1000 lần (đo ở trên).
+
+        Trả về chuẩn hoá về ``"VND"`` / ``"THOUSAND_VND"``.
+        """
+        raw = df.attrs.get("price_unit") or df.attrs.get("price_unit_hint")
+        if not raw:
+            return _PRICE_UNIT_VND
+        value = str(raw).strip().upper()
+        if value in {"THOUSAND", "K", "NGHÌN VND", _PRICE_UNIT_THOUSAND_VND}:
+            return _PRICE_UNIT_THOUSAND_VND
+        return _PRICE_UNIT_VND
 
     def _get_industry_map(self, refresh: bool = False) -> Dict[str, str]:
         """

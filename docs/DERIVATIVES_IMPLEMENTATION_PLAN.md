@@ -1,5 +1,22 @@
 # Kế Hoạch Thực Hiện Tích Hợp Dữ Liệu Phái Sinh (Futures) — vnbroker
 
+<!-- TRẠNG THÁI ĐỐI CHIẾU — WP-PLAN-CLEANUP-01, 2026-10-07 -->
+
+> ## ⚠️ Trạng thái đối chiếu (2026-10-07) — KHÔNG đọc các ô `[ ]` bên dưới như việc còn dở
+>
+> File ghi trạng thái gốc *"CHỜ AUDIT — chưa thực hiện code"* (2026-06-21). Thực tế
+> phần phái sinh **đã được triển khai** ở lane broker:
+>
+> **Đã xác minh bằng lệnh — XONG:**
+> `vnbroker/broker/tcbs/derivatives.py` tồn tại · phái sinh SSI trong
+> `vnbroker/broker/ssi/` · `pytest tests/unit/broker/tcbs tests/unit/connector/dnse
+> tests/unit/explorer/dnse` → **318 passed**.
+>
+> **CHƯA LÀM:** phần phái sinh DNSE theo phạm vi kế hoạch này.
+>
+> Cách kiểm lại: `ls vnbroker/broker/tcbs/derivatives.py vnbroker/broker/ssi/`.
+
+
 **Phiên bản:** 1.0  
 **Ngày:** 2026-06-21  
 **Cơ sở:** Đã xác minh qua 4 tài liệu + codebase thực tế  

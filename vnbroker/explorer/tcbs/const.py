@@ -20,6 +20,22 @@ _INTERVAL_MAP = {'1m' : '1',
             }
         
 
+# TimeFrame value -> TCBS interval key.
+# Moved here from quote.py so `bars.py` and `quote.py` can share one table
+# without a `bars.py` <-> `quote.py` circular import (quote.py imports bars.py).
+# Standard format: m/1m=minute, h/1H=hour, d/1D=day, w/1W=week, M/1M=month
+_TIMEFRAME_MAP = {
+    '1m': '1m',
+    '5m': '5m',
+    '15m': '15m',
+    '30m': '30m',
+    '1H': '1H',
+    '1D': '1D',
+    '1W': '1W',
+    '1M': '1M'
+}
+
+
 _OHLC_MAP = {
     'tradingDate': 'time',
     'open': 'open',

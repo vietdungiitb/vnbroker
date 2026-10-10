@@ -67,10 +67,19 @@ class DNSEListing:
                 "Đăng ký tại: https://developers.dnse.com.vn/"
             )
 
+        # `base_url` và `timeout_seconds` phải đi xuống DNSEClient, nếu không
+        # tầng explorer chỉ nói được với production và không kiểm chứng
+        # được trên sandbox. Xem `explorer/dnse/quote.py` cùng lý do.
+        _client_opts = {
+            key: kwargs[key]
+            for key in ("base_url", "timeout_seconds", "api_version", "algorithm")
+            if key in kwargs
+        }
         self._client = DNSEClient(
             api_key=resolved_key,
             api_secret=resolved_secret,
             show_log=show_log,
+            **_client_opts,
         )
         self._market = self._client._market
 

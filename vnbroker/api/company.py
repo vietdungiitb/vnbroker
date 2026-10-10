@@ -33,7 +33,7 @@ class Company(BaseAdapter):
     def __init__(
         self,
         source: str = "KBS",
-        symbol: str = None,
+        symbol: Optional[str] = None,
         random_agent: bool = False,
         show_log: bool = False,
         auth_token: Optional[str] = None,
@@ -78,7 +78,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def overview(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company overview data."""
         pass
@@ -91,7 +91,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def shareholders(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company shareholders data."""
         pass
@@ -104,7 +104,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def insider_deals(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company insider trading deals."""
         pass
@@ -117,7 +117,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def officers(self, *args: Any, **kwargs: Any) -> Any:
         """
         Retrieve company officers data.
@@ -133,7 +133,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def subsidiaries(self, *args: Any, **kwargs: Any) -> Any:
         """
         Retrieve company subsidiaries data.
@@ -149,7 +149,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def affiliate(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company affiliate data."""
         pass
@@ -162,7 +162,7 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def news(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company news."""
         pass
@@ -175,12 +175,12 @@ class Company(BaseAdapter):
             max=Config.BACKOFF_MAX
         )
     )
-    @dynamic_method
+    @dynamic_method  # type: ignore
     def events(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company events."""
         pass
         
-    def _delegate_to_provider(self, method_name: str, symbol: str = None, **kwargs: Any) -> Any:
+    def _delegate_to_provider(self, method_name: str, symbol: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Delegate method call to the provider with symbol update if needed.
 

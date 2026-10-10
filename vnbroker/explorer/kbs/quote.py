@@ -668,8 +668,12 @@ class Quote:
                 asset_type=self.asset_type, 
                 source='KBS'
             )
-            # Convert to lowercase for final output
-            standardized_df['match_type'] = standardized_df['match_type'].str.lower()
+            # KHÔNG `.str.lower()` ở đây. Dòng này từng tồn tại và phá đúng
+            # hợp đồng mà `process_match_types` vừa lập 3 dòng trên: KBS trả
+            # `buy/sell/atc` trong khi VCI trả `Buy/Sell/ATC`, nên cùng một
+            # câu `df[df.match_type == "Buy"]` cho 0 dòng ở KBS và >0 ở VCI —
+            # sai mà không ném lỗi. Đo live trên TCB @ 9d5db1d: KBS 0 dòng,
+            # VCI 67 dòng. Giữ nguyên tập giá trị chuẩn của tầng 1.
         
         # id: Generate ID from timestamp, price, and volume (KBS doesn't have transaction ID)
         if 'timestamp' in df.columns:

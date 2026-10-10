@@ -40,7 +40,7 @@ OPEN_SOURCE_CANDIDATES: Dict[str, List[str]] = {
 # KBS price_board is materially more stable under sustained load.
 # Remaining providers activate only on confirmed failover.
 PRIMARY_SOURCE_POOLS: Dict[str, List[str]] = {
-    "quote": ["vci"],
+    "quote": ["vci", "kbs"],
     "company": ["vci"],
     "news": ["vci", "kbs"],
     "financial": ["vci"],
@@ -188,6 +188,56 @@ def is_auto_source(source: str | None) -> bool:
     return str(source or "").strip().lower() == AUTO_SOURCE
 
 
+def _trailing_candidates(module_name: str) -> List[str]:
+    """Provider có credential được **nối vào cuối** danh sách AUTO của module.
+
+    Vì sao nối cuối chứ không chen giữa và không chỉ lấp chỗ trống
+    ---------------------------------------------------------------
+    Đo 2026-10-10: `tcbs` khai hỗ trợ `quote, trading, listing, financial,
+    company` — **cả 5 đều đã có mục trong `OPEN_SOURCE_CANDIDATES`**. Một
+    bản vá chỉ "lấp chỗ trống cho module chưa có mục" vì vậy **không bao giờ**
+    đưa TCBS vào AUTO: sửa xong, đo lại, vẫn `tcbs_in_auto=False` ở cả 10
+    module. Đó là sửa lỗi mà không sửa được lỗi.
+
+    Mặt khác, `OPEN_SOURCE_CANDIDATES` là bảng **ưu tiên** có chủ ý — `trading`
+    đặt `kbs` trước vì benchmark cho thấy ổn định hơn dưới tải. Vì vậy:
+
+    - **không** chen provider mới vào giữa hay lên đầu;
+    - **không** đụng vào thứ tự các mục đang có;
+    - provider có credential chỉ được **nối cuối**, tức chỉ dùng khi mọi
+      provider ưu tiên đã hỏng.
+
+    Đây đúng là ngữ nghĩa mà `SSI_AUTO_CANDIDATES` đã dùng từ trước: SSI cũng
+    được nối cuối, và `vnbroker_SSI_AUTO_PRIMARY=1` mới cho lên đầu. Không có
+    phép đo hiệu năng nào thì không ai được lên đầu.
+
+    Thứ tự trong nhóm nối cuối là **tất định**: theo thứ tự trong
+    `ProviderPool.AUTH_PROVIDERS`, rồi theo tên. Sắp xếp theo hash của `set`
+    làm thứ tự định tuyến đổi theo `PYTHONHASHSEED` giữa các tiến trình — đo
+    được 5 thứ tự khác nhau trong 12 lần chạy chỉ khác `PYTHONHASHSEED`.
+
+    Import trong hàm: `ProviderRegistry` liệt kê từ các module explorer, và
+    `source_router` nằm dưới tầng đó.
+    """
+    try:
+        from vnbroker.core.provider_pool import ProviderPool
+        from vnbroker.core.registry import ProviderRegistry
+    except Exception:  # pragma: no cover - import cycle guard
+        return []
+
+    try:
+        usable = {p.lower() for p in ProviderPool().get_available_providers(module_name)}
+        registered = {p.lower() for p in ProviderRegistry.list_available(module_name)}
+    except Exception:  # pragma: no cover - registry not initialised yet
+        return []
+
+    available = usable & registered
+    if not available:
+        return []
+    declared = [name for name in ProviderPool.AUTH_PROVIDERS if name in available]
+    return sorted(declared) + sorted(available - set(declared))
+
+
 def get_auto_candidates(module_name: str) -> List[str]:
     candidates = list(OPEN_SOURCE_CANDIDATES.get(module_name, []))
     if module_name == "trading":
@@ -197,6 +247,12 @@ def get_auto_candidates(module_name: str) -> List[str]:
     for extra in SSI_AUTO_CANDIDATES.get(module_name, []):
         if extra not in candidates and has_ssi_credentials():
             candidates.append(extra)
+
+    # Nối provider có credential vào CUỐI, không đụng thứ tự sẵn có.
+    known = {source.lower() for source in candidates}
+    for source in _trailing_candidates(module_name):
+        if source not in known:
+            candidates.append(source)
     return candidates
 
 
@@ -267,8 +323,12 @@ def build_source_order(module_name: str, symbol: str | None = None) -> List[str]
     extras = [source for source in ordered_pool if source not in primary_pool]
 
     if symbol and primary_pool:
-        index = _stable_index(f"{module_name}:{symbol.upper()}", len(primary_pool))
-        primary_order = primary_pool[index:] + primary_pool[:index]
+        if _ssi_primary_enabled() and "ssi" in primary_pool:
+            # SSI is explicit primary — always first, no hash-shard
+            primary_order = ["ssi"] + [s for s in primary_pool if s != "ssi"]
+        else:
+            index = _stable_index(f"{module_name}:{symbol.upper()}", len(primary_pool))
+            primary_order = primary_pool[index:] + primary_pool[:index]
         ordered = primary_order + extras
     else:
         pool = primary_pool or ordered_pool
@@ -351,8 +411,19 @@ def health(module_name: str) -> Dict[str, Dict[str, float | bool | int | None]]:
 
 
 def should_failover(exc: Exception) -> bool:
-    # KeyError / LookupError = provider returned payload missing expected keys
-    if isinstance(exc, (ConnectionError, TimeoutError, NotImplementedError, KeyError, LookupError)):
+    # OSError is the base of ConnectionError and TimeoutError, but also of the
+    # entire requests/socket failure family, which is the common case:
+    #   requests.exceptions.RequestException -> IOError -> OSError
+    #   socket.gaierror (DNS), ssl.SSLError, ConnectionResetError, ...
+    # The two routers disagreed: bulk_router.PROVIDER_ERRORS already listed
+    # OSError, here it was missing, so the single-symbol path stopped failover
+    # on a DNS failure while the bulk path continued.
+    #
+    # Programming errors (TypeError, ValueError, AttributeError,
+    # ZeroDivisionError) are deliberately NOT OSError, so a real bug in a
+    # provider still propagates instead of being silently retried elsewhere.
+    # KeyError / LookupError = provider returned payload missing expected keys.
+    if isinstance(exc, (OSError, NotImplementedError, KeyError, LookupError)):
         return True
 
     message = str(exc).lower()

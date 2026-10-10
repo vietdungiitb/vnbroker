@@ -8,11 +8,31 @@ Endpoints (TCBS iFlash Open API v1.0.0):
 
 RULE: Không có write method. Mọi request dùng requests trực tiếp + session.token.
       custodyCode, idNo, phone, email phải masked trong raw=False output.
+
+GỠ 13 PATH LEGACY (`/erebos/v1/*`, `/erebos/v2/accounts/*`) — 2026-10-09
+---------------------------------------------------------------------
+13 path này KHÔNG có trong CẢ HAI tài liệu chính thức:
+`openapi-v1.0.0.json` và `tcbs-openapi-v1.0.0.postman_collection.json`
+(cả hai đều có 48 REST endpoint, khớp nhau 48/48).
+
+⇒ Xoá theo quyết định của Owner dựa trên 2 tài liệu chính thức, CHƯA probe
+  server. Lý do không probe được: TCBS trả 401 TRƯỚC khi routing nên không
+  phân biệt được route tồn tại hay không.
+⇒ KHÔNG phải kết luận "path không tồn tại trên server" — chỉ là
+  "không có trong tài liệu chính thức".
+⇒ Method công khai tương ứng VẪN CÒN nhưng NÉM NotImplementedError
+  (xem `_raise_removed()`), không im lặng trả về rỗng.
+
+NGOẠI LỆ: `/aion/v1/accounts` (không param) được GIỮ LẠI vì
+`BaseBrokerClient.get_account_list()` là @abstractmethod
+(`vnbroker/broker/base.py:55-58`). Path thay thế trong spec
+`/aion/v1/customers/{custodyId}/accounts` cần custodyId — tức là cần chính
+thông tin mà `get_account_list()` sinh ra, nên không thay thế được.
 """
 from __future__ import annotations
 
 import logging
-from typing import Union
+from typing import NoReturn, Union
 
 import pandas as pd
 import requests
@@ -34,23 +54,46 @@ _PATHS = {
     "profile": "/eros/v2/get-profile/by-username/{custodyCode}",
     "balance": "/aion/v1/accounts/{accountNo}/cashInvestments",
     "purchasing_power": "/aion/v1/accounts/{accountNo}/ppse",
+    # NGOẠI LỆ — xem docstring module. Giữ vì get_account_list() là @abstractmethod.
     "list_accounts": "/aion/v1/accounts",
-    # Erebos v1 account endpoints
-    "erebos_v1_asset": "/erebos/v1/account/asset",
-    "erebos_v1_available_balance": "/erebos/v1/account/available-balance",
-    "erebos_v1_portfolio_asset": "/erebos/v1/portfolio-asset",
-    "erebos_v1_portfolio_asset_token": "/erebos/v1/portfolio-asset/token",
-    "erebos_v1_portfolio_stock_statistic": "/erebos/v1/portfolio/stock/{accountNo}/statistic",
-    # Erebos v2 account endpoints
-    "erebos_v2_asset": "/erebos/v2/accounts/{accountNo}/asset",
-    "erebos_v2_available_balance": "/erebos/v2/accounts/{accountNo}/available-balance",
-    "erebos_v2_stock_statistic": "/erebos/v2/accounts/{accountNo}/stock-statistic",
-    "erebos_v2_orders_history": "/erebos/v2/accounts/{accountNo}/orders/history",
-    "erebos_v2_orders_matching": "/erebos/v2/accounts/{accountNo}/orders/matching",
-    "erebos_v2_withdraw": "/erebos/v2/accounts/{accountNo}/withdraw",
-    "erebos_v2_deposit": "/erebos/v2/accounts/{accountNo}/deposit",
-    "erebos_v2_dividend": "/erebos/v2/accounts/{accountNo}/dividend",
 }
+
+# 13 path đã gỡ — xoá theo quyết định Owner dựa trên 2 tài liệu chính thức,
+# CHƯA probe server. Key = tên method công khai, value = path đã gỡ.
+_REMOVED_PATHS: dict[str, str] = {
+    "get_erebos_v1_asset": "/erebos/v1/account/asset",
+    "get_erebos_v1_available_balance": "/erebos/v1/account/available-balance",
+    "get_erebos_v1_portfolio_asset": "/erebos/v1/portfolio-asset",
+    "get_erebos_v1_portfolio_asset_token": "/erebos/v1/portfolio-asset/token",
+    "get_erebos_v1_portfolio_stock_statistic": "/erebos/v1/portfolio/stock/{accountNo}/statistic",
+    "get_erebos_v2_asset": "/erebos/v2/accounts/{accountNo}/asset",
+    "get_erebos_v2_available_balance": "/erebos/v2/accounts/{accountNo}/available-balance",
+    "get_erebos_v2_stock_statistic": "/erebos/v2/accounts/{accountNo}/stock-statistic",
+    "get_erebos_v2_orders_history": "/erebos/v2/accounts/{accountNo}/orders/history",
+    "get_erebos_v2_orders_matching": "/erebos/v2/accounts/{accountNo}/orders/matching",
+    "get_erebos_v2_withdraw_history": "/erebos/v2/accounts/{accountNo}/withdraw",
+    "get_erebos_v2_deposit_history": "/erebos/v2/accounts/{accountNo}/deposit",
+    "get_erebos_v2_dividend_history": "/erebos/v2/accounts/{accountNo}/dividend",
+}
+
+
+def _raise_removed(method_name: str) -> NoReturn:
+    """
+    Ném lỗi rõ ràng cho method đã gỡ — KHÔNG trả về rỗng im lặng.
+
+    Path bị gỡ không có trong openapi-v1.0.0.json và
+    tcbs-openapi-v1.0.0.postman_collection.json. Đây là quyết định của Owner
+    dựa trên 2 tài liệu chính thức; CHƯA probe server (401 chạy trước
+    routing nên không phân biệt được route có hay không).
+    """
+    path = _REMOVED_PATHS[method_name]
+    raise NotImplementedError(
+        f"{method_name}() đã bị gỡ bỏ: path {path} không có trong "
+        f"openapi-v1.0.0.json và tcbs-openapi-v1.0.0.postman_collection.json. "
+        f"Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server. "
+        f"Dùng endpoint trong spec thay thế (ví dụ /aion/v1/accounts/{{accountNo}}/se, "
+        f"/aion/v1/accounts/{{accountNo}}/cashInvestments)."
+    )
 
 
 class TCBSAccountService:
@@ -263,325 +306,41 @@ class TCBSAccountService:
             "margin_ratio": "float64",
         })
 
-    # ── Erebos v1 Account Endpoints ───────────────────────────────────────────
+# ── Path đã gỡ (13 path) ─────────────────────────────────────────────────
+    # Xoá theo quyết định Owner dựa trên 2 tài liệu chính thức, chưa probe server.
+    # Mỗi method ném NotImplementedError — KHÔNG im lặng trả về rỗng.
 
-    def get_erebos_v1_asset(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v1/account/asset
+    def get_erebos_v1_asset(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, dict]:
+        """ĐÃ GỠ — /erebos/v1/account/asset. Xem docstring module + `_REMOVED_PATHS`."""
+        _raise_removed("get_erebos_v1_asset")
 
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về dict nguyên gốc.
+    def get_erebos_v1_available_balance(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, dict]:
+        """ĐÃ GỠ — /erebos/v1/account/available-balance."""
+        _raise_removed("get_erebos_v1_available_balance")
 
-        Returns:
-            DataFrame columns (raw=False):
-                account_no, total_asset (float64), cash_balance (float64),
-                stock_value (float64), margin_balance (float64)
-        """
-        _validate_account_no(account_no)
-        data = self._get(_PATHS["erebos_v1_asset"], params={"accountNo": account_no})
+    def get_erebos_v1_portfolio_asset(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, list]:
+        """ĐÃ GỠ — /erebos/v1/portfolio-asset."""
+        _raise_removed("get_erebos_v1_portfolio_asset")
 
-        if raw:
-            return data
+    def get_erebos_v1_portfolio_asset_token(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, list]:
+        """ĐÃ GỠ — /erebos/v1/portfolio-asset/token."""
+        _raise_removed("get_erebos_v1_portfolio_asset_token")
 
-        row = {
-            "account_no": data.get("accountNo", account_no),
-            "total_asset": float(data.get("totalAsset") or 0),
-            "cash_balance": float(data.get("cashBalance") or 0),
-            "stock_value": float(data.get("stockValue") or 0),
-            "margin_balance": float(data.get("marginBalance") or 0),
-        }
-        return pd.DataFrame([row]).astype({
-            "total_asset": "float64",
-            "cash_balance": "float64",
-            "stock_value": "float64",
-            "margin_balance": "float64",
-        })
+    def get_erebos_v1_portfolio_stock_statistic(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, dict]:
+        """ĐÃ GỠ — /erebos/v1/portfolio/stock/{accountNo}/statistic."""
+        _raise_removed("get_erebos_v1_portfolio_stock_statistic")
 
-    def get_erebos_v1_available_balance(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v1/account/available-balance
+    def get_erebos_v2_asset(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, dict]:
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/asset."""
+        _raise_removed("get_erebos_v2_asset")
 
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về dict nguyên gốc.
+    def get_erebos_v2_available_balance(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, dict]:
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/available-balance."""
+        _raise_removed("get_erebos_v2_available_balance")
 
-        Returns:
-            DataFrame columns (raw=False):
-                account_no, available_balance (float64),
-                buying_power (float64), withdrawable_balance (float64)
-        """
-        _validate_account_no(account_no)
-        data = self._get(_PATHS["erebos_v1_available_balance"], params={"accountNo": account_no})
-
-        if raw:
-            return data
-
-        row = {
-            "account_no": data.get("accountNo", account_no),
-            "available_balance": float(data.get("availableBalance") or 0),
-            "buying_power": float(data.get("buyingPower") or 0),
-            "withdrawable_balance": float(data.get("withdrawableBalance") or 0),
-        }
-        return pd.DataFrame([row]).astype({
-            "available_balance": "float64",
-            "buying_power": "float64",
-            "withdrawable_balance": "float64",
-        })
-
-    def get_erebos_v1_portfolio_asset(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, list]:
-        """
-        GET /erebos/v1/portfolio-asset
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về list nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                symbol, sec_type, quantity (Int64), average_cost (float64),
-                market_price (float64), market_value (float64),
-                unrealized_pnl (float64), unrealized_pnl_pct (float64)
-        """
-        _validate_account_no(account_no)
-        data = self._get(_PATHS["erebos_v1_portfolio_asset"], params={"accountNo": account_no})
-
-        if raw:
-            return data
-
-        records = data if isinstance(data, list) else data.get("data", [])
-        if not records:
-            return pd.DataFrame(columns=[
-                "symbol", "sec_type", "quantity", "average_cost",
-                "market_price", "market_value", "unrealized_pnl", "unrealized_pnl_pct"
-            ])
-
-        df = pd.DataFrame(records)
-        for col in ("quantity",):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
-        for col in ("average_cost", "market_price", "market_value", "unrealized_pnl", "unrealized_pnl_pct"):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        return df
-
-    def get_erebos_v1_portfolio_asset_token(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, list]:
-        """
-        GET /erebos/v1/portfolio-asset/token
-
-        Danh mục phái sinh & chứng quyền.
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về list nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                symbol, sec_type, quantity (Int64), average_cost (float64),
-                market_price (float64), market_value (float64),
-                unrealized_pnl (float64)
-        """
-        _validate_account_no(account_no)
-        data = self._get(_PATHS["erebos_v1_portfolio_asset_token"], params={"accountNo": account_no})
-
-        if raw:
-            return data
-
-        records = data if isinstance(data, list) else data.get("data", [])
-        if not records:
-            return pd.DataFrame(columns=[
-                "symbol", "sec_type", "quantity", "average_cost",
-                "market_price", "market_value", "unrealized_pnl"
-            ])
-
-        df = pd.DataFrame(records)
-        for col in ("quantity",):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
-        for col in ("average_cost", "market_price", "market_value", "unrealized_pnl"):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        return df
-
-    def get_erebos_v1_portfolio_stock_statistic(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v1/portfolio/stock/{accountNo}/statistic
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                account_no, total_stock_value (float64),
-                total_unrealized_pnl (float64), total_unrealized_pnl_pct (float64),
-                num_positions (Int64), top_gainer (str), top_loser (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v1_portfolio_stock_statistic"].format(accountNo=account_no)
-        data = self._get(path)
-
-        if raw:
-            return data
-
-        row = {
-            "account_no": data.get("accountNo", account_no),
-            "total_stock_value": float(data.get("totalStockValue") or 0),
-            "total_unrealized_pnl": float(data.get("totalUnrealizedPnl") or 0),
-            "total_unrealized_pnl_pct": float(data.get("totalUnrealizedPnlPct") or 0),
-            "num_positions": int(data.get("numPositions") or 0),
-            "top_gainer": data.get("topGainer", ""),
-            "top_loser": data.get("topLoser", ""),
-        }
-        return pd.DataFrame([row]).astype({
-            "total_stock_value": "float64",
-            "total_unrealized_pnl": "float64",
-            "total_unrealized_pnl_pct": "float64",
-            "num_positions": "Int64",
-        })
-
-    # ── Erebos v2 Account Endpoints ───────────────────────────────────────────
-
-    def get_erebos_v2_asset(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/asset
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                account_no, total_asset (float64), cash_balance (float64),
-                stock_value (float64), derivative_balance (float64),
-                margin_balance (float64)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_asset"].format(accountNo=account_no)
-        data = self._get(path)
-
-        if raw:
-            return data
-
-        row = {
-            "account_no": data.get("accountNo", account_no),
-            "total_asset": float(data.get("totalAsset") or 0),
-            "cash_balance": float(data.get("cashBalance") or 0),
-            "stock_value": float(data.get("stockValue") or 0),
-            "derivative_balance": float(data.get("derivativeBalance") or 0),
-            "margin_balance": float(data.get("marginBalance") or 0),
-        }
-        return pd.DataFrame([row]).astype({
-            "total_asset": "float64",
-            "cash_balance": "float64",
-            "stock_value": "float64",
-            "derivative_balance": "float64",
-            "margin_balance": "float64",
-        })
-
-    def get_erebos_v2_available_balance(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/available-balance
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                account_no, available_balance (float64),
-                buying_power (float64), withdrawable_balance (float64),
-                margin_available (float64)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_available_balance"].format(accountNo=account_no)
-        data = self._get(path)
-
-        if raw:
-            return data
-
-        row = {
-            "account_no": data.get("accountNo", account_no),
-            "available_balance": float(data.get("availableBalance") or 0),
-            "buying_power": float(data.get("buyingPower") or 0),
-            "withdrawable_balance": float(data.get("withdrawableBalance") or 0),
-            "margin_available": float(data.get("marginAvailable") or 0),
-        }
-        return pd.DataFrame([row]).astype({
-            "available_balance": "float64",
-            "buying_power": "float64",
-            "withdrawable_balance": "float64",
-            "margin_available": "float64",
-        })
-
-    def get_erebos_v2_stock_statistic(
-        self,
-        account_no: str,
-        raw: bool = False,
-    ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/stock-statistic
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                account_no, total_stock_value (float64),
-                total_unrealized_pnl (float64), total_unrealized_pnl_pct (float64),
-                num_positions (Int64), top_gainer (str), top_loser (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_stock_statistic"].format(accountNo=account_no)
-        data = self._get(path)
-
-        if raw:
-            return data
-
-        row = {
-            "account_no": data.get("accountNo", account_no),
-            "total_stock_value": float(data.get("totalStockValue") or 0),
-            "total_unrealized_pnl": float(data.get("totalUnrealizedPnl") or 0),
-            "total_unrealized_pnl_pct": float(data.get("totalUnrealizedPnlPct") or 0),
-            "num_positions": int(data.get("numPositions") or 0),
-            "top_gainer": data.get("topGainer", ""),
-            "top_loser": data.get("topLoser", ""),
-        }
-        return pd.DataFrame([row]).astype({
-            "total_stock_value": "float64",
-            "total_unrealized_pnl": "float64",
-            "total_unrealized_pnl_pct": "float64",
-            "num_positions": "Int64",
-        })
+    def get_erebos_v2_stock_statistic(self, account_no: str, raw: bool = False) -> Union[pd.DataFrame, dict]:
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/stock-statistic."""
+        _raise_removed("get_erebos_v2_stock_statistic")
 
     def get_erebos_v2_orders_history(
         self,
@@ -592,53 +351,8 @@ class TCBSAccountService:
         size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/orders/history
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            from_date: Ngày bắt đầu (YYYY-MM-DD).
-            to_date: Ngày kết thúc (YYYY-MM-DD).
-            page: Trang (0-based).
-            size: Số lượng mỗi trang.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                order_id, symbol, side (category), order_type (category),
-                quantity (Int64), filled_quantity (Int64), price (float64),
-                status (category), tx_date (str), tx_time (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_orders_history"].format(accountNo=account_no)
-        params: dict = {"page": page, "size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-
-        data = self._get(path, params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
-        if not records:
-            return pd.DataFrame(columns=[
-                "order_id", "symbol", "side", "order_type",
-                "quantity", "filled_quantity", "price", "status", "tx_date", "tx_time"
-            ])
-
-        df = pd.DataFrame(records)
-        for col in ("quantity", "filled_quantity"):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
-        if "price" in df.columns:
-            df["price"] = pd.to_numeric(df["price"], errors="coerce").astype("float64")
-        for col in ("side", "order_type", "status"):
-            if col in df.columns:
-                df[col] = df[col].astype("category")
-        return df
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/orders/history."""
+        _raise_removed("get_erebos_v2_orders_history")
 
     def get_erebos_v2_orders_matching(
         self,
@@ -649,52 +363,8 @@ class TCBSAccountService:
         size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/orders/matching
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            from_date: Ngày bắt đầu (YYYY-MM-DD).
-            to_date: Ngày kết thúc (YYYY-MM-DD).
-            page: Trang (0-based).
-            size: Số lượng mỗi trang.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                order_id, trade_id, symbol, side (category),
-                quantity (Int64), price (float64),
-                fee (float64), tx_date (str), tx_time (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_orders_matching"].format(accountNo=account_no)
-        params: dict = {"page": page, "size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-
-        data = self._get(path, params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
-        if not records:
-            return pd.DataFrame(columns=[
-                "order_id", "trade_id", "symbol", "side",
-                "quantity", "price", "fee", "tx_date", "tx_time"
-            ])
-
-        df = pd.DataFrame(records)
-        if "quantity" in df.columns:
-            df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").astype("Int64")
-        for col in ("price", "fee"):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        if "side" in df.columns:
-            df["side"] = df["side"].astype("category")
-        return df
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/orders/matching."""
+        _raise_removed("get_erebos_v2_orders_matching")
 
     def get_erebos_v2_withdraw_history(
         self,
@@ -705,48 +375,8 @@ class TCBSAccountService:
         size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/withdraw
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            from_date: Ngày bắt đầu (YYYY-MM-DD).
-            to_date: Ngày kết thúc (YYYY-MM-DD).
-            page: Trang (0-based).
-            size: Số lượng mỗi trang.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                withdraw_id, account_no, amount (float64),
-                bank_account (str), status (category),
-                tx_date (str), tx_time (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_withdraw"].format(accountNo=account_no)
-        params: dict = {"page": page, "size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-
-        data = self._get(path, params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
-        if not records:
-            return pd.DataFrame(columns=[
-                "withdraw_id", "account_no", "amount", "bank_account", "status", "tx_date", "tx_time"
-            ])
-
-        df = pd.DataFrame(records)
-        if "amount" in df.columns:
-            df["amount"] = pd.to_numeric(df["amount"], errors="coerce").astype("float64")
-        if "status" in df.columns:
-            df["status"] = df["status"].astype("category")
-        return df
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/withdraw."""
+        _raise_removed("get_erebos_v2_withdraw_history")
 
     def get_erebos_v2_deposit_history(
         self,
@@ -757,48 +387,8 @@ class TCBSAccountService:
         size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/deposit
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            from_date: Ngày bắt đầu (YYYY-MM-DD).
-            to_date: Ngày kết thúc (YYYY-MM-DD).
-            page: Trang (0-based).
-            size: Số lượng mỗi trang.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                deposit_id, account_no, amount (float64),
-                bank_account (str), status (category),
-                tx_date (str), tx_time (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_deposit"].format(accountNo=account_no)
-        params: dict = {"page": page, "size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-
-        data = self._get(path, params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
-        if not records:
-            return pd.DataFrame(columns=[
-                "deposit_id", "account_no", "amount", "bank_account", "status", "tx_date", "tx_time"
-            ])
-
-        df = pd.DataFrame(records)
-        if "amount" in df.columns:
-            df["amount"] = pd.to_numeric(df["amount"], errors="coerce").astype("float64")
-        if "status" in df.columns:
-            df["status"] = df["status"].astype("category")
-        return df
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/deposit."""
+        _raise_removed("get_erebos_v2_deposit_history")
 
     def get_erebos_v2_dividend_history(
         self,
@@ -809,46 +399,8 @@ class TCBSAccountService:
         size: int = 50,
         raw: bool = False,
     ) -> Union[pd.DataFrame, dict]:
-        """
-        GET /erebos/v2/accounts/{accountNo}/dividend
-
-        Args:
-            account_no: Số tiểu khoản 10 chữ số.
-            from_date: Ngày bắt đầu (YYYY-MM-DD).
-            to_date: Ngày kết thúc (YYYY-MM-DD).
-            page: Trang (0-based).
-            size: Số lượng mỗi trang.
-            raw: True → trả về dict nguyên gốc.
-
-        Returns:
-            DataFrame columns (raw=False):
-                symbol, dividend_type (str), ratio (float64),
-                amount (float64), ex_date (str), payment_date (str)
-        """
-        _validate_account_no(account_no)
-        path = _PATHS["erebos_v2_dividend"].format(accountNo=account_no)
-        params: dict = {"page": page, "size": size}
-        if from_date:
-            params["fromDate"] = from_date
-        if to_date:
-            params["toDate"] = to_date
-
-        data = self._get(path, params=params)
-
-        if raw:
-            return data
-
-        records = data.get("data", []) if isinstance(data, dict) else data
-        if not records:
-            return pd.DataFrame(columns=[
-                "symbol", "dividend_type", "ratio", "amount", "ex_date", "payment_date"
-            ])
-
-        df = pd.DataFrame(records)
-        for col in ("ratio", "amount"):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-        return df
+        """ĐÃ GỠ — /erebos/v2/accounts/{accountNo}/dividend."""
+        _raise_removed("get_erebos_v2_dividend_history")
 
     # ── Internal HTTP ────────────────────────────────────────────────────────
 

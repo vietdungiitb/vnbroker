@@ -8,7 +8,9 @@
 
 ## 1. Tóm Tắt (Executive Summary)
 Quá trình kiểm tra kết nối với hệ thống TCBS bằng API Key và mã OTP do người dùng cung cấp đã làm rõ cơ chế xác thực mới của hệ sinh thái TCBS.
-* **API Key hiện tại hoàn toàn hợp lệ**: API Key cấu hình trong `.env` (`10000928344-488b082e-...`) được gateway TCBS nhận diện đúng và chấp nhận quy trình đổi Token (Token Exchange).
+* **API Key hiện tại hoàn toàn hợp lệ**: API Key cấu hình trong `.env` được gateway TCBS nhận diện đúng và chấp nhận quy trình đổi Token (Token Exchange).
+  > 🔒 **[ĐÃ XOÁ 2026-10-09]** Bản gốc chứa trực tiếp tiền tố của khóa API. Khóa không bao giờ được ghi vào tài liệu — xem `.env` (`TCBS_AUTH_TOKEN`).
+  > **Xác minh lại không cần lộ khóa:** `POST /gaia/v1/oauth2/openapi/apikey/info` với body `{"apiKey": <giá trị từ .env>}` trả `200 {"expireDate": "..."}` nếu khóa hợp lệ, và `400 {"code":"203033","message":"Invalid OTP"}` khi thay OTP sai — hai phản hồi này chứng minh khóa được chấp nhận mà không cần in nó ra.
 * **Domain cũ `apiextaws.tcbs.com.vn` không dùng được với OpenAPI**: Toàn bộ các API market data trên domain cũ của explorer lane (như `/futures-insight` và `/stock-insight`) trả về lỗi **`401 Unauthorized - RSA signature did not verify`** khi sử dụng JWT của OpenAPI. Cần thực hiện deprecate.
 * **Cổng OpenAPI chính thức `openapi.tcbs.com.vn` hoạt động tốt**: Các API dữ liệu thị trường thuộc layer Broker/Market chính thức hoạt động ổn định và trả về dữ liệu chuẩn (HTTP 200).
 
@@ -19,7 +21,8 @@ Quá trình kiểm tra kết nối với hệ thống TCBS bằng API Key và m�
 ### 2.1. Quy trình Xác Thực & Cấp JWT (Token Exchange Flow)
 Quy trình gửi request tới endpoint xác thực:
 * **Endpoint:** `POST https://openapi.tcbs.com.vn/gaia/v1/oauth2/openapi/token`
-* **Payload:** `{"apiKey": "<VNBROKER_BROKER_TCBS_API_KEY>", "otp": "151728"}`
+* **Payload:** `{"apiKey": "<VNBROKER_BROKER_TCBS_API_KEY>", "otp": "<mã Smart OTP từ app TCInvest>"}`
+  > 🔒 **[ĐÃ XOÁ 2026-10-09]** Bản gốc chứa một mã OTP thật. OTP là giá trị **một lần và ngắn hạn**, không dùng lại được — nhưng vẫn không nên ghi vào tài liệu.
 * **Kết quả:** `HTTP 200 OK`
 * **JWT Payload Phân tích:**
   ```json

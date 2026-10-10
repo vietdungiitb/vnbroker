@@ -10,10 +10,71 @@ Module này cho phép:
 - Liệt kê tất cả available providers
 """
 
-from typing import Dict, Tuple, Type, List, Optional
+from typing import Any, Dict, Tuple, Type, List, Optional
 from logging import getLogger
 
 logger = getLogger(__name__)
+
+# --------------------------------------------------------------------------
+# Lazy discovery (T1)
+#
+# Providers self-register as an *import side effect* of their module
+# (``vnbroker/explorer/<source>/<module>.py`` bottom line). Nothing reachable
+# from ``import vnbroker`` imports those modules, so the registry stayed
+# empty until some unrelated code happened to touch ``explorer/*`` first.
+# ``get()`` then raised ``ValueError`` for perfectly valid providers, which is
+# what silently emptied the bulk path.
+#
+# ``_auto_loaded`` memoises what the loader discovered so a later ``clear()``
+# (tests) is repaired on the next lookup instead of staying broken forever —
+# re-running the loader would not help, ``sys.modules`` caches the modules and
+# their bottom-line ``register()`` calls would not execute a second time.
+# --------------------------------------------------------------------------
+_auto_loaded: Dict[Tuple[str, str], Type[Any]] = {}
+_load_attempted = False
+_loading = False
+
+
+def _ensure_providers_loaded() -> None:
+    """Import the provider packages so their ``register()`` calls run.
+
+    Uses the same lazy loader ``vnbroker.api.quote.Quote.__init__`` already
+    uses, so the explorer module list stays owned by ``vnbroker/__init__.py``.
+    """
+    global _load_attempted, _loading
+    if _loading:
+        # Re-entrant call while the loader is running: the registry is being
+        # filled right now, a nested lookup must not recurse.
+        return
+
+    if _auto_loaded:
+        # Heal a ``clear()`` without clobbering deliberate overrides.
+        for key, provider_class in _auto_loaded.items():
+            ProviderRegistry._registry.setdefault(key, provider_class)
+        return
+
+    if _load_attempted:
+        return
+
+    import vnbroker as _vnbroker
+
+    loader = getattr(_vnbroker, "_ensure_explorer_modules_loaded", None)
+    if loader is None:
+        # ``vnbroker`` is still executing its own ``__init__`` (this lookup
+        # came from a module it imports). Leave ``_load_attempted`` False so
+        # the next call retries once the loader exists.
+        return
+
+    _load_attempted = True
+    _loading = True
+    try:
+        loader()
+    except Exception as exc:  # pragma: no cover - loader swallows its own
+        logger.debug("Lazy provider discovery failed: %s", exc)
+    finally:
+        _loading = False
+
+    _auto_loaded.update(ProviderRegistry._registry)
 
 
 class ProviderRegistry:
@@ -79,6 +140,8 @@ class ProviderRegistry:
         key = (provider_type, source_name.lower())
         
         if key not in cls._registry:
+            _ensure_providers_loaded()
+        if key not in cls._registry:
             available = cls.list_available(provider_type)
             raise ValueError(
                 f"Provider '{provider_type}/{source_name}' not found. "
@@ -98,6 +161,7 @@ class ProviderRegistry:
         Returns:
             List[str]: Danh sách source names (sắp xếp)
         """
+        _ensure_providers_loaded()
         names = sorted({
             source for ptype, source in cls._registry
             if ptype == provider_type
@@ -112,6 +176,7 @@ class ProviderRegistry:
         Returns:
             Dict[str, List[str]]: {provider_type: [source_names]}
         """
+        _ensure_providers_loaded()
         result: Dict[str, List[str]] = {}
         for ptype, source in cls._registry:
             if ptype not in result:
@@ -137,12 +202,17 @@ class ProviderRegistry:
             bool: True nếu provider được register
         """
         key = (provider_type, source_name.lower())
+        if key not in cls._registry:
+            _ensure_providers_loaded()
         return key in cls._registry
     
     @classmethod
     def clear(cls) -> None:
         """
         Clear tất cả registered providers. Chủ yếu dùng cho testing.
+
+        Lookup sau ``clear()`` vẫn tự nạp lại các provider đã auto-discover
+        (xem ``_ensure_providers_loaded``).
         """
         cls._registry.clear()
         logger.debug("Registry cleared")

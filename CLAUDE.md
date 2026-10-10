@@ -1,5 +1,17 @@
 # vnbroker - Project Instructions
 
+> ⚠ **ĐỌC TRƯỚC MỌI VIỆC — repo này nối tài khoản chứng khoán thật.**
+> Nạp skill [`project-lessons`](.opencode/skills/project-lessons/SKILL.md) **trước khi**
+> lập kế hoạch / khai claim / sửa dòng code đầu tiên. Skill chỉ đọc 1–2 nhóm lesson theo
+> tag (không đọc hết) và trả về `MANDATORY CHECKLIST` phải được tick.
+> - Chạm `vnbroker/broker/**`, `money`, `write`, `token`, `order`, `tcbs`
+>   → **luôn** nạp [`docs/LESSONS/broker-risk.md`](docs/LESSONS/broker-risk.md).
+> - Đo lường, bằng chứng, spec, gate → [`docs/LESSONS/evidence.md`](docs/LESSONS/evidence.md).
+> - Chia việc, worktree, claim, ngân sách dòng → [`docs/LESSONS/process.md`](docs/LESSONS/process.md).
+>
+> Mọi plan phải có dòng `Lessons áp dụng: [L-...]` hoặc `Lessons áp dụng: NONE - <lý do>`.
+> Cổng gate: `.venv\Scripts\python.exe scripts\check_lessons.py` (chạy trong `check_all.ps1`).
+
 ## Tech Stack
 - Language: Python 3.10+
 - Core: requests, pandas, beautifulsoup4, pydantic, tenacity
@@ -18,19 +30,60 @@
 ## Architecture: Direct Provider Architecture (v3.0+)
 
 ### Core Principles
-- **Two-tier data model (v3.5.0)**:
+- **Two-tier data model (v3.6.0)**:
   - **Tier 1 — anonymous market data.** User does NOT pick a provider; the system
     prefers the most stable one and rotates on rate-limit / connection loss.
     Enable with `Market(auto=True)` or `Vnbroker(source="AUTO")`. Failover covers
     `history`, `intraday`, `price_depth`. Default stays `"KBS"` for compatibility.
-    Providers: VCI, KBS (no auth required) — measured 3 and 6 auth refs vs SSI 117.
+    Providers: VCI, KBS (no auth required), **plus TCBS and DNSE when their
+    credentials are present in `.env`** — Owner decision 2026-10-10: both now
+    serve public market data on equal footing and must not be excluded.
+    ⚠ Auto-detection was **broken until 2026-10-10**, three separate ways, all
+    measured and all fixed: (a) `get_auto_candidates()` used a hardcoded list, so
+    `screener` returned `[]` while the registry had `kbs`/`vci`; (b)
+    `ProviderPool` demanded `TCBS_API_SECRET`, a variable that exists nowhere in
+    production; (c) `explorer/tcbs/auth.py` read only `TCBS_AUTH_TOKEN` (a 48-char
+    non-JWT that the server rejects with HTTP 401) and never read
+    `TCBS_JWT_TOKEN` (a real 1290-char JWT that returns HTTP 200).
+    Gate: `scripts/check_provider_consistency.py` (+ `--self-test`).
+    See `docs/REPORT_TIER1_WAVE12.md` and `docs/PLAN_TIER1_WAVE12_EXECUTION.md`.
+    ⚠ **DNSE is not verified working.** Measured 2026-10-10: the TLS handshake to
+    `openapi.dnse.com.vn` **times out** from this host, so every DNSE market-data
+    call raises `ConnectionResetError(10054)`. It may serve traffic as a candidate
+    in `AUTO` only because the router health-checks first; never describe DNSE as
+    "stable" without a fresh measurement.
+    ⚠ **TCBS `intraday()` carries no buy/sell side.** Measured 2026-10-10 against
+    `/nyx/v1/intraday/TCB/his/paging`: every record has `"a": ""`, so
+    `match_type` is `unknown` for **all** rows while KBS/VCI give `Buy`/`Sell`.
+    This is the server, not the mapping — `""` → `unknown` is the documented
+    canonical value. If `AUTO` selects TCBS for `intraday`, expect a
+    `match_type`-less result; prefer KBS/VCI for buy/sell analysis.
   - **Tier 2 — personalized broker data.** Provider is chosen EXPLICITLY, each
     broker keeps its own OpenAPI shape (SSI RSA/ConsumerID + fixed IP, TCBS API
     Key + OTP, DNSE HMAC). Do NOT force these behind one interface.
   - Contract enforced by `tests/contract/`: all anonymous providers must return
     the same schema (`time` tz-aware `Asia/Ho_Chi_Minh`, required columns, no rows
-    outside `[start, end]`). `_normalize_quote_result` in `common/data.py` is the
-    single enforcement point.
+    outside `[start, end]`).
+    **Single enforcement point: `vnbroker/core/utils/normalizer.py::Normalizer`.**
+    Three defects made this false until 2026-10-10, all fixed and all now locked
+    by `tests/contract/test_normalizer_contract.py`:
+    1. *Two copies* of the normalizer (`core/utils/normalizer.py` and
+       `common/data.py::_normalize_quote_result`) that could drift apart.
+       `common/data.py` now delegates — it is a call site, not an implementation.
+    2. *`api/quote.py` bypassed both* (and `api/bulk.py` `pd.concat`-ed raw
+       frames). Both now route through `Normalizer`.
+    3. *tz-aware was not enough.* pandas ≥2 keeps the source **unit**, so KBS
+       returned `datetime64[us, Asia/Ho_Chi_Minh]` and VCI
+       `datetime64[s, Asia/Ho_Chi_Minh]`. Both are tz-aware; `pd.concat` of the
+       two live frames still produced `dtype=object`, silently breaking every
+       downstream time operation. The Normalizer now casts to one unit,
+       `datetime64[ns, Asia/Ho_Chi_Minh]`.
+    4. *`match_type` was not normalized.* `process_match_types`
+       (`core/utils/transform.py`) already maps every provider spelling to
+       `Buy`/`Sell`/`unknown`, but `explorer/kbs/quote.py` called `.str.lower()`
+       on the next line and undid it — so `df[df.match_type == "Buy"]` returned
+       **0 rows from KBS** and 67 from VCI for the same session.
+    Tracking: `docs/REPORT_TIER1_WAVE12.md`, `docs/PLAN_TIER1_WAVE12_EXECUTION.md`.
 - **No PAT/Gateway**: Direct access to provider APIs (VCI, KBS, TCBS, DNSE)
 - **Adapter Pattern**: `BaseAdapter` with dynamic method delegation to provider-specific explorers
 - **Provider Registry**: Centralized provider discovery via `ProviderRegistry`
@@ -260,6 +313,31 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
    (no `print(`, no `core.utils.client` import in explorers, no secrets in logs) —
    **record the substitution in the PR so CI runs the real gates**.
 
+## Gates — 1 lệnh, và đừng đọc CI
+
+```bash
+pwsh -File scripts/check_all.ps1            # tất cả gate, exit code thật
+pwsh -File scripts/check_all.ps1 -Quick     # bỏ pytest toàn bộ (~3 phút)
+pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate đỏ
+```
+
+> ⚠ **GitHub Actions của repo này KHÔNG chạy** — job bị từ chối khởi động do billing
+> (`"spending limit needs to be increased"`; mọi job có `steps: []`, `duration_ms` 2–3s).
+> Lần chạy thành công cuối: **2026-10-02**. Từ đó tới `22d3d0a` có **74 commit** merge
+> mà không gate nào chạy. **Badge CI không phải bằng chứng — job chưa bao giờ chạy.**
+> Chạy `check_all.ps1`. Script in rõ *"CI GITHUB ACTIONS: CHUA CHAY"* ở cuối mỗi lần chạy.
+
+> ⚠ **`mypy vnbroker --strict` ở dòng 255 là NO-OP.** Cả `mypy vnbroker` và
+> `mypy vnbroker --strict` đều cho **1207 lỗi y hệt** — `strict = true` trong
+> `[[tool.mypy.overrides]]` bị mypy nâng thành global dù comment trong `pyproject.toml`
+> ghi ngược lại. Gate thật của type-check là `scripts/check_mypy_baseline.py`
+> (so với baseline, chỉ fail lỗi MỚI). **Đừng ghi "strict PASS" trong báo cáo nào.**
+
+> Mốc thực trạng đã đo (2026-10-09): `pytest tests/` **1414 passed, 30 skipped** (exit 0) ·
+> `pytest tests/contract` **72 passed** (exit 0) · `ruff check vnbroker tests/unit tests/contract`
+> exit 0 · `ruff check tests` **13 lỗi có sẵn** (exit 1, gate KNOWN-RED) · `mypy vnbroker`
+> **1207 lỗi** (exit 1).
+
 ## Common Patterns
 
 ### Adding New Provider
@@ -278,7 +356,7 @@ pytest tests/unit/broker/tcbs/test_order_write_flow.py -v
 - Version defined in `pyproject.toml` (single source of truth)
 - `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
 - Upgrade notice checks GitHub release tags (not PyPI)
-- Current version: **3.5.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
+- Current version: **3.6.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
 - Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
 
 ## Deprecated/Removed (v3.1.0)

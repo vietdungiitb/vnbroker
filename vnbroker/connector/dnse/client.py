@@ -21,11 +21,12 @@ class DNSEClient:
         api_key: str,
         api_secret: str,
         base_url: str = "https://openapi.dnse.com.vn",
-        api_version: str = "2026-05-07",
+        api_version: str = "2026-07-23",
         algorithm: str = "hmac-sha256",
         hmac_nonce_enabled: bool = True,
         timeout_seconds: float = 30.0,
         show_log: bool = False,
+        write_enabled: bool = False,
     ):
         self._config = DNSEConfig(
             api_key=api_key,
@@ -37,12 +38,28 @@ class DNSEClient:
             timeout_seconds=timeout_seconds,
             show_log=show_log,
         )
-        self._http = DNSEHttpClient(self._config)
+        # `write_enabled` is off by default and enforced inside
+        # `DNSEHttpClient.request`, the one place every request passes through.
+        self._http = DNSEHttpClient(self._config, write_enabled=write_enabled)
         self._account = AccountService(self._http)
         self._market = MarketService(self._http)
         self._order = OrderService(self._http)
         self._position = PositionService(self._http)
         self._token = TokenService(self._http)
+
+    def enable_write(self, enabled: bool = True) -> None:
+        """Allow (or forbid) state-changing requests.
+
+        Required before ``post_order``, ``put_order``, ``cancel_order``,
+        ``replace_order``, ``close_position`` or ``create_trading_token``
+        actually reaches the provider. Reads and ``dry_run=True`` need no
+        permission.
+
+        Example:
+            >>> client.enable_write()
+            >>> client.post_order("STOCK", payload, trading_token)
+        """
+        self._http.enable_write(enabled)
 
     @staticmethod
     def _to_dataframe(payload: Any):
@@ -59,7 +76,21 @@ class DNSEClient:
             ):
                 value = payload.get(key)
                 if isinstance(value, list):
-                    return pd.json_normalize(value)
+                    df = pd.json_normalize(value)
+                    # The envelope's scalar siblings describe who the caller is,
+                    # not what is in the list. Unwrapping dropped them silently -
+                    # verified live on the sandbox: `get_accounts()` returned
+                    # name / custodyCode / investorId at the top level and none of
+                    # the three survived into the DataFrame. Repeat them on every
+                    # row instead; a column per envelope, not per list item.
+                    for sibling, scalar in payload.items():
+                        if sibling == key or scalar is None:
+                            continue
+                        if isinstance(scalar, (list, dict)):
+                            continue
+                        if sibling not in df.columns:
+                            df[sibling] = scalar
+                    return df
             return pd.json_normalize(payload)
         return payload
 
@@ -337,6 +368,179 @@ class DNSEClient:
     def get_ohlc(self, bar_type: str, query: dict | None = None, dry_run: bool = False, raw: bool = False):
         return self._resolve_output(
             self._market.get_ohlc(bar_type=bar_type, query=query, dry_run=dry_run),
+            raw=raw,
+        )
+
+    # --- Đợt 1 `docs/PLAN_DNSE_API_PARITY.md` ---------------------------------
+    # 7 method read-only port từ SDK `dnse-tech/openapi-sdk`
+    # (`python/dnse/api/client.py`). Tất cả là GET ⇒ không chạm write gate.
+    # Path đã đối chiếu source SDK, xem `tests/.../test_market_data_read_methods.py`.
+
+    def get_quotes(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Nội giá (Lớp A). Cảnh báo `bid[].qtty` — xem NORMALISATION_POLICY §3.1."""
+        return self._resolve_output(
+            self._market.get_quotes(
+                symbol=symbol,
+                board_id=board_id,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_latest_quote(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Báo giá mới nhất (Lớp A)."""
+        return self._resolve_output(
+            self._market.get_latest_quote(
+                symbol=symbol, board_id=board_id, dry_run=dry_run
+            ),
+            raw=raw,
+        )
+
+    def get_expected_price(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Giá kỳ vọng (Lớp A)."""
+        return self._resolve_output(
+            self._market.get_expected_price(
+                symbol=symbol,
+                board_id=board_id,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_foreign_trading(
+        self,
+        symbol: str,
+        board_id: str | None = None,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Giao dịch nước ngoài (Lớp B — giữ nguyên định dạng DNSE)."""
+        return self._resolve_output(
+            self._market.get_foreign_trading(
+                symbol=symbol,
+                board_id=board_id,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_market_index(
+        self,
+        index_name: str,
+        from_date: int | None = None,
+        to_date: int | None = None,
+        limit: int | None = None,
+        order: str | None = None,
+        next_page_token: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Chỉ số thị trường (Lớp A). Tham số là `index_name`, không phải `symbol`."""
+        return self._resolve_output(
+            self._market.get_market_index(
+                index_name=index_name,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                order=order,
+                next_page_token=next_page_token,
+                dry_run=dry_run,
+            ),
+            raw=raw,
+        )
+
+    def get_trades_volume_profile(
+        self,
+        symbol: str,
+        time: int,
+        board_id: str | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Phân bổ khối lượng theo giá (Lớp A). `time` bắt buộc, theo SDK."""
+        return self._resolve_output(
+            self._market.get_trades_volume_profile(
+                symbol=symbol, time=time, board_id=board_id, dry_run=dry_run
+            ),
+            raw=raw,
+        )
+
+    def get_loans(
+        self,
+        account_no: str,
+        market_type: str,
+        disbursement_from: int | None = None,
+        disbursement_to: int | None = None,
+        due_date_from: int | None = None,
+        due_date_to: int | None = None,
+        position_id: int | None = None,
+        page_index: int | None = None,
+        page_size: int | None = None,
+        dry_run: bool = False,
+        raw: bool = False,
+    ) -> Any:
+        """Khoản vay (Lớp B — giữ nguyên định dạng DNSE)."""
+        return self._resolve_output(
+            self._account.get_loans(
+                account_no=account_no,
+                market_type=market_type,
+                disbursement_from=disbursement_from,
+                disbursement_to=disbursement_to,
+                due_date_from=due_date_from,
+                due_date_to=due_date_to,
+                position_id=position_id,
+                page_index=page_index,
+                page_size=page_size,
+                dry_run=dry_run,
+            ),
             raw=raw,
         )
 

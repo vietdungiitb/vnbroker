@@ -49,7 +49,16 @@ class BrokerSession:
 
     # Configuration
     TOKEN_REFRESH_BUFFER_SECONDS: int = 300  # Refresh 5 min before expiry
-    SESSION_TIMEOUT_SECONDS: int = 28800  # 8 hours default
+    # ⚠ KHÔNG nhầm với hạn token. Đây là **timeout nhàn rỗi** của session.
+    # Hạn token thật đến từ claim `exp` của JWT (`auth.py::_store_token`).
+    # Con số 28800 từng bị hiểu là "JWT sống 8 giờ" — **SAI**, đo được 24 giờ.
+    SESSION_TIMEOUT_SECONDS: int = 28800  # 8 giờ nhàn rỗi (không phải hạn token)
+
+    #: Hạn JWT TCBS **ĐO ĐƯỢC** 2026-10-10 từ token thật trong `.env`:
+    #: `exp - iat = 86400s = 24.0 giờ`. Tài liệu cũ ghi "~8 giờ" — sai.
+    #: CHỈ dùng làm **fallback** khi JWT không có claim `exp`; không bao giờ
+    #: định nghĩa hạn token. Xem `docs/evidence/tcbs-probe-20261010.json`.
+    TCBS_JWT_TTL_SECONDS: int = 86400  # 24 giờ (đo, không phải ước lượng)
 
     def __post_init__(self):
         if isinstance(self.state, str):
@@ -73,14 +82,27 @@ class BrokerSession:
             self.state = SessionState.AUTHENTICATING
             self.update_activity()
 
-    def set_token(self, token: str, expires_at: Optional[datetime] = None, expires_in_seconds: int = 28800) -> None:
+    def set_token(
+        self,
+        token: str,
+        expires_at: Optional[datetime] = None,
+        expires_in_seconds: int = 86400,
+    ) -> None:
         """
         Set authenticated state with token.
 
         Args:
             token: JWT token
             expires_at: Explicit expiration datetime (takes precedence over expires_in_seconds)
-            expires_in_seconds: Token validity in seconds (default 8 hours)
+            expires_in_seconds: Token validity in seconds. **Default 86400 (24h)** —
+                đo được từ JWT TCBS thật (`exp - iat`, 2026-10-10). Trước đây là
+                28800 (8h) do **ước lượng từ tài liệu**, thấp hơn thực tế một
+                nửa: token còn hiệu lực vẫn bị coi là hết hạn sớm.
+
+        ⚠ `expires_in_seconds` chỉ là **fallback**. Đường thật là `expires_at`
+        lấy từ claim `exp` (xem `broker/tcbs/auth.py::_store_token`). Còn khi
+        không có `exp` thì `is_token_expired()` coi token là **đã hết hạn**
+        (fail-closed) — con số này không thay thế được việc đó.
         """
         with self._lock:
             self._token = token

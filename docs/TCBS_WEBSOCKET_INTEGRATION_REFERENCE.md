@@ -66,7 +66,7 @@ Content-Type: application/json
 }
 ```
 
-**Token validity:** ~8 hours từ thời điểm cấp.
+**Token validity:** ~**24 giờ** (đo được 2026-10-10 từ JWT thật: `exp - iat = 86400s`) từ thời điểm cấp.
 
 **Usage:**
 ```
@@ -474,7 +474,7 @@ asyncio.run(main())
 
 ### 10.3 JWT Token Expiry
 
-**Issue:** JWT tokens expire after ~8 hours.
+**Issue:** JWT tokens expire after ~**24 giờ** (đo được 2026-10-10 từ JWT thật: `exp - iat = 86400s`).
 
 **Workaround:**
 - Implement automatic token refresh

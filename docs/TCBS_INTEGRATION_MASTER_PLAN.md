@@ -1,5 +1,28 @@
 # TCBS Integration Master Plan
 
+<!-- TRẠNG THÁI ĐỐI CHIẾU — WP-PLAN-CLEANUP-01, 2026-10-07 -->
+
+> ## ⚠️ Trạng thái đối chiếu (2026-10-07) — KHÔNG đọc các ô `[ ]` bên dưới như việc còn dở
+>
+> File ghi *"Chờ phê duyệt trước khi code"* (2026-05-19). TCBS broker lane **đã
+> được triển khai** (v3.3.0+, TCBS iFlash OpenAPI v1.0.0).
+>
+> **Đã xác minh bằng lệnh — XONG:**
+> `vnbroker/broker/registry.py` (BrokerRegistry) · env `VNBROKER_BROKER_TCBS_*` được
+> đọc ở 5 file · state machine `SessionState` có đủ
+> `authenticating`/`authenticated_write_enabled`/`expired`/`locked` ·
+> `write_gate` decorator (`vnbroker/broker/security/guards.py`) · `dry_run` xuất
+> hiện ở 18 file trong `vnbroker/broker/` · `Vnbroker.broker()` là instance method
+> gọi được · `vnbroker/explorer/tcbs/websocket.py` · `vnbroker/broker/tcbs/derivatives.py` ·
+> `vnbroker/broker/tcbs/portfolio.py` · `pytest tests/unit/broker/tcbs
+> tests/unit/api/test_tcbs_auth_token.py tests/unit/explorer/test_provider_api_compatibility.py`
+> → **318 passed**.
+>
+> **CHƯA XÁC MINH TỪNG DÒNG:** các tiêu chí dạng "Có tests cho empty / partial /
+> permission-denied / expired-session" và "Audit file + module tree cập nhật đầy
+> đủ" — cần rà riêng, chưa đối chiếu từng mục.
+
+
 > Mục tiêu: kế hoạch thực hiện chi tiết để đội code hoặc AI agent khác có thể triển khai TCBS-primary mà không hỏi lại context.
 >
 > Trạng thái: Chờ phê duyệt trước khi code.

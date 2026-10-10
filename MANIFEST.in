@@ -1,0 +1,28 @@
+# Kiểm soát nội dung sdist một cách TẤT ĐỊNH.
+#
+# Lý do tồn tại: setuptools ghi bộ chọn file vào `vnbroker.egg-info/SOURCES.txt`
+# và các lần build sau chỉ ĐỌC LẠI file đó. Nếu cây làm việc có file rác chưa
+# dọn (ví dụ `docs/debug_quote.py`, `docs/login_tcbs.py` — đều đã gitignore),
+# glob của egg_info nhặt chúng vào SOURCES.txt, và từ đó chúng đi vào MỌI sdist
+# sau này cho tới khi egg-info bị xoá. Đo được: sdist build trên cây sạch =
+# 0 file `docs/`, trên cây bẩn = 13 file `docs/*.py`.
+#
+# Các dòng `prune`/`global-exclude` dưới đây là subtractive nên không đổi nội
+# dung sdist của một cây sạch; chúng chỉ chặn rác đi vào từ cây bẩn.
+#
+# Cổng chặn: scripts/check_dist_contents.py (chạy trong .github/workflows/publish.yml).
+
+# docs/ không thuộc sdist (trên cây sạch vốn đã không có).
+prune docs
+
+# Rác dev chỉ tồn tại ở cây làm việc, không bao giờ được phát hành.
+global-exclude debug_*.py
+global-exclude login_*.py
+global-exclude smoke_test_*.py
+global-exclude regression_test.py
+global-exclude test_with_jwt.py
+global-exclude *.jwt
+global-exclude .env
+global-exclude .env.*
+global-exclude *.sqlite3
+global-exclude *.db

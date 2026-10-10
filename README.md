@@ -2,7 +2,11 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.6.0** — Hợp đồng dữ liệu tầng 1: **mọi provider trả cùng một schema**. Sửa 3 lỗi đang sai âm thầm: `match_type` lệch casing giữa provider (`df[df.match_type=='Buy']` trả **0 dòng** từ KBS, 67 từ VCI), cột `time` lệch đơn vị lưu trữ khiến `pd.concat` ra `object`, và `market_cap` phóng đại **1000 lần**. Nối TCBS vào `AUTO` và thêm cổng `check_provider_consistency.py`. ⚠️ Có **Breaking changes** (xem [Phiên bản 3.6.0](#phiên-bản-360-2026-10-10--hợp-đồng-dữ-liệu-tầng-1)).
+>
 > **v3.5.0** — Kiến trúc hai tầng: dữ liệu thị trường ẩn danh (`auto=True`) tự chọn và xoay vòng provider; broker chọn provider tường minh. Kèm chặn double-submit lệnh SSI + hàng rào `dry_run` cho `connector/dnse`. ⚠️ Có **Breaking changes** (xem [Breaking Changes 3.5.0](#phiên-bản-350--2026-10-02--kiến-trúc-hai-tầng--an-toàn-đường-giao-dịch)) — `history()` trả `time` tz-aware.
+>
+> **Độc lập hoàn toàn từ v3.5.0:** `vnbroker` không phải fork hay phụ thuộc bất kỳ dự án ngoại nào. Mọi kiến trúc, bản quyền và mã nguồn được phát triển nội bộ từ đầu (`Direct Provider Architecture` — tầng 1 dữ liệu ẩn danh, tầng 2 broker lane). Xem `docs/PLAN_CLEAR_VNSTOCK_REFERENCES.md` để biết chi tiết các tham chiếu cũ đã được xóa sạch.
 
 ## Tóm tắt
 
@@ -14,7 +18,7 @@ vnbroker cung cấp một lớp truy cập thống nhất để lấy dữ liệ
 
 | Thành phần | Mục đích |
 | --- | --- |
-| `Vnbroker` | Client cấp cao để lấy stock, FX, crypto, world index và quỹ (Direct Providers) |
+| `Vnbroker` | Client cấp cao để lấy stock, crypto (Binance), quỹ và Retail (FX/world index chưa hỗ trợ) |
 | `Quote` | Giá lịch sử, intraday, price depth (Multi-Source) |
 | `Company` | Hồ sơ công ty, cổ đông, giao dịch nội bộ, ban lãnh đạo, công ty con, tin tức và sự kiện |
 | `Finance` | Bảng cân đối kế toán, kết quả kinh doanh, lưu chuyển tiền tệ, chỉ số tài chính |
@@ -66,9 +70,21 @@ ohlc = ssi.get_ohlc("SSI", timeframe="1d")
 pip install -U vnbroker
 ```
 
+[![PyPI](https://img.shields.io/pypi/v/vnbroker)](https://pypi.org/project/vnbroker/)
+[![Python](https://img.shields.io/pypi/pyversions/vnbroker)](https://pypi.org/project/vnbroker/)
+[![License](https://img.shields.io/pypi/l/vnbroker)](https://pypi.org/project/vnbroker/)
+
+Cài trực tiếp từ GitHub (bản `main`):
+
+```bash
+pip install "git+https://github.com/vietdungiitb/vnbroker.git@v3.6.0"
+```
+
 Phát triển cục bộ:
 
 ```bash
+git clone https://github.com/vietdungiitb/vnbroker.git
+cd vnbroker
 pip install -e ".[test]"
 ```
 
@@ -217,9 +233,11 @@ all_funds = funds.listing()
 | --- | --- | --- |
 | `DNSE_API_KEY` | DNSE API Key (HMAC OpenAPI) | `your_dnse_key` |
 | `DNSE_API_SECRET` | DNSE API Secret (HMAC OpenAPI) | `your_dnse_secret` |
-| `DNSE_USERNAME` | DNSE Username (JWT Trading) | `your_dnse_username` |
-| `DNSE_PASSWORD` | DNSE Password (JWT Trading) | `your_dnse_password` |
+| `DNSE_USERNAME` | DNSE Username (JWT Trading) — **CHƯA HỖ TRỢ**, code không đọc | `your_dnse_username` |
+| `DNSE_PASSWORD` | DNSE Password (JWT Trading) — **CHƯA HỖ TRỢ**, code không đọc | `your_dnse_password` |
 | `VNBROKER_BROKER_TCBS_API_KEY` | TCBS OpenAPI Key cho Broker Lane (iFlash) | `your_tcbs_key` |
+
+> **Lưu ý:** `DNSE_USERNAME` và `DNSE_PASSWORD` dành cho phần DNSE JWT/Trading chưa implement; xem `docs/PUBLISHING.md` để biết trạng thái phát hành.
 
 ## Lưu ý quan trọng
 
@@ -227,7 +245,62 @@ all_funds = funds.listing()
 - **Broker Lane:** Gọi trực tiếp API Broker với API Key + OTP.
 - Dữ liệu giá được chuẩn hóa theo contract riêng; kiểm tra `df.attrs["price_unit"]` trước khi lưu hay so sánh.
 - Một số nguồn live có thể bị giới hạn tốc độ hoặc thay đổi phía upstream; adapter của thư viện có retry và backoff.
-- **FX/Crypto/World Index:** Không được hỗ trợ bởi các provider hiện tại (KBS, VCI, TCBS, DNSE). Các phương thức `fx()`, `crypto()`, `world_index()` sẽ raise `NotImplementedError` trong phiên bản tới.
+- **FX/World Index:** Không được hỗ trợ bởi các provider hiện tại (KBS, VCI, TCBS,
+  DNSE). `fx()` và `world_index()` raise `NotImplementedError`.
+  Riêng **`crypto()` đã hoạt động** từ v3.4 qua provider `BINANCE` (spot public,
+  không cần key).
+
+## Phiên bản 3.6.0 (2026-10-10) — Hợp đồng dữ liệu tầng 1
+
+Ba lỗi dưới đây **đang xảy ra với người dùng** và đều sai **âm thầm** — không
+ném lỗi, chỉ cho ra số sai. Toàn bộ số liệu dưới đây đo được trên dữ liệu thật
+(mã `TCB`, `VCB`, ngày 2026-10-10), trước và sau khi sửa.
+
+### Breaking Changes (3.6.0)
+
+1. **`match_type` dùng chung một tập giá trị.**
+   - **Trước:** KBS trả `'buy'/'sell'/'atc'`, VCI trả `'Buy'/'Sell'/'ATC'`.
+     `df[df.match_type == "Buy"]` trả **0 dòng** từ KBS và **67 dòng** từ VCI cho
+     cùng một phiên.
+   - **Sau:** mọi provider trả `{Buy, Sell, ATO, ATC, unknown}`.
+   - **Nếu bạn lọc `== 'buy'` (chữ thường): đổi thành `'Buy'`.**
+
+2. **`market_cap` của `MarketSnapshot` đúng bằng 1000 lần.**
+   - **Trước:** `heatmap_data()` / `heatmap_df()` nhân `×1000` khi `price_unit=None`
+     (mặc định), trong khi provider thật sự trả giá **VND**. VCB ra
+     `473 766 777.83` tỷ thay vì `473 766.78` tỷ.
+   - **Sau:** đơn vị giá đọc từ `df.attrs['price_unit']` do chính provider dán.
+   - **Nếu bạn tự nhân 1000 ở lớp trên: bỏ đi**, dữ liệu đã đúng.
+
+3. **Cột `time` có một đơn vị lưu trữ duy nhất: `datetime64[ns, Asia/Ho_Chi_Minh]`.**
+   - **Trước:** KBS `[us]` và VCI `[s]`; `pd.concat` hai frame cho **`object`** và
+     mọi phép tính thời gian hỏng mà không báo lỗi.
+   - **Sau:** cả hai về `[ns, Asia/Ho_Chi_Minh]`.
+   - **Nếu bạn so `dtype` cứng:** dùng `str(df['time'].dtype)`.
+
+### Thay đổi khác
+
+- **TCBS vào `source="AUTO"`** (nối **cuối**, sau VCI/KBS) khi có `TCBS_JWT_TOKEN`.
+  Trước đây nó không bao giờ vào AUTO dù có token hợp lệ. Dùng biến
+  `TCBS_JWT_TOKEN`; `TCBS_AUTH_TOKEN` **không phải JWT** và server trả
+  `401 validate.token.error`.
+- Cổng mới `scripts/check_provider_consistency.py` chạy trong `check_all.ps1`:
+  phát hiện ba danh sách provider lệch nhau trước khi chúng lệch.
+- `screener` không còn trả danh sách rỗng trong `AUTO`.
+- Thêm `tests/isolation.py`: test đơn vị không còn phụ thuộc `.env` của máy.
+
+### Biết trước
+
+- **TCBS `intraday()` không có thông tin mua/bán.** Server trả `"a": ""` cho mọi
+  bản ghi nên `match_type` là `unknown`; KBS/VCI vẫn có `Buy`/`Sell`. Nếu `AUTO`
+  chọn TCBS cho `intraday`, đó là kết quả đúng theo nguồn, không phải lỗi.
+- **DNSE chưa được xác nhận chạy được.** TLS handshake tới `openapi.dnse.com.vn`
+  timeout ở máy đo ngày 2026-10-10. Hãy đo lại trước khi kết luận.
+- **Thư viện không tự nạp `.env`.** Hãy `export` biến môi trường, hoặc truyền
+  `auth_token` / `api_key` tường minh.
+
+Bằng chứng đầy đủ: `docs/REPORT_FINAL_TIER1_WAVE12.md`,
+`docs/TEST_REPORT_TIER1_WAVE12.md`, `docs/AUDIT_TIER1_WAVE12.md`.
 
 ## Phiên bản 3.5.0 (2026-10-02) — Kiến trúc hai tầng + an toàn đường giao dịch
 

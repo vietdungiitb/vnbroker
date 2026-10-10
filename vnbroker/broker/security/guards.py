@@ -16,6 +16,17 @@ from vnbroker.broker.exceptions import BrokerPermissionError
 P = ParamSpec("P")
 R = TypeVar("R")
 
+# Tên tham số nhạy cảm — không đưa vào envelope dry-run. So khớp substring với
+# chữ thường để bắt cả `pin`, `pin_code`, `pinCode`, `otp`, `api_key`.
+_SENSITIVE_KWARG_NAMES = frozenset(
+    {"pin", "pincode", "otp", "api_key", "apikey", "password", "secret", "token"}
+)
+
+
+def _is_sensitive_kwarg(name: str) -> bool:
+    normalized = name.replace("-", "_").replace(" ", "").lower()
+    return any(bad in normalized for bad in _SENSITIVE_KWARG_NAMES)
+
 
 def write_gate(fn: Callable[P, R]) -> Callable[P, R]:
     """
@@ -53,7 +64,12 @@ def write_gate(fn: Callable[P, R]) -> Callable[P, R]:
                     "Đặt dry_run=False và gọi session.enable_write() để thực thi."
                 ),
                 "args_count": len(args),
-                "kwargs_keys": list(kwargs.keys()),
+                # Chỉ TÊN tham số an toàn. Danh sách tên đầy đủ có thể chứa
+                # `pin` / `otp` / `api_key` / `pin_code` — tên field nhạy cảm lọt
+                # vào log nếu caller in envelope (audit round 2, F-9).
+                "kwargs_keys": [
+                    k for k in kwargs if not _is_sensitive_kwarg(k)
+                ],
             }
             return result  # type: ignore[return-value]  # dry-run envelope, R ở nhánh thực
         self_obj = args[0] if args else None

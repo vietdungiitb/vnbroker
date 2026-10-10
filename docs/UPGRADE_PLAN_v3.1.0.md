@@ -1,5 +1,31 @@
 # vnbroker Upgrade & Remediation Plan v3.1.0
 
+<!-- TRẠNG THÁI ĐỐI CHIẾU — WP-PLAN-CLEANUP-01, 2026-10-07 -->
+
+> ## ⚠️ Trạng thái đối chiếu (2026-10-07) — KHÔNG đọc các ô `[ ]` bên dưới như việc còn dở
+>
+> Kế hoạch này lập cho **v3.1.0** (2026-06-22). Repo nay ở **v3.5.0**. Phần lớn
+> mục đã hoàn thành; các ô `[ ]` chưa được tick vì lúc đó không ai cập nhật lại.
+>
+> **Đã xác minh bằng lệnh — XONG:**
+> `vnbroker/analytics/indicators.py` (11 hàm, ≥9 yêu cầu) · `vnbroker/core/dispatch.py`
+> đã xoá · `vnbroker/explorer/msn` đã xoá · `vnbroker/connector/fmp` đã xoá ·
+> `vnbroker/broker/ssi/client.py` + `vnbroker/broker/tcbs/client.py` tồn tại ·
+> circuit breaker (`vnbroker/core/health_store.py`) · performance benchmarks trong CI
+> (`.github/workflows/performance.yml`) · `crypto()` chạy được (provider BINANCE) ·
+> suite 1052 passed (yêu cầu "522 unit tests" đã vượt).
+>
+> **CHƯA LÀM (đã xác minh là còn thiếu):**
+> `fx()` / `world_index()` vẫn `NotImplementedError` (**có chủ đích** — xem CLAUDE.md) ·
+> `vnbroker/brokerage/dnse/` chưa tồn tại · VNDirect brokerage chưa có ·
+> provider TwelveData chưa có · async write operations chưa có ·
+> API reference docs chưa có · type stubs `.pyi` chưa có · thư mục ADR chưa có ·
+> integration test guide chưa có.
+>
+> Cách kiểm lại: `ls vnbroker/brokerage/ vnbroker/connector/ docs/adr 2>&1` và
+> `.venv/Scripts/python.exe -m pytest tests/ -q`.
+
+
 **Based on:** Audit Report v3.1.0 (2026-06-22)  
 **Target:** v3.1.1 (Immediate Cleanup) → v3.2.0 (Architecture Consolidation) → v3.3.0 (Feature Completion) → v3.4.0 (Quality & Documentation)
 

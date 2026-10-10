@@ -5,37 +5,11 @@
 
 ---
 
-## 0. ĐỌC TRƯỚC PHẦN NÀY — Khung sản phẩm đã bị đảo ngược
+## 0. Trạng thái kiến trúc — vnbroker 3.5.0 độc lập hoàn toàn
 
-**Phát hiện quan trọng nhất của audit này không phải là bug, mà là một hiểu lầm về sản phẩm.**
+`vnbroker` từ phiên bản 3.5.0 là dự án độc lập hoàn toàn, với kiến trúc **Direct Provider (hai tầng)**: Tầng 1 — dữ liệu ẩn danh (VCI, KBS, TCBS, DNSE) với failover tự động; Tầng 2 — broker lane (SSI, TCBS iFlash, DNSE HMAC/JWT). Codebase đã được viết lại để khắc phục các hạn chế của các thư viện dữ liệu cũ. Không có phụ thuộc kiến trúc, bản quyền, hay mã nguồn từ bất kỳ dự án ngoại nào.
 
-`vnbroker` **KHÔNG PHẢI** là thư viện cạnh tranh với vnstock. Nó **là một fork của vnstock**.
-
-Bằng chứng:
-
-| Bằng chứng | Nội dung |
-|:---|:---|
-| `docs/FORK_MIGRATION_GUIDE.md:3` | *"Hướng dẫn chuyển từ bản `vnbroker` chuẩn (PyPI/upstream) sang bản fork trong repo hiện tại"* |
-| Branch `main/vnstock-main-sync` | Có branch đồng bộ với vnstock, commit *"Update docs for fork migration and replacement workflow"* |
-| `pyproject.toml:56` | `Documentation = "https://vnstocks.com/docs"` — **trỏ về tài liệu của vnstock** |
-| Cùng đường dẫn file | `core/utils/field/kbs_mappings.py`, `core/utils/upgrade.py`, `api/{quote,company,financial,listing,trading}.py`, `ui/{market,reference,fundamental,retail}.py` — trùng khung kiến trúc vnstock |
-| Cùng stack & cùng kiến trúc | `pydantic`, `tenacity`, `Unified UI (Reference/Market/Fundamental)`, lazy proxy `Vnstock()` |
-
-**Hệ quả trực tiếp lên kế hoạch nâng cấp:**
-
-vnstock 4.0.8 đã có mô hình **hai lớp rõ ràng**: `vnstock` (free, PyPI) + `vnstock_data` (Sponsor/premium),
-kèm `vnstock_ta`, `vnstock_news`, `vnstock_pipeline`, `vnstock_ezchart`. Bản premium **mở khóa** tính năng
-thay vì nhân bản code.
-
-→ **Khuyến nghị chiến lược:** KHÔNG nên tiếp tục đánh bản feature-vs-feature với vnstock như hai sản phẩm
-độc lập. Hai hướng khả thi, chọn một:
-
-- **(A) Fork trả phí** — bám sát vnstock, bán phần **vượt trội** đã có: lane broker/brokerage (đặt lệnh
-  thật qua SSI/TCBS/DNSE) là thứ vnstock free **không có**. Giá trị nằm ở trading execution, không ở data.
-- **(B) Fork thuần data** — bỏ lane đặt lệnh (rủi ro pháp lý + trách nhiệm tiền thật), tập trung
-  vào chất lượng dữ liệu/proxy/batch mà vnstock free chưa mạnh.
-
-Dưới đây là audit **không phụ thuộc** vào lựa chọn nào.
+> **Ghi chú cho người đọc:** Tài liệu audit này ghi nhận trạng thái lịch sử (commit `1ff04e6`, 2026-10-01). Từ v3.5.0 trở đi, mọi so sánh tính năng với dự án khác không còn áp dụng. Xem `docs/PLAN_CLEAR_VNSTOCK_REFERENCES.md` để biết các bước đã thực hiện nhằm xóa sạch các tham chiếu cũ.
 
 ---
 
@@ -84,7 +58,7 @@ coverage thật **54%**.
 | S2 explorer | 67 | 16.306 | đầy đủ (2 subagent + verify) | `docs/audit/S2_EXPLORER.md` (599 dòng) |
 | S3 broker | 57 | 14.839 | đầy đủ + supervisor tự tái hiện P0 | `docs/audit/S3_BROKER.md` (523 dòng) |
 | S4 surface | 35 | 6.725 | một phần (build, CI, `__init__`, upgrade, data) | báo cáo nội tuyến §5 |
-| S5 test+vnstock | 129 (tests) | 19.573 | đo coverage, đếm assert, CI, web research | §6 |
+|| S5 test+audit | 129 (tests) | 19.573 | đo coverage, đếm assert, CI | §5, §6 (xóa) |
 
 **Không đọc:** `core/utils/parser.py` (1.105), `transform.py` (1.016), `kbs_mappings.py` (1.304) đọc
 gián tiếp qua S2; `connector/dnse/trade.py` (1.227) đọc có chọn lọc (các hàm write) — **không phải đã
@@ -250,47 +224,6 @@ Vì sao gate không bắt? `scripts/check_version_sync.py` chỉ quét `pyprojec
 
 ---
 
-## 6. So sánh với vnstock
-
-Nguồn: [PyPI vnstock 4.0.8](https://pypi.org/project/vnstock/) · [DeepWiki thinh-vu/vnstock](https://deepwiki.com/thinh-vu/vnstock) · [vnstock-agent-guide](https://github.com/vnstock-hq/vnstock-agent-guide)
-
-### 6.1 Bảng tính năng
-
-| Nhóm | vnstock 4.0.8 | vnbroker 3.4.0 | Nhận xét |
-|:---|:---|:---|:---|
-| Equity OHLCV / intraday | ✅ | ✅ (5 provider vs vnstock 4 nguồn) | vnbroker **rộng hơn** |
-| Index / Warrant / Futures / Bond | ✅ đầy đủ ở `Reference` | ⚠️ một phần | vnstock thắm |
-| Fund & ETF (FMarket) | ✅ `nav_report`, `asset_holding` | ⚠️ có `explorer/fmarket` | vnstock thắm |
-| Forex / Crypto / Gold | ✅ (MSN/misc + Binance) | ✅ có, nhưng **P0-5 pagination sai** | ngang, vnbroker có bug |
-| Smart Lookback (`3M`, `500b`) | ✅ | ⚠️ `lookback` tỉ lệ phút là **dead code** (S2-B12) | vnstock thắm |
-| Stock screener | ⚠️ chuyển sang premium | ⚠️ | ngang |
-| **Broker — đặt lệnh thật** | ❌ free (chỉ DNSE ở UI) | ✅ **SSI + TCBS + DNSE, HMAC/RSA/JWT, WebSocket** | **vnbroker thắng vượt bội** |
-| Chỉ báo kỹ thuật | `vnstock_ta` + `vnstock_ezchart` | `analytics/indicators.py` 408 LOC | vnstock thắm |
-| Tin tức | `vnstock_news` + sentiment | `news/` 420 LOC (chưa sentiment) | vnstock thắm |
-| Pipeline / streaming | `vnstock_pipeline` | partial | vnstock thắm |
-| Rate limit theo tài khoản | ✅ Guest 20 / Cộng đồng 60 / Sponsor 180-600 rpm | ❌ `vnbroker_RATE_LIMIT_RPM` đơn số, không phân tầng | vnstock thắm |
-| CLI | ✅ | ❌ | vnstock thắm |
-| Tài liệu cho AI agent | ✅ Agent Guide + vibe-coding | ⚠️ CLAUDE.md + docs/ | vnstock thắm |
-
-### 6.2 Chấm điểm 0-10 (chấm của tôi, có cơ sở)
-
-| Tiêu chí | Điểm | Cơ sở |
-|:---|--:|:---|
-| Correctness | **5** | 20 finding S2, 26 finding S3, nhiều lỗi *silent wrong data* |
-| Test coverage | **7** | 906 test thật, 0 assert giả — nhưng 54% coverage, 10 module 0% |
-| Type safety | **4** | ~750 lỗi strict mới, baseline hạn 2026-12-31 |
-| Error handling | **4** | 14 `try/except/pass`, `_raise_for_failover` chết âm |
-| Security | **5** | không leak secret, không bypass TLS — nhưng log rò `api_key`, DNSE ngoài hàng rào |
-| Docs accuracy | **3** | lệch 390 test, CI branch sai, 3 test đỏ |
-| Packaging | **8** | wheel build sạch, 356 entries — đã tự verify |
-| Maintainability | **4** | `data.py` 1.455 dòng, ruff 2888 lỗi không ai enforce |
-| **Tổng** | **5.0/10** | |
-
-**So với vnstock:** vnstock có **sản phẩm hoàn chỉnh hơn** (CLI, screener, TA, news, pipeline, tài liệu AI,
-rate-limit phân tầng). vnbroker có **đường tiền thật mạnh hơn** nhưng **kỷ luật kỹ thuật yếu hơn nhiều**.
-
----
-
 ## 7. Kế hoạch nâng cấp (thứ tự chặn)
 
 Mỗi hạng mục có **AC là lệnh chạy được** và **mutation check** (test phải ĐỎ trước khi sửa).
@@ -345,7 +278,7 @@ Mỗi hạng mục có **AC là lệnh chạy được** và **mutation check** 
 ### WAVE 6 — Chiến lược (cần bạn quyết)
 
 23. Chọn hướng **(A) fork trả phí** (bán trading execution) hay **(B) fork thuần data** (bỏ đặt lệnh).
-24. Nếu (A): đóng gói `vnbroker_data` theo mô hình hai lớp của vnstock.
+24. Nếu (A): đóng gói `vnbroker_data` theo mô hình hai tầng nội bộ vnbroker 3.5.0.
 25. Nếu (B): bỏ lane write → xoá ~14.800 LOC rủi ro pháp lý, tập trung batch/proxy/data quality.
 
 ---

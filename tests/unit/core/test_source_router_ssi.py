@@ -70,7 +70,8 @@ class TestSSIAutoCandidates:
         _with_ssi_keys(monkeypatch)
         order = source_router.build_source_order("quote", symbol="ACB")
         assert order[-1] == "ssi"
-        assert order[0] == "vci"
+        # Primary pool is ["vci", "kbs"] — hash-shard picks one of them
+        assert order[0] in ("vci", "kbs")
 
     def test_ssi_opt_in_primary(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _with_ssi_keys(monkeypatch)

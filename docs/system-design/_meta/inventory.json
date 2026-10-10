@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-10-08T03:11:30Z",
+  "git": {
+    "commit": "6b60b1b5d812dd8795c4ec958c0adb08d0930a87",
+    "branch": "dev"
+  },
+  "codebase": {
+    "total_py_files": 211,
+    "total_lines": 52226,
+    "modules": {
+      "analytics": {
+        "files": 2,
+        "lines": 410
+      },
+      "api": {
+        "files": 11,
+        "lines": 2147
+      },
+      "bot": {
+        "files": 1,
+        "lines": 599
+      },
+      "broker": {
+        "files": 37,
+        "lines": 11451
+      },
+      "brokerage": {
+        "files": 3,
+        "lines": 1055
+      },
+      "common": {
+        "files": 6,
+        "lines": 2764
+      },
+      "connector": {
+        "files": 20,
+        "lines": 2938
+      },
+      "core": {
+        "files": 50,
+        "lines": 13377
+      },
+      "explorer": {
+        "files": 65,
+        "lines": 16124
+      },
+      "news": {
+        "files": 6,
+        "lines": 421
+      },
+      "ui": {
+        "files": 6,
+        "lines": 301
+      }
+    }
+  },
+  "tests": {
+    "total_test_files": 115,
+    "total_test_lines": 17414
+  },
+  "docs": {
+    "total_doc_files": 171
+  }
+}

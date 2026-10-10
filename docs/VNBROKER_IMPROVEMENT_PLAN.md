@@ -82,7 +82,7 @@
 ## W5. Close-out SSI explorer lane `496c9ec` (P1 — chờ key, 0.5 ngày khi có)
 
 1. Người giữ key SSI chạy: `vnbroker_RUN_LIVE_INTEGRATION=1 pytest tests/integration/explorer/test_ssi_live.py -v`
-   (3 case đã viết). Log redact secret, lưu đè `artifacts/ssi_explorer/live_ssi.log`.
+   (3 case đã viết). Log redact secret, lưu đè `artifacts/ssi_explorer/live_ssi.log` (thư mục đã xoá 2026-10).
 2. Nếu live fail do spec server khác kỳ vọng → fix-forward mapping (không đổi contract 17 cột
    trừ khi có bằng chứng server).
 3. Xong thì đánh dấu E-6 trong `review_checklist.md` và close task.

@@ -1,17 +1,29 @@
 """
-vnbroker.broker.tcbs.money — TCBSMoneyService: read-only cash & margin data.
+vnbroker.broker.tcbs.money — TCBSMoneyService: cash & margin (read + write).
 
-Endpoints (TCBS iFlash Open API v1.0.0):
+READ endpoints (TCBS iFlash Open API v1.0.0):
   GET /aion/v1/accounts/{accountNo}/cashInvestments    → get_cash()
   GET /erebos/v2/digital/margin-info?acctno=&fromdate=&toDate=&page=&size=&custodycd=
                                                        → get_margin()
+  GET /hydros/v1/account/{accountNo}/pricing-policy?productId=
+                                                       → get_pricing_policy()
 
-RULE: Không có write method. Reuse _get pattern từ account service.
+WRITE endpoints (dry_run=True mặc định, @write_gate bắt buộc):
+  POST /khronos/v1/cash/deposit/update                → deposit_margin()
+  POST /khronos/v1/cash/withdraw/update               → withdraw_margin()
+  POST /physis/v1/stock/transfer                      → transfer_between_sub_accounts()
+
+RULE:
+  - Mọi write method PHẢI khai `dry_run` là keyword-only: write_gate đọc dry_run
+    từ kwargs (security/guards.py:46), truyền theo vị trí sẽ không bao giờ qua gate.
+  - Body theo đúng tên field trong spec. KHÔNG gửi `requestId` — chuỗi này
+    không tồn tại trong openapi-v1.0.0.json (đếm 0 lần).
+  - Reuse _get/_post pattern từ account service.
 """
 from __future__ import annotations
 
 import logging
-from typing import Union
+from typing import Any, Union
 
 import pandas as pd
 import requests
@@ -24,7 +36,9 @@ from vnbroker.broker.exceptions import (
     BrokerValidationError,
 )
 from vnbroker.broker.security.credentials import TCBSCredentialConfig
+from vnbroker.broker.security.guards import write_gate
 from vnbroker.broker.session import BrokerSession
+from vnbroker.broker.tcbs._write_http import post_json
 from vnbroker.broker.tcbs.account import _validate_account_no
 
 _logger = logging.getLogger("vnbroker.broker.tcbs.money")
@@ -40,11 +54,16 @@ _PATHS = {
     "margin_subscription": "/campaign-management/v1/margin/subscription/{accountNo}/addons/detail",
     "loan_list": "/khaos/v1/loan/{accountNo}",
     "cash_statements": "/erebos/v2/digital/trans-hist-cashStatements",
+    # Round 2 (spec v1.0.0): 1 read + 3 write
+    "pricing_policy": "/hydros/v1/account/{accountNo}/pricing-policy",
+    "cash_deposit": "/khronos/v1/cash/deposit/update",
+    "cash_withdraw": "/khronos/v1/cash/withdraw/update",
+    "stock_transfer": "/physis/v1/stock/transfer",
 }
 
 
 class TCBSMoneyService:
-    """Read-only cash và margin service cho TCBS broker."""
+    """Cash và margin service cho TCBS broker (read + write)."""
 
     def __init__(
         self,
@@ -504,6 +523,157 @@ class TCBSMoneyService:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
         return df
 
+    def get_pricing_policy(
+        self,
+        account_no: str,
+        product_id: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        GET /hydros/v1/account/{accountNo}/pricing-policy
+
+        Args:
+            account_no: Số tiểu khoản 10 chữ số.
+            product_id: Product ID (query `productId`, tuỳ chọn theo spec).
+                        None/rỗng → KHÔNG gửi, server tự suy ra từ tài khoản.
+
+        Returns:
+            Dict nguyên gốc. Spec KHÔNG mô tả schema response 200 (không có
+            `content`) ⇒ không ép DataFrame, không bịa tên cột.
+        """
+        _validate_account_no(account_no)
+        params: dict[str, Any] = {}
+        if product_id is not None and str(product_id).strip():
+            params["productId"] = product_id
+        path = _PATHS["pricing_policy"].format(accountNo=account_no)
+        return self._get(path, params=params)
+
+    # ── Write methods (dry_run=True default) ────────────────────────────────
+    # Pattern: validation chạy TRƯỚC write_gate check.
+    # Public method validate → delegate sang @write_gate internal method.
+
+    def deposit_margin(
+        self,
+        account_id: str,
+        sub_account_id: str,
+        amount: float,
+        payment_content: str = "",
+        *,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """
+        POST /khronos/v1/cash/deposit/update
+
+        Nạp tiền margin vào tài khoản phái sinh.
+
+        Args:
+            account_id: Số tài khoản lưu ký (bắt buộc theo spec).
+            sub_account_id: Số tài khoản phái sinh (bắt buộc theo spec).
+            amount: Số tiền nạp, phải > 0.
+            payment_content: Mô tả giao dịch (tuỳ chọn — rỗng thì không gửi).
+            dry_run: True (mặc định) → không gửi HTTP, trả envelope dry-run.
+
+        Returns:
+            Dict nguyên văn của TCBS. **HTTP 200 KHÔNG đồng nghĩa thành công**:
+            TCBS trả mã nghiệp vụ trong `rc` ("1" = thành công, <0 = lỗi).
+            Thư viện không tự raise theo `rc` vì spec không liệt kê đủ tập mã và
+            chưa có JWT để probe server — **caller PHẢI tự kiểm `rc`**
+            (xem `vnbroker.broker.tcbs._write_http.describe_business_code`).
+        """
+        _require_text(account_id, "account_id", "INVALID_ACCOUNT_ID")
+        _require_text(sub_account_id, "sub_account_id", "INVALID_SUB_ACCOUNT_ID")
+        amount = _validate_amount(amount)
+        return self._gated_deposit_margin(
+            account_id, sub_account_id, amount, payment_content, dry_run=dry_run,
+        )
+
+    @write_gate
+    def _gated_deposit_margin(
+        self, account_id: str, sub_account_id: str, amount: float, payment_content: str,
+        *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "accountId": account_id, "subAccountId": sub_account_id, "amount": amount,
+        }
+        if payment_content:
+            payload["paymentContent"] = payment_content
+        return self._post(_PATHS["cash_deposit"], payload)
+
+    def withdraw_margin(
+        self,
+        account_id: str,
+        sub_account_id: str,
+        amount: float,
+        payment_content: str = "",
+        *,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """
+        POST /khronos/v1/cash/withdraw/update
+
+        Rút tiền margin khỏi tài khoản phái sinh. Tham số giống deposit_margin().
+
+        **HTTP 200 KHÔNG đồng nghĩa thành công** — caller PHẢI tự kiểm `rc`.
+        Xem Returns của deposit_margin().
+        """
+        _require_text(account_id, "account_id", "INVALID_ACCOUNT_ID")
+        _require_text(sub_account_id, "sub_account_id", "INVALID_SUB_ACCOUNT_ID")
+        amount = _validate_amount(amount)
+        return self._gated_withdraw_margin(
+            account_id, sub_account_id, amount, payment_content, dry_run=dry_run,
+        )
+
+    @write_gate
+    def _gated_withdraw_margin(
+        self, account_id: str, sub_account_id: str, amount: float, payment_content: str,
+        *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "accountId": account_id, "subAccountId": sub_account_id, "amount": amount,
+        }
+        if payment_content:
+            payload["paymentContent"] = payment_content
+        return self._post(_PATHS["cash_withdraw"], payload)
+
+    def transfer_between_sub_accounts(
+        self,
+        source_account_number: str,
+        destination_account_number: str,
+        amount: float,
+        description: str,
+        *,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """
+        POST /physis/v1/stock/transfer
+
+        Chuyển tiền giữa các tài khoản con. Cả 4 field đều bắt buộc theo spec,
+        amount phải > 0. dry_run=True (mặc định) → không gửi HTTP, trả envelope.
+
+        **HTTP 200 KHÔNG đồng nghĩa thành công** — caller PHẢI tự kiểm `rc`.
+        Xem Returns của deposit_margin().
+        """
+        _require_text(source_account_number, "source_account_number", "INVALID_SOURCE_ACCOUNT")
+        _require_text(destination_account_number, "destination_account_number", "INVALID_DESTINATION_ACCOUNT")
+        _require_text(description, "description", "MISSING_DESCRIPTION")
+        amount = _validate_amount(amount)
+        return self._gated_transfer_between_sub_accounts(
+            source_account_number, destination_account_number, amount, description,
+            dry_run=dry_run,
+        )
+
+    @write_gate
+    def _gated_transfer_between_sub_accounts(
+        self, source_account_number: str, destination_account_number: str, amount: float,
+        description: str, *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "sourceAccountNumber": source_account_number,
+            "destinationAccountNumber": destination_account_number,
+            "amount": amount,
+            "description": description,
+        }
+        return self._post(_PATHS["stock_transfer"], payload)
+
     # ── Internal HTTP ────────────────────────────────────────────────────────
 
     def _get(self, path: str, params: dict | None = None) -> dict:
@@ -540,6 +710,21 @@ class TCBSMoneyService:
                 code="NETWORK_ERROR",
             ) from exc
 
+        self._check_status(resp)
+        return resp.json()
+
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        POST JSON — ủy quyền cho `_write_http.post_json`.
+
+        Trước đây money.py tự `_post` và chỉ map 401/403/5xx, khiến 400/404/422/429
+        rơi qua và **thân lỗi bị trả về y như thành công** (audit F-1 — major, write
+        động tiền). Nay dùng helper dùng chung, map đủ 400/404/422/429.
+        """
+        return post_json(self._session, self._config, path, payload)
+
+    def _check_status(self, resp: requests.Response) -> None:
+        """Map status code → exception. Dùng chung cho _get và _post."""
         if resp.status_code == 401:
             self._session.revoke()
             raise BrokerAuthError(
@@ -560,4 +745,29 @@ class TCBSMoneyService:
                 http_status=resp.status_code,
             )
 
-        return resp.json()
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _validate_amount(amount: float) -> float:
+    """amount bắt buộc theo spec và phải > 0. Trả về float đã chuẩn hoá."""
+    try:
+        value = float(amount)
+    except (TypeError, ValueError) as exc:
+        raise BrokerValidationError(
+            message="amount phải là số.",
+            code="INVALID_AMOUNT",
+        ) from exc
+    if value <= 0:
+        raise BrokerValidationError(
+            message="amount phải lớn hơn 0.",
+            code="INVALID_AMOUNT",
+        )
+    return value
+
+
+def _require_text(value: str, field: str, code: str) -> None:
+    if not value or not value.strip():
+        raise BrokerValidationError(
+            message=f"{field} không được để trống.",
+            code=code,
+        )

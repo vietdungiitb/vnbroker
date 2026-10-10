@@ -31,6 +31,13 @@ def run_mypy_strict() -> str:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        # `text=True` ma KHONG khai bao encoding => Python decode theo locale
+        # Windows (cp1252). Output mypy chua tieng Viet co dau (0x90…) =>
+        # UnicodeDecodeError trong thread reader => stdout/stderr = None.
+        # `(proc.stdout or "")` che loi bang RONG string, nen baseline se
+        # "xanh" trong khi mypy co the that bai. Silent false-pass.
+        encoding="utf-8",
+        errors="replace",
     )
     return (proc.stdout or "") + (proc.stderr or "")
 

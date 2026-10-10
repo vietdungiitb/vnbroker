@@ -1,5 +1,0 @@
-{
-  "source_requested": "SSI",
-  "source_used": "VCI",
-  "note": "MOCK schema sample; live Finance(source=SSI).ratio served via KBS per AC-CFN-2 (mocked in test_stock_ssi.py)"
-}

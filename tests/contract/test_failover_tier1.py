@@ -225,7 +225,14 @@ def test_intraday_also_fails_over():
 
     Nếu chỉ `history` có failover thì khi provider chính hết hạn, toàn bộ người
     dùng mất dữ liệu trong phiên — dù hệ thống còn provider dự phòng.
+
+    Assertion được siết từ `kbs.calls > 0` xuống `== DEFAULT_RETRIES`: bản cũ
+    quá yếu, trải qua cả hành vi retry lồng (18 lời gọi) mà vẫn xanh — đó là lý
+    do `intraday` lồng retry suốt mà không test nào ở đây bắt được. Giá trị đúng
+    là retry PER PROVIDER, giống hệt `history` (xem `test_failover_switches_provider_and_returns_valid_frame`).
     """
+    from vnbroker.common.data import Config
+
     class _Source:
         def __init__(self, exc=None):
             self.exc = exc
@@ -243,8 +250,13 @@ def test_intraday_also_fails_over():
 
     df = q.intraday()
 
-    assert kbs.calls > 0, "provider lỗi phải được thử"
-    assert vci.calls >= 1, "phải fallback sang provider kế tiếp"
+    assert kbs.calls == Config.DEFAULT_RETRIES, (
+        f"Provider lỗi phải retry đúng {Config.DEFAULT_RETRIES} lần cho chính nó, "
+        f"thực tế {kbs.calls} — lớn hơn nghĩa là retry cả vòng failover bị lồng"
+    )
+    assert vci.calls == 1, (
+        f"Phải fallback sang provider kế tiếp đúng 1 lần, thực tế {vci.calls}"
+    )
     assert isinstance(df, pd.DataFrame)
     assert "time" in df.columns
 

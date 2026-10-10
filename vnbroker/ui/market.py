@@ -6,7 +6,12 @@ Mỏng: delegate về vnbroker.common.data. Không logic wire mới.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from vnbroker.common.data import Quote
+
+if TYPE_CHECKING:
+    from vnbroker.api.bulk import BulkAPI
 
 
 class Market:
@@ -45,3 +50,14 @@ class Market:
             Quote đã gắn symbol + source (history/intraday/price_depth).
         """
         return Quote(symbol, self.source, show_log=self.show_log)
+
+    @property
+    def bulk(self) -> "BulkAPI":
+        """Access bulk API for multi-symbol operations.
+
+        Returns:
+            BulkAPI instance configured with this Market's source and show_log.
+        """
+        from vnbroker.api.bulk import BulkAPI
+
+        return BulkAPI(source=self.source, show_log=self.show_log)

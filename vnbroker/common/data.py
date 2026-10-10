@@ -11,7 +11,6 @@ import inspect
 from typing import Optional, Any, Dict
 from functools import lru_cache
 import pandas as pd
-import pytz
 import requests
 from tenacity import (
     Retrying,
@@ -80,7 +79,14 @@ def _normalize_company_insider_deals_df(df: pd.DataFrame, symbol: Optional[str] 
 
     normalized = base.copy()
 
-    normalized["symbol"] = _pick_first_existing(normalized, ["symbol", "ticker"]).fillna(symbol)
+    # Không dùng `.fillna(symbol)` khi symbol có thể None: pandas 2.x ném
+    # ValueError ("Must specify a fill 'value' or 'method'") còn pandas 3.x bỏ
+    # qua — cùng code, hai hành vi, chỉ máy có pandas mới chạy được.
+    # (Phát hiện từ CI: test đỏ trên cả 3 OS ở Python 3.10.)
+    symbol_col = _pick_first_existing(normalized, ["symbol", "ticker"])
+    if symbol is not None:
+        symbol_col = symbol_col.fillna(symbol)
+    normalized["symbol"] = symbol_col
 
     normalized["announce_date"] = pd.to_datetime(
         _pick_first_existing(
@@ -416,6 +422,64 @@ class StockComponents(BaseComponent):
         self._initialize_components()
 
 
+class EmptyProviderResult(RuntimeError):
+    """Provider trả về kết quả KHÔNG dùng được mà không ném lỗi.
+
+    Cần loại riêng vì ``should_failover`` chỉ xét ``Exception``; quyết định
+    "rỗng = không phục vụ được" thuộc về tầng data (``_run_with_failover``),
+    không sửa ``core.source_router``.
+    """
+
+
+def _describe_empty(result: Any) -> str:
+    """Mô tả ngắn kết quả rỗng để log/exception đọc được."""
+    if isinstance(result, pd.DataFrame) or isinstance(result, pd.Series):
+        return f"{type(result).__name__} khong co cot (schema={list(result.columns)!r})"
+    return f"{type(result).__name__} rong: {result!r}"
+
+
+def _is_unusable_provider_result(result: Any) -> bool:
+    """Provider có trả về thứ gì **dùng được** không?
+
+    Đây là chỗ hiện thực nguyên tắc đã ghi trong docstring của
+    ``_run_with_failover``: "hết provider thì ném lỗi gốc, không bao giờ trả
+    DataFrame rỗng". Provider im lặng trả rỗng là lỗi âm thầm nặng nhất vì
+    người dùng tưởng "hôm nay không giao dịch" thay vì "provider chết".
+
+    **"Không dùng được" khác "ngày giao dịch rỗng"** — ranh giới nằm ở *schema*,
+    không phải ở số dòng:
+
+    - ``pd.DataFrame()`` (0 cột) ⇒ provider không sinh ra cả cấu trúc. Hợp
+      đồng tầng 1 quy định mọi provider trả cùng schema có cột ``time``
+      (``_normalize_quote_result``), mà ``_normalize_quote_result` bỏ qua
+      ngay ở ``if "time" not in result.columns`` ⇒ frame không cột lọt thẳng
+      tới người dùng, vi phạm hợp đồng. ⇒ **không dùng được**.
+    - ``pd.DataFrame(columns=["time", ...])`` với **0 dòng** ⇒ provider đã làm
+      đúng việc, chỉ là trong khoảng yêu cầu không có phiên giao dịch (Tết,
+      cuối tuần, mã chưa có dữ liệu). Chuẩn hoá vẫn chạy và trả frame tz-aware
+      đúng hợp đồng. ⇒ **dùng được**, coi như thành công.
+
+    Chọn mốc *schema* vì nó phân biệt được hai ca thật mà mốc "0 dòng" thì
+    không: coi 0 dòng là thất bại sẽ biến mọi ngày nghỉ thành lỗi hệ thống —
+    đủ provider cùng trả 0 dòng thì ``RuntimeError`` thay vì khung dữ liệu rỗng.
+
+    Args:
+        result: Giá trị provider trả về (DataFrame, dict, list, None, ...).
+
+    Returns:
+        ``True`` nếu kết quả không mang dữ liệu nào dùng được.
+    """
+    if result is None:
+        return True
+    if isinstance(result, (pd.DataFrame, pd.Series)):
+        # Có cột = có schema = provider đã trả lời đúng hình thức, kể cả 0 dòng.
+        return len(result.columns) == 0
+    if isinstance(result, (list, tuple, set, frozenset, dict, str, bytes)):
+        return len(result) == 0
+    # Số, bool, object tùy ý...: không đủ căn cứ để kết luận là rỗng.
+    return False
+
+
 class Quote(BaseComponent):
     """Historical and real-time price data."""
 
@@ -436,13 +500,41 @@ class Quote(BaseComponent):
         self.api_key = api_key
         self.api_secret = api_secret
         self.show_log = show_log
+        self.symbol = symbol.upper() if symbol else None
+
+        # Set up auto sources for failover when source is AUTO.
+        # Must happen before super().__init__() because _load_data_source()
+        # resolves AUTO to a specific provider.
+        if source.upper() == "AUTO":
+            from vnbroker.core import source_router
+            candidates = source_router.get_auto_candidates("quote")
+            self._auto_sources = {}
+            for src in candidates:
+                try:
+                    self._auto_sources[src] = self._load_direct_provider_for_source(src)
+                except Exception:
+                    pass
+
         super().__init__(symbol, source)
+
+    def _require_symbol(self) -> str:
+        """Narrow ``self.symbol`` cho các provider bắt buộc có symbol.
+
+        Provider ``explorer/*`` đều cần ``symbol: str``; trước đây ``None``
+        chạy thẳng xuống constructor và chết sâu bên trong với lỗi khó hiểu.
+        """
+        if not self.symbol:
+            raise ValueError(
+                f"{type(self).__name__} cần symbol để dựng provider, "
+                "nhưng symbol đang là None. Truyền symbol khi khởi tạo hoặc gọi update_symbol()."
+            )
+        return self.symbol
 
     def _load_data_source(self):
         """Load quote data source module."""
         return self._load_direct_provider()
 
-    def _load_direct_provider(self):
+    def _load_direct_provider(self) -> Any:
         """Load direct provider adapter based on source.
 
         Với ``source == "AUTO"`` (tầng 1 ẩn danh) chỉ khởi tạo provider đầu
@@ -451,6 +543,7 @@ class Quote(BaseComponent):
         """
         from vnbroker.core import source_router
 
+        symbol = self._require_symbol()
         source = self.source.lower()
         if source == "auto":
             candidates = source_router.get_auto_candidates("quote")
@@ -462,21 +555,48 @@ class Quote(BaseComponent):
             self.source = source.upper()
         if source == "vci":
             from vnbroker.explorer.vci.quote import Quote as VCIQuote
-            return VCIQuote(self.symbol, show_log=self.show_log)
+            return VCIQuote(symbol, show_log=self.show_log)
         elif source == "kbs":
             from vnbroker.explorer.kbs.quote import Quote as KBSQuote
-            return KBSQuote(self.symbol, show_log=self.show_log)
+            return KBSQuote(symbol, show_log=self.show_log)
         elif source == "tcbs":
             from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
-            return TCBSQuote(self.symbol, auth_token=self.auth_token, show_log=self.show_log)
+            return TCBSQuote(symbol, auth_token=self.auth_token, show_log=self.show_log)
         elif source == "dnse":
             from vnbroker.explorer.dnse.quote import DNSEQuote
-            return DNSEQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+            return DNSEQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         elif source == "ssi":
             from vnbroker.explorer.ssi.quote import SSIQuote
-            return SSIQuote(self.symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+            return SSIQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
         else:
             raise ValueError(f"Direct provider not implemented for source: {self.source}")
+
+    def _load_direct_provider_for_source(self, source: str) -> Any:
+        """Create a provider instance for a given source name.
+
+        Used by AUTO mode to pre-instantiate all candidate providers
+        for failover. Mirrors _load_direct_provider but takes an explicit
+        source string instead of using self.source.
+        """
+        symbol = self._require_symbol()
+        source = source.lower()
+        if source == "vci":
+            from vnbroker.explorer.vci.quote import Quote as VCIQuote
+            return VCIQuote(symbol, show_log=self.show_log)
+        elif source == "kbs":
+            from vnbroker.explorer.kbs.quote import Quote as KBSQuote
+            return KBSQuote(symbol, show_log=self.show_log)
+        elif source == "tcbs":
+            from vnbroker.explorer.tcbs.quote import Quote as TCBSQuote
+            return TCBSQuote(symbol, auth_token=self.auth_token, show_log=self.show_log)
+        elif source == "dnse":
+            from vnbroker.explorer.dnse.quote import DNSEQuote
+            return DNSEQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        elif source == "ssi":
+            from vnbroker.explorer.ssi.quote import SSIQuote
+            return SSIQuote(symbol, api_key=self.api_key, api_secret=self.api_secret, show_log=self.show_log)
+        else:
+            raise ValueError(f"Direct provider not implemented for source: {source}")
 
     def _update_data_source(self, symbol: Optional[str] = None):
         """Update symbol and reload data source if needed."""
@@ -576,6 +696,19 @@ class Quote(BaseComponent):
                 source_router.record_failure(module_name, source)
                 last_exc = exc
                 continue
+            if _is_unusable_provider_result(result):
+                # Provider KHÔNG ném lỗi nhưng cũng không phục vụ được: coi như
+                # thất bại, tuyệt đối không record_success (xem helper để biết vì
+                # sao "rỗng" được hiểu là mất schema chứ không phải ngày nghỉ).
+                # Tên biến cố ý KHÁC `exc`: `except ... as exc` xoá tên đó ở cuối
+                # khối except, gán lại sẽ bị mypy --strict chặn.
+                unusable_exc = EmptyProviderResult(
+                    f"Provider {source!r} trả kết quả không dùng được "
+                    f"({method_name}, module={module_name!r}): {_describe_empty(result)}."
+                )
+                source_router.record_failure(module_name, source)
+                last_exc = unusable_exc
+                continue
             source_router.record_success(module_name, source)
             return source_router.annotate_result_source(result, source)
 
@@ -587,27 +720,26 @@ class Quote(BaseComponent):
         """Fetch historical price data.
 
         Retry policy:
-        - **Đường không-auto** (một provider cố định): decorator ``@retry`` bọc
-          cả lời gọi provider, giữ hành vi lịch sử (``DEFAULT_RETRIES`` lần).
-        - **Đường auto** (``_auto_sources``): decorator bị bỏ qua, retry áp cho
-          TỪNG provider trong ``_run_with_failover`` — nếu không, hết pool sẽ bị
-          thử lại N lần.
+        - **Cả hai đường**: retry áp cho TỪNG provider bên trong
+          ``_run_with_failover`` (``DEFAULT_RETRIES`` lần). Method này KHÔNG
+          có decorator ``@retry``.
+        - Vì sao không có decorator: ``@retry`` bọc NGOÀI sẽ khiến cả vòng
+          failover bị thử lại N lần - provider đã thử 3 lần rồi lại quay lại
+          thử tiếp. Số lần gọi provider đo được bằng đếm, không đọc bằng
+          `inspect.getsource`: docstring này từng chứa chuỗi ``@retry`` dù
+          không có decorator, khiến phép kiểm bằng text báo giả.
         """
         if symbol:
             self.symbol = symbol.upper()
         result = self._run_with_failover("history", "quote", kwargs)
-        # Hợp đồng tầng 1: chuẩn hoá tz + lọc biên ở MỘT chỗ duy nhất để mọi
-        # provider ẩn danh trả về cùng schema. Xem _normalize_quote_result.
-        if kwargs.get("to_df", True) and isinstance(result, pd.DataFrame):
-            return _normalize_quote_result(result, kwargs.get("start"), kwargs.get("end"))
+        # Hợp đồng tầng 1: chuẩn hoá tz + đơn vị + match_type + lọc biên ở MỘT
+        # chỗ duy nhất để mọi provider ẩn danh trả về cùng schema.
+        # Xem `vnbroker/core/utils/normalizer.py`.
+        if kwargs.get("to_df", True):
+            from vnbroker.core.utils.normalizer import Normalizer
+            return Normalizer.normalize_history(result, kwargs.get("start"), kwargs.get("end"))
         return result
 
-    @retry(
-        stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
-        reraise=True,
-    )
     def intraday(self, symbol: Optional[str] = None, **kwargs):
         """Fetch intraday trading data.
 
@@ -615,6 +747,17 @@ class Quote(BaseComponent):
         cũng là dữ liệu thị trường ẩn danh: user không cần biết provider, và hệ
         thống phải xoay vòng khi provider lỗi — nếu không thì chỉ cần provider
         "chính" hết hạn là toàn bộ người dùng mất dữ liệu trong phiên.
+
+        Retry policy (giống hệt `history`):
+        - **Đường auto** (``_auto_sources``): KHÔNG có decorator ``@retry``; retry
+          áp cho TỪNG provider trong ``_run_with_failover``.
+        - **Đường không-auto**: ``Retrying`` trong ``_run_with_failover`` bọc cả
+          lời gọi provider (``DEFAULT_RETRIES`` lần).
+
+        Vì sao gỡ decorator: ``@retry`` bọc NGOÀI lại khiến cả vòng failover bị
+        thử lại N lần — provider đã thử 3 lần rồi lại quay lại thử tiếp, tổng
+        3 × 2 × 3 = 18 lời gọi thay vì 6. Đo được bằng đếm lời gọi provider, không
+        đo bằng `inspect.getsource` (docstring `history` có chứa chuỗi `@retry`).
 
         Khác `history`: intraday không lọc theo `start`/`end` (đó là khoảng ngày
         giao dịch, provider tự xử lý), nhưng `time` vẫn phải tz-aware và tăng dần
@@ -625,21 +768,20 @@ class Quote(BaseComponent):
         result = self._run_with_failover("intraday", "quote", kwargs)
         if kwargs.get("to_df", True) and isinstance(result, pd.DataFrame):
             # Không truyền start/end: intraday trả dữ liệu trong phiên, lọc theo
-            # ngày là việc của provider.
-            return _normalize_quote_result(result)
+            # ngày là việc của provider. Cùng tầng chuẩn hoá với `history` nên
+            # `concat` giữa hai hàm không hỏng.
+            from vnbroker.core.utils.normalizer import Normalizer
+            return Normalizer.normalize_intraday(result)
         return result
 
-    @retry(
-        stop=stop_after_attempt(Config.DEFAULT_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError, TimeoutError)),
-        reraise=True,
-    )
     def price_depth(self, symbol: Optional[str] = None, **kwargs):
         """Fetch order book depth data.
 
         Có failover như `history`/`intraday` — cùng lý do: dữ liệu ẩn danh, user
         không biết provider, provider chính hết hạn thì phải tự chuyển.
+
+        Retry policy: KHÔNG decorator ``@retry``; retry áp cho TỪNG provider trong
+        ``_run_with_failover`` (xem `history` và `intraday` để biết vì sao).
 
         KHÔNG chuẩn hoá tz: `price_depth` là bảng giá hai chiều, không có cột
         `time` theo dòng nên `_normalize_quote_result` không áp dụng (hàm đó tự
@@ -648,51 +790,6 @@ class Quote(BaseComponent):
         if symbol:
             self.symbol = symbol.upper()
         return self._run_with_failover("price_depth", "quote", kwargs)
-
-
-def _canonical_tz() -> Any:
-    """Timezone chuẩn của thị trường Việt Nam (giờ giao dịch)."""
-    return pytz.timezone("Asia/Ho_Chi_Minh")
-
-
-def _to_canonical_tz(series: "pd.Series") -> "pd.Series":
-    """Chuẩn hoá cột ``time`` thành tz-aware Asia/Ho_Chi_Minh.
-
-    Vì sao cần (GĐ2 của kế hoạch hai tầng):
-
-    - ``ohlc_to_df`` chỉ ``tz_convert`` cho nhánh ``source == 'VCI'``; nhánh
-      ``else`` để nguyên ``pd.to_datetime(...)`` nên ra tz-naive
-      (vnbroker/core/utils/transform.py:331-338).
-    - Hệ quả: provider tz-naive + provider tz-aware khiến ``pd.concat`` sinh
-      dtype ``object`` — phá mọi phép tính thời gian phía downstream, và
-      **không** ném exception.
-
-    Naive được hiểu là giờ Việt Nam chứ không phải UTC: provider trả
-    ``'2024-01-02 09:00'`` nghĩa là 09:00 VN. Nếu localize UTC rồi convert sang
-    VN thì nó thành 16:00 — sai 7 tiếng, và sai này rất khó phát hiện vì vẫn là
-    timestamp hợp lệ.
-    """
-    if getattr(series.dt, "tz", None) is None:
-        return series.dt.tz_localize(_canonical_tz())
-    return series
-
-
-def _parse_boundary(value: Any, *, inclusive_end: bool) -> "pd.Timestamp | None":
-    """Parse ngày biên của lời gọi. Trả None nếu thiếu/không parse được."""
-    if value is None or value == "":
-        return None
-    try:
-        ts = pd.to_datetime(value)
-    except (ValueError, TypeError):
-        return None
-    if pd.isna(ts):
-        return None
-    if getattr(ts, "tzinfo", None) is None:
-        ts = ts.tz_localize(_canonical_tz())
-    if inclusive_end and ts.hour == 0 and ts.minute == 0 and ts.second == 0:
-        # Người dùng truyền '2024-01-31' nghĩa là hết ngày đó, không phải 00:00.
-        ts = ts + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-    return ts
 
 
 def _normalize_quote_result(
@@ -704,14 +801,19 @@ def _normalize_quote_result(
 
     Hợp đồng mà mọi provider ẩn danh phải tuân thủ, khoá ở MỘT chỗ duy nhất:
 
-    1. ``time`` luôn tz-aware ``Asia/Ho_Chi_Minh``.
+    1. ``time`` luôn tz-aware ``Asia/Ho_Chi_Minh`` **và cùng một đơn vị lưu trữ**
+       (``datetime64[ns]``). Thiếu điều kiện thứ hai thì ``DataFrame.concat``
+       giữa KBS (``[us]``) và VCI (``[s]``) rơi về ``dtype object``.
     2. Không có dòng nào ngoài khoảng ``[start, end]`` (bỏ qua nếu không truyền).
     3. ``time`` tăng dần.
-    4. Không thêm/bớt cột, không mutate DataFrame của provider.
+    4. ``match_type`` dùng chung một tập giá trị.
+    5. Không thêm/bớt cột, không mutate DataFrame của provider.
 
-    Vì sao ở đây mà không sửa từng provider: đây là điểm kiểm soát duy nhất
-    người dùng đi qua (``Vnbroker``); provider mới thêm vào sau này tự động
-    tuân thủ. Gọi provider trực tiếp (``VCIQuote(...).history()``) giữ hành vi cũ.
+    ⚠ **Đây là lớp gọi, KHÔNG phải nơi hiện thực.** Trước đây hàm này và
+    ``core/utils/normalizer.py::Normalizer._normalize_frame`` là hai bản
+    trùng nhau, và ``api/quote.py`` chẳng đi qua bản nào. Nay toàn bộ logic nằm
+    ở :class:`vnbroker.core.utils.normalizer.Normalizer`; hàm này giữ lại tên
+    cũ vì ``data.py`` và test tham chiếu tới nó.
 
     Args:
         result: DataFrame trả về từ provider (có thể không phải DataFrame).
@@ -721,29 +823,14 @@ def _normalize_quote_result(
     Returns:
         DataFrame đã chuẩn hoá, hoặc nguyên ``result`` nếu không phải DataFrame.
     """
-    if not isinstance(result, pd.DataFrame) or "time" not in result.columns:
-        return result
+    from vnbroker.core.utils.normalizer import Normalizer
 
-    df = result.copy()
-
-    df["time"] = _to_canonical_tz(pd.to_datetime(df["time"], errors="coerce"))
-    # Timestamp không parse được thì loại bỏ thay vì để NaT làm hỏng phép so sánh.
-    df = df[df["time"].notna()]
-
-    lo = _parse_boundary(start, inclusive_end=False)
-    if lo is not None:
-        df = df[df["time"] >= lo]
-
-    hi = _parse_boundary(end, inclusive_end=True)
-    if hi is not None:
-        df = df[df["time"] <= hi]
-
-    return df.sort_values("time").reset_index(drop=True)
+    return Normalizer.normalize_history(result, start, end)
 
 
 def _filter_kwargs(method: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Lọc kwargs theo signature của provider method (pattern vnstock 4.0.4).
+    Lọc kwargs theo signature của provider method (pattern vnbroker v3.5 — nội bộ).
 
     - Provider có VAR_KEYWORD (**kwargs) → passthrough toàn bộ.
     - Không → chỉ giữ param có trong signature; kwargs lạ bị bỏ + logger.debug.
@@ -1139,9 +1226,9 @@ class News(BaseComponent):
 
     def _update_data_source(self, symbol: Optional[str] = None):
         """Update symbol and reload data source if needed."""
-        if symbol:
+        if symbol and symbol != self.symbol:
             self.symbol = symbol.upper()
-        self.data_source = self._load_data_source()
+            self.data_source = self._load_data_source()
 
     # NOTE: no @lru_cache — symbol-dependent, would leak `self` (see Company).
     def _annotate_news_fallback(self, result):

@@ -16,7 +16,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -128,7 +128,9 @@ class ProxyManager:
             )
             return []
 
-        params = {
+        # Annotate: không có thì mypy suy ra dict[str, object] và không khớp
+        # chữ ký `params` của requests (SupportsItems[str, ...]).
+        params: Dict[str, Any] = {
             'request': 'get_proxies',
             'skip': skip,
             'proxy_format': protocol,

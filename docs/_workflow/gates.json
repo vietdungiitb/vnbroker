@@ -1,0 +1,20 @@
+{
+  "note": "Python; CI = test.yml, code-quality.yml (mypy), coverage-report.yml (pytest --cov)",
+  "require_plan_audit": true,
+  "commands": [
+    {
+      "id": "test",
+      "cmd": ".venv/Scripts/python.exe -m pytest tests/ -q --timeout=180",
+      "blocking": true
+    },
+    {
+      "id": "mypy",
+      "cmd": "mypy vnbroker",
+      "blocking": true
+    }
+  ],
+  "project": "vnbroker",
+  "G5": "Gate G5: chay pytest that cho vnbroker — exit 2 neu co loi",
+  "G7": "Gate G7: kiem tra REPORT_FINAL.md co du GATE 1-5",
+  "G8": "Gate G8: kiem LESSONS.md khong con stub eoffice-be"
+}

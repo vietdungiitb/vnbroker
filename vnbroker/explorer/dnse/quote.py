@@ -8,11 +8,13 @@ vào giao diện chuẩn của vnbroker (history, intraday, price_depth).
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from vnbroker.common.data import EmptyProviderResult
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import get_asset_type
 from vnbroker.core.utils.transform import normalize_ohlc_prices, normalize_intraday_prices
@@ -287,10 +289,20 @@ class DNSEQuote:
                 "Đăng ký tại: https://developers.dnse.com.vn/"
             )
 
+        # Trước đây **kwargs bị nuốt, nên `base_url` không bao giờ tới được
+        # DNSEClient: tầng explorer chỉ nói được với production. Không có
+        # cách nào chạy đường này trên sandbox để kiểm chứng bằng dữ liệu thật.
+        # Chỉ truyền các khoá DNSEClient thật sự nhận, phần còn lại bỏ qua.
+        _client_opts = {
+            key: kwargs[key]
+            for key in ("base_url", "timeout_seconds", "api_version", "algorithm")
+            if key in kwargs
+        }
         self._client = DNSEClient(
             api_key=resolved_key,
             api_secret=resolved_secret,
             show_log=show_log,
+            **_client_opts,
         )
         self._market = self._client._market
 
@@ -514,21 +526,41 @@ class DNSEQuote:
 
         Trả về:
             pd.DataFrame với thông tin định nghĩa chứng khoán.
+
+        Raises:
+            Lỗi vận chuyển/HTTP được **ném nguyên vẹn** — trước đây hàm bắt
+            ``Exception`` rồi trả ``DataFrame()``, biến "DNSE không trả lời"
+            thành "hôm nay không có giao dịch". Người dùng đọc ``len(df) == 0``
+            sẽ kết luận sai nguyên nhân.
+            EmptyProviderResult: provider trả về rỗng. Đây là trường hợp
+            "không phải lỗi nhưng cũng không dùng được", theo đúng ranh giới
+            đã định nghĩa ở `common/data.py:442`.
         """
         sym = (symbol or self.symbol).upper()
-        try:
-            _, body = self._market.get_security_definition(symbol=sym)
-        except Exception as exc:
-            logger.warning("DNSE get_security_definition lỗi: %s", exc)
-            return pd.DataFrame()
+        # Không bắt lỗi ở đây: `should_failover` cần nhìn thấy loại lỗi để
+        # quyết định có xoay sang provider khác hay không.
+        _, body = self._market.get_security_definition(symbol=sym)
 
         if body is None:
-            return pd.DataFrame()
+            raise EmptyProviderResult(
+                f"DNSE get_security_definition({sym}) tra ve rong: None"
+            )
         if isinstance(body, dict):
+            if not body:
+                raise EmptyProviderResult(
+                    f"DNSE get_security_definition({sym}) tra ve dict rong"
+                )
             return pd.json_normalize(body)
         if isinstance(body, list):
+            if not body:
+                raise EmptyProviderResult(
+                    f"DNSE get_security_definition({sym}) tra ve list rong"
+                )
             return pd.json_normalize(body)
-        return pd.DataFrame()
+        raise EmptyProviderResult(
+            f"DNSE get_security_definition({sym}) tra ve kieu khong mong doi: "
+            f"{type(body).__name__}"
+        )
 
     def close_price(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """
@@ -600,3 +632,51 @@ class DNSEQuote:
         if isinstance(body, list):
             return pd.json_normalize(body)
         return pd.DataFrame()
+
+    # ------------------------------------------------------------------
+    # fetch_multiple (bulk operations)
+    # ------------------------------------------------------------------
+    @classmethod
+    def fetch_multiple(
+        cls,
+        symbols: List[str],
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        interval: str = "1D",
+        show_log: bool = False,
+        max_concurrency: int = 8,
+    ) -> List[pd.DataFrame]:
+        """Fetch history for multiple symbols concurrently.
+
+        Args:
+            symbols: List of stock symbols.
+            start: Start date 'YYYY-MM-DD'.
+            end: End date 'YYYY-MM-DD'.
+            interval: Candle interval (default '1D').
+            show_log: Enable logging.
+            max_concurrency: Max parallel workers (default 8).
+
+        Returns:
+            List of DataFrames (one per successful symbol).
+        """
+        def _fetch_one(symbol: str) -> Optional[pd.DataFrame]:
+            try:
+                quote = cls(symbol=symbol, show_log=show_log)
+                # `history` tự có default cho `start`; chỉ truyền khi caller
+                # thực sự chỉ định, để không ghi đè default bằng None.
+                history_kwargs: Dict[str, Any] = {"end": end, "interval": interval}
+                if start is not None:
+                    history_kwargs["start"] = start
+                return quote.history(**history_kwargs)
+            except Exception:
+                return None
+
+        results: List[pd.DataFrame] = []
+        with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
+            futures = {executor.submit(_fetch_one, sym): sym for sym in symbols}
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    results.append(result)
+
+        return results

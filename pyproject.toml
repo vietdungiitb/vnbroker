@@ -4,13 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vnbroker"
-version = "3.5.0"
+version = "3.6.0"
 description = "A beginner-friendly yet powerful Python toolkit for financial analysis and automation — built to make modern investing accessible to everyone"
 readme = "README.md"
 authors = [
   { name = "Pham Viet Dung", email = "vietdungiitb@gmail.com" },
 ]
-license = { text = "Custom: Personal, research, non-commercial; contact vietdungiitb@gmail.com for other use" }
+# PEP 639: dùng SPDX expression + license-files. Trước đây là TOML table
+# (`license = { text = ... }`) + classifier `License :: Other/Proprietary
+# License` — setuptools đã deprecate cả hai và hạn cứng 2027-02-18; metadata
+# sinh ra chứa đồng thời `License:` (free text) và `License-File:`, đúng ca mà
+# core-metadata 2.4 nói PyPI từ chối. `LicenseRef-Proprietary` là dạng hợp lệ
+# cho giấy phép không thuộc SPDX license list (LICENSE.md của dự án).
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE.md"]
 requires-python = ">=3.10"
 keywords = ["vnbroker", "finance", "vietnam", "stock market", "analysis", "API", "DNSE", "broker"]
 classifiers = [
@@ -27,7 +34,6 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
-    "License :: Other/Proprietary License",
     "Natural Language :: Vietnamese",
     "Natural Language :: English",
 ]
@@ -50,16 +56,52 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-timeout"]
-lint = ["mypy>=1.10", "ruff>=0.4.0"]
+# Binary WebSocket frames for the DNSE stream (`encoding="msgpack"`).
+# Optional on purpose: the client refuses to fall back to JSON, so it raises
+# rather than returning garbage. Install with `pip install "vnbroker[msgpack]"`.
+msgpack = ["msgpack>=1.0"]
+lint = [
+    "mypy>=1.10",
+    "ruff>=0.4.0",
+    # Stub types BẮT BUỘC: không có chúng, số lỗi mypy phụ thuộc môi trường —
+    # CI (Python 3.11) và máy dev (3.13) cho kết quả khác nhau với cùng một
+    # commit, khiến baseline gate báo sai. Đây là nguyên nhân 14 lỗi "mới" ở
+    # CI lúc đóng gói v3.5.0 trong khi máy local báo 0.
+    "types-requests>=2.31",
+    "types-beautifulsoup4",
+    "types-python-dateutil",
+    "types-pytz",
+]
 
 [project.urls]
-Documentation = "https://vnstocks.com/docs"
+Documentation = "https://github.com/vietdungiitb/vnbroker/tree/main/docs"
 Source = "https://github.com/vietdungiitb/vnbroker"
 IssueTracker = "https://github.com/vietdungiitb/vnbroker/issues"
 
 [tool.setuptools]
 include-package-data = true
-packages = { find = {} }
+
+# CHỈ đóng gói package thật của thư viện.
+#
+# `packages = { find = {} }` (dạng cũ, không có `namespaces`) bị setuptools
+# phân giải thành PEP420 namespace finder — mà finder này có DEFAULT_EXCLUDE
+# RỖNG, không loại trừ `tests`/`scripts`/`docs` như FlatLayoutPackageFinder.
+# Hệ quả đo được trên bản build v3.5.0:
+#   - wheel: `tests/` 155 file + `scripts/` 2 file nằm ở top-level site-packages
+#     -> top_level.txt = ['docs', 'scripts', 'tests', 'vnbroker']
+#   - `build/` cũ trên máy dev bị quét theo, nên cùng một commit cho artifact
+#     khác nhau: 740,433 B (có 13 file docs/debug_*.py) vs 732,254 B (clone sạch)
+# `include` chặn cả hai: chỉ `vnbroker*`, không phụ thuộc cây làm việc.
+#
+# LƯU Ý: `packages.find.include` CHỈ áp cho wheel. Sdist lấy file theo
+# `MANIFEST.in` + glob của egg_info, và setuptools chỉ ĐỌC LẠI
+# `vnbroker.egg-info/SOURCES.txt` ở các lần build sau — nên file rác lọt vào một
+# lần sẽ đi vào mọi sdist tiếp theo. Vì vậy `docs/` bị `prune` trong MANIFEST.in
+# và có cổng chặn riêng.
+#
+# Cổng chặn: scripts/check_dist_contents.py (chạy trong .github/workflows/publish.yml).
+[tool.setuptools.packages.find]
+include = ["vnbroker*"]
 
 [tool.setuptools.package-data]
 vnbroker = ["docs/*.txt", "docs/*.csv"]

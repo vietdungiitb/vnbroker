@@ -1,0 +1,205 @@
+{
+  "_README": "BANG CHUNG PROBE READ-ONLY TCBS · 2026-10-10 · KHONG PII.\nTao bang GET len server that voi JWT trong .env. Chi GET, khong goi\nbat ky verb ghi (dat/huy lenh, rut/tien chuyen). Body da khu PII: ten\nkhach hang, so tai khoan, so ngan hang, custody ID.\n`status` la HTTP status THAT cua server. Xem docs/REPORT_TCBS_ROUND4.md.",
+  "_TOKEN_TTL_MEASURED": "exp - iat = 86400s = 24 gio (tai lietu cu ghi 8 gio -> SAI)",
+  "_CUSTODY_ID_SOURCE": "JWT claim `custodyID` trong TCBS_JWT_TOKEN",
+  "results": [
+    {
+      "state": "LOI",
+      "status": 500,
+      "spec_path": "/eros/v2/get-profile/by-username/{custodyCode}",
+      "body": "{\"status\":500,\"code\":\"104000\",\"message\":\"Cannot change HTTP Accept-Language header - use a different locale resolution strategy\",\""
+    },
+    {
+      "state": "LOI",
+      "status": 500,
+      "spec_path": "/khronos/v1/account/status",
+      "body": "{\"status\":500,\"code\":\"210000\",\"message\":\"Yêu cầu không thể thực hiện vào lúc này, vui lòng quay lại sau hoặc liên hệ TCBS để được "
+    },
+    {
+      "state": "LOI",
+      "status": "BO_QUA_GHI",
+      "spec_path": "/khronos/v1/order/condition/detail",
+      "body": "-"
+    },
+    {
+      "state": "LOI",
+      "status": "BO_QUA_GHI",
+      "spec_path": "/khronos/v1/order/in-day",
+      "body": "-"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/tartarus/v1/derivatives",
+      "body": "{\n  \"data\": [{\n    \"symbol\": \"41I1GA000\",\n    \"ceilPrice\": 2011.8,\n    \"floorPrice\": 1748.6,\n    \"refPrice\": 1880.2,\n    \"bidPrice"
+    },
+    {
+      "state": "LOI",
+      "status": 500,
+      "spec_path": "/khronos/v1/account/portfolio/position/close",
+      "body": "{\"status\":500,\"code\":\"210000\",\"message\":\"Yêu cầu không thể thực hiện vào lúc này, vui lòng quay lại sau hoặc liên hệ TCBS để được "
+    },
+    {
+      "state": "LOI",
+      "status": 500,
+      "spec_path": "/khronos/v1/account/portfolio/status",
+      "body": "{\"status\":500,\"code\":\"210000\",\"message\":\"Yêu cầu không thể thực hiện vào lúc này, vui lòng quay lại sau hoặc liên hệ TCBS để được "
+    },
+    {
+      "state": "KHONG_CO",
+      "status": 404,
+      "spec_path": "/api/v1/derivatives/contracts",
+      "body": "{\"code\": \"<str len=9>\", \"data\": \"<redacted>\", \"message\": \"<redacted>\"}"
+    },
+    {
+      "state": "LOI",
+      "status": "BO_QUA_GHI",
+      "spec_path": "/campaign-management/v1/margin/subscription/{accountNo}/addons/detail",
+      "body": "-"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/aion/v1/accounts/{accountNo}/se",
+      "body": "{\"object\": \"<str len=2>\", \"accountNo\": \"<str len=10>\", \"custodyID\": \"<str len=10>\", \"fullName\": \"<str len=14>\", \"stock\": []}"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/nyx/v2/stock/bars-long-term",
+      "body": "{\"ticker\":\"TCB\",\"data\":[{\"open\":32350.00,\"high\":32400.00,\"low\":31850.00,\"close\":32300.00,\"volume\":14892416,\"tradingDate\":\"2026-10-"
+    },
+    {
+      "state": "SAI_THAM_SO",
+      "status": 400,
+      "spec_path": "/nyx/v2/stock/bars",
+      "body": "{\"status\":400,\"code\":\"889004\",\"message\":\"getCandleChartV2.resolution: value must match one of the values in the list\",\"traceId\":\"2"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/aion/v1/accounts/{accountNo}/cashInvestments",
+      "body": "{\"object\":\"list\",\"totalCount\":1,\"pageSize\":5,\"pageIndex\":1,\"data\":[{\"object\":\"cashInvestment\",\"iaInfos\":[{\"partner\":\"TCB\",\"status\""
+    },
+    {
+      "state": "SAI_THAM_SO",
+      "status": 400,
+      "spec_path": "/erebos/v2/digital/trans-hist-cashStatements",
+      "body": "{\"status\":400,\"code\":\"878000\",\"message\":\"Required request parameter toDate for method parameter type 'String' is not present\",\"tra"
+    },
+    {
+      "state": "SAI_THAM_SO",
+      "status": 400,
+      "spec_path": "/erebos/v2/digital/margin-info",
+      "body": "{\"status\":400,\"code\":\"878000\",\"message\":\"Required request parameter page for method parameter type 'Integer' is not present\",\"trac"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/tartarus/v1/tickerSnaps",
+      "body": ""
+    },
+    {
+      "state": "LOI",
+      "status": "BO_QUA_GHI",
+      "spec_path": "/aion/v1/accounts/{accountNo}/orders/{orderID}",
+      "body": "-"
+    },
+    {
+      "state": "LOI",
+      "status": "BO_QUA_GHI",
+      "spec_path": "/aion/v1/accounts/{accountNo}/orders",
+      "body": "-"
+    },
+    {
+      "state": "LOI",
+      "status": 500,
+      "spec_path": "/khaos/v1/loan/{accountNo}",
+      "body": "{\"status\":500,\"code\":\"875000\",\"message\":\"Failed to convert value of type 'java.lang.String' to required type 'java.util.List'; Fai"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/aion/v1/customers/{custodyId}/accounts",
+      "body": "[{\"custodyID\": \"<REDACTED>\",\"accountNo\": \"<REDACTED>\",\"aftype\":\"0001\",\"vsdStatus\":\"Y\",\"accountStatus\":\"A\",\"marginLimit\":0,\"isIA\":\"Y\""
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/tartarus/v1/tickerCommons",
+      "body": ""
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/aion/v1/accounts/{accountNo}/matching-details",
+      "body": "{\"object\": \"<redacted>\", \"pageSize\": \"<int>\", \"pageIndex\": \"<int>\", \"totalCount\": \"<int>\", \"data\": []}"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/nyx/v1/intraday/{ticker}/his/paging",
+      "body": "{\"page\": \"<int>\", \"size\": \"<int>\", \"headIndex\": \"<int>\", \"numberOfItems\": \"<int>\", \"total\": \"<int>\", \"ticker\": \"<str len=8>\", \"data\": [], \"d\": \"<redacted>\"}"
+    },
+    {
+      "state": "KHONG_DUOC",
+      "status": 403,
+      "spec_path": "/hydros/v1/account/{accountNo}/pricing-policy",
+      "body": "{\"status\": \"<int>\", \"code\": \"<str len=6>\", \"message\": \"<str len=18>\", \"traceId\": \"<str len=16>\"}"
+    },
+    {
+      "state": "LOI",
+      "status": 500,
+      "spec_path": "/aion/v1/accounts/{accountNo}/ppse/{symbol}/{price}",
+      "body": "{\"error\": \"<str len=6>\", \"message\": \"<str len=15>\"}"
+    },
+    {
+      "state": "SAI_THAM_SO",
+      "status": 400,
+      "spec_path": "/aion/v1/accounts/{accountNo}/ppse/{symbol}",
+      "body": "{\"error\": \"<str len=6>\", \"message\": \"<str len=12>\"}"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/aion/v1/accounts/{accountNo}/ppse",
+      "body": "{\"object\":\"ppse\",\"rateBrkS\":0.03,\"rateBrkB\":0.15,\"accountNo\": \"<REDACTED>\",\"custodyID\":null,\"symbol\":\"\",\"price\":0,\"pp0\":0,\"ppse\":0,"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/tartarus/v1/putThroughSnaps",
+      "body": "{\n  \"buyAdv\": [{\n    \"symbol\": \"VIC124003\",\n    \"price\": 1.05E8,\n    \"vol\": 1000.0,\n    \"time\": \"20261009-07:27:45.417\",\n    \"stat"
+    },
+    {
+      "state": "KHONG_DUOC",
+      "status": 403,
+      "spec_path": "/hydros/v1/account/{accountNo}/risk",
+      "body": "{\"status\": \"<int>\", \"code\": \"<str len=6>\", \"message\": \"<str len=18>\", \"traceId\": \"<str len=16>\"}"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/ananke/v1/securities",
+      "body": "{\"content\":[{\"symbol\":\"TCB\"}],\"pageable\":{\"pageNumber\":0,\"pageSize\":5,\"sort\":{\"empty\":false,\"sorted\":true,\"unsorted\":false},\"offse"
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/nyx/v1/intraday/{ticker}/bsa",
+      "body": "{\"ticker\": \"<str len=8>\", \"data\": [], \"d\": \"<str len=5>\"}"
+    },
+    {
+      "state": "SAI_THAM_SO",
+      "status": 400,
+      "spec_path": "/nyx/v1/intraday/{ticker}/bsa-ext",
+      "body": "{\"status\":400,\"code\":\"889004\",\"message\":\"Required request parameter 'timeWindow' for method parameter type String is not present\","
+    },
+    {
+      "state": "OK",
+      "status": 200,
+      "spec_path": "/nyx/v1/intraday/{ticker}/bsa-month",
+      "body": "{\"ticker\":\"{ticker}\",\"data\":[{\"bup\":0.000,\"sdp\":0.000,\"bsr\":null,\"t\":\"10/09\"},{\"bup\":0.000,\"sdp\":0.000,\"bsr\":null,\"t\":\"11/09\"},{\"b"
+    }
+  ]
+}

@@ -29,22 +29,27 @@ from vnbroker.brokerage.base import (
     Position,
     TickData,
 )
+from vnbroker.brokerage.guards import WriteGateMixin, guarded_write
 
 
-class TCBSClient(BrokerageBase):
+class TCBSClient(WriteGateMixin, BrokerageBase):
     """
     TCBS Direct Brokerage Client.
-    
+
     Endpoints (production):
     - REST: https://apipubaws.tcbs.com.vn
     - WebSocket: wss://apipubaws.tcbs.com.vn/ws
-    
+
     Sandbox:
     - REST: https://apipubaws-sandbox.tcbs.com.vn
     - WebSocket: wss://apipubaws-sandbox.tcbs.com.vn/ws
-    
+
     Authentication: HMAC-SHA256 signature + API Key + Timestamp
     OTP: SMS/Email/Google Authenticator challenge on sensitive operations
+
+    An toàn đường ghi: kế thừa `WriteGateMixin`. Mọi write method bọc
+    `@guarded_write` với `dry_run=True` MẶC ĐỊNH — muốn gửi thật phải đặt
+    `dry_run=False` VÀ gọi `enable_write()` trước.
     """
     
     PROD_BASE_URL = "https://apipubaws.tcbs.com.vn"
@@ -311,8 +316,13 @@ class TCBSClient(BrokerageBase):
     
     # ==================== Order Execution ====================
     
-    def place_order(self, request: OrderRequest) -> OrderResponse:
-        """Place a new order."""
+    @guarded_write
+    def place_order(self, request: OrderRequest, *, dry_run: bool = True) -> OrderResponse:
+        """Place a new order.
+
+        `dry_run=True` (mặc định) → KHÔNG gửi lệnh, trả `DryRunResult`.
+        Muốn gửi thật: `dry_run=False` và đã gọi `enable_write()`.
+        """
         payload = {
             "accountNo": request.account_no or self.account_no,
             "symbol": request.symbol,
@@ -325,7 +335,7 @@ class TCBSClient(BrokerageBase):
             payload["price"] = request.price
         if request.expiry_date:
             payload["expiryDate"] = request.expiry_date.strftime("%Y-%m-%d")
-        
+
         response = self._request("POST", "/api/v1/orders", payload=payload)
         data = response.json()["data"]
         return OrderResponse(
@@ -343,8 +353,12 @@ class TCBSClient(BrokerageBase):
             raw_response=data,
         )
     
-    def cancel_order(self, order_id: str) -> OrderResponse:
-        """Cancel an order."""
+    @guarded_write
+    def cancel_order(self, order_id: str, *, dry_run: bool = True) -> OrderResponse:
+        """Cancel an order.
+
+        `dry_run=True` (mặc định) → KHÔNG gửi, trả `DryRunResult`.
+        """
         response = self._request("DELETE", f"/api/v1/orders/{order_id}")
         data = response.json()["data"]
         return OrderResponse(
@@ -362,14 +376,18 @@ class TCBSClient(BrokerageBase):
             raw_response=data,
         )
     
-    def modify_order(self, order_id: str, **kwargs) -> OrderResponse:
-        """Modify an order (price, quantity)."""
+    @guarded_write
+    def modify_order(self, order_id: str, *, dry_run: bool = True, **kwargs) -> OrderResponse:
+        """Modify an order (price, quantity).
+
+        `dry_run=True` (mặc định) → KHÔNG gửi, trả `DryRunResult`.
+        """
         payload = {}
         if "price" in kwargs:
             payload["price"] = kwargs["price"]
         if "quantity" in kwargs:
             payload["quantity"] = kwargs["quantity"]
-        
+
         response = self._request("PATCH", f"/api/v1/orders/{order_id}", payload=payload)
         data = response.json()["data"]
         return OrderResponse(
