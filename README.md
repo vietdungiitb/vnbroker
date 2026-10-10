@@ -2,6 +2,8 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.7.0** — Rate-limit thật + logger không rò token. Server trả `429` nay **không bị retry 3 lần** nữa mà chuyển provider ngay, và cooldown theo **đúng `Retry-After`** của server thay vì con số 5s suy đoán. `logger` bịt 4 đường rò token (`Authorization: Bearer <JWT>`, token trần, OTP trần) và vá lỗi `log.info("%s", dict)` **mất trọn dòng log**. ⚠️ Có **Breaking changes** (xem [Phiên bản 3.7.0](#phiên-bản-370--2026-10-10--rate-limit-thật--logger-không-rò-token)).
+>
 > **v3.6.0** — Hợp đồng dữ liệu tầng 1: **mọi provider trả cùng một schema**. Sửa 3 lỗi đang sai âm thầm: `match_type` lệch casing giữa provider (`df[df.match_type=='Buy']` trả **0 dòng** từ KBS, 67 từ VCI), cột `time` lệch đơn vị lưu trữ khiến `pd.concat` ra `object`, và `market_cap` phóng đại **1000 lần**. Nối TCBS vào `AUTO` và thêm cổng `check_provider_consistency.py`. ⚠️ Có **Breaking changes** (xem [Phiên bản 3.6.0](#phiên-bản-360-2026-10-10--hợp-đồng-dữ-liệu-tầng-1)).
 >
 > **v3.5.0** — Kiến trúc hai tầng: dữ liệu thị trường ẩn danh (`auto=True`) tự chọn và xoay vòng provider; broker chọn provider tường minh. Kèm chặn double-submit lệnh SSI + hàng rào `dry_run` cho `connector/dnse`. ⚠️ Có **Breaking changes** (xem [Breaking Changes 3.5.0](#phiên-bản-350--2026-10-02--kiến-trúc-hai-tầng--an-toàn-đường-giao-dịch)) — `history()` trả `time` tz-aware.
@@ -249,6 +251,52 @@ all_funds = funds.listing()
   DNSE). `fx()` và `world_index()` raise `NotImplementedError`.
   Riêng **`crypto()` đã hoạt động** từ v3.4 qua provider `BINANCE` (spot public,
   không cần key).
+
+## Phiên bản 3.7.0 (2026-10-10) — Rate-limit thật, logger không rò token
+
+Đợt này sửa hai lỗi **đo được bằng số**, mỗi lỗi có lệnh tái lập (mã `TCB`, 2026-10-10).
+
+### Breaking Changes (3.7.0)
+
+1. **HTTP 429 giờ ném `RateLimitError`, không phải `ConnectionError`.**
+   - **Trước:** `send_request_direct` coi mọi status ≠ 200 là `ConnectionError`,
+     nên `429` không mang theo `Retry-After` của server.
+   - **Sau:** `429` → `vnbroker.core.exceptions.RateLimitError`, có thuộc tính
+     `retry_after: float | None` và `provider`.
+   - **`except ConnectionError` của bạn vẫn bắt được** (đã kiểm chứng MRO:
+     `RateLimitError ⊂ ConnectionError ⊂ OSError`). Nhưng nếu bạn dùng
+     `type(e) is ConnectionError` thì **phải đổi** sang `isinstance`.
+
+2. **429 không còn bị retry 3 lần.**
+   - **Trước:** một lệnh `history()` gặp 429 gửi **3** request (source cố định)
+     hoặc **6** request (AUTO, 2 provider) rồi mới xoay vòng — tức bắn thêm vào
+     một provider vừa bảo "chậm lại".
+   - **Sau:** **1** request mỗi provider, rồi chuyển provider ngay.
+
+3. **Cooldown theo `Retry-After` của server, không còn 5 giây suy đoán.**
+   - **Trước:** `5 × 2^(lần lỗi − 1)`, tối đa 90 giây, **bỏ qua** header server.
+   - **Sau:** `max(suy đoán, Retry-After)`, kẹp trong `[1, 900]` giây
+     (`Config.RETRY_AFTER_MAX_SECONDS`). `Retry-After: 120` ⇒ cooldown **120s**.
+
+### Thay đổi khác
+
+- **`logger` bịt 4 đường rò token.** Đo trước/sau trên cùng 10 chuỗi:
+  `Authorization: Bearer <JWT>`, `repr({'Authorization': 'Bearer <JWT>'})`,
+  JWT trần không tên biến, `otp 123456` — trước **4/10 rò**, sau **0/10**.
+- **Vá lỗi `log.info("%s", {...})` làm mất dòng log.** Filter cũ duyệt dict như
+  iterable nên ra **key**; dict 2 khóa còn gây `TypeError` và **mất trọn dòng log**.
+  Nay giá trị được hiển thị đúng và đã redact.
+- **Vá lỗi redact quá rộng:** `monkey=abc` trước đây ra `'monkey: "***REDACTED***"'`
+  vì regex không có word boundary.
+- `bearer of the bond coupon` (tiếng Anh thường) **không** còn bị bóp méo.
+
+### Thứ **CHƯA** chạy (đừng đọc như đã xong)
+
+- **CI GitHub Actions không chạy** (billing). Mọi gate trong mục này chạy **LOCAL**
+  qua `pwsh -File scripts/check_all.ps1`.
+- Chưa đo live với traffic TCBS/DNSE thật trong lần sửa này.
+
+---
 
 ## Phiên bản 3.6.0 (2026-10-10) — Hợp đồng dữ liệu tầng 1
 

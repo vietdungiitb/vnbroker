@@ -329,7 +329,11 @@ class RateLimitError(NetworkError, ConnectionError):
 
         msg = f"Provider '{provider}' temporarily throttled requests"
         if retry_after:
-            msg += f". Retry after {int(retry_after)} seconds"
+            # `int()` cắt mất phần thập phân: `Retry-After: 0.5` (một số provider
+            # gửi giây dạng thập phân) sẽ in ra "Retry after 0 seconds" — đúng
+            # ngược với con số đang mang. Bỏ `.0` khi nguyên để log gọn.
+            seconds = int(retry_after) if float(retry_after).is_integer() else retry_after
+            msg += f". Retry after {seconds} seconds"
 
         details = details or {}
         details["provider"] = provider

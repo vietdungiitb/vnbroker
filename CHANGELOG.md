@@ -2,6 +2,76 @@
 
 All notable changes to this project will be documented in this file.
 
+### 3.7.0 — Rate-limit that + logger khong ro token (2026-10-10)
+
+Dong nay dong **Wave 3 + Wave 4**. Moi so duoc do bang **call counter** va bang
+**chay `redact_sensitive_data()` tren 10 chuoi** — khong doc tu tai lieu cu.
+
+**W3 — rate-limit that (W3.0–W3.6):**
+
+| Do | Truoc @ 4cd0f2d | Sau |
+|:--|:--|:--|
+| 429 tren source **co dinh** | **3** request / 1 lenh | **1** |
+| 429 tren **AUTO**, 2 provider | **6** request / 1 lenh | **2** |
+| `should_failover(RateLimitError(...))` | **`False`** | **`True`** |
+| cooldown tu `Retry-After: 120` | **4.935s** (suy doan) | **119.98s** |
+
+**Blocker da bat o audit vong 1:** ke thua `RateLimitError` cu co lai **lam AUTO
+failover chet** — no khong phai `OSError` nen `should_failover` tra `False`, va
+`base.py` se `raise` thay vi thu provider ke tiep. Sua bang cach cho no ke thua
+them `ConnectionError` (MRO: `RateLimitError → NetworkError → vnbrokerError →
+ConnectionError → OSError`).
+
+**Blocker da bat o audit vong 2:** AC ban v2 do tren **duong sai**. Tôi kết luận
+`common.data.Quote` khong retry 429 bang cach soi `hasattr(Quote.history,'retry')`
+— nhung `@retry` **khong** phai noi retry xay ra: no nam **ben trong**
+`_run_with_failover`. Do lai: **3** va **6** attempt. Vi vay
+`common/data.py` — **duong nguoi dung that** — vao lat W3.
+
+**W4 — logger (T4.1–T4.5):**
+
+| Do | Truoc | Sau |
+|:--|:--|:--|
+| 10 chuoi thu, con sot token/OTP | **4/10** | **0/10** |
+| 6 chuoi phai **khong** doi | **1/6** (`monkey=abc`) | **0/6** |
+| `log.info("x=%s", {"a":1,"b":2})` | **`TypeError` → mat tron dong log** | `x={'a': 1, 'b': 2}` |
+
+Nguyen goc: `SENSITIVE_PATTERN` yeu cau `tenbien [:=] giatri` va lop ky tu gia tri
+`[^"\',\s}]+` **dung o dau cach**, nen `Authorization: Bearer <JWT>` chi an
+`Bearer` con JWT lot. Va Python 3.13 bo `args=({...},)` thanh chinh dict, nen
+filter duyet no ra **key**.
+
+⚠ **L-R07 — cong cu "bao ve" bang cach pha du lieu con ng dung thi tot hon loi
+no chan.** Cach tu nhien bat `otp 123456` la cho phep dau cach lam dau phan cach,
+va do duoc pha:
+
+```
+'the user name is bob'    -> 'the user: "***REDACTED***" is bob'
+'key note: read the file' -> 'key: "***REDACTED***" read the file'
+```
+
+Vi vay T4.4 **neo chu so** (4–8 digit) va T4.5 them **word boundary** — cai sau
+cha `monkey=abc` bi che oan.
+
+**5 minor do audit vong 5 bat va da sua (xem `docs/AUDIT_TIER1_WAVE34.md`):**
+
+1. `bearer of the bond coupon` bi bop meo → `Bearer ***REDACTED*** …`; nay
+   chinh la dang L-R07. Bay token phai **trong** co hinh credential moi bi che.
+2. JWT `alg:none` (chuoi ky rong) lot nguyen van → chap nhan chuoi ky rong.
+3. `retry_after` bi mat o duong `PROXY` + `ProxyMode.TRY` (moi proxy that →
+   boc lai `ConnectionError` chung).
+4. `details["url"]` cua 429 nhung **query string** — provider HMAC (DNSE, KBS) dat
+   credential trong query; bay chi giu scheme+netloc+path.
+5. `Retry-After: 0.5` in ra `"Retry after 0 seconds"`.
+
+**CHUA CHAY (khong phai PASS):**
+
+- **CI GitHub Actions** — job bi tu choi khoi dong do billing. Moi gate chay
+  LOCAL qua `pwsh -File scripts/check_all.ps1`.
+- Chua do live voi traffic TCBS/DNSE that trong dot nay.
+- `broker/ssi/auth.py` dung `logging.getLogger` chuan → **khong** di qua
+  `SensitiveDataFilter`. De la no (ngoai pham vi, lane tien that).
+
 ### 3.6.0 — Hop dong du lieu tang 1 (2026-10-10)
 
 Dong nay dong **Wave 1 + Wave 2** cua `docs/PLAN_TIER1_PROVIDER_AGNOSTIC.md`.

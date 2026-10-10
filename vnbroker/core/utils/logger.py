@@ -30,8 +30,19 @@ SENSITIVE_KEYS = {
 # sitting right there in the log file. The scheme word plus the whitespace between
 # it and the credential is the whole gap, so match across it explicitly.
 # Token charset = RFC 6750 b64token, so a trailing comma/quote/paren is not eaten.
+#
+# WHY the credential must NOT be a bare English word (audit vòng 5, finding 1):
+# matching "Bearer" + any word silently destroys ordinary log prose and rewrites
+# the scheme word's casing. Measured on the first version of this rule:
+#   'bearer of the bond coupon' -> 'Bearer ***REDACTED*** the bond coupon'
+#   'the Bearer is a role not a token' -> 'the Bearer ***REDACTED*** a role ...'
+# That is precisely the L-R07 shape — a guard that destroys real data is worse
+# than the leak it prevents. So the token must look like a credential: either a
+# JWT (header starts with the base64 of '{"'), or long enough (>=16 chars, the
+# floor of a real bearer token) to not be an English word.
+BEARER_TOKEN = r'(?:eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}|[A-Za-z0-9\-._~+/]{16,}={0,2})'
 BEARER_PATTERN = re.compile(
-    r'(?<![A-Za-z0-9])Bearer[ \t]+[A-Za-z0-9\-._~+/]+=*',
+    r'(?<![A-Za-z0-9])(Bearer)([ \t]+)(' + BEARER_TOKEN + r')(?![A-Za-z0-9\-._~+/])',
     re.IGNORECASE
 )
 
@@ -43,8 +54,13 @@ BEARER_PATTERN = re.compile(
 # NOTE the trailing (?![A-Za-z0-9_-]) instead of \b: a JWT is base64url, whose
 # last character may legally be '-' or '_', and \b is not a boundary there
 # ("...\w" would not match before a space). \b would silently skip those.
+#
+# WHY the third segment may be EMPTY (audit vòng 5, finding 2): an unsigned
+# "alg":"none" token legitimately ends with a bare dot, e.g.
+# 'eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjM0NTY3ODkwIn0.' — requiring {6,} there let
+# it through verbatim, so the "no JWT survives" guarantee did not hold.
 JWT_PATTERN = re.compile(
-    r'\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}(?![A-Za-z0-9_-])'
+    r'\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}(?:\.[A-Za-z0-9_-]*)?(?![A-Za-z0-9_-])'
 )
 
 # --- Rule 3: a one-time code announced without "key=value" ---------------
@@ -90,6 +106,17 @@ def _redact_otp(match: "re.Match[str]") -> str:
     head = match.group(0)[:match.start(1) - match.start(0)]
     return str(head) + REDACTED
 
+
+def _redact_bearer(match: "re.Match[str]") -> str:
+    """Keep the scheme word and its original casing, replace only the token.
+
+    The first version substituted a literal ``'Bearer '``, which rewrote
+    ``bearer``/``BEARER`` in the log line — a cosmetic rewrite of text the user
+    did not ask to change. Group 1 is the scheme as it was written, group 2 the
+    whitespace after it.
+    """
+    return f"{match.group(1)}{match.group(2)}{REDACTED}"
+
 def redact_sensitive_data(text: str) -> str:
     """
     Redact sensitive information from log messages.
@@ -107,7 +134,7 @@ def redact_sensitive_data(text: str) -> str:
     """
     if not isinstance(text, str):
         text = str(text)
-    text = BEARER_PATTERN.sub('Bearer ' + REDACTED, text)
+    text = BEARER_PATTERN.sub(_redact_bearer, text)
     text = JWT_PATTERN.sub(REDACTED, text)
     text = OTP_PATTERN.sub(_redact_otp, text)
     return SENSITIVE_PATTERN.sub(r'\1\2\3: "' + REDACTED + r'"', text)

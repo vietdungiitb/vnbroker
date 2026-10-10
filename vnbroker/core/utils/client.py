@@ -16,7 +16,7 @@ import random
 import math
 from typing import Dict, Any, Optional, Union, List
 from enum import Enum
-from urllib.parse import urlparse
+from urllib.parse import urlsplit, urlunsplit
 from pydantic import BaseModel
 from vnbroker.core.exceptions import RateLimitError
 from vnbroker.core.utils.logger import get_logger
@@ -266,6 +266,7 @@ def send_request(
         if proxy_mode == ProxyMode.TRY:
             # Try each proxy sequentially until successful
             last_exception = None
+            last_rate_limit = None
             for proxy_url in proxy_list:
                 try:
                     if show_log:
@@ -277,11 +278,22 @@ def send_request(
                     )
                 except ConnectionError as e:
                     last_exception = e
+                    # Giữ lại `retry_after` của server thay vì ghi đè bằng
+                    # ConnectionError chung. `RateLimitError` là subclass của
+                    # ConnectionError nên nó lọt vào `except` ở trên; nếu ta bọc
+                    # lại thành ConnectionError thì circuit breaker rơi về
+                    # cooldown suy đoán 5s, mất đúng con số server đã gửi.
+                    if isinstance(e, RateLimitError):
+                        last_rate_limit = e
                     if show_log:
                         logger.warning(
                             f"Proxy {proxy_url} failed: {e}"
                         )
                     continue
+            if last_rate_limit is not None:
+                # Mọi proxy đều bị throttle: ném nguyên exception cuối để
+                # `record_failure` nhận được `retry_after`.
+                raise last_rate_limit
             msg = (
                 f"All proxies failed. "
                 f"Last error: {last_exception}"
@@ -376,10 +388,19 @@ def send_request_direct(
                 # phải mang theo Retry-After thay vì nằm chung với 403/500.
                 # Trước đây 429 ra `ConnectionError` chung, nên cooldown chỉ
                 # lớn theo suy đoán và retry thêm 3 lần vô ích.
+                #
+                # `details["url"]` đi vào `__str__` của exception, tức đi thẳng
+                # ra log/traceback của người dùng. Provider HMAC (DNSE, KBS) đặt
+                # credential TRONG query string (`?api_key=…&signature=…`) — nhét
+                # URL thô vào đây là tự rò credential qua chính exception của mình.
+                # Vì vậy chỉ giữ scheme+netloc+path.
+                safe_url = urlunsplit(
+                    (urlsplit(url).scheme, urlsplit(url).netloc, urlsplit(url).path, "", "")
+                )
                 raise RateLimitError(
-                    provider=urlparse(url).netloc or url,
+                    provider=urlsplit(url).netloc or url,
                     retry_after=parse_retry_after(getattr(response, "headers", None)),
-                    details={"url": url, "status_code": 429},
+                    details={"url": safe_url, "status_code": 429},
                 )
             msg = (
                 f"Failed to fetch data: "

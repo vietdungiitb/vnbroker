@@ -82,6 +82,9 @@ VERSION_REQUIREMENTS = {
     "3.6.0": {
         "vnii": ">=0.1.5",
     },
+    "3.7.0": {
+        "vnii": ">=0.1.5",
+    },
 }
 
 # Version-specific notices for user
@@ -113,6 +116,33 @@ VERSION_NOTICES = {
         "warnings": [
             "Đặt lệnh SSI: hãy truyền clientRequestId khi định thử lại sau lỗi mạng.",
             "Baseline mypy --strict hết hạn 2026-11-01.",
+        ],
+    },
+    "3.7.0": {
+        "title": "vnbroker 3.7.0 - Rate-limit thật + logger không rò token",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.7.0",
+        # Đợt này đổi CẢ exception type người dùng thấy, CẢ số request gửi đi,
+        # và CẢ cách logger redact. Ba đều là breaking.
+        "critical_notices": [
+            "HTTP 429 giờ ném RateLimitError thay vì ConnectionError. Đây là "
+            "LỚP CON của ConnectionError nên `except ConnectionError` vẫn bắt "
+            "được; nhưng `type(e) is ConnectionError` thì không còn đúng. "
+            "Dùng isinstance().",
+            "429 KHÔNG còn bị retry: một lệnh history() gặp 429 trước đây gửi 3 "
+            "request (source cố định) hoặc 6 (AUTO, 2 provider) rồi mới xoay "
+            "vòng; nay là 1 request mỗi provider rồi chuyển ngay.",
+            "Cooldown của provider giờ theo `Retry-After` của server "
+            "(max với suy đoán, kẹp [1, 900]s) thay vì luôn 5 * 2^(n-1).",
+            "logger redact chặt hơn: `Authorization: Bearer <JWT>`, JWT trần và "
+            "OTP trần nay đều bị che (trước 4/10 chuỗi thử rò). Đồng thời vá lỗi "
+            "log.info('%s', dict) làm MẤT dòng log, và sửa redact quá rộng làm "
+            "'monkey=abc' bị che oan.",
+        ],
+        "warnings": [
+            "Số request tới provider GIẢM khi gặp 429. Nếu bạn dựa vào việc "
+            "thử lại để che lỗi mạng, hãy bắt lỗi ở tầng trên thay vì đợi retry.",
+            "CI GitHub Actions của repo này KHÔNG chạy (billing) — mọi gate chạy "
+            "LOCAL qua scripts/check_all.ps1.",
         ],
     },
     "3.6.0": {
@@ -153,5 +183,6 @@ PYTHON_VERSION_SUPPORT = {
     "3.4.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
     "3.5.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
     "3.6.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
+    "3.7.0": ["3.10", "3.11", "3.12", "3.13", "3.14"],
 }
 
