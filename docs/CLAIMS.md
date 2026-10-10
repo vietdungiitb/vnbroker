@@ -199,3 +199,37 @@ self-test 9/9 + 10/10.
 
 **CHUA CHAY:** probe server that (chua co JWT). Ba noi an toan la lane tien thuat
 duoc sua bang `check_tcbs_bodies.py` + baseline, khong dua vao commit nao.
+
+## 2026-10-10 — TCBS Round 4 (Mode B solo) · base `dev @ a843bae` -> `7aef6af`
+
+| agent | branch | scope | status | note |
+|---|---|---|---|---|
+| coordinator | dev (truc tiep) | Sua 38 lech payload + do duoc server that + 3 lo hong cong + 2 bug co san + TTL 24h + DNSE skip | **released** | `2599872` · `ea55936` · `7aef6af` |
+
+**Phat hien lon nhat:** `.env` **DA CO JWT** (1290 ky tu, con hieu luc den 19:10).
+4 dot truo deu ghi "chua co JWT" — sai, chi la chua ai mo `.env` kiem.
+
+**Do duoc (khong doan):** TTL = `exp - iat` = 86400s = **24 gio** (tai lieu ghi ~8 gio — sai) ·
+`custodyID` trong claim · `scopes` **khong co derivative** => `/khronos/*` khong kiem chung duoc.
+
+**Ket qua:** cong payload 12 write · **0 lech** (baseline rong) · `/api/v1/derivatives/contracts`
+**404 ca GET lan POST** => khong noi, coverage giu 47/48 · 18 path da go: **17** chet that,
+1 khong phan biet duoc voi wildcard · 3 endpoint bi server tu choi (2 hydros tung bao PASS bang mock).
+
+**3 lo hong CUA CONG** do chinh tai tao ra khi sua: quet bo sot `payload["x"]=..`;
+map toan cuc theo TEN key lam 5 method derivative quet nham (9 lech SAI);
+`subprocess` khong khai `encoding` lam gate mypy **xanh gia**. Khong baseline 2 loi
+dau — chung la loi cua cong.
+
+**2 bug co san:** `client.modify_order()` + `cancel_order()` truyen `pin_code` cho
+method khong co tham so do => TypeError moi lan goi.
+
+**5 ket luan sai cua chinh toi** da dinh chinh tai cho (bao cao §6): 4 loi **do sai
+do khong doan dung** (truyen `{ticker}` literal, gui header hoc, dem sai path da go,
+nho quyen la sai dinh dang).
+
+**Gate:** **8/8 PASS** — ruff 0 | mypy 1266->1138 | contract 72 | tcbs-bodies 0 lech |
+lessons 24/40 | pytest 1919 passed / 30 skipped / **0 ERROR**.
+
+**CHUA CHAY:** goi write endpoint that (chua duoc giao phep) · xac nhan `/khronos/*`
+· do tap `rc` · CI (billing).

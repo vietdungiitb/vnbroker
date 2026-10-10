@@ -45,6 +45,74 @@ tcbs-bodies 12 payload / 0 lech moi | lessons 24/40 | self-test 9/9 + 10/10.
 
 **Chua probe server that** — chua co JWT (can Smart OTP tu app TCInvest).
 
+### TCBS round 4: 38 lech payload -> 0, do duoc TTL 24h, 8/8 gate (2026-10-10)
+
+Round 4 khac **3 doi tien** so voi 4 dot truoc: no duoc **JWT that** (da co san
+trong `.env`, 1290 ky tu, RS256) => lan dau **do duoc** thay vi **doan**.
+
+**1) 38 lech payload -> 0.** Owner chot "sua thang theo spec".
+Cong `check_tcbs_bodies`: 12 payload, **0 lech moi**, baseline **rong**.
+- equity: bo `pinCode` + `requestId` (spec `/akhlys/` chi co 5 field)
+- derivatives: `quantity`->`volume`, `requestId`->`refId`, `orderId`->`orderNo`,
+  `quantity/price`->`nvol/nprice`, `triggerPrice`->`soPrice`, `orderId`->`pkOrderNo`
+- **them** `accountId` + `subAccountId` vao change/cancel (spec BAT BUOC, ban cu thieu
+  => TCBS tu choi ca lenh)
+- **bo** `quantity` + `price` khoi change_condition (lenh dieu kien chi sua duoc
+  gia kich hoat)
+- `callbackPoint`/`activationPrice`: spec `required` nhung `description` noi
+  "only for TSO" — **suy thuan mo ta**, chi gui khi TSO. Cho 1 chon du nhat.
+
+**2) TTL do duoc: 8 gio -> 24 gio.** `exp - iat = 86400s = 24.0 gio`.
+Tai lieu TCBS deu ghi "~8 gio" — do la **suy doan, chua tung do**.
+Sua `session.py` + 9 cho trong `docs/`. Tach `SESSION_TIMEOUT_SECONDS` (8 gio =
+**timeout nhan roi**) khoi TTL token — mot comment sai lam ca hai sai.
+**KHONG sua DNSE** — broker khac, chua do.
+
+**3) 3 endpoint bi server tu choi** (quét 33 endpoint GET, 14 trả 200 that):
+`hydros/*/pricing-policy` + `/risk` (403 `877006`) va `khaos/v1/loan` (400 `875001`).
+Hai endpoint hydros **tung duoc bao PASS o Round 2 bang mock**.
+
+**4) Tra loi 2 cau hoi cua Owner:**
+- `/api/v1/derivatives/contracts`: **404 ca GET lan POST** => khong ton tai =>
+  **khong noi**. Coverage giu 47/48, lan nay co bang chung server.
+- 18 path da go o Round 1: **17** chet that. 1 path khong 404 nhung response
+  **giong y het** mot path bia => wildcard, khong phan biet duoc => **khong mo lai**.
+
+**5) 3 lo hong cua CONG do chinh toi tao ra khi sua** (L-G05/06/07):
+- quet bo sot `payload["x"] = ...` -> bao MISSING cho field **co** gui
+- `package_index` khoa theo **TEN key**; file moi sort truoc chiem mat key =>
+  5 method derivative quet nham sang path co phieu, bao **9 lech SAI**
+- `check_mypy_baseline.py` `text=True` ma khong khai `encoding` => decode loi =>
+  `stdout=None` => `(proc.stdout or "")` => **gate XANH khi mypy that bai**
+Khong ghi 2 loi dau vao baseline — chung la loi cua cong, khong phai no payload.
+
+**6) 2 bug CO SAN:** `client.modify_order()` + `cancel_order()` truyen `pin_code`
+cho method khong co tham so do => **TypeError moi lan goi**. Chung minh bang cach
+goi that voi mock.
+
+**7) 2 test DNSE ERROR -> skip.** Fixture `account_no` goi `get_accounts()` ma
+khong boc lop bao ve: loi mang o fixture sinh **ERROR** (khong phai FAILED) =>
+`_skip_if_transport_failure` **khong bao gio chay toi**. Nay 5/5 cho goi mang
+deu co guard. Bang chung la loi moi truong: stash toan bo thay doi, chay tren
+HEAD sach — **van dung 2 error do**.
+
+**8) Equity tach file:** sua payload lam `equity.py` 808L vuot ngan sach (hoi quy
+cua chinh toi). KHONG nen bang cach xoa comment — tach `equity_orders.py`
+(242L) + `_equity_common.py` (66L) de tranh **import vong**. Con 546L.
+
+**5 ket luan SAI cua chinh toi, dinh chinh tai cho** (§6 bao cao):
+3 endpoint intraday "can sua" (thuc ra probe truyen chuoi literal `{ticker}`) ·
+`eros` loi Accept-Language (do probe gui header hoc) · "18 path da chet" (thuc ra
+17) · `khaos` "sai dinh dang accountNo" (thuc ra quyen) · "chua co JWT".
+
+Gate: **8/8 PASS** | ruff 0 | mypy 1266->**1138** | contract 72 |
+tcbs-bodies **0 lech** | lessons 24/40 | pytest **1919 passed / 30 skipped / 0 ERROR**.
+`pytest-full` **xanh lan dau trong 4 dot**.
+
+**CHUA CHAY:** khong goi write endpoint nao (tao lenh that tren tai khoan Owner
+la viec chua duoc giao); `/khronos/*` chua the server xac nhan (tai khoan **khong
+co derivative scope**); do tap `rc` that; CI khong chay (billing).
+
 ### He thong LESSONS: sai l?m du?c ghi lai + gate (2026-10-10)
 
 Muc tieu: **sai l?m lap lai nhieu vong trong 3 phien TCBS lien tiep** (do bang mat,
