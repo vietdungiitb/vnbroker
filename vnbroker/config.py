@@ -25,6 +25,16 @@ class Config:
     # Can be overridden via vnbroker_RATE_LIMIT_RPM environment variable
     RATE_LIMIT_RPM: int = int(os.getenv("vnbroker_RATE_LIMIT_RPM", "300"))
 
+    # Trần cho phần cooldown do SERVER quyết định (`Retry-After`), tính bằng
+    # giây. KHÔNG phải trần của phần suy đoán lũy thừa — phần đó giữ trần cũ
+    # 90s để hành vi cũ không đổi. Trần riêng vì `Retry-After` là con số duy
+    # nhất server chịu trách nhiệm: cắt nó ở 90s là cắt chính lời server dặn,
+    # còn nâng trần của phần suy đoán lên theo giá trị này lại khiến một
+    # provider trượt nhiều lần bị treo tới hàng giờ. 900s = 15 phút.
+    RETRY_AFTER_MAX_SECONDS: float = float(
+        os.getenv("vnbroker_RETRY_AFTER_MAX_SECONDS", "900")
+    )
+
     # -------------------------------------------------------------------------
     # Caching
     # -------------------------------------------------------------------------
