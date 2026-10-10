@@ -28,7 +28,8 @@ Wrapper VẪN CÒN nhưng ném NotImplementedError từ service — xem
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
+from datetime import datetime
+from typing import Any, Optional, Union
 
 import pandas as pd
 
@@ -38,6 +39,7 @@ from vnbroker.broker.session import BrokerSession
 from vnbroker.broker.tcbs.account import TCBSAccountService
 from vnbroker.broker.tcbs.auth import TCBSAuthService
 from vnbroker.broker.tcbs.equity import TCBSEquityService
+from vnbroker.broker.tcbs.condition_orders import TCBSConditionOrderService
 from vnbroker.broker.tcbs.derivatives import TCBSDerivativesService
 from vnbroker.broker.tcbs.market import TCBSMarketService
 from vnbroker.broker.tcbs.money import TCBSMoneyService
@@ -91,6 +93,9 @@ class TCBSBrokerClient(BaseBrokerClient):
         self._account = TCBSAccountService(config=self._config, session=self.session)
         self._money = TCBSMoneyService(config=self._config, session=self.session)
         self._equity = TCBSEquityService(config=self._config, session=self.session)
+        self._condition_orders = TCBSConditionOrderService(
+            config=self._config, session=self.session
+        )
         self._derivatives = TCBSDerivativesService(config=self._config, session=self.session)
         self._market = TCBSMarketService(config=self._config, session=self.session)
         self.portfolio = TCBSPortfolioEngine  # Pure compute engine — truy cập trực tiếp
@@ -317,6 +322,65 @@ class TCBSBrokerClient(BaseBrokerClient):
             account_no=account_no, from_date=from_date, to_date=to_date,
             page=page, size=size, transaction_code=transaction_code, raw=raw,
         )
+
+    def get_pricing_policy(
+        self, account_no: str, product_id: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """GET /hydros/v1/account/{accountNo}/pricing-policy"""
+        return self._money.get_pricing_policy(
+            account_no=account_no, product_id=product_id,
+        )
+
+    def deposit_margin(
+        self, account_id: str, sub_account_id: str, amount: float,
+        payment_content: str = "", *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /khronos/v1/cash/deposit/update — nộp tiền margin."""
+        return self._money.deposit_margin(
+            account_id=account_id, sub_account_id=sub_account_id, amount=amount,
+            payment_content=payment_content, dry_run=dry_run,
+        )
+
+    def withdraw_margin(
+        self, account_id: str, sub_account_id: str, amount: float,
+        payment_content: str = "", *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /khronos/v1/cash/withdraw/update — rút tiền margin."""
+        return self._money.withdraw_margin(
+            account_id=account_id, sub_account_id=sub_account_id, amount=amount,
+            payment_content=payment_content, dry_run=dry_run,
+        )
+
+    def transfer_between_sub_accounts(
+        self, source_account_number: str, destination_account_number: str,
+        amount: float, description: str, *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /physis/v1/stock/transfer — chuyển tiền giữa 2 sub-account."""
+        return self._money.transfer_between_sub_accounts(
+            source_account_number=source_account_number,
+            destination_account_number=destination_account_number,
+            amount=amount, description=description, dry_run=dry_run,
+        )
+
+    # �� Condition order (phái sinh) ������������������������������������������
+
+    def cancel_condition_order(
+        self, account_id: str, order_no: str,
+        sub_account_id: str = "", *, dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """POST /khronos/v1/order/condition/cancel — huỷ lệnh điều kiện."""
+        return self._condition_orders.cancel_condition_order(
+            account_id=account_id, sub_account_id=sub_account_id,
+            order_no=order_no, dry_run=dry_run,
+        )
+
+    def get_api_key_expiration(self) -> Optional[datetime]:
+        """POST /gaia/v1/oauth2/openapi/apikey/info — hạn API key."""
+        return self._auth.get_api_key_expiration()
+
+    def extend_api_key(self, otp: str) -> Optional[datetime]:
+        """POST /gaia/v1/oauth2/openapi/apikey/extend — gia hạn API key (cần Smart OTP)."""
+        return self._auth.extend_api_key(otp=otp)
 
     # ── Equity ───────────────────────────────────────────────────────────────
 
