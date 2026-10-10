@@ -15,6 +15,7 @@ import threading
 import time
 from typing import Any, Dict, List, Tuple
 
+from vnbroker.config import Config
 from vnbroker.core.health_store import (
     HealthStore,
     create_store,
@@ -359,12 +360,52 @@ def record_success(module_name: str, source: str) -> None:
     _persist_state()
 
 
-def record_failure(module_name: str, source: str) -> None:
+def compute_cooldown_seconds(failures: int, retry_after: float | None = None) -> float:
+    """Cooldown cho lần thứ ``failures``, tính từ HAI nguồn rồi lấy **max**.
+
+    - ``5 * 2**(failures-1)`` (trần cũ 90s) là **suy đoán** của ta.
+    - ``retry_after`` là ``Retry-After`` server thật trả về (RFC 9110 §10.2.4) —
+      con số duy nhất server chịu trách nhiệm.
+
+    Lấy **max** chứ không phải ``retry_after``: nếu server nói "chờ 1s" mà ta đã
+    trượt 3 lần liên tiếp thì quay lại sau 1s chỉ để nhận 429 tiếp theo. Ngược
+    lại, nếu server nói 120s mà ta suy đoán 5s thì ta tự bắn vào chân mình.
+
+    ⚠ **Hai trần, hai mục đích** — trộn làm sai cả hai:
+    - phần suy đoán giữ trần cũ **90s** ⇒ không server nào, không ``Retry-After``
+      nào làm đổi hành vi của circuit breaker khi server im lặng;
+    - phần ``retry_after`` kẹp ở ``Config.RETRY_AFTER_MAX_SECONDS`` (900s) —
+      cắt lời server ở 90s là cắt đúng thứ ta cần nghe; nhưng một
+      ``Retry-After: 86400`` (24h) không có nghĩa provider còn sống tới mai.
+    """
+    # Chú thích kiểu: `2 ** int` là `Any` với mypy, và `Any` lan ra `min(...)`
+    # rồi `return` — biếu thức y hệt dòng cũ trong `record_failure`, chỉ khác là
+    # nay được **trả về** nên mypy --strict bắt `no-any-return`.
+    guess: float = min(90.0, 5.0 * (2 ** max(0, failures - 1)))
+    if retry_after is None:
+        return max(1.0, guess)
+    server = min(max(1.0, float(retry_after)), float(Config.RETRY_AFTER_MAX_SECONDS))
+    return max(guess, server)
+
+
+def record_failure(
+    module_name: str,
+    source: str,
+    retry_after: float | None = None,
+) -> None:
+    """Ghi một lần thất bại và đặt cooldown cho provider.
+
+    Args:
+        module_name: Module dùng cho health store (vd ``quote``).
+        source: Tên provider.
+        retry_after: Số giây server bảo chờ (nếu có). Xem
+            :func:`compute_cooldown_seconds`.
+    """
     _ensure_store_loaded()
     with _health_lock:
         state = _health_state.setdefault((module_name, source), {})
         failures = int(state.get("failures", 0)) + 1
-        cooldown_seconds = min(90.0, 5.0 * (2 ** max(0, failures - 1)))
+        cooldown_seconds = compute_cooldown_seconds(failures, retry_after)
         state.update({
             "failures": failures,
             "cooldown_until": time.monotonic() + cooldown_seconds,
