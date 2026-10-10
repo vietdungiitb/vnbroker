@@ -16,7 +16,7 @@ khiến **hai phần chưa từng hoạt động với server TCBS thật**:
 | **F1** | **WebSocket sai hoàn toàn ở tầng wire** | **P0** | `explorer/tcbs/websocket.py:166-173, 187-192, 208+, 251+` |
 | **F2** | `history()` từ chối daily OHLCV với **lý do sai** | **P0** | `explorer/tcbs/quote.py:344-347, 421` |
 | **F3** | 19 path thuộc API **trước khi ra mắt v1.0.0** | **P0** | `broker/tcbs/account.py`, `equity.py` |
-| **F4** | JWT hết hạn 8 giờ, **không có chiến lược làm mới** | **P1** | docs `/auth/token/`, `explorer/tcbs/auth.py` |
+| **F4** | JWT hết hạn 24 gio (DO DUOC 2026-10-10: `exp - iat` = 86400s), **không có chiến lược làm mới** | **P1** | docs `/auth/token/`, `explorer/tcbs/auth.py` |
 | **F5** | Cấu hình SIT trỏ host **không tồn tại** | **P1** | `explorer/tcbs/websocket.py:45-47` |
 | **F6** | Không xử lý quy ước **field null không xuất hiện** | **P1** | docs `/data-types/` |
 | **F7** | 13/48 endpoint chưa dùng | **P1** | đối chiếu spec + Postman |
@@ -226,7 +226,7 @@ Cần probe trước — xem §9, Giai đoạn 0.
 
 ## 6. F4 [P1] — Vòng đời token
 
-S1 (FAQ): *"Token có hiệu lực tối đa 8 giờ."* S1 (WS): *"Server ngắt connection khi
+S1 (FAQ): *"Token có hiệu lực tối đa 24 gio (DO DUOC 2026-10-10: `exp - iat` = 86400s)."* S1 (WS): *"Server ngắt connection khi
 token hết hạn."*
 
 Luồng chính thức: `apiKey` + `otp` (Smart OTP từ app TCInvest) → JWT.
@@ -234,7 +234,7 @@ Luồng chính thức: `apiKey` + `otp` (Smart OTP từ app TCInvest) → JWT.
 **Khoảng trống:**
 - Không có cơ chế phát hiện hết hạn trước khi gọi.
 - `explorer/tcbs/auth.py` có `request_openapi_token()` nhưng không có cache/refresh.
-- Token trong `.env` (`TCBS_AUTH_TOKEN`) là **JWT 8 giờ**, tức **luôn hết hạn khi lưu
+- Token trong `.env` (`TCBS_AUTH_TOKEN`) là **JWT 24 gio (DO DUOC 2026-10-10: `exp - iat` = 86400s)**, tức **luôn hết hạn khi lưu
   vào file** ⇒ 4 test integration skip vĩnh viễn.
 
 **Thiết kế đích:** `TokenManager` giữ token trong bộ nhớ, đếm ngược thời hạn từ

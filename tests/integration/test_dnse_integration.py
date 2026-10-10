@@ -119,11 +119,19 @@ class TestDNSEIntegration:
         ``DNSE_ACCOUNT_NO`` không có trong ``.env`` — đòi nó là lý do khiến cả
         module skip dù đã có key. ``get_accounts()`` trả về số tiểu khoản nên
         suy ra được thay vì bắt người dùng đặt thêm biến.
-        """
+"""
         configured = os.getenv("DNSE_ACCOUNT_NO")
         if configured:
             return configured
-        payload = client.get_accounts(raw=True)
+        # ⚠ BỌC LỚI BẢO VỆ (2026-10-10): lỗi mạng ở đây sinh ra **ERROR**,
+        # không phải FAILED — pytest báo lỗi fixture, chạy tiếp cả class, và
+        # `_skip_if_transport_failure` trong thân test KHÔNG BAO GIỜ chạy tới.
+        # Đã gặp thật: `ConnectionResetError` từ DNSE làm `pytest-full` đỏ
+        # 2 case dù code hoàn toàn không liên quan.
+        try:
+            payload = client.get_accounts(raw=True)
+        except Exception as exc:  # noqa: BLE001 - chuyển qua bộ lọc bên dưới
+            _skip_if_transport_failure(exc)
         if not isinstance(payload, dict):
             pytest.skip("get_accounts() khong tra ve dict de suy ra so tieu khoan")
         for entry in payload.get("accounts") or []:

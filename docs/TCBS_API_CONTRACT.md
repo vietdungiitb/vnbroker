@@ -83,7 +83,7 @@ client.authenticate(otp="123456")
 ```
 
 **Lưu ý quan trọng:**
-- Token có hiệu lực ~8 giờ kể từ thời điểm cấp.
+- Token có hiệu lực ~**24 giờ** (đo được 2026-10-10 từ JWT thật: `exp - iat = 86400s`) kể từ thời điểm cấp.
 - `apiKey` và `otp` tuyệt đối KHÔNG được log ngay cả ở debug level.
 - Sau khi nhận token, lưu vào `BrokerSession` — không ghi ra file hoặc environment.
 

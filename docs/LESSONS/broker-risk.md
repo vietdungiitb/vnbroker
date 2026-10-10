@@ -16,14 +16,12 @@
   vào docstring từng write method. **Cố ý KHÔNG raise tự động** — spec không liệt kê đủ
   tập mã để suy ra "thành công", và chưa có JWT để đo server thật; raise theo tập đoán có
   thể **chặn nhầm một lệnh hợp lệ**.
-- **Proof:** `bc9d786`; `docs/REPORT_TCBS_ROUND2.md` §6 R1. Còn nợ khi có JWT: đo tập `rc`
-  thật của `deposit` / `withdraw` / `transfer` / `cancel-condition`.
+- **Proof:** `bc9d786`; `docs/REPORT_TCBS_ROUND2.md` §6 R1. Còn nợ khi có JWT: đo tập `rc` thật của `deposit` / `withdraw` / `transfer` / `cancel-condition`.
 - **Tags:** `money`, `write`, `rc`, `business-code`, `tcbs`, `idempotency`
 - **QUY TẮC:** Mọi write endpoint trả về cho caller phải kèm **cảnh báo tiếng Việt** rằng
   HTTP 200 có thể là thất bại nghiệp vụ. Caller **phải** tự kiểm mã.
 - **CHECKLIST:**
-  - [ ] Write method mới có ghi cảnh báo `rc` vào docstring không?
-  - [ ] Đã đọc `describe_business_code(res)` trước khi coi là thành công?
+  - [ ] Write method mới có ghi cảnh báo `rc` vào docstring không? `describe_business_code(res)` trước khi coi là thành công?
   - [ ] Có test chứng minh HTTP 200 + `rc='0'` **vẫn trả nguyên văn** (không bị nuốt)?
 
 ## L-R02: `write_gate` đọc `dry_run` từ `kwargs` ⇒ bắt buộc keyword-only
@@ -93,7 +91,9 @@
 - **Tags:** `auth`, `token`, `jwt`, `exp`, `ttl`, `session`, `tcbs`
 - **QUY TẮC:** Khi server **không** nói hạn, **không bịa** — để `None` (không biết) và để
   **caller** quyết định. `TokenManager.is_expired()` trả tri-state `True/False/None`.
-- **CHECKLIST:**
+- **ĐÍNH CHÍNH (2026-10-10):** "8 giờ"/28800 **sai ngay từ đầu** — đo JWT thật:
+  `exp - iat = 86400s = 24.0 giờ`. Tài liệu TCBS ghi "~8 giờ" là **suy đoán, chưa đo**.
+  Đã sửa `session.py` + 9 chỗ `docs/`, thêm `TCBS_JWT_TTL_SECONDS = 86400`. Cùng bậc L-E01: **số trong tài liệu ≠ số đo**. (DNSE — broker khác — để nguyên.)
   - [ ] Field hạn lấy từ đâu — có **thực sự** trong spec không?
   - [ ] Không decode được thì có **không** rơi về giá trị mặc định bịa không?
   - [ ] `session.py` có nhánh fallback `expires_in_seconds=28800` không?

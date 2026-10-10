@@ -46,7 +46,7 @@
 2. Nhận OTP từ TCBS mobile app/email
 3. POST /gaia/v1/oauth2/openapi/token → JWT Token
 4. Sử dụng JWT cho mọi request: Authorization: Bearer <token>
-5. Token hết hạn sau ~8 giờ → cần refresh
+5. Token hết hạn sau ~**24 giờ** (đo được 2026-10-10 từ JWT thật: `exp - iat = 86400s`) → cần refresh
 ```
 
 ### 1.3 WebSocket Endpoints

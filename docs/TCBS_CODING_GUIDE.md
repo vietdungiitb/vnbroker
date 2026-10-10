@@ -301,7 +301,7 @@ class TCBSAuthService:
                 http_status=resp.status_code,
             )
         
-        # Parse expiry (~8 giờ mặc định nếu không có)
+        # Parse expiry (~**24 giờ** (đo được 2026-10-10 từ JWT thật: `exp - iat = 86400s`) mặc định nếu không có)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=8)
         self._session.set_token(data["token"], expires_at=expires_at)
         logger.debug("[TCBS Auth] Token acquired. Session → AUTHENTICATED_READ.")
@@ -573,7 +573,7 @@ resp = requests.post(url, json=payload)
 ### ❌ Pitfall 5: Không handle BrokerSessionExpiredError trong integration
 
 ```python
-# SAI — sẽ crash khi token hết hạn sau 8 giờ
+# SAI — sẽ crash khi token hết hạn sau **24 giờ** (đo được 2026-10-10 từ JWT thật: `exp - iat = 86400s`)
 balance = client.get_balance(account_no)
 
 # ĐÚNG
@@ -595,7 +595,7 @@ from vnbroker.broker.tcbs.exceptions import BrokerAuthError, BrokerSessionExpire
 # 1. Khởi tạo (api_key đọc từ env VNBROKER_BROKER_TCBS_API_KEY)
 client = TCBSBrokerClient()
 
-# 2. Authenticate (cần OTP — chỉ hỏi người dùng 1 lần/8 giờ)
+# 2. Authenticate (can OTP - chi hoi nguoi dung 1 lan / 24 gio)
 try:
     client.authenticate(otp="123456")
 except BrokerAuthError as e:

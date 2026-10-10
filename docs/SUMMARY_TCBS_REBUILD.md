@@ -136,7 +136,7 @@ Bài học: tiêu chí lọc phải là **vắng ở path cụ thể**, không p
    Đây là **nút thắt** chặn mọi xác minh còn lại.
 2. **Đo lại `countBack`/resolution** bằng dữ liệu thật, thay hệ số ước lượng.
 3. **Probe 18 path đã gỡ.** Nếu chúng **vẫn sống** → `git revert de4c7f8` là đủ.
-4. **GĐ4 TokenManager** — JWT sống 8 giờ, hiện không có cơ chế refresh.
+4. **GĐ4 TokenManager** — JWT sống **24 giờ** (đo được 2026-10-10 từ JWT thật: `exp - iat = 86400s`), hiện không có cơ chế refresh.
 5. **GĐ5 — 13 endpoint** spec chưa dùng.
 6. `derivatives.py` 852L → tách dưới 800L.
 7. Cân nhắc lại `/aion/v1/accounts` khi đã có JWT.
