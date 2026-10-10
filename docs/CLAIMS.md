@@ -176,3 +176,26 @@ Cả 2 major đã sửa ở commit fix: F-1 (write 4xx) có bằng chứng fail-
 tập mã.
 
 **Chưa xử lý (chuyển session sau):** xem `docs/HANDOFF_TCBS_20261010.md`.
+
+## 2026-10-10 — TCBS Round 3 (Mode B solo) · base `dev @ 5f7b83f` -> `c917399`
+
+| agent | branch | scope | files | status | note |
+|---|---|---|---|---|---|
+| coordinator | dev (truc tiep) | Cong chan payload + tach derivatives + 2 fix nho + 5 lesson | scripts/check_tcbs_bodies.py, check_tcbs_bodies_selftest.py, docs/tcbs_body_baseline.json, broker/tcbs/derivative_orders.py, broker/tcbs/derivatives.py, broker/tcbs/auth.py, broker/security/guards.py, tests/unit/broker/tcbs/{test_tcbs_body_contract,test_tcbs_round3_fixes}.py, docs/LESSONS/*, docs/{PLAN_TCBS_ROUND3,REPORT_TCBS_ROUND3,HANDOFF_TCBS_20261010_R4}.md, scripts/check_all.ps1, CHANGELOG.md | **released** | `4654ff7` · `61ab18b` · `93a89e8` · `ee0fbc5` · `c917399` |
+
+**Vi sao Mode B (tu tuan tu, khong song song):** ca 3 lat deu cham `vnbroker/broker/tcbs/`
+=> file chong nhau. Chay song song se tai tao Hazard 1 (weld hunk).
+
+**Phat hien:** spec 48 path · 47 da noi · 1 chua. Cong payload quet **12** write method →
+**38 lech**; lon nhat la `_gated_change_derivative_order` thieu **6 field `required`**.
+**CHUA SUA** — can Owner chot + JWT.
+
+**Audit doc lap:** NEED_REVISION (1 blocker, 6 major) → sua xong tai `ee0fbc5`.
+Tach `derivatives.py` xac nhan sach: 10/10 public method giu chu ky, khong import vong.
+
+**Gate cuoi:** pytest 1918 passed / 26 skipped | contract 72 | ruff exit 0 |
+mypy 1266->1148 | ruff tests 13 KNOWN-RED | tcbs-bodies lech moi 0 | lessons 24/40 |
+self-test 9/9 + 10/10.
+
+**CHUA CHAY:** probe server that (chua co JWT). Ba noi an toan la lane tien thuat
+duoc sua bang `check_tcbs_bodies.py` + baseline, khong dua vao commit nao.

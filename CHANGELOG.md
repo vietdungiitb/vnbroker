@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+### TCBS round 3: cong chan payload + tach derivatives.py 852L -> 462L (2026-10-10)
+
+Round 3 **khong sua loi** — no **dung cong chan** roi bao cao Owner. Sua body write
+mung khong co JWT thi co the **pha** thay vi chua.
+
+**PHAT HIEN (do bang script, khong doan):** `requestId` trong toan spec = **0 lan**,
+`refId` = **9 lan**. Cong quet **12** write method -> **38 lech**:
+- `_gated_change_derivative_order` thieu **6 field `required`**
+  (`accountId` `subAccountId` `orderNo` `refId` `nvol` `nprice`) => lenh sua lenh
+  phai sinh nhieu kha nang bi TCBS TU CHOI hoan toan
+- `_gated_place_derivative_order` thieu `volume` + `refId`; gui `quantity` nhung spec
+  goi la `volume`
+- `_gated_cancel_derivative_order` thieu `accountId` + `orderNo`; sai ten `orderId`
+- `equity.py` gui thua `requestId` va `pinCode`
+
+**Vì sao chua sua:** chua co JWT de probe; sua doi **public API**; neu tai lieu TCBS
+**thieu** ma server that chap nhan `requestId` thi sua la pha. Can Owner chot.
+
+**Cong moi `scripts/check_tcbs_bodies.py`:** doc payload that bang AST (theo bien,
+bat ca `Assign` va `AnnAssign`, ca positional va keyword), tu kiem sha256 spec,
+3 loai lech `EXTRA` / `MISSING` / `SUSPECT`. Baseline 38 dong **sinh bang
+`--write-baseline`**. Self-test 10 case am thuc.
+
+**Tach `derivatives.py` 852L -> 462L** bang `DerivativeWriteMixin` (`derivative_orders.py`,
+354L). API khong doi: `inspect.signature` tren ca hai ban => **0 chu ky public khac biet**.
+`_post`/`_write_request` (74 dong) bo, moi write di qua `_write_http.post_json` —
+status map dong nhat toan lane (N8). **Khong con file TCBS nao vuot 800L.**
+
+**Audit doc lap:** NEED_REVISION (1 blocker, 6 major) — sua tai `ee0fbc5`:
+test tu tham chieu · cong bo sot 4/12 write method · baseline goi y `pinCode -> price`
+(nguoi sua theo se **gui PIN vao o gia**) · `check_all.ps1` **khong ep** self-test ·
+assert chet `or True` · so lieu test sai.
+
+**Hoc them 5 lesson** vao `docs/LESSONS/` (19 -> 24, 3 -> 5 file), trong do
+`gate-integrity.md` (L-G01..04) ghi lai chinh 4 loi cua cong do toi viet trong phien nay.
+Day la ly do nhom nay ton tai: **cong moi luon can audit doc lap, khong tu chung minh duoc.**
+
+Gate: pytest **1918 passed / 26 skipped** | contract 72 | ruff exit 0 |
+mypy 1266->**1148** | ruff tests 13 KNOWN-RED khong tang | tcbs-coverage 47/48 |
+tcbs-bodies 12 payload / 0 lech moi | lessons 24/40 | self-test 9/9 + 10/10.
+
+**Chua probe server that** — chua co JWT (can Smart OTP tu app TCInvest).
+
 ### He thong LESSONS: sai l?m du?c ghi lai + gate (2026-10-10)
 
 Muc tieu: **sai l?m lap lai nhieu vong trong 3 phien TCBS lien tiep** (do bang mat,
