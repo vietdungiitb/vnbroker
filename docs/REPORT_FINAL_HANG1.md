@@ -23,8 +23,11 @@ Ngày: 2026-10-11 · Vai trò: PM + Tech Lead (solo Mode B) · Branch:
 
 ## 2. CHƯA XONG / CẦN NGƯỜI KHÁC (đừng tự ý làm tiếp)
 
+- [x] **PR đã mở:** https://github.com/vietdungiitb/vnbroker/pull/5
+  (branch `feat/hang1-row1`, 7 commits).
 - [ ] **Owner review PR + quyết định merge.** Vào `main` cần tag `vX.Y.Z`
-  + Release theo luật repo (thuộc Owner, Q7). Tôi KHÔNG merge trực tiếp.
+  + Release theo luật repo (thuộc Owner, Q7). Session này KHÔNG merge
+  trực tiếp (luật: integration branch, không direct commit).
 - [ ] **Q2–Q11** (trừ Q1 đã closed): nhất là Q6 (CI), Q9 (nợ đo `rc` chặn
   Hàng 3), Q4 (`core/settings.py`). Chủ sở hữu: team vnbroker + Owner.
 - [ ] **Hàng 2–4 chưa slice** (đúng kế hoạch): B-2/B-3 còn ƯỚC LƯỢNG — chạy
