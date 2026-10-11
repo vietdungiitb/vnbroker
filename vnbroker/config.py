@@ -69,28 +69,26 @@ class Config:
 # =============================================================================
 # Define minimum required versions for each vnbroker version
 # Format: "X.Y.Z": {"package_name": "min_version", ...}
+#
+# 2026-10-11: xoá `vnii` khỏi MỌI entry. Nó là nợ tài liệu, không phải
+# dependency thật — đo bằng script, không suy đoán:
+#   * `grep -ri vnii vnbroker/ tests/ scripts/` → 0 import, 0 test tham chiếu
+#   * `pyproject.toml` không khai vnii ở dependencies lẫn optional-dependencies
+#   * `importlib.util.find_spec('vnii')` → None (không cài trong môi trường)
+#   * `_check_dependency_compatibility()` chạy thật KHÔNG hề báo vnii thiếu,
+#     vì `get_version('vnii')` ném exception bị nuốt ở upgrade.py — nên entry này
+#     chưa bao giờ cảnh báo được ai, chỉ là một dict vô nghĩa ai cũng đọc là thấy
+#     "thư viện này cần vnii".
+# Nếu sau này thật sự thêm vnii: khai vào `pyproject.toml` TRƯỚC, rồi mới thêm
+# entry ở đây — và nhớ nó phải nằm trong cùng key với version đang phát hành.
 VERSION_REQUIREMENTS = {
-    "3.3.0": {
-        "vnii": ">=0.1.5",
-    },
-    "3.4.0": {
-        "vnii": ">=0.1.5",
-    },
-    "3.5.0": {
-        "vnii": ">=0.1.5",
-    },
-    "3.6.0": {
-        "vnii": ">=0.1.5",
-    },
-    "3.7.0": {
-        "vnii": ">=0.1.5",
-    },
-    "3.7.1": {
-        "vnii": ">=0.1.5",
-    },
-    "3.7.2": {
-        "vnii": ">=0.1.5",
-    },
+    "3.3.0": {},
+    "3.4.0": {},
+    "3.5.0": {},
+    "3.6.0": {},
+    "3.7.0": {},
+    "3.7.1": {},
+    "3.7.2": {},
 }
 
 # Version-specific notices for user

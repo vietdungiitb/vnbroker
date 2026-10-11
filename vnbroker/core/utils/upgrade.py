@@ -68,7 +68,13 @@ def _check_dependency_compatibility():
     
     critical_issues: list = []
     warnings_list: list = []
-    priority_packages = ["vnii"]  # Always check and display first
+    # Display order follows the dict itself rather than a hardcoded name list.
+    # The list was ["vnii"] — a package this repo does not declare in
+    # pyproject.toml, does not import anywhere, and cannot install
+    # (find_spec -> None). A hardcoded name that names nothing is worse than
+    # no name at all: adding a REAL dependency later would silently not be
+    # checked, because nobody remembers to update this line.
+    priority_packages = list(VERSION_REQUIREMENTS.get(get_version("vnbroker").strip(), {}))
     
     try:
         vnbroker_version = get_version("vnbroker").strip()
