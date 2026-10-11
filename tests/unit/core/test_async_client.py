@@ -218,3 +218,53 @@ def test_fetch_multiple_requests_honors_max_concurrency(monkeypatch):
     assert len(result) == 8
     assert all(item == {"ok": True} for item in result)
     assert state["peak"] <= 3
+
+
+def test_rate_limiter_survives_sequential_event_loops():
+    """BL-1 fail-before: contention in loop 1 binds a module-scope lock; loop 2 contends too."""
+    from vnbroker.core.utils.async_client import TokenBucketRateLimiter
+
+    limiter = TokenBucketRateLimiter(rpm=600)
+
+    async def hammer(n):
+        async def one():
+            async with limiter:
+                return True
+
+        return await asyncio.gather(*[one() for _ in range(n)])
+
+    assert asyncio.run(hammer(610)) == [True] * 610
+    assert asyncio.run(hammer(10)) == [True] * 10
+
+
+def test_client_manager_isolates_clients_per_event_loop():
+    """BL-1: sharing one httpx client across loops is unsupported; each loop gets its own."""
+    from vnbroker.core.utils.async_client import AsyncClientManager
+
+    mgr = AsyncClientManager()
+
+    async def get_one():
+        return await mgr.get_client(None)
+
+    async def shutdown():
+        await mgr.close()
+
+    c1 = asyncio.run(get_one())
+    c2 = asyncio.run(get_one())
+    try:
+        assert c1 is not c2
+    finally:
+        asyncio.run(shutdown())
+
+
+def test_import_creates_no_loop_bound_lock():
+    """Guard: importing the module must not create any asyncio.Lock object."""
+    import asyncio as _asyncio
+
+    from vnbroker.core.utils import async_client as _ac
+
+    for obj in (_ac.RATE_LIMITER, _ac.async_client_mgr):
+        for value in vars(obj).values():
+            assert not isinstance(value, _asyncio.Lock), (
+                "module-scope object holds a loop-bound asyncio.Lock"
+            )

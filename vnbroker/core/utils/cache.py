@@ -6,12 +6,13 @@ listing data, industry mappings, and other static/reference data.
 """
 
 import datetime
+import enum
 import hashlib
 import re
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, TypeVar, Generic, Callable
+from typing import Any, Dict, Optional, Set, TypeVar, Generic, Callable
 from functools import wraps
 
 from vnbroker.config import Config
@@ -101,6 +102,93 @@ def _instance_state(value: Any) -> Optional[str]:
     return None
 
 
+#: Suffix appended when an object contributed no state at all (BL-2 backstop).
+#: Keys carrying it are byte-identical for every such instance, so the caching
+#: decorators refuse them instead of serving one instance for another.
+_UNCACHEABLE_MARKER = "state=<bare:uncacheable>"
+
+#: How many attribute levels below the instance the deep encoder follows.
+#: Cell data of a DataFrame lives 3+ hops away (frame -> manager -> blocks ->
+#: arrays), so this cap is also what keeps the documented repr ceiling intact.
+_MAX_DEEP_LEVELS = 2
+
+
+def _encode_state_deep(
+    value: Any, _seen: Optional[Set[int]] = None, _level: int = 0
+) -> Optional[str]:
+    """Encode attributes that plain :func:`_instance_state` refuses.
+
+    One use only: separate instances whose ``__dict__`` holds a live handle
+    (``ProxyConfig``, ``DNSEClient``) instead of plain data. Terminal and
+    ``Enum`` attributes are encoded by value; containers fall back to the
+    audited :func:`_encode_value`; anything else from outside ``builtins`` /
+    ``vnbroker`` is opaque **by type** (never by address, never by identity).
+
+    Returns ``None`` only when the object has no attributes at all — the bare
+    case the caching decorators must refuse (BL-2).
+    """
+    if _seen is None:
+        _seen = set()
+    if id(value) in _seen:
+        return None
+    _seen = _seen | {id(value)}
+
+    items: list[tuple[str, str]] = []
+    state = getattr(value, "__dict__", None)
+    if isinstance(state, dict):
+        for name in sorted(n for n in state if isinstance(n, str)):
+            try:
+                token = _encode_attr_deep(state[name], _seen, _level)
+            except Exception:
+                token = f"unreadable:{name}"
+            items.append((name, token))
+    slots = getattr(type(value), "__slots__", None)
+    if isinstance(slots, str):
+        slots = [slots]
+    if slots:
+        for name in sorted(n for n in slots if isinstance(n, str)):
+            try:
+                present = hasattr(value, name)
+            except Exception:
+                continue
+            if not present:
+                continue
+            try:
+                token = _encode_attr_deep(getattr(value, name), _seen, _level)
+            except Exception:
+                token = f"unreadable:{name}"
+            items.append((name, token))
+    if not items:
+        return None
+    return ",".join(f"{name}={token}" for name, token in items)
+
+
+def _encode_attr_deep(item: Any, _seen: Set[int], _level: int) -> str:
+    """Token for one attribute value inside :func:`_encode_state_deep`."""
+    if _is_terminal(item):
+        return _encode_value(item)
+    if isinstance(item, enum.Enum):
+        cls = type(item)
+        return f"enum:{cls.__module__}.{cls.__qualname__}.{item.name}"
+    if isinstance(item, (dict, list, tuple, set, frozenset)):
+        return _encode_value(item)
+    cls = type(item)
+    mod = cls.__module__ or ""
+    if (mod == "builtins" or mod.startswith("vnbroker.")) and id(item) not in _seen:
+        if _level < _MAX_DEEP_LEVELS:
+            nested = _encode_state_deep(item, _seen, _level + 1)
+            if nested is not None:
+                return f"nested:{cls.__module__}.{cls.__qualname__}{{{nested}}}"
+    if id(item) in _seen:
+        return f"cyclic:{cls.__module__}.{cls.__qualname__}"
+    return f"opaque:{cls.__module__}.{cls.__qualname__}"
+
+
+def _key_is_cacheable(key: str) -> bool:
+    """False when the key carries the bare-instance marker (BL-2 backstop)."""
+    return _UNCACHEABLE_MARKER not in key
+
+
 def _encode_object(value: Any) -> str:
     """Token for an object no specialised branch claims.
 
@@ -116,8 +204,12 @@ def _encode_object(value: Any) -> str:
 
     body = f"{type(value).__module__}.{type(value).__qualname__}|{shown}"
     state = _instance_state(value)
+    if state is None:
+        state = _encode_state_deep(value)
     if state is not None:
         body = f"{body}|state={state}"
+    else:
+        body = f"{body}|{_UNCACHEABLE_MARKER}"
     if len(body) > _MAX_TOKEN_CHARS:
         digest = hashlib.blake2b(
             body.encode("utf-8", "surrogatepass"), digest_size=16
@@ -389,16 +481,22 @@ def _cache_namespace(func: Callable[..., Any], args: tuple[Any, ...]) -> str:
 def cached_listing(ttl_seconds: Optional[int] = None):
     """
     Decorator for caching listing functions.
-    
+
+    A key carrying the bare-instance marker is served by no entry: the call
+    runs through uncached (BL-2 — a wrong hit beats a miss, a miss never does).
+
     Args:
         ttl_seconds: Optional custom TTL (uses Config.LISTING_CACHE_TTL by default)
     """
     def decorator(func: Callable) -> Callable:
         cache = get_listing_cache()
-        
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             key = cache._make_key(_cache_namespace(func, args), *args, **kwargs)
+            if not _key_is_cacheable(key):
+                logger.debug(f"Cache BYPASS for {func.__name__}: indistinguishable key")
+                return func(*args, **kwargs)
             result = cache.get(key)
             if result is not None:
                 logger.debug(f"Cache HIT for {func.__name__}: {key}")
@@ -416,16 +514,21 @@ def cached_listing(ttl_seconds: Optional[int] = None):
 def cached_industry(ttl_seconds: Optional[int] = None):
     """
     Decorator for caching industry/sector mapping functions.
-    
+
+    Same bare-key bypass as :func:`cached_listing` (BL-2).
+
     Args:
         ttl_seconds: Optional custom TTL (uses Config.INDUSTRY_CACHE_TTL by default)
     """
     def decorator(func: Callable) -> Callable:
         cache = get_industry_cache()
-        
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             key = cache._make_key(_cache_namespace(func, args), *args, **kwargs)
+            if not _key_is_cacheable(key):
+                logger.debug(f"Cache BYPASS for {func.__name__}: indistinguishable key")
+                return func(*args, **kwargs)
             result = cache.get(key)
             if result is not None:
                 logger.debug(f"Cache HIT for {func.__name__}: {key}")

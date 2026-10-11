@@ -252,3 +252,17 @@ lessons 24/40 | pytest 1919 passed / 30 skipped / **0 ERROR**.
 
 **CHUA CHAY:** goi write endpoint that (chua duoc giao phep) · xac nhan `/khronos/*`
 · do tap `rc` · CI (billing).
+
+---
+
+## 2026-10-11 — HANG1 Row 1 (Mode B solo) · base `main @ 662e2ef`
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| pm-hang1-s1 | feat/hang1-row1 | (main checkout) | S1 WP-01 async lock per-loop | vnbroker/core/utils/async_client.py,vnbroker/core/utils/__init__.py,tests/unit/core/test_async_client.py | done | 2026-10-11 | Mode B solo; `6fa4e2a`; TEST_REPORT_HANG1 xanh |
+| pm-hang1-s2 | feat/hang1-row1 | (main checkout) | S2 WP-02 cache key fallback | vnbroker/core/utils/cache.py,tests/unit/core/test_cache_key.py | done | 2026-10-11 | `d7d6b66` + fixup `26fe22f`; TEST_REPORT_HANG1 xanh |
+| pm-hang1-s3 | feat/hang1-row1 | (main checkout) | S3 WP-03 loi vinh vien | vnbroker/core/exceptions.py,vnbroker/core/utils/client.py,vnbroker/core/source_router.py,vnbroker/base.py,tests/unit/core/test_rate_limit_cooldown.py | done | 2026-10-11 | `072119d`; base.py chi message fail-fast; TEST_REPORT_HANG1 xanh |
+| pm-hang1-s4 | feat/hang1-row1 | (main checkout) | S4 WP-04 rong-vs-loi | vnbroker/explorer/kbs/listing.py,vnbroker/explorer/kbs/trading.py,vnbroker/explorer/vci/quote.py,vnbroker/common/data.py | done | 2026-10-11 | `a00b32c`; common/data.py KHONG can cham (ghi trong claim giu; xem SUMMARY_s4); TEST_REPORT_HANG1 xanh |
+
+Tap file 4 slice giao nhau = ∅ (S4 giu `common/data.py` mot minh).
+Lesson ap dung: [L-P01, L-P02, L-P03, L-P04, L-P05, L-P06, L-E01, L-E04, L-E06].

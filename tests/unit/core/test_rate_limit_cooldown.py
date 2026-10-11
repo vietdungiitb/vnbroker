@@ -27,7 +27,14 @@ from requests.structures import CaseInsensitiveDict
 
 from vnbroker.common.data import Quote
 from vnbroker.core import source_router
-from vnbroker.core.exceptions import NetworkError, RateLimitError, vnbrokerError
+from vnbroker.core.exceptions import (
+    NetworkError,
+    ProviderAuthError,
+    ProviderBadRequestError,
+    ProviderNotFoundError,
+    RateLimitError,
+    vnbrokerError,
+)
 from vnbroker.core.utils import client as client_mod
 from vnbroker.core.utils.client import send_request_direct
 
@@ -73,13 +80,17 @@ class _FakeResponse:
         headers: Optional[Dict[str, str]] = None,
         payload: Optional[Dict[str, Any]] = None,
         reason: str = "Too Many Requests",
+        json_error: Optional[Exception] = None,
     ) -> None:
         self.status_code = status_code
         self.headers = headers or {}
         self.reason = reason
         self._payload = payload or {}
+        self._json_error = json_error
 
     def json(self) -> Dict[str, Any]:
+        if self._json_error is not None:
+            raise self._json_error
         return self._payload
 
 
@@ -263,7 +274,12 @@ def test_parse_retry_after_handles_garbage_container():
 
 
 def test_non_429_status_keeps_plain_connection_error(monkeypatch):
-    """Chỉ 429 đổi kiểu lỗi; 403/500 vẫn là `ConnectionError` như cũ."""
+    """Chỉ 429 đổi kiểu lỗi; 500 vẫn là `ConnectionError` như cũ.
+
+    LƯU Ý HANG1-S3: câu "403 vẫn ConnectionError" của bản cũ KHÔNG còn đúng —
+    400/401/403/404/422 nay ra lỗi vĩnh viễn có kiểu riêng (xem
+    `test_permanent_status_maps_to_typed_error`). Test này giữ lại cho 500.
+    """
     session = _FakeSession(_FakeResponse(500, reason="Internal Server Error"))
     monkeypatch.setattr(client_mod, "_get_thread_session", lambda: session)
 
@@ -436,3 +452,151 @@ def test_ac_3_4_fixed_source_429_surfaces_to_caller(monkeypatch):
 
     assert caught.value.retry_after == 120
     assert kbs.calls == 1
+
+
+# ------------------------------------------- HANG1 S3: lỗi vĩnh viễn (P-4)
+#
+# Quy ước giống file này: provider giả đi qua ĐÚNG tầng transport thật
+# (`send_request_direct`) với response giả — không ném exception bằng tay
+# (L-E06). Trên base pre-S3, mọi status != 200 (trừ 429) ra `ConnectionError`
+# chung ⇒ `should_failover` True vô điều kiện ⇒ các test dưới ĐỎ.
+
+PERMANENT_STATUS_TO_TYPE = [
+    (400, ProviderBadRequestError),
+    (401, ProviderAuthError),
+    (403, ProviderAuthError),
+    (404, ProviderNotFoundError),
+    (422, ProviderBadRequestError),
+]
+
+# Marker của `should_failover` — text lỗi vĩnh viễn không được chứa bất kỳ
+# chuỗi nào trong này, nếu không failover bật lại qua đường chuỗi (L-R06).
+_FORBIDDEN_MARKERS = (
+    "429",
+    "403",
+    "timeout",
+    "too many requests",
+    "rate limit",
+    "service unavailable",
+    "temporarily unavailable",
+    "connection",
+    "remote disconnected",
+    "failed to fetch data",
+    "api request failed",
+)
+
+
+class _DeniedSource:
+    """Provider giả: server trả lỗi vĩnh viễn qua transport thật."""
+
+    symbol = "ACB"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def history(self, **kw: Any) -> Any:
+        self.calls += 1
+        return send_request_direct(URL, {"Accept": "application/json"})
+
+
+def _install_status(monkeypatch, status: int, reason: str = "Denied") -> _FakeSession:
+    session = _FakeSession(_FakeResponse(status, reason=reason))
+    monkeypatch.setattr(client_mod, "_get_thread_session", lambda: session)
+    return session
+
+
+@pytest.mark.parametrize("status, expected_type", PERMANENT_STATUS_TO_TYPE)
+def test_permanent_status_maps_to_typed_error(monkeypatch, status, expected_type):
+    """400/401/403/404/422 ra đúng lớp lỗi, mang http_status, KHÔNG phải OSError."""
+    _install_status(monkeypatch, status)
+
+    with pytest.raises(expected_type) as caught:
+        send_request_direct(URL, {})
+
+    assert caught.value.http_status == status
+    assert isinstance(caught.value, vnbrokerError)
+    assert not isinstance(caught.value, OSError)
+    assert not isinstance(caught.value, ConnectionError)
+
+
+@pytest.mark.parametrize("status, expected_type", PERMANENT_STATUS_TO_TYPE)
+def test_permanent_errors_do_not_failover(monkeypatch, status, expected_type):
+    """Lỗi vĩnh viễn là đáp án cuối: `should_failover` False, không cooldown."""
+    _install_status(monkeypatch, status)
+
+    with pytest.raises(expected_type) as caught:
+        send_request_direct(URL, {})
+
+    assert source_router.should_failover(caught.value) is False
+
+
+@pytest.mark.parametrize("status, expected_type", PERMANENT_STATUS_TO_TYPE)
+def test_permanent_error_text_carries_no_failover_marker(monkeypatch, status, expected_type):
+    """Ratchet: message/details render ra text không chứa marker failover."""
+    _install_status(monkeypatch, status)
+
+    with pytest.raises(expected_type) as caught:
+        send_request_direct(URL, {})
+
+    text = str(caught.value).lower()
+    for marker in _FORBIDDEN_MARKERS:
+        assert marker not in text, f"marker {marker!r} lọt vào text lỗi vĩnh viễn"
+
+
+def test_first_permanent_failure_stops_failover_immediately(monkeypatch):
+    """Pool 5 provider cùng 401 ⇒ đúng 1 request, lỗi gốc nổi lên, 0 cooldown.
+
+    Lỗi vĩnh viễn là đáp án cuối (P-4): thử provider thứ hai với cùng request
+    hỏng chỉ đốt thêm lượt gọi. (AC "≤ 5 request" thỏa theo hướng mạnh hơn.)
+
+    ĐỎ pre-S3: 15 request (tenacity retry ConnectionError 3×/provider rồi mới
+    sang provider kế), lỗi ra là ConnectionError chung, cả 5 vào cooldown.
+    """
+    _install_status(monkeypatch, 401, reason="Unauthorized")
+    denied = [_DeniedSource() for _ in range(5)]
+    names = [f"p{i}" for i in range(5)]
+
+    with pytest.raises(ProviderAuthError):
+        _auto_quote(dict(zip(names, denied)), order=names).history()
+
+    assert sum(d.calls for d in denied) == 1
+    snapshot = source_router.get_source_health_snapshot("quote")
+    for name in ("KBS", "VCI"):
+        state = snapshot.get(name) or {}
+        assert int(state.get("failures", 0)) == 0, f"{name} bị cooldown oan"
+
+
+def test_all_providers_in_cooldown_fails_fast():
+    """Mọi provider đang cooldown ⇒ `build_source_order` trả [], không quét lại.
+
+    ĐỎ pre-S3: `healthy or candidates` trả cả pool ⇒ caller bắn request vào
+    provider đang cooldown (MA-1).
+    """
+    candidates = source_router.get_auto_candidates("quote")
+    assert candidates, "cần ít nhất 1 candidate để đo fail-fast"
+    for source in candidates:
+        source_router.record_failure("quote", source)
+
+    assert source_router.build_source_order("quote", "ACB") == []
+
+
+def test_200_with_unparseable_body_is_not_a_provider_death(monkeypatch):
+    """HỒI QUY/khóa hành vi — 200 + body không phải JSON không giết provider.
+
+    Ghi đính chính MA-3 của đề xuất: `response.json()` hỏng ném `ValueError`
+    (JSONDecodeError), không phải `RequestException`, nên nó đã nổi lên ngoài
+    `except` của transport và `should_failover` đã trả False. Test này khóa
+    hành vi đúng đó, không phải bằng chứng fix.
+    """
+    session = _FakeSession(
+        _FakeResponse(200, reason="OK", json_error=ValueError("No JSON object"))
+    )
+    monkeypatch.setattr(client_mod, "_get_thread_session", lambda: session)
+
+    with pytest.raises(ValueError):
+        send_request_direct(URL, {})
+
+    try:
+        send_request_direct(URL, {})
+    except ValueError as exc:
+        assert source_router.should_failover(exc) is False

@@ -368,6 +368,65 @@ class TimeoutError(NetworkError):
 
 
 # ============================================================================
+# PERMANENT PROVIDER ERRORS — đáp án cuối, không failover/retry (P-4, BL-3)
+# ============================================================================
+
+class ProviderAuthError(NetworkError):
+    """401/403 — token hỏng hoặc bị cấm. Đáp án cuối, không xoay vòng.
+
+    Cố ý KHÔNG kế thừa ``OSError``/``ConnectionError`` (ngược với
+    ``RateLimitError``): thử provider khác với cùng token hỏng chỉ đốt hết
+    pool. ``str(exc)`` cố ý không chứa marker của ``should_failover``
+    (đặc biệt chuỗi ``"403"``) — xem test ratchet trong
+    ``tests/unit/core/test_rate_limit_cooldown.py``.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        http_status: int,
+        url: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        self.http_status = http_status
+        super().__init__(message=message, url=url, details=details)
+        self.error_code = "PROVIDER_AUTH"
+
+
+class ProviderNotFoundError(NetworkError):
+    """404 — endpoint không tồn tại. Đáp án cuối, không xoay vòng."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        http_status: int,
+        url: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        self.http_status = http_status
+        super().__init__(message=message, url=url, details=details)
+        self.error_code = "PROVIDER_NOT_FOUND"
+
+
+class ProviderBadRequestError(NetworkError):
+    """400/422 — request sai hoặc rớt kiểm tra của provider. Đáp án cuối."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        http_status: int,
+        url: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        self.http_status = http_status
+        super().__init__(message=message, url=url, details=details)
+        self.error_code = "PROVIDER_BAD_REQUEST"
+
+
+# ============================================================================
 # DEPRECATION WARNING
 # ============================================================================
 
@@ -397,6 +456,9 @@ ERROR_CODES = {
     "NETWORK_001": "Network request failed",
     "NETWORK_002": "Request temporarily throttled by provider",
     "NETWORK_003": "Request timeout",
+    "PROVIDER_AUTH": "Provider rejected authentication/permission (final)",
+    "PROVIDER_NOT_FOUND": "Provider endpoint does not exist (final)",
+    "PROVIDER_BAD_REQUEST": "Provider rejected the request as invalid (final)",
 }
 
 

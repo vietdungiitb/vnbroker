@@ -3,6 +3,7 @@
 import pandas as pd
 import json
 from typing import Optional, List
+from vnbroker.common.data import EmptyProviderResult
 from vnbroker.core.utils.execution import agg_execution
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import get_asset_type
@@ -136,14 +137,19 @@ class Trading:
             if response.status_code in [200, 201]:
                 json_data = response.json()
             else:
-                return pd.DataFrame()
+                # BL-6: status lỗi phải ném để failover nhìn thấy
+                # (HTTPError là OSError), không trả frame rỗng.
+                response.raise_for_status()
         except Exception as e:
             if show_log or self.show_log:
                 logger.error(f"Failed to fetch stock board data: {str(e)}")
-            return pd.DataFrame()
-        
+            # BL-6: ném ra nguyên dạng, không nuốt thành frame rỗng.
+            raise
         if not json_data or not isinstance(json_data, list):
-            return pd.DataFrame()
+            raise EmptyProviderResult(
+                "KBS price board: provider trả body rỗng/không phải danh sách, "
+                "không dùng được."
+            )
         
         # Convert to DataFrame
         df = pd.DataFrame(json_data)
@@ -243,10 +249,18 @@ class Trading:
         df.attrs['source'] = self.data_source
         df.attrs['get_all'] = get_all
 
+        # Log trung thực: frame rỗng tới được đây là bất thường (mọi đường
+        # lỗi đã ném ở trên), không phải "thành công".
         if show_log or self.show_log:
-            logger.info(
-                f'Truy xuất thành công bảng giá {data_label} cho {len(symbols_list)} mã chứng khoán.'
-            )
+            if df.empty:
+                logger.warning(
+                    f'Bảng giá {data_label} trả về rỗng cho '
+                    f'{len(symbols_list)} mã chứng khoán.'
+                )
+            else:
+                logger.info(
+                    f'Truy xuất thành công bảng giá {data_label} cho {len(symbols_list)} mã chứng khoán.'
+                )
 
         return df
 

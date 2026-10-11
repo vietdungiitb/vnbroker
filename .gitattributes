@@ -5,3 +5,4 @@
 # (phat hien that 2026-10-10, ngay luc tao worktree cho 3 agent).
 # -text: KHONG chuyen doi EOL cho file nay.
 docs/references/openapi-v1.0.0.json -text
+docs/CLAIMS.md merge=union

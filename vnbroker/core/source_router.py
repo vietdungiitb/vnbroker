@@ -16,6 +16,11 @@ import time
 from typing import Any, Dict, List, Tuple
 
 from vnbroker.config import Config
+from vnbroker.core.exceptions import (
+    ProviderAuthError,
+    ProviderBadRequestError,
+    ProviderNotFoundError,
+)
 from vnbroker.core.health_store import (
     HealthStore,
     create_store,
@@ -298,7 +303,14 @@ def build_source_order(module_name: str, symbol: str | None = None) -> List[str]
             source for source in candidates
             if not _is_in_cooldown(module_name, source, now)
         ]
-    ordered_pool = healthy or candidates
+    if healthy:
+        ordered_pool = healthy
+    else:
+        # MA-1: tất cả đang cooldown ⇒ fail sớm bằng pool rỗng, không quét
+        # lại pool (trước đây `healthy or candidates` khiến cooldown vô hiệu
+        # với lưu lượng). Probe half-open (cooldown vừa hết) vẫn được đi —
+        # tính ở dưới từ `candidates`, không từ pool này.
+        ordered_pool = []
 
     primary_candidates = PRIMARY_SOURCE_POOLS.get(module_name, ordered_pool)
     if module_name == "trading":
@@ -316,6 +328,11 @@ def build_source_order(module_name: str, symbol: str | None = None) -> List[str]
         source for source in candidates
         if is_half_open(module_name, source, now)
     ]
+
+    if not ordered_pool and not probes:
+        # Không còn gì để thử (pool rỗng, không probe): fail sớm để caller
+        # ném lỗi rõ ràng thay vì `len(pool) == 0` nổ ở phép chia phía dưới.
+        return []
 
     primary_pool = [
         source for source in primary_candidates
@@ -452,6 +469,15 @@ def health(module_name: str) -> Dict[str, Dict[str, float | bool | int | None]]:
 
 
 def should_failover(exc: Exception) -> bool:
+    # Lỗi vĩnh viễn (P-4, BL-3): đáp án cuối — không xoay vòng, không cooldown.
+    # Đặt TRƯỚC nhánh OSError và KHÔNG dựa vào marker chuỗi: các lớp này cố ý
+    # render text không chứa marker nào, nhưng hợp đồng này phải đứng vững cả
+    # khi ai đó sửa message sau này (ratchet trong test).
+    if isinstance(
+        exc, (ProviderAuthError, ProviderNotFoundError, ProviderBadRequestError)
+    ):
+        return False
+
     # OSError is the base of ConnectionError and TimeoutError, but also of the
     # entire requests/socket failure family, which is the common case:
     #   requests.exceptions.RequestException -> IOError -> OSError

@@ -11,6 +11,7 @@ from vnbroker.explorer.kbs.const import (
     _IIS_BASE_URL, _SEARCH_URL, _SECTOR_ALL_URL, _SECTOR_STOCK_URL, _INDEX_URL, _GROUP_CODE
 )
 from vnbroker.core.utils.cache import cached_listing, cached_industry
+from vnbroker.common.data import EmptyProviderResult
 
 logger = get_logger(__name__)
 
@@ -95,10 +96,14 @@ class Listing:
         except Exception as e:
             if show_log:
                 logger.error(f"Lỗi khi lấy dữ liệu chứng khoán: {str(e)}")
-            return pd.DataFrame(columns=['symbol', 'organ_name'])
-        
+            # BL-6: lỗi phải ném ra nguyên dạng để failover/retry nhìn thấy.
+            # Trả frame rỗng có cột ở đây khiến tầng trên record_success +
+            # cache 24h một thất bại.
+            raise
         if not stocks_data:
-            return pd.DataFrame(columns=['symbol', 'organ_name'])
+            raise EmptyProviderResult(
+                "KBS all_symbols: provider trả danh sách rỗng, không dùng được."
+            )
         
         # Convert to DataFrame
         df = pd.DataFrame(stocks_data).query("type == 'stock'")
@@ -147,10 +152,13 @@ class Listing:
         except Exception as e:
             if show_log:
                 logger.error(f"Lỗi khi lấy dữ liệu chứng khoán: {str(e)}")
-            return pd.DataFrame(columns=['symbol', 'organ_name', 'exchange', 'source'])
-        
+            # BL-6: xem all_symbols — ném ra, không trả frame rỗng có cột.
+            raise
         if not stocks_data:
-            return pd.DataFrame(columns=['symbol', 'organ_name', 'exchange', 'source'])
+            raise EmptyProviderResult(
+                "KBS symbols_by_exchange: provider trả danh sách rỗng, "
+                "không dùng được."
+            )
         
         # Convert to DataFrame
         df = pd.DataFrame(stocks_data)
@@ -216,10 +224,8 @@ class Listing:
         except Exception as e:
             if show_log:
                 logger.error(f"Lỗi khi lấy danh sách ngành: {str(e)}")
-            # Return empty DataFrame if API fails
-            df = pd.DataFrame(columns=['symbol', 'industry_code', 'industry_name'])
-            df.attrs['source'] = self.data_source
-            return df
+            # BL-6: ném ra, không trả frame rỗng có cột để cache.
+            raise
         
         all_symbols_by_industry = []
 
@@ -248,9 +254,14 @@ class Listing:
             df.attrs['source'] = self.data_source
             return df
         else:
-            df = pd.DataFrame(columns=['symbol', 'industry_code', 'industry_name'])
-            df.attrs['source'] = self.data_source
-            return df
+            # Mọi ngành đều lỗi (hoặc danh sách ngành rỗng): đây là lỗi
+            # provider, không phải đáp án rỗng — ném để không cache 24h.
+            # (Lỗi từng ngành riêng vẫn warn + bỏ qua ở vòng lặp trên:
+            # dung sai một phần là chính sách có chủ ý, ngoài scope S4.)
+            raise EmptyProviderResult(
+                "KBS symbols_by_industries: không gom được mã nào, "
+                "không dùng được."
+            )
 
     @agg_execution("KBS")
     def symbols_by_group(
@@ -526,7 +537,9 @@ class Listing:
         except Exception as e:
             if show_log:
                 logger.error(f"Lỗi khi lấy dữ liệu chứng khoán: {str(e)}")
-            return []
+            # BL-6: helper nội bộ ném ra; caller (all_symbols,
+            # symbols_by_exchange) tự quyết ném tiếp hay báo unusable.
+            raise
 
     def _get_symbols_by_group_internal(
         self,

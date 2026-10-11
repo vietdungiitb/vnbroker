@@ -25,6 +25,22 @@ from vnbroker.core.source_router import (
 )
 
 
+def _empty_pool_error(module_name: str, available: str = "") -> ValueError:
+    """Lỗi trung thực khi `build_source_order` trả pool rỗng (MA-1 fail-fast).
+
+    Phân biệt "chưa cấu hình source nào" với "có cấu hình nhưng tất cả đang
+    cooldown" — gộp hai trường hợp vào một message "not configured" là nói
+    dối caller (P-1).
+    """
+    configured = get_auto_candidates(module_name)
+    if configured:
+        return ValueError(
+            f"Tất cả {len(configured)} source của '{module_name}' đang cooldown; "
+            f"từ chối quét lại pool. Thử lại sau.{available}"
+        )
+    return ValueError(f"AUTO source is not configured for '{module_name}'.{available}")
+
+
 def dynamic_method(func):
     """
     Decorator for adapter methods:
@@ -86,9 +102,7 @@ class BaseAdapter(ABC):
         if is_auto_source(self._requested_source):
             candidates = build_source_order(self._module_name, symbol=self.symbol)
             if not candidates:
-                raise ValueError(
-                    f"AUTO source is not configured for '{self._module_name}'."
-                )
+                raise _empty_pool_error(self._module_name)
             return candidates[0]
         return self._requested_source
 
@@ -172,8 +186,9 @@ class BaseAdapter(ABC):
 
         candidates = build_source_order(self._module_name, symbol=self.symbol)
         if not candidates:
-            raise ValueError(
-                f"AUTO source is not configured for '{self._module_name}'. Available open sources: {get_auto_candidates(self._module_name)}"
+            raise _empty_pool_error(
+                self._module_name,
+                f" Available open sources: {get_auto_candidates(self._module_name)}",
             )
 
         last_error: Optional[Exception] = None

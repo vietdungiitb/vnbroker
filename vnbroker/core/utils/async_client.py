@@ -7,6 +7,7 @@ import os
 import random
 import threading
 import time
+import weakref
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
@@ -42,7 +43,7 @@ class TokenBucketRateLimiter:
     def __init__(self, rpm: int = 500):
         """
         Initialize rate limiter.
-        
+
         Args:
             rpm: Requests per minute (0 = disabled)
         """
@@ -54,30 +55,45 @@ class TokenBucketRateLimiter:
             self._tokens = float(rpm)
             self._refill_rate = rpm / 60.0
             self._last_refill = time.monotonic()
-            self._lock = asyncio.Lock()
-    
+        # Intentionally NO asyncio.Lock here. A lock created at import binds the
+        # first running loop it is contended on (BL-1); every later loop then
+        # fails with "is bound to a different event loop". Mutexes are created
+        # per running loop on first use instead; token fields are guarded by a
+        # plain threading lock that is never held across `await`.
+        self._state_guard = threading.Lock()
+        self._loop_locks: weakref.WeakKeyDictionary[
+            asyncio.AbstractEventLoop, asyncio.Lock
+        ] = weakref.WeakKeyDictionary()
+
+    def _loop_lock(self) -> asyncio.Lock:
+        """Return the mutex for the running loop, creating it on first use."""
+        loop = asyncio.get_running_loop()
+        with self._state_guard:
+            lock = self._loop_locks.get(loop)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._loop_locks[loop] = lock
+            return lock
+
     async def __aenter__(self) -> "TokenBucketRateLimiter":
         if not self._enabled:
             return self
-        
-        async with self._lock:
-            await self._acquire_token()
+
+        async with self._loop_lock():
+            while True:
+                with self._state_guard:
+                    self._refill()
+                    if self._tokens >= 1.0:
+                        self._tokens -= 1.0
+                        return self
+                    # Calculate wait time for next token
+                    wait_time = (1.0 - self._tokens) / self._refill_rate
+                await asyncio.sleep(min(wait_time, 1.0))  # Cap at 1 second to re-check
         return self
     
     async def __aexit__(self, exc_type, exc, tb) -> bool:
         return False
-    
-    async def _acquire_token(self) -> None:
-        """Wait until a token is available."""
-        while True:
-            self._refill()
-            if self._tokens >= 1.0:
-                self._tokens -= 1.0
-                return
-            # Calculate wait time for next token
-            wait_time = (1.0 - self._tokens) / self._refill_rate
-            await asyncio.sleep(min(wait_time, 1.0))  # Cap at 1 second to re-check
-    
+
     def _refill(self) -> None:
         """Refill tokens based on elapsed time."""
         now = time.monotonic()
@@ -196,6 +212,14 @@ def _record_failure(exc: Exception) -> None:
             _request_stats.other_errors += 1
 
 
+class _LoopClientState:
+    """Per-event-loop client pool. Never shared across loops (BL-1)."""
+
+    def __init__(self) -> None:
+        self.clients: Dict[str, httpx.AsyncClient] = {}
+        self.lock = asyncio.Lock()
+
+
 class AsyncClientManager:
     """Keep and reuse AsyncClient instances for direct/proxy traffic."""
 
@@ -205,41 +229,59 @@ class AsyncClientManager:
         max_keepalive_connections: int = DEFAULT_MAX_KEEPALIVE,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ):
-        self._clients: Dict[str, httpx.AsyncClient] = {}
-        self._lock = asyncio.Lock()
+        # httpx clients (and the creation mutex) are bound to the loop that
+        # made them, so pools are kept per running loop and die with it.
+        self._loop_states: weakref.WeakKeyDictionary[
+            asyncio.AbstractEventLoop, _LoopClientState
+        ] = weakref.WeakKeyDictionary()
+        self._states_guard = threading.Lock()
         self._limits = httpx.Limits(
             max_connections=max_connections,
             max_keepalive_connections=max_keepalive_connections,
         )
         self._timeout = timeout
 
+    def _state_for_running_loop(self) -> _LoopClientState:
+        loop = asyncio.get_running_loop()
+        with self._states_guard:
+            state = self._loop_states.get(loop)
+            if state is None:
+                state = _LoopClientState()
+                self._loop_states[loop] = state
+            return state
+
     async def get_client(self, proxy_url: Optional[str] = None) -> httpx.AsyncClient:
+        state = self._state_for_running_loop()
         key = proxy_url or "__direct__"
-        client = self._clients.get(key)
+        client = state.clients.get(key)
         if client is not None:
             return client
 
-        async with self._lock:
-            client = self._clients.get(key)
+        async with state.lock:
+            client = state.clients.get(key)
             if client is not None:
                 return client
 
-            if key not in self._clients:
-                kwargs: Dict[str, Any] = {
-                    "limits": self._limits,
-                    "http2": True,
-                    "timeout": self._timeout,
-                }
-                if proxy_url:
-                    kwargs["proxy"] = proxy_url
-                self._clients[key] = httpx.AsyncClient(**kwargs)
-            return self._clients[key]
+            kwargs: Dict[str, Any] = {
+                "limits": self._limits,
+                "http2": True,
+                "timeout": self._timeout,
+            }
+            if proxy_url:
+                kwargs["proxy"] = proxy_url
+            state.clients[key] = httpx.AsyncClient(**kwargs)
+            return state.clients[key]
 
     async def close(self) -> None:
-        async with self._lock:
-            clients = list(self._clients.values())
-            self._clients.clear()
-        for client in clients:
+        with self._states_guard:
+            states = list(self._loop_states.values())
+            self._loop_states.clear()
+        pooled: List[httpx.AsyncClient] = []
+        for state in states:
+            async with state.lock:
+                pooled.extend(state.clients.values())
+                state.clients.clear()
+        for client in pooled:
             await client.aclose()
 
 

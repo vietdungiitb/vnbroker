@@ -275,7 +275,11 @@ class Quote:
                     for idx in range(min_len)
                 ]
             except Exception:
-                return []
+                # BL-6: payload hỏng là lỗi xử lý, phải ném ra để tầng trên
+                # nhìn thấy — không biến thành danh sách rỗng (trông như
+                # "không có phiên giao dịch"). Nhánh `if not data` ở trên
+                # vẫn giữ cho ca rỗng thật.
+                raise
 
         return data
 
