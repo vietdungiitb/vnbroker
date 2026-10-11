@@ -261,7 +261,7 @@ lessons 24/40 | pytest 1919 passed / 30 skipped / **0 ERROR**.
 |---|---|---|---|---|---|---|---|
 | pm-hang1-s1 | feat/hang1-row1 | (main checkout) | S1 WP-01 async lock per-loop | vnbroker/core/utils/async_client.py,vnbroker/core/utils/__init__.py,tests/unit/core/test_async_client.py | in-progress | 2026-10-11 | Mode B solo; `common/data.py` read-only o slice nay |
 | pm-hang1-s2 | feat/hang1-row1 | (main checkout) | S2 WP-02 cache key fallback | vnbroker/core/utils/cache.py,tests/unit/core/test_cache_key.py | proposed | 2026-10-11 | dispatch sau S1 |
-| pm-hang1-s3 | feat/hang1-row1 | (main checkout) | S3 WP-03 loi vinh vien | vnbroker/core/utils/client.py,vnbroker/core/source_router.py,tests/unit/core/test_source_router_fix.py | proposed | 2026-10-11 | dispatch sau S2 |
+| pm-hang1-s3 | feat/hang1-row1 | (main checkout) | S3 WP-03 loi vinh vien | vnbroker/core/exceptions.py,vnbroker/core/utils/client.py,vnbroker/core/source_router.py,vnbroker/base.py,tests/unit/core/test_rate_limit_cooldown.py | proposed | 2026-10-11 | dispatch sau S2; base.py chi sua message fail-fast (khong doi type/behavior) |
 | pm-hang1-s4 | feat/hang1-row1 | (main checkout) | S4 WP-04 rong-vs-loi | vnbroker/explorer/kbs/listing.py,vnbroker/explorer/kbs/trading.py,vnbroker/explorer/vci/quote.py,vnbroker/common/data.py | proposed | 2026-10-11 | S4 la writer duy nhat cua `common/data.py`; S1–S3 read-only file nay |
 
 Tap file 4 slice giao nhau = ∅ (S4 giu `common/data.py` mot minh).

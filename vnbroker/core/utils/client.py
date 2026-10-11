@@ -18,7 +18,12 @@ from typing import Dict, Any, Optional, Union, List
 from enum import Enum
 from urllib.parse import urlsplit, urlunsplit
 from pydantic import BaseModel
-from vnbroker.core.exceptions import RateLimitError
+from vnbroker.core.exceptions import (
+    ProviderAuthError,
+    ProviderBadRequestError,
+    ProviderNotFoundError,
+    RateLimitError,
+)
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.proxy_manager import proxy_manager
 from vnbroker.core.utils.rate_limiter import TokenBucketRateLimiter
@@ -380,7 +385,10 @@ def send_request_direct(
             ``ConnectionError`` nên code bắt ``except ConnectionError`` vẫn
             bắt được; khác ở chỗ mang theo ``retry_after`` đọc từ header
             ``Retry-After`` để circuit breaker đặt cooldown đúng số.
-        ConnectionError: If request fails or returns other error code
+        ProviderAuthError: HTTP 401/403 — đáp án cuối, không retry/failover.
+        ProviderNotFoundError: HTTP 404 — đáp án cuối, không retry/failover.
+        ProviderBadRequestError: HTTP 400/422 — đáp án cuối.
+        ConnectionError: các lỗi còn lại (500, mạng, ...).
     """
     try:
         session = _get_thread_session()
@@ -409,24 +417,45 @@ def send_request_direct(
         response = session.request(method_upper, url, **request_kwargs)
         # Check response status
         if response.status_code != 200:
+            # `details["url"]` đi vào `__str__` của exception, tức đi thẳng ra
+            # log/traceback của người dùng. Provider HMAC (DNSE, KBS) đặt
+            # credential TRONG query string (`?api_key=…&signature=…`) — nhét
+            # URL thô vào đây là tự rò credential qua chính exception của mình.
+            # Vì vậy chỉ giữ scheme+netloc+path (bỏ query tại nguồn).
+            safe_url = _url_without_query(url)
             if response.status_code == 429:
                 # 429 là lời mời "chậm lại", KHÔNG phải "provider chết" — nên nó
                 # phải mang theo Retry-After thay vì nằm chung với 403/500.
                 # Trước đây 429 ra `ConnectionError` chung, nên cooldown chỉ
                 # lớn theo suy đoán và retry thêm 3 lần vô ích.
-                #
-                # `details["url"]` đi vào `__str__` của exception, tức đi thẳng
-                # ra log/traceback của người dùng. Provider HMAC (DNSE, KBS) đặt
-                # credential TRONG query string (`?api_key=…&signature=…`) — nhét
-                # URL thô vào đây là tự rò credential qua chính exception của mình.
-                # Vì vậy chỉ giữ scheme+netloc+path.
-                safe_url = urlunsplit(
-                    (urlsplit(url).scheme, urlsplit(url).netloc, urlsplit(url).path, "", "")
-                )
                 raise RateLimitError(
                     provider=urlsplit(url).netloc or url,
                     retry_after=parse_retry_after(getattr(response, "headers", None)),
                     details={"url": safe_url, "status_code": 429},
+                )
+            if response.status_code in (401, 403):
+                # Đáp án cuối (P-4): token hỏng/cấm với provider này thì provider
+                # khác cũng trả lời y hệt — không retry, không xoay vòng.
+                # Message cố ý không chứa marker của `should_failover`.
+                raise ProviderAuthError(
+                    "Token hết hạn/không hợp lệ hoặc provider từ chối quyền "
+                    "truy cập. Đây là đáp án cuối, không thử lại.",
+                    http_status=response.status_code,
+                    url=safe_url,
+                )
+            if response.status_code == 404:
+                raise ProviderNotFoundError(
+                    "Endpoint không tồn tại ở phía provider (HTTP 404). "
+                    "Đây là đáp án cuối, không thử lại.",
+                    http_status=response.status_code,
+                    url=safe_url,
+                )
+            if response.status_code in (400, 422):
+                raise ProviderBadRequestError(
+                    "Provider từ chối request vì không hợp lệ/không đạt kiểm "
+                    "tra. Đây là đáp án cuối, không thử lại.",
+                    http_status=response.status_code,
+                    url=safe_url,
                 )
             msg = (
                 f"Failed to fetch data: "
