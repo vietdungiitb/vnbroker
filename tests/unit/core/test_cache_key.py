@@ -665,3 +665,122 @@ class _ExplodingRepr:
 
     def __str__(self):
         return "ExplodingRepr"
+
+
+# ── BL-2: instances holding non-terminal attributes must not collapse ─────────
+#
+# Shapes mirror the real classes: VCIListing.__dict__ holds a ProxyConfig
+# (explorer/vci/listing.py:38-44); DNSEListing.__dict__ holds a DNSEClient
+# whose own __dict__ is service objects (explorer/dnse/listing.py:78-84).
+#
+# The deep encoder only recurses into ``vnbroker``-module instances
+# (third-party handles stay opaque by type), so the fakes below declare the
+# same ``__module__`` as the production classes they stand in for.
+
+class _ProxyConfigLike:
+    __module__ = "vnbroker.core.utils.client"
+
+    def __init__(self, proxy_list, proxy_mode="rotate"):
+        self.proxy_list = proxy_list
+        self.proxy_mode = proxy_mode
+
+
+class _ListingLike:
+    __module__ = "vnbroker.explorer.vci.listing"
+
+    def __init__(self, show_log=False, proxy_config=None):
+        self.data_source = "VCI"
+        self.show_log = show_log
+        self.proxy_config = proxy_config
+
+
+class _ClientConfigLike:
+    __module__ = "vnbroker.connector.dnse.client"
+
+    def __init__(self, api_key, api_secret="S"):
+        self.api_key = api_key
+        self.api_secret = api_secret
+
+
+class _ServiceLike:
+    __module__ = "vnbroker.connector.dnse.client"
+
+    def __init__(self, client):
+        self._client = client  # back-reference: exercises the cycle guard
+
+
+class _TenantClientLike:
+    __module__ = "vnbroker.connector.dnse.client"
+
+    def __init__(self, api_key):
+        self._config = _ClientConfigLike(api_key)
+        self._service = _ServiceLike(self)
+
+
+class _TenantListingLike:
+    __module__ = "vnbroker.explorer.dnse.listing"
+
+    def __init__(self, api_key):
+        self.show_log = False
+        self._client = _TenantClientLike(api_key)
+
+
+class _Opaque:
+    """No __dict__ content at all: nothing to distinguish instances by."""
+
+    __slots__ = ()
+
+
+def test_instances_with_different_nested_proxy_config_do_not_collide(cache):
+    left = _ListingLike(proxy_config=_ProxyConfigLike(["http://a:8080"]))
+    right = _ListingLike(proxy_config=_ProxyConfigLike(["http://b:8080"]))
+    assert cache._make_key("all_symbols", left) != cache._make_key("all_symbols", right)
+
+
+def test_instances_with_different_tenant_credentials_do_not_collide(cache):
+    tenant_a = _TenantListingLike("TENANT-A-KEY")
+    tenant_b = _TenantListingLike("TENANT-B-KEY")
+    assert cache._make_key("all_symbols", tenant_a) != cache._make_key(
+        "all_symbols", tenant_b
+    )
+
+
+def test_instances_with_equal_nested_state_still_share_a_key(cache):
+    left = _ListingLike(proxy_config=_ProxyConfigLike(["http://a:8080"]))
+    right = _ListingLike(proxy_config=_ProxyConfigLike(["http://a:8080"]))
+    assert cache._make_key("all_symbols", left) == cache._make_key("all_symbols", right)
+
+
+def test_show_log_flag_still_partitions_the_key(cache):
+    assert cache._make_key("all_symbols", _ListingLike(show_log=True)) != cache._make_key(
+        "all_symbols", _ListingLike(show_log=False)
+    )
+
+
+def test_decorator_refuses_to_cache_indistinguishable_instances(listing_cache):
+    """Backstop: a bare token must bypass the cache, never collide in it."""
+    calls = []
+
+    @cached_listing()
+    def _opaque_method(self, day):
+        calls.append(1)
+        return f"payload-{day}"
+
+    assert _opaque_method(_Opaque(), "2024-01-01") == "payload-2024-01-01"
+    assert _opaque_method(_Opaque(), "2024-01-01") == "payload-2024-01-01"
+    assert len(calls) == 2  # served by no cache entry, fresh call each time
+
+
+def test_decorator_still_caches_distinguishable_instances(listing_cache):
+    """Positive case: deep-distinct instances keep working cache entries."""
+    calls = []
+
+    @cached_listing()
+    def _listing_method(self, day):
+        calls.append(1)
+        return f"payload-{day}"
+
+    first = _ListingLike(proxy_config=_ProxyConfigLike(["http://a:8080"]))
+    assert _listing_method(first, "2024-01-01") == "payload-2024-01-01"
+    assert _listing_method(first, "2024-01-01") == "payload-2024-01-01"
+    assert len(calls) == 1  # same instance hits its own entry
