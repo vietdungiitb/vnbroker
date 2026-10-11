@@ -88,6 +88,9 @@ VERSION_REQUIREMENTS = {
     "3.7.1": {
         "vnii": ">=0.1.5",
     },
+    "3.7.2": {
+        "vnii": ">=0.1.5",
+    },
 }
 
 # Version-specific notices for user
@@ -167,6 +170,30 @@ VERSION_NOTICES = {
         ],
         "warnings": [
             "Bao transient (ca pool 500) van retry nhu cu — can Row 2.",
+        ],
+    },
+    "3.7.2": {
+        "title": "vnbroker 3.7.2 - Chan ro API secret trong log",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.7.2",
+        # Ban nay dong 3 lop. Do doc bang class that (SSIListing/DNSEListing
+        # giu self._api_secret) chu khong phai mo hong.
+        "critical_notices": [
+            "Cache HIT/MISS ghi `key#<blake2b-4>` thay vi key tho. Key tho "
+            "chua gia tri attribute cua instance, trong do co credential "
+            "(explorer/ssi/listing.py:58). Dung hinh dang moi: doi chieu "
+            "HIT/MISS bang con so 8 ky tu.",
+            "redact_sensitive_data() gio che ca khoa co tien to `_` "
+            "(`_api_secret=`, `_api_key=`). Truoc do lookbehind chua `_` nen "
+            "chinh field cua thu vien khong khop regex.",
+            "__repr__ that bai chi con in ten exception, khong in message "
+            "(message hay trich nguyen van gia tri bi loi do).",
+        ],
+        "warnings": [
+            "Khong co breaking change: signature cua cached_listing / "
+            "cached_industry / redact_sensitive_data va danh sach "
+            "SENSITIVE_KEYS ghu nguyen.",
+            "Ro nay co tu v3.6.0 (bo ma hoa key co kieu), khong phai do 3.7.1. "
+            "3.5.0 tren PyPI khong chua no.",
         ],
     },
     "3.6.0": {

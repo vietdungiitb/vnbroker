@@ -1,5 +1,8 @@
 """Tests for cache key generation — verifies no memory addresses in keys."""
 
+import io
+import logging
+import re
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -784,3 +787,166 @@ def test_decorator_still_caches_distinguishable_instances(listing_cache):
     assert _listing_method(first, "2024-01-01") == "payload-2024-01-01"
     assert _listing_method(first, "2024-01-01") == "payload-2024-01-01"
     assert len(calls) == 1  # same instance hits its own entry
+
+
+# ── The cache key must never be logged raw (security regression) ─────────────
+#
+# MEASURED leak, not a code-reading guess. The key carries the instance's own
+# attributes, and the production classes that @cached_listing wraps keep the
+# caller's credential there:
+#   * vnbroker/explorer/ssi/listing.py:58-59 -> self._api_key / self._api_secret
+#   * vnbroker/common/data.py:388            -> self.api_key  / self.api_secret
+# so the real key for `SSIListing` is
+#   ...|state=dict:2:{str:_api_key=str:TENANT_A,str:_api_secret=str:<SECRET>}
+# and cache.py logged it verbatim at DEBUG.
+#
+# TWO layers were broken, and both are asserted below because fixing only one
+# leaves the other as the next leak:
+#   1. cache.py printed the key raw.
+#   2. logger.py's SensitiveDataFilter does not catch `_api_secret=` -- its
+#      lookbehind (?<![A-Za-z0-9_]) blocks the match on the leading underscore.
+#      Measured: redact_sensitive_data("_api_secret=X") returns X unchanged,
+#      while "api_secret=X" IS redacted. So a host app that lets the library's
+#      own filter do the work still leaks every private-attribute credential.
+#
+# NOTE on scope: this is NOT a regression introduced by BL-2. Measured on the
+# pre-BL-2 tree (8dacac3) the same leak is present; before 8dacac3 the key was
+# `all_symbols|ProdListing` (class name only) and carried no attribute values.
+
+
+class _CredentialHolderPublic:
+    """Mirrors common/data.py:388 — public api_key/api_secret."""
+
+    def __init__(self, secret):
+        self.api_key = "TENANT_A"
+        self.api_secret = secret
+
+
+class _CredentialHolderPrivate:
+    """Mirrors explorer/ssi/listing.py:58-59 — private _api_key/_api_secret."""
+
+    def __init__(self, secret):
+        self._api_key = "TENANT_A"
+        self._api_secret = secret
+
+
+SECRET = "SUPER_SECRET_abc123XYZ"
+API_KEY_VALUE = "TENANT_A"
+
+
+def _capture_debug_log():
+    """Attach the library's real SensitiveDataFilter to the cache logger.
+
+    Returns the stream the handler writes to. The logger's propagate flag is
+    turned OFF so the record cannot also reach the root logger that ``caplog``
+    installs on, which would make the capture path differ from the library's
+    real one.
+    """
+    from vnbroker.core.utils import cache as cache_module
+    from vnbroker.core.utils.logger import SensitiveDataFilter
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.addFilter(SensitiveDataFilter())
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    handler.setLevel(logging.DEBUG)
+    logger = cache_module.logger
+    saved = (logger.handlers, logger.filters, logger.level, logger.propagate)
+    logger.handlers = [handler]
+    logger.filters = []
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+    return logger, saved, stream
+
+
+def _restore_logger(logger, saved):
+    logger.handlers, logger.filters, logger.level, logger.propagate = saved
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        pytest.param(_CredentialHolderPublic, id="public-api_secret"),
+        pytest.param(_CredentialHolderPrivate, id="private-_api_secret"),
+    ],
+)
+def test_cache_debug_log_never_prints_the_raw_key(listing_cache, factory):
+    """The decorator must not write the credential into the log.
+
+    Asserted on what actually reaches a log handler, carrying the library's own
+    SensitiveDataFilter, so the test fails on either broken layer rather than on
+    one of them.
+    """
+    logger, saved, stream = _capture_debug_log()
+    try:
+        @cached_listing()
+        def all_symbols(self):
+            return ["AAA"]
+
+        all_symbols(factory(SECRET))
+        all_symbols(factory(SECRET))  # second call logs HIT
+    finally:
+        _restore_logger(logger, saved)
+
+    logged = stream.getvalue()
+    assert logged, "expected the decorator to log at DEBUG"
+    assert SECRET not in logged, f"secret leaked: {logged}"
+    assert API_KEY_VALUE not in logged, f"api key leaked: {logged}"
+
+
+def test_cache_debug_log_is_still_useful_for_debugging(listing_cache):
+    """Redaction must not delete the line's diagnostic value.
+
+    A guard that destroys the data it protects is worse than the leak (L-R07),
+    so the log line keeps the function name, the outcome and a stable key
+    fingerprint that still distinguishes two different keys from each other.
+    """
+    logger, saved, stream = _capture_debug_log()
+    try:
+        @cached_listing()
+        def all_symbols(self, day):
+            return f"payload-{day}"
+
+        all_symbols(_ListingLike(proxy_config=_ProxyConfigLike(["http://a:8080"])), "2024-01-01")
+        all_symbols(_ListingLike(proxy_config=_ProxyConfigLike(["http://b:8080"])), "2024-01-01")
+    finally:
+        _restore_logger(logger, saved)
+
+    logged = stream.getvalue()
+    assert "all_symbols" in logged
+    assert "MISS" in logged
+    # Two distinct keys must stay distinguishable in the log.
+    fingerprints = set(re.findall(r"key#\w+", logged))
+    assert len(fingerprints) == 2, logged
+
+
+def test_redaction_covers_private_attribute_credentials():
+    """The second broken layer: `_api_secret=` must be redacted too.
+
+    `redact_sensitive_data("api_secret=X")` was already redacted, which is why
+    the leak hid behind a filter that demonstrably works on the public spelling.
+    """
+    from vnbroker.core.utils.logger import redact_sensitive_data
+
+    for spelling in ("api_secret", "_api_secret", "__api_secret", "apiKey", "_api_key"):
+        raw = f"state={{str:{spelling}=str:{SECRET}}}"
+        assert SECRET not in redact_sensitive_data(raw), spelling
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "price=12345",
+        "symbol=TCB",
+        "volume=1.2M",
+        "the user name is bob",
+        "key note: read the file",
+        "monkey=abc",
+        "_monkey=abc",
+    ],
+)
+def test_redaction_of_private_attributes_still_leaves_ordinary_text_alone(raw):
+    """Anti-destruction guard for the widened rule (L-R07)."""
+    from vnbroker.core.utils.logger import redact_sensitive_data
+
+    assert redact_sensitive_data(raw) == raw
