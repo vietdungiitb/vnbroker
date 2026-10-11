@@ -12,7 +12,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, TypeVar, Generic, Callable
+from typing import Any, Dict, Optional, Set, TypeVar, Generic, Callable
 from functools import wraps
 
 from vnbroker.config import Config
@@ -114,7 +114,7 @@ _MAX_DEEP_LEVELS = 2
 
 
 def _encode_state_deep(
-    value: Any, _seen: Optional[set] = None, _level: int = 0
+    value: Any, _seen: Optional[Set[int]] = None, _level: int = 0
 ) -> Optional[str]:
     """Encode attributes that plain :func:`_instance_state` refuses.
 
@@ -163,7 +163,7 @@ def _encode_state_deep(
     return ",".join(f"{name}={token}" for name, token in items)
 
 
-def _encode_attr_deep(item: Any, _seen: set, _level: int) -> str:
+def _encode_attr_deep(item: Any, _seen: Set[int], _level: int) -> str:
     """Token for one attribute value inside :func:`_encode_state_deep`."""
     if _is_terminal(item):
         return _encode_value(item)
