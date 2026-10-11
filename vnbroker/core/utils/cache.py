@@ -54,6 +54,34 @@ _MAX_TOKEN_CHARS = 4096
 _ADDR_MASK = re.compile(r"0[xX][0-9a-fA-F]+")
 
 
+def _key_fingerprint(key: str) -> str:
+    """A short, stable stand-in for a cache key, safe to write to a log.
+
+    WHY this exists (measured, not theoretical): a key carries the instance's
+    own attributes, and the classes that ``@cached_listing`` wraps keep the
+    caller's credential there — ``vnbroker/explorer/ssi/listing.py:58-59``
+    (``self._api_key`` / ``self._api_secret``) and
+    ``vnbroker/common/data.py:388`` (``self.api_key`` / ``self.api_secret``).
+    Printing the key verbatim therefore wrote the API secret into the log file
+    at DEBUG.
+
+    WHY a digest and not the key: ``redact_sensitive_data`` is a second line of
+    defence, not the first. It does not catch the private spelling
+    (``_api_secret=``), and a host application that installs its own handler on
+    the ``vnbroker`` logger bypasses the filter entirely. The key must be
+    unprintable by default.
+
+    WHY it stays useful: BLAKE2b is stable across processes, so two different
+    keys still get two different fingerprints and a HIT/MISS pair can be
+    correlated by eye — the line loses the key, not its diagnostic value
+    (L-R07: a guard that destroys the data it protects is worse than the leak).
+    """
+    digest = hashlib.blake2b(
+        key.encode("utf-8", "surrogatepass"), digest_size=4
+    ).hexdigest()
+    return f"key#{digest}"
+
+
 def _is_terminal(value: Any, depth: int = 0) -> bool:
     """True when ``value`` can be encoded without touching any internals.
 
@@ -199,7 +227,16 @@ def _encode_object(value: Any) -> str:
     try:
         shown = _ADDR_MASK.sub("<addr>", repr(value))
     except Exception as exc:  # a broken __repr__ must not break the cache
-        logger.debug(f"cache key: repr() failed for {type(value).__name__}: {exc}")
+        # Same reason as _key_fingerprint(): the exception text is whatever the
+        # broken __repr__ chose to raise, and it routinely quotes the value it
+        # failed on - which for these objects is the credential. Measured: a
+        # __repr__ raising ValueError(f"bad value {self._api_secret!r}...")
+        # wrote the secret verbatim at DEBUG. The type is enough to debug with.
+        logger.debug(
+            "cache key: repr() failed for %s: %s",
+            type(value).__name__,
+            type(exc).__name__,
+        )
         shown = "<unrepresentable>"
 
     body = f"{type(value).__module__}.{type(value).__qualname__}|{shown}"
@@ -499,10 +536,14 @@ def cached_listing(ttl_seconds: Optional[int] = None):
                 return func(*args, **kwargs)
             result = cache.get(key)
             if result is not None:
-                logger.debug(f"Cache HIT for {func.__name__}: {key}")
+                logger.debug(
+                    f"Cache HIT for {func.__name__}: {_key_fingerprint(key)}"
+                )
                 return result
             
-            logger.debug(f"Cache MISS for {func.__name__}: {key}")
+            logger.debug(
+                f"Cache MISS for {func.__name__}: {_key_fingerprint(key)}"
+            )
             result = func(*args, **kwargs)
             cache.set(key, result, ttl_seconds)
             return result
@@ -531,10 +572,14 @@ def cached_industry(ttl_seconds: Optional[int] = None):
                 return func(*args, **kwargs)
             result = cache.get(key)
             if result is not None:
-                logger.debug(f"Cache HIT for {func.__name__}: {key}")
+                logger.debug(
+                    f"Cache HIT for {func.__name__}: {_key_fingerprint(key)}"
+                )
                 return result
             
-            logger.debug(f"Cache MISS for {func.__name__}: {key}")
+            logger.debug(
+                f"Cache MISS for {func.__name__}: {_key_fingerprint(key)}"
+            )
             result = func(*args, **kwargs)
             cache.set(key, result, ttl_seconds)
             return result

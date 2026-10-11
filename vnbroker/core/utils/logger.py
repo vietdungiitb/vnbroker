@@ -95,8 +95,21 @@ _KEY_ALTERNATIVE = '|'.join(
     sorted((re.escape(k) for k in SENSITIVE_KEYS), key=len, reverse=True)
 )
 
+# WHY the boundary now allows a leading underscore (measured, not theoretical):
+# Python's private-attribute convention puts one in front of almost every real
+# credential field — `vnbroker/explorer/ssi/listing.py:58` stores
+# `self._api_secret`. With the underscore inside the lookbehind class, the
+# pattern refused to match its own library's field names:
+#   redact_sensitive_data('_api_secret=X') returned X unchanged, while
+#   redact_sensitive_data('api_secret=X') WAS redacted. The public spelling
+#   passing is exactly what hid this — a spot check on 'api_secret' looks clean,
+#   so the leak survives review and ships.
+# The `(_*)` sits BEFORE the key name and must be immediately adjacent to it, so
+# '_monkey=abc' still does not match 'key' (the 'n' still blocks it) and
+# 'user' in 'the user name is bob' is still untouched (L-R07).
+# Do NOT "tidy" the underscore back out of the pattern: it is load-bearing.
 SENSITIVE_PATTERN = re.compile(
-    r'(?<![A-Za-z0-9_])("|\')?(' + _KEY_ALTERNATIVE + r')(?![A-Za-z0-9_])("|\')?\s*[:=]\s*'
+    r'(?<![A-Za-z0-9])(_*)("|\')?(' + _KEY_ALTERNATIVE + r')(?![A-Za-z0-9_])("|\')?\s*[:=]\s*'
     r'("|\')?(?:Bearer\s+)?[^"\'\s,}]+("|\')?',
     re.IGNORECASE
 )
@@ -137,7 +150,11 @@ def redact_sensitive_data(text: str) -> str:
     text = BEARER_PATTERN.sub(_redact_bearer, text)
     text = JWT_PATTERN.sub(REDACTED, text)
     text = OTP_PATTERN.sub(_redact_otp, text)
-    return SENSITIVE_PATTERN.sub(r'\1\2\3: "' + REDACTED + r'"', text)
+    # Group order is (leading underscores, opening quote, key name, closing
+    # quote). The underscores group is new; it MUST be referenced here too, or
+    # the template silently rewrites '_api_secret=X' into '_: "***REDACTED***"'
+    # and destroys the very field name the reader needs.
+    return SENSITIVE_PATTERN.sub(r'\1\2\3\4: "' + REDACTED + r'"', text)
 
 def _redact_embedded(value: Any) -> Any:
     """Redact one value that is about to be formatted into a log line.

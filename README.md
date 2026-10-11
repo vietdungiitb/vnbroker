@@ -2,6 +2,8 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.7.2** — Chặn rò **API secret** vào log. Từ v3.6.0, cache key mang theo giá trị attribute của instance, mà `SSIListing`/`DNSEListing` giữ `self._api_secret` ⇒ key in ra ở DEBUG là in thẳng secret. Nay log ghi `key#<blake2b-4>` (vẫn đối chiếu HIT/MISS bằng mắt), `redact_sensitive_data()` che cả khoá có tiền tố `_`, và `__repr__` hỏng chỉ in tên exception. **Không có breaking change.** Rò này có từ 3.6.0 — 3.5.0 trên PyPI không chứa nó.
+>
 > **v3.7.1** — Chặn 4 lỗi "chặn sử dụng" (Hàng 1): lock async theo event loop (hết `bound to a different event loop` ở batch 2+), key cache phân biệt proxy/tenant, lỗi vĩnh viễn 4xx có kiểu riêng (không failover/cooldown), provider lỗi ném thay vì frame rỗng. ⚠️ Có **Breaking changes**: `400/401/403/404/422` không còn vào `except ConnectionError` (ra `ProviderAuthError`/`ProviderNotFoundError`/`ProviderBadRequestError`).
 >
 > **v3.7.0** — Rate-limit thật + logger không rò token. Server trả `429` nay **không bị retry 3 lần** nữa mà chuyển provider ngay, và cooldown theo **đúng `Retry-After`** của server thay vì con số 5s suy đoán. `logger` bịt 4 đường rò token (`Authorization: Bearer <JWT>`, token trần, OTP trần) và vá lỗi `log.info("%s", dict)` **mất trọn dòng log**. ⚠️ Có **Breaking changes** (xem [Phiên bản 3.7.0](#phiên-bản-370--2026-10-10--rate-limit-thật--logger-không-rò-token)).
