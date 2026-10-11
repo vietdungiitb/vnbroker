@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+### Unreleased - HANG1 Row 1: chan su dung (S1-S4, branch `feat/hang1-row1`, chua merge)
+
+Hang 1 cua bo tai lieu trien khai 2026-10-11 (doc theo thu tu:
+`docs/DEPLOY_INDEX_20261011.md`). Moi so duoi day do bang **test chay that**,
+xem `docs/TEST_REPORT_HANG1.md` de lay lenh tai lap.
+
+| Do | Truoc (base `662e2ef`) | Sau |
+|:--|:--|:--|
+| Loop thu 2 dung chung lock async (BL-1) | `RuntimeError: bound to a different event loop` | 2 loop lien tiep xanh |
+| Instance khac proxy/tenant dung chung key cache (BL-2) | key byte-identical | key phan biet (do tren class that VCI/DNSE) |
+| 401/403/404/400/422 (BL-3) | `ConnectionError` + failover + cooldown | typed error + dung ngay + 0 cooldown |
+| Pool tat ca cooling goi ke tiep (MA-1) | quet lai ca pool (cooldown vo hieu) | tra `[]`, fail-fast bang loi ro rang |
+| KBS/VCI loi tra frame rong co cot (BL-6) | `record_success` + cache 24h | nem ra (10/12 test DID NOT RAISE pre-fix) |
+
+**Breaking co chu y:** 400/401/403/404/422 khong con vao `except
+ConnectionError` (ra `ProviderAuthError`/`ProviderNotFoundError`/
+`ProviderBadRequestError`, la `vnbrokerError`). Host bat builtin se thay
+chung noi len — can Owner xac nhan phia `vninvest` truoc khi merge.
+
 ### 3.7.0 — Rate-limit that + logger khong ro token (2026-10-10)
 
 Dong nay dong **Wave 3 + Wave 4**. Moi so duoc do bang **call counter** va bang

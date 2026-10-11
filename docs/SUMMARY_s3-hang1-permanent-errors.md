@@ -25,9 +25,11 @@
   - MA-3 của đề xuất SAI tiền đề: `response.json()` hỏng ném ValueError,
     chưa bao giờ thành ConnectionError — đã khóa bằng test hồi quy, ghi
     đính chính ở đây thay vì sửa đề xuất cũ
-  - docstring `RateLimitError` ghi `should_failover == False` đã lỗi thời
-    (code hiện tại trả True qua nhánh OSError + catch riêng ở base.py) —
-    quan sát ngoài scope, không sửa
+- đính chính quan sát sai của chính tôi: docstring `RateLimitError` ghi
+  `should_failover == False` là LỊCH SỬ đúng (đo ở base `4cd0f2d` trước W3),
+  không phải stale — W3 đã sửa thành True có chủ ý (CHANGELOG 3.7.0 bảng W3
+  ghi rõ False→True). S3 giữ nguyên True (test_ac_3_5 khóa). Rút kinh nghiệm:
+  đọc kỹ thì trước khi ghi "stale" (L-E06 cho cả kết luận audit).
   - bão transient (cả pool 500) vẫn 15 request: cần base.py retry (Hàng 2),
     đã ghi nợ
 - breaking có chủ ý: 400/401/403/404/422 không còn vào `except
