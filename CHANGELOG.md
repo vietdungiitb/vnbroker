@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-### Unreleased - HANG1 Row 1: chan su dung (S1-S4, branch `feat/hang1-row1`, chua merge)
+### 3.7.1 - HANG1 Row 1: chan su dung (2026-10-11, PR #5, tag `v3.7.1`)
 
 Hang 1 cua bo tai lieu trien khai 2026-10-11 (doc theo thu tu:
 `docs/DEPLOY_INDEX_20261011.md`). Moi so duoi day do bang **test chay that**,

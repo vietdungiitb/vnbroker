@@ -2,6 +2,8 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.7.1** — Chặn 4 lỗi "chặn sử dụng" (Hàng 1): lock async theo event loop (hết `bound to a different event loop` ở batch 2+), key cache phân biệt proxy/tenant, lỗi vĩnh viễn 4xx có kiểu riêng (không failover/cooldown), provider lỗi ném thay vì frame rỗng. ⚠️ Có **Breaking changes**: `400/401/403/404/422` không còn vào `except ConnectionError` (ra `ProviderAuthError`/`ProviderNotFoundError`/`ProviderBadRequestError`).
+>
 > **v3.7.0** — Rate-limit thật + logger không rò token. Server trả `429` nay **không bị retry 3 lần** nữa mà chuyển provider ngay, và cooldown theo **đúng `Retry-After`** của server thay vì con số 5s suy đoán. `logger` bịt 4 đường rò token (`Authorization: Bearer <JWT>`, token trần, OTP trần) và vá lỗi `log.info("%s", dict)` **mất trọn dòng log**. ⚠️ Có **Breaking changes** (xem [Phiên bản 3.7.0](#phiên-bản-370--2026-10-10--rate-limit-thật--logger-không-rò-token)).
 >
 > **v3.6.0** — Hợp đồng dữ liệu tầng 1: **mọi provider trả cùng một schema**. Sửa 3 lỗi đang sai âm thầm: `match_type` lệch casing giữa provider (`df[df.match_type=='Buy']` trả **0 dòng** từ KBS, 67 từ VCI), cột `time` lệch đơn vị lưu trữ khiến `pd.concat` ra `object`, và `market_cap` phóng đại **1000 lần**. Nối TCBS vào `AUTO` và thêm cổng `check_provider_consistency.py`. ⚠️ Có **Breaking changes** (xem [Phiên bản 3.6.0](#phiên-bản-360-2026-10-10--hợp-đồng-dữ-liệu-tầng-1)).

@@ -25,6 +25,16 @@ Ngày: 2026-10-11 · Vai trò: PM + Tech Lead (solo Mode B) · Branch:
 
 - [x] **PR đã mở:** https://github.com/vietdungiitb/vnbroker/pull/5
   (branch `feat/hang1-row1`, 7 commits).
+
+## Phụ lục sau merge (2026-10-11, Owner chốt version 3.7.1)
+
+- PR #5 merged (`7aca907`); claim S1–S4 → released; branch đã xóa.
+- Bump 3.7.0 → 3.7.1 ở đúng 5 điểm gate version-sync kiểm
+  (pyproject, README badge, CLAUDE.md, config REQUIREMENTS + NOTICES 3.7.1,
+  tests không literal) + CHANGELOG `### 3.7.1`. Tag annotated `v3.7.1` +
+  GitHub Release có mục Breaking.
+- Q7 nay có tiền lệ đầu tiên: version do Owner chốt số, coordinator thực hiện
+  bump + tag + release trong một commit revert được.
 - [ ] **Owner review PR + quyết định merge.** Vào `main` cần tag `vX.Y.Z`
   + Release theo luật repo (thuộc Owner, Q7). Session này KHÔNG merge
   trực tiếp (luật: integration branch, không direct commit).

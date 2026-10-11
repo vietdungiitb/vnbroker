@@ -85,6 +85,9 @@ VERSION_REQUIREMENTS = {
     "3.7.0": {
         "vnii": ">=0.1.5",
     },
+    "3.7.1": {
+        "vnii": ">=0.1.5",
+    },
 }
 
 # Version-specific notices for user
@@ -143,6 +146,27 @@ VERSION_NOTICES = {
             "thử lại để che lỗi mạng, hãy bắt lỗi ở tầng trên thay vì đợi retry.",
             "CI GitHub Actions của repo này KHÔNG chạy (billing) — mọi gate chạy "
             "LOCAL qua scripts/check_all.ps1.",
+        ],
+    },
+    "3.7.1": {
+        "title": "vnbroker 3.7.1 - Chan su dung Hang 1",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.7.1",
+        # Dot nay sua LOP exception nguoi dung thay (breaking) + so request
+        # + cache key. Ba deu ghi bang so do o CHANGELOG Unreleased/HANG1.
+        "critical_notices": [
+            "HTTP 400/401/403/404/422 gio nem ProviderAuthError / "
+            "ProviderNotFoundError / ProviderBadRequestError thay vi "
+            "ConnectionError. Cac lop nay co y KHONG ke thua OSError de "
+            "khong failover/retry. Code bat `except ConnectionError` se "
+            "khong thay chung nua.",
+            "Loi vinh vien la dap an cuoi: khong xoay vong provider, khong "
+            "cooldown, khong retry. Pool tat ca cooling thi fail-fast thay "
+            "vi quet lai.",
+            "KBS/VCI loi nay nem ra thay vi tra frame rong: khong con "
+            "record_success + cache 24h cho that bai.",
+        ],
+        "warnings": [
+            "Bao transient (ca pool 500) van retry nhu cu — can Row 2.",
         ],
     },
     "3.6.0": {
