@@ -8,7 +8,7 @@ Trạng thái:
 |---|---|
 | Release trên PyPI | `3.5.0` (1 release, 2 file) |
 | Tên `vnbroker` | đã đăng ký, thuộc tài khoản `vietdungiitb` |
-| Repo | **private** → dùng **API token**, không dùng Trusted Publishing (OIDC) |
+| Repo | **private** → dùng **Trusted Publishing (OIDC)**, không cần API token |
 | Workflow publish | `.github/workflows/publish.yml` — chưa chạy lần nào (CI đang bị chặn billing) |
 
 > ⚠️ **PyPI không cho ghi đè version.** `3.5.0` đã tồn tại vĩnh viễn. Mọi lần
@@ -20,7 +20,36 @@ Trạng thái:
 
 ## Cấu hình một lần (đã xong cho 3.5.0)
 
-### 1.1 Tạo API token
+### 1.0 Trusted Publishing — cách đang dùng từ 3.7.2
+
+> ⚠️ **Đính chính (2026-10-11):** bản cũ của file này ghi *"repo private nên không
+> dùng được Trusted Publishing (OIDC), phải dùng API token"*. Điều đó **sai** —
+> tài liệu PyPI không đặt điều kiện repo phải public. Đã đổi sang OIDC: **không
+> còn secret nào trong repo**, không phải xoay vòng token.
+
+Khai trên https://pypi.org/manage/project/vnbroker/settings/publishing/ :
+
+| Ô | Giá trị |
+|---|---|
+| Owner | `vietdungiitb` |
+| Repository | `vnbroker` |
+| Workflow | `publish.yml` |
+| Environment | `pypi` |
+
+> **Environment phải khớp tuyệt đối.** `publish.yml` đặt
+> `environment: pypi` cho lên PyPI thật và `testpypi` cho TestPyPI; PyPI so
+> claim này theo chuỗi. Khai lệch (ví dụ để trống, hoặc ghi `PyPI`) thì publish
+> trả **403** dù mọi thứ khác đều đúng.
+
+Muốn thử trước trên TestPyPI thì khai thêm một trusted publisher nữa ở
+https://test.pypi.org/manage/project/vnbroker/settings/publishing/ với
+environment `testpypi`.
+
+### 1.1 Tạo API token (KHÔNG còn cần)
+
+> Giữ lại phần này làm **fallback**. Nếu OIDC bị từ chối (403) và bạn không muốn
+> debug claim, dùng đường token cũ: tạo token rồi `gh secret set`, và
+> `pypa/gh-action-pypi-publish` sẽ ưu tiên `password:` nếu có.
 
 - TestPyPI: https://test.pypi.org/manage/account/token/
 - PyPI: https://pypi.org/manage/account/token/
@@ -32,7 +61,7 @@ Lần đầu chưa có project nên phải dùng scope *Entire account*. Sau khi
 > chỉ có giá trị ở index tương ứng. Dùng sai index cho ra `403 Forbidden` trần
 > trụi — đây là nguyên nhân của lần upload hỏng đầu tiên (2026-10-07).
 
-### 1.2 Thêm secret vào repo (cho `publish.yml`)
+### 1.2 Thêm secret vào repo (đường fallback, không dùng với OIDC)
 
 ```bash
 gh secret set TESTPYPI_API_TOKEN --repo vietdungiitb/vnbroker
@@ -101,7 +130,7 @@ Hoặc tạo GitHub Release `vX.Y.Z` → tự publish lên PyPI.
       spending limit needs to be increased."* Đây là **hết quota/billing GitHub
       Actions**, không phải lỗi code. Xử lý ở github.com/settings/billing.
 - [ ] **Bump version trước lần publish kế tiếp** — `3.5.0` đã chiếm.
-- [ ] Tạo token PyPI giới hạn theo project `vnbroker` và thu hồi token *Entire account*.
+- [ ] Trusted publisher trên PyPI khớp environment `pypi` (OIDC, không cần token).
 - [ ] Thêm badge PyPI vào `README.md` (đã thêm).
 
 ---
@@ -109,9 +138,8 @@ Hoặc tạo GitHub Release `vX.Y.Z` → tự publish lên PyPI.
 ## Vì sao repo private vẫn publish được
 
 PyPI không đọc repo GitHub. Trusted Publishing (OIDC) cần GitHub làm identity
-provider; điều kiện repo phải public chưa được xác minh trong tài liệu. API token
-không có ràng buộc đó.
+provider, và **không yêu cầu repo phải public** — đã dùng thật với repo private
+này từ 3.7.2 (2026-10-11). Bản cũ của file này ghi ngược lại là **sai**.
 
-Muốn chuyển sang OIDC sau này: đưa repo lên public → PyPI → Publishing →
-*Add a new pending publisher* (owner `vietdungiitb`, repo `vnbroker`, workflow
-`publish.yml`, environment `pypi`) → xoá secret và bỏ `password:` trong workflow.
+API token cũng không có ràng buộc nào về visibility, nên cả hai đường đều dùng
+được với repo private; OIDC được chọn vì không phải lưu secret trong repo.

@@ -101,46 +101,30 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ (github.event_name == 'release' || inputs.target == 'pypi') && 'pypi' || 'testpypi' }}
     permissions:
-      id-token: write # dùng Trusted Publishing nếu repo được chuyển sang public
+      id-token: write # BẮT BUỘC cho Trusted Publishing (OIDC) — không có nó thì action không đổi được OIDC token
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      # Báo lỗi rõ ràng khi thiếu token, thay vì để action thất bại khó hiểu.
-      # (Repo private nên chưa dùng được Trusted Publishing / OIDC.)
-      - name: Verify the API token secret exists
-        env:
-          TARGET: ${{ (github.event_name == 'release' || inputs.target == 'pypi') && 'pypi' || 'testpypi' }}
-          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-          TESTPYPI_TOKEN: ${{ secrets.TESTPYPI_API_TOKEN }}
-        run: |
-          if [ "$TARGET" = "pypi" ]; then
-            if [ -z "$PYPI_TOKEN" ]; then
-              echo "::error::Thiếu secret PYPI_API_TOKEN. Xem docs/PUBLISHING.md."
-              exit 1
-            fi
-            echo "PYPI_API_TOKEN: đã cấu hình (${#PYPI_TOKEN} ký tự)"
-          else
-            if [ -z "$TESTPYPI_TOKEN" ]; then
-              echo "::error::Thiếu secret TESTPYPI_API_TOKEN. Xem docs/PUBLISHING.md."
-              exit 1
-            fi
-            echo "TESTPYPI_API_TOKEN: đã cấu hình (${#TESTPYPI_TOKEN} ký tự)"
-          fi
+      # Trusted Publishing (OIDC): KHÔNG dùng API token.
+      # Token 15 phút được PyPI cấp từ OIDC identity của job này, nên không
+      # có secret nào phải lưu, không xoay vòng, không bị lộ qua log.
+      # Yêu cầu khai trên PyPI (https://pypi.org/manage/project/vnbroker/settings/publishing/):
+      #   Owner: vietdungiitb · Repository: vnbroker · Workflow: publish.yml
+      #   Environment: pypi   <- phải khớp CHÍNH XÁC dòng `environment:` ở trên,
+      #                          vì PyPI so khớp claim này tuyệt đối.
+      # LƯU Ý: comment cũ ghi "repo private nên chưa dùng được Trusted Publishing"
+      # là SAI — tài liệu PyPI không đặt điều kiện repo phải public.
+      # Nếu publish bị 403, kiểm tra tên environment ở PyPI có đúng `pypi` không.
 
-      # Repo đang PRIVATE nên Trusted Publishing (OIDC) chưa dùng được.
-      # Cần secret PYPI_API_TOKEN (và TESTPYPI_API_TOKEN khi thử).
       - name: Publish to TestPyPI
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-          password: ${{ secrets.TESTPYPI_API_TOKEN }}
 
       - name: Publish to PyPI
         if: github.event_name == 'release' || inputs.target == 'pypi'
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
