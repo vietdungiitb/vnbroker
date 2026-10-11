@@ -2,6 +2,7 @@
 
 import logging
 import os
+from typing import Dict
 
 class Config:
     # -------------------------------------------------------------------------
@@ -81,7 +82,10 @@ class Config:
 #     "thư viện này cần vnii".
 # Nếu sau này thật sự thêm vnii: khai vào `pyproject.toml` TRƯỚC, rồi mới thêm
 # entry ở đây — và nhớ nó phải nằm trong cùng key với version đang phát hành.
-VERSION_REQUIREMENTS = {
+# Annotation là BẮT BUỘC, không phải cho đẹp: khi mọi value đều là `{}` rỗng,
+# mypy không còn value nào để suy luận kiểu nên báo `var-annotated` — đo được
+# ngay sau khi xoá `vnii` (baseline 1266 -> 1139, +1 lỗi mới).
+VERSION_REQUIREMENTS: Dict[str, Dict[str, str]] = {
     "3.3.0": {},
     "3.4.0": {},
     "3.5.0": {},
