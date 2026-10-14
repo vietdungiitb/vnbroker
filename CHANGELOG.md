@@ -35,7 +35,7 @@ bao **0 tham so truy van**. Hai lane con lai (SSI, DNSE) da co `from_date`/
 
 | No | Vi sao chua lam |
 |:--|:--|
-| Watchlist CRUD (REQ-003b) | Khong provider nao co API. REQ cam reverse-engineer private (R-W2). Chi khai bao `unsupported`, chua viet code. |
+| Watchlist CRUD (REQ-003b) | Chua viet — tai thoi diem nay khong provider nao co watchlist API, nen khong co gi de goi. Da khai bao `unsupported` + contract test tu do neu provider mo API. Khong phai vi cam reverse-engineer. |
 | Validate `market_type` o 12 method cua `Trade` | `trade.py` 1352 dong — vuot ngan sach 800. Khong them vao file da vuot ngan sach; can tach file truoc. |
 | Spec DNSE chua ghim trong repo | DNSE khong co file OpenAPI commit kem sha256 nhu TCBS. `MARKET_TYPES` la tap **da tai lieu hoa**, chua phai enum do server cong bo. |
 

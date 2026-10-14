@@ -31,9 +31,9 @@ audit tìm thêm một lỗi làm `__version__` sai 3 bản, tệ hơn là nó n
 | **001** | `capabilities()` theo lane | **Đã làm, đã sửa 3 lỗi AC** | 3 lane · class-level · không credential · 18 method đã gỡ đánh dấu đúng 100% |
 | **002** | TCBS order history nhiều ngày | **Văn bản, không code** | Path không có trong spec; phương án dự phòng của REQ không thi hành được; 2 lane khác đã có |
 | **003a** | Khai báo watchlist `unsupported` | **Đã làm** | Cả 3 lane, có contract test quét `dir()` trên class thật |
-| **003b** | CRUD watchlist chuẩn 3 lane | **Chưa làm — bị chặn** | Không provider nào có API; đã ghi roadmap + cảnh báo trùng tên |
+| **003b** | CRUD watchlist chuẩn 3 lane | **Chưa làm — không có gì để gọi** | **Tại thời điểm này** không provider nào có watchlist API; đã ghi roadmap + cảnh báo trùng tên |
 | **004** | `MARKET_TYPES` + docstring + lỗi có mã | **Đã làm, mở rộng** | Thêm `ORDER_CATEGORIES`; chặn ở choke point; phủ 15 method DNSEClient |
-| **005** | Hút normalize + `market_type` fallback | **Làm, thu hẹp** | `normalize_payload` công khai + `get_*_all_markets` có nhãn; 13 method `Trade` còn nợ |
+| **005** | Hút normalize + `market_type` fallback | **Làm, thu hẹp** | `normalize_payload` công khai + `get_*_all_markets` có nhãn; 12 method `Trade` còn nợ |
 
 Ngoài phạm vi: **F-01** — `vnbroker.__version__` trả **3.4.0** trong khi source
 là **3.7.2**.
@@ -147,12 +147,74 @@ có trong hai tài liệu chính thức"* — đúng bằng mức chắc chắn 
 
 ### VNBROKER-REQ-003 — Watchlist
 
-**(a) Khai báo — ĐÃ LÀM.** `capabilities(p)["features"]["watchlist"]` trả
+#### Kết luận, ghi đúng mức chắc chắn
+
+> **Tại thời điểm này, không provider nào cung cấp watchlist API.** Nguồn dữ liệu
+> duy nhất lấy được từ provider cho "đang nắm giữ" là **holdings / positions**.
+
+Ba mệnh đề này khác nhau, và tài liệu này giữ đúng cả ba để không ai đọc nhầm:
+
+| Mệnh đề | Mức chắc chắn | Căn cứ |
+|:--|:--|:--|
+| **Hôm nay** không provider nào có watchlist **API** | **Chứng minh được** | 0 method trên `TCBSBrokerClient` (70) · `SSIBrokerClient` (47) · `DNSEClient` (36); `tests/contract/test_capability_contract.py` quét `dir()` trên class thật |
+| Provider **có** watchlist trong **sản phẩm** | **Có** — và đây là điểm dễ nói sai | SSI có watchlist trên **iBoard web/app** (user guide: tạu / đổi tên / xoá). Thiếu là **API**, không phải thiếu tính năng |
+| **Sẽ không bao giờ** có API | **Không phải kết luận của tài liệu này** | Đường chính thống là R-W3 (đề xuất provider mở API, tiền lệ IBKR `GET /iserver/watchlist`). Nếu xảy ra, đây là **một feature thêm**, không phải thiết kế lại — vì thiết kế bên dưới không giả định "vĩnh viễn không có" |
+
+Vì vậy cụm đúng để dùng là **"tại thời điểm này"**, không phải *"chắc chắn là không"*.
+
+#### Nguồn dữ liệu thực tế: hai nguồn, hai ý nghĩa
+
+Holdings **không thay** watchlist — khác biệt là ý định, không phải nguồn:
+
+| | Holdings / positions | Watchlist thủ công |
+|:--|:--|:--|
+| Ý nghĩa | *Tôi đang **sở hữu*** | *Tôi muốn **theo dõi*** |
+| Mã chưa mua | Không có | **Đúng mục đích** |
+| Nguồn | Provider (tiền thật) | vninvest tự lưu (ADR-006 trao nghiệp vụ cho vninvest) |
+
+Gộp hai cái này là cách mất khả năng theo dõi mã chưa mua — tức mất đúng lý do
+tồn tại của watchlist.
+
+| Nhu cầu | Lấy từ đâu | Trạng thái |
+|:--|:--|:--|
+| "Tôi đang nắm gì" | `get_holdings` (TCBS, SSI) · `get_positions` (DNSE) — cả 3 lane | **Có sẵn trong 3.7.2** |
+| Watchlist dẫn xuất *"Đang nắm giữ @ `<provider>`/`<tiểu khoản>`"* | Symbol lấy từ `PositionSnapshot(source='broker')` | R-W4 (a) — **0 phụ thuộc mới** |
+| Watchlist thủ công | Lưu ở vninvest | R-W4 (b) — **không đẩy ngược lên broker** |
+
+#### ⚠ Cảnh báo khi làm R-W4: `Watchlist` chưa có `source`
+
+Đã đọc model phía vninvest (`user_workspace/models.py`, lớp `Watchlist`): hiện có
+`user · tenant · name · description · is_default · legacy_group_id · created_at` —
+**không có** `source`, `provider`, `broker_account`.
+
+Cơ chế R-W4 (a) bắt đầu tạo watchlist dẫn xuất ngay ở Wave 1. Nếu làm khi chưa
+có `source` thì **không phân biệt được** watchlist hệ thống với watchlist thủ
+công — và nghiên cứu gốc cảnh báo đúng chỗ đó: watchlist gắn tiểu khoản không
+được trộn với watchlist thủ công chung.
+
+| Field | Khi nào thêm | Vì sao |
+|:--|:--|:--|
+| `source` (`managed`/`derived`) | **Ngay, cùng Wave 1** | Cột thuần + migration nhỏ. Thiếu bây giờ ⇒ dữ liệu đã sinh ra không phân biệt được ⇒ phải viết script sửa dữ liệu cũ, đắt hơn nhiều |
+| `provider` / `broker_account` | Cùng đợt | Ràng buộc "chỉ hiện trong ngữ cảnh broker đó" cần chúng |
+| `provider_watchlist_id` (neo đồng bộ) | **Để sau** | Không provider nào có id để lưu. Thêm sau là migration thuần additive, không cần backfill |
+
+Ghi chú: `provider` / `broker_source` / `sync_status` **đã có** ở model khác trong
+cùng `models.py` (~dòng 443-449) — từ vốn đã có, chỉ riêng `Watchlist` chưa.
+
+#### (a) Khai báo capability — ĐÃ LÀM
+
+`capabilities(p)["features"]["watchlist"]` trả
 `supported: false` + `reason_code: "PROVIDER_NO_API"` cho cả 3 lane, kèm `note`.
 
 Và không chỉ khai — **contract test quét `dir()` trên class thật**: không lane
 nào được có method tên chứa `watchlist` mà lại khai `unsupported`. Nếu tương lai
-provider thêm API mà quên cập nhật capability, test đỏ.
+provider thêm API mà quên cập nhật capability, **test đỏ** — đó là cơ chế giữ
+kết luận "tại thời điểm này" mà không cần ai nhớ cập nhật.
+
+#### (b) CRUD — CHƯA LÀM, và đây là câu trả lời chứ không phải trễ hạn
+
+Đo trên cả 3 lane: **0** method watchlist nào. **Tại thời điểm này** không có API
+để gọi, nên không có gì để nối — viết CRUD lên một nền chưa có là việc bịa.
 
 **Cảnh báo trùng tên — REQ chưa nêu, quan trọng cho bước (b).**
 `vnbroker/explorer/tcbs/tcbs_compatibility.py:296` **đã có** một hàm tên
@@ -428,7 +490,7 @@ pwsh -File scripts/check_all.ps1
 
 | Nợ | Vì sao chưa làm |
 |:--|:--|
-| Watchlist CRUD (REQ-003b) | Không provider nào có API. REQ cấm reverse-engineer private (R-W2). Đã khai `unsupported` + roadmap. |
+| Watchlist CRUD (REQ-003b) | **Tại thời điểm này** không provider nào có watchlist API ⇒ không có gì để gọi. Đây là lý do duy nhất; R-W2 chỉ là ràng buộc phụ (cấm reverse-engineer web private), không phải lý do chính. Đã khai `unsupported` + roadmap + cơ chế test tự đỏ nếu provider mở API. |
 | Validate `market_type` ở 12 method của `Trade` | `trade.py` 1352 dòng, vượt ngân sách 800. Thêm nữa vi phạm L-P03. Cần tách file trước. |
 | Ghim spec DNSE kèm sha256 | DNSE không có file OpenAPI commit trong repo (khác TCBS). Nên `MARKET_TYPES` là tập **đã tài liệu hoá**, không phải enum do server công bố. Ghim spec sẽ biến nó thành enum chính thức. |
 | Bump version + tag | Breaking change ⇒ nên là 3.8.0. Bump version là quyết định của Owner; `CHANGELOG.md` ghi `Unreleased` cho tới khi đó. |
@@ -447,7 +509,8 @@ pwsh -File scripts/check_all.ps1
 | 5 | REQ-001: *"3 lane"* qua `BrokerRegistry` | Registry chỉ có 2 | Bảng lane phủ 3 + cờ `registered` |
 | 6 | REQ-001: *"không cần credential"* | `DNSEClient` bắt buộc credential | Class-level, không instantiate |
 | 7 | REQ-001: *"đúng 100% `_REMOVED_PATHS` hiện tại"* | Đúng, 18/18 | Danh sách đọc từ `_REMOVED_PATHS`, không chép lại |
-| 8 | REQ-003: *"khi provider mở API, cung cấp CRUD chuẩn 3 lane"* | Chưa có provider nào có API | Chưa viết code; roadmap + cảnh báo trùng tên |
+| 8 | REQ-003: *"khi provider mở API, cung cấp CRUD chuẩn 3 lane"* | **Tại thời điểm này** chưa provider nào có API | Chưa viết code; roadmap + cảnh báo trùng tên + contract test tự đỏ nếu provider mở API |
+| 10 | REQ-003 viết ngắn *"cả 3 provider đều không có API watchlist user"* | Đúng về **API**, nhưng dễ đọc thành *"provider không có watchlist"* — SSI **có** watchlist trên iBoard web/app, chỉ thiếu API | §2 tách 3 mệnh đề (hôm nay / sản phẩm / tương lai) và dùng cụm **"tại thời điểm này"** thay vì *"chắc chắn là không"* |
 | 9 | Trích dẫn `docs/RESEARCH_WATCHLIST_BROKER_20261014.md` | **Không tồn tại** ở cây hiện tại của vninvest (chỉ ở branch `feat/multibroker-plan-research`, commit `1b5e455b5`) | Kết luận REQ-003 ở §2 dựa trên đo trực tiếp trên code vnbroker. **Bản nháp đầu tiên vẫn trích R-W1..R-W4 từ chính file đó** — tức vừa báo file không tồn tại vừa dùng nó làm căn cứ. Đã sửa: nêu rõ nguồn + commit, và đính chính luôn việc diễn giải R-W2 quá rộng (xem §2 REQ-003b). |
 
 ---
@@ -469,6 +532,6 @@ Những chỗ bài học đã **thay đổi cách làm**, không phải chỉ đ
 | **L-E04** | Gate mới bỏ qua khi chưa cài distribution, thay vì báo đỏ. |
 | **L-E06** | Bằng chứng "không có byte nào đi ra" dùng chặn `requests.Session.request`, không assert hình thức. |
 | **L-E07** | Không báo delta số test vì không có baseline cùng điều kiện. |
-| **L-P03** | `client.py` sẽ thành 760/800 nếu không tách → tách `MultiMarketMixin`; `trade.py` 1233 dòng thì **không** chạm. |
+| **L-P03** | `client.py` sẽ thành **862 dòng — vượt** ngân sách 800 nếu không tách → tách `MultiMarketMixin`, còn 713; `trade.py` **1352** dòng thì **không** chạm. |
 | **L-P04** | `capabilities` được thêm vào `__all__` của `vnbroker/broker/__init__.py` — không để symbol mới không ai export. |
 | **L-P05** | Đo lại gate bằng script thay vì tin con số của lần chạy trước; phát hiện 2 lỗi trong code mình vừa viết (`UnicodeEncodeError`, sai thứ tự gate/validate). |

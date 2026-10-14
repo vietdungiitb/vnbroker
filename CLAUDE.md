@@ -383,12 +383,17 @@ pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate 
 - [ ] API reference documentation
 - [ ] DNSE News/Stream support
 - [ ] Unified DNSE client with dual auth modes
-- [ ] Watchlist CRUD chuẩn 3 lane — **BỊ CHẶN**: cả TCBS, SSI, DNSE đều
-      không có API watchlist của user. Đã khai báo
+- [ ] Watchlist CRUD chuẩn 3 lane — **chưa làm vì chưa có gì để gọi**: tại thời
+      điểm này cả TCBS, SSI, DNSE đều không có watchlist **API**. Đã khai báo
       `capabilities(p)["features"]["watchlist"]["supported"] is False` cho cả
-      3 lane. Chỉ mở khi provider công bố API; **cấm** reverse-engineer
-      private web. Lưu ý trùng tên: `explorer/tcbs/tcbs_compatibility.py:296`
-      đã có `get_watchlist(filters)` nhưng đó là screener preview
+      3 lane, kèm contract test quét `dir()` — provider mở API mà quên cập nhật
+      thì test đỏ. **Cấm** reverse-engineer private web (R-W2).
+      ⚠ Đừng đọc "không có API" thành "provider không có watchlist": SSI có
+      watchlist trên iBoard web/app, chỉ thiếu API. Và đừng hard-code giả định
+      "vĩnh viễn không có" — R-W3 (đề xuất provider mở API, tiền lệ IBKR) là
+      đường chính thống.
+      Lưu ý trùng tên: `explorer/tcbs/tcbs_compatibility.py:296` đã có
+      `get_watchlist(filters)` nhưng đó là screener preview
       (`POST /ligo/v1/watchlist/preview`), không phải watchlist user.
 - [ ] Validate `market_type`/`order_category` ở 12 method của `Trade`
       (`connector/dnse/trade.py`) — **trì hoãn có chủ đích**: file đó 1352 dòng,
