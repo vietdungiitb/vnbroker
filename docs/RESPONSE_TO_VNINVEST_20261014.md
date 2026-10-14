@@ -167,11 +167,39 @@ Nếu định nghĩa `get_watchlist/create/update/delete` "chuẩn 3 lane" mà k
 lý việc này, tên sẽ đụng nhau giữa lane 1 và lane 2. Đã ghi cảnh báo vào `note`
 của capability và vào roadmap.
 
-**(b) CRUD — CHƯA LÀM, và đây là câu trả lời chứ không phải trễ hạn.** REQ tự
-nêu *"Cấm reverse-engineer web private (R-W2)"*. Đo trên cả 3 lane: **0** method
-watchlist nào. Không có API thì không có gì để nối, và viết CRUD lên một nền
-chưa có là việc bịa. Đã ghi vào roadmap `CLAUDE.md` kèm điều kiện mở: chỉ mở
-khi provider công bố API.
+**(b) CRUD — CHƯA LÀM, và đây là câu trả lời chứ không phải trễ hạn.** Đo trên cả
+3 lane: **0** method watchlist nào. Không có API thì không có gì để nối, và viết
+CRUD lên một nền chưa có là việc bịa.
+
+Đối chiếu khung R-W1..R-W4 của vninvest
+(`docs/RESEARCH_WATCHLIST_BROKER_20261014.md:120-123`):
+
+| # | Yêu cầu của vninvest | Ở đây |
+|:--|:--|:--|
+| **R-W1** (P1) | *"Khai báo trung thực `WatchlistCapability = unsupported` cho cả 3 lane trong `broker/registry.py`"* | **Đạt** — `BrokerRegistry.capabilities(p)["features"]["watchlist"]`. Khác ở chỗ đặt: R-W1 nói trong `registry.py`, vnbroker đặt bảng ở `broker/capabilities.py` và expose qua `BrokerRegistry.capabilities()` — đúng theo REQ-001. Hai bề mặt cho cùng một dữ liệu. |
+| **R-W2** | *"KHÔNG reverse-engineer private web API (iBoard/EntradeX web) để lấy watchlist"* | **Được tôn trọng** — không có code nào trong repo đọc/gọi web private để lấy watchlist. |
+| **R-W3** (P3) | Đề xuất provider mở API watchlist | Việc của vninvest. vnbroker sẵn sàng nối khi có API chính thức. |
+| **R-W4** (P0) | *"Tái dùng có sẵn: `get_holdings`/`get_positions` 3 lane ...; ligo `get_watchlist(filters)` cho gợi ý mã (**screener, không phải watchlist user**)"* | **Đồng ý với cách phân loại của vninvest** — xem cảnh báo bên dưới. `get_watchlist(filters)` ở `explorer/tcbs` **đã có sẵn**, vnbroker không cần viết gì thêm. |
+
+> ⚠ **Đính chính một chỗ bản nháp đã viết quá rộng.** Ban đầu văn bản này nói
+> REQ-003b "bị chặn" *"theo R-W2"*. Đó là diễn giải sai: R-W2 cấm
+> reverse-engineer **web private để lấy watchlist**, không cấm vnbroker viết CRUD
+> khi provider **có** API chính thức. Lý do thật để chưa viết là **chưa có API
+> nào để gọi** — không liên quan gì tới R-W2. Ghi ra đây vì một lý do sai thì
+> hành động đúng vẫn là lý do sai.
+
+**Cảnh báo trùng tên — REQ chưa nêu, quan trọng cho bước (b).**
+`vnbroker/explorer/tcbs/tcbs_compatibility.py:296` **đã có** một hàm tên
+`get_watchlist(filters, size)`. Nó **không phải** watchlist của user:
+- nó POST `/ligo/v1/watchlist/preview` và trả `searchData.pageContent` — tức là
+  **kết quả của bộ lọc (screener preview)**;
+- không có create/update/delete;
+- và `except Exception: return []` ở `:318-321` — **fail-open trả rỗng im lặng**,
+  đúng thứ REQ muốn diệt.
+
+Nếu định nghĩa `get_watchlist/create/update/delete` "chuẩn 3 lane" mà không xử
+lý việc này, tên sẽ đụng nhau giữa lane 1 và lane 2. Đã ghi cảnh báo vào `note`
+của capability, vào roadmap, và khớp với cách R-W4 phân loại của vninvest.
 
 ---
 
@@ -420,7 +448,7 @@ pwsh -File scripts/check_all.ps1
 | 6 | REQ-001: *"không cần credential"* | `DNSEClient` bắt buộc credential | Class-level, không instantiate |
 | 7 | REQ-001: *"đúng 100% `_REMOVED_PATHS` hiện tại"* | Đúng, 18/18 | Danh sách đọc từ `_REMOVED_PATHS`, không chép lại |
 | 8 | REQ-003: *"khi provider mở API, cung cấp CRUD chuẩn 3 lane"* | Chưa có provider nào có API | Chưa viết code; roadmap + cảnh báo trùng tên |
-| 9 | Trích dẫn `docs/RESEARCH_WATCHLIST_BROKER_20261014.md` | **Không tồn tại** ở cây hiện tại của vninvest (chỉ ở branch `feat/multibroker-plan-research`) | Kết luận REQ-003 ở đây dựa trên đo trực tiếp trên code vnbroker, không dựa vào tài liệu đó |
+| 9 | Trích dẫn `docs/RESEARCH_WATCHLIST_BROKER_20261014.md` | **Không tồn tại** ở cây hiện tại của vninvest (chỉ ở branch `feat/multibroker-plan-research`, commit `1b5e455b5`) | Kết luận REQ-003 ở §2 dựa trên đo trực tiếp trên code vnbroker. **Bản nháp đầu tiên vẫn trích R-W1..R-W4 từ chính file đó** — tức vừa báo file không tồn tại vừa dùng nó làm căn cứ. Đã sửa: nêu rõ nguồn + commit, và đính chính luôn việc diễn giải R-W2 quá rộng (xem §2 REQ-003b). |
 
 ---
 

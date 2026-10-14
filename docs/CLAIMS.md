@@ -322,3 +322,33 @@ Da sua trong docs/RESPONSE_TO_VNINVEST_20261014.md, CLAUDE.md, CHANGELOG.md.
 Bai hoc: L-E01 xay ra **ngay trong luc viet bao cao**, khong phai chi la tai lieu
 cu bi hong. Day la lan thu hai trong dot nay (lan 1: docs/RESEARCH_WATCHLIST_
 BROKER_20261014.md ma REQ danh chung khong ton tai o cay hien tai).
+
+### R-W2: dinh nghia that + dinh chinh dien giai sai
+
+R-W2 **khong phai quy tac chung cua he thong** — no la dong 121 cua
+docs/RESEARCH_WATCHLIST_BROKER_20261014.md (vninvest, branch
+eat/multibroker-plan-research, commit 1b5e455b5):
+
+| # | Noi dung | Muc |
+|---|---|---|
+| R-W1 | Khai bao trung thuc WatchlistCapability = unsupported cho ca 3 lane trong roker/registry.py | P1 |
+| **R-W2** | **KHONG reverse-engineer private web API (iBoard/EntradeX web) de lay watchlist** | Quy tac |
+| R-W3 | Duong chinh thong duy nhat: de xuat provider mo API watchlist | P3 |
+| R-W4 | Tai dung co san: get_holdings/get_positions 3 lane; ligo get_watchlist(filters) cho goi y ma (screener, **khong phai** watchlist user) | P0 |
+
+**Hai loi cua ban nhap:**
+1. **Tu mau thuan.** §7 row 9 cua van ban tra loi noi file nay "KHONG ton tai" o
+   cay hien tai cua vninvest — roi §2 REQ-003b lai trich R-W1..R-W4 tu chinh file
+   do lam can cu. Vua bao file khong ton tai vua dung no.
+2. **Dien giai qua rong.** Ban nhap noi REQ-003b "bi chan" *theo R-W2*. That ra R-W2
+   cam reverse-engineer **web private de lay watchlist**, KHONG cam vnbroker viet
+   CRUD khi provider **co** API chinh thuc. Ly do that de chua viet la **chua co
+   API nao de goi** — khong lien quan gi toi R-W2.
+
+Da sua ca hai trong docs/RESPONSE_TO_VNINVEST_20261014.md §2 (them bang doi
+chieu R-W1..R-W4 + khoi doan dinh chinh) va §7 row 9 (nen nguon + commit).
+
+Ghi chu: R-W4 cua vninvest da phan loai get_watchlist(filters) cua
+explorer/tcbs la screencer chu khong phai watchlist user — **dung bang cach
+vnbroker gan nhan**, va get_watchlist(filters) do da co san trong repo nen
+R-W4 khong ton tai viiec moi o vnbroker.
