@@ -45,7 +45,11 @@ from __future__ import annotations
 
 from typing import Final
 
-from vnbroker.connector.dnse.core.errors import DNSEValidationError
+# KHÔNG import `DNSEValidationError` ở cấp module: `constants` -> `core.errors`
+# -> `core/__init__` -> `core.http_client` -> `constants` là một vòng. Hệ quả
+# đã gặp: `ImportError: cannot import name 'validate_query' from partially
+# initialized module`. Import bên dưới nằm ở đường **ném lỗi** — đường lạnh —
+# nên không tốn chi phí gì ở request path.
 
 #: Giá trị hợp lệ của tham số truy vấn ``marketType``.
 MARKET_TYPES: Final[frozenset[str]] = frozenset({"STOCK", "DERIVATIVE"})
@@ -59,6 +63,8 @@ def _normalise(value: str) -> str:
 
 
 def _reject(value: object, allowed: frozenset[str], code: str, param: str) -> None:
+    from vnbroker.connector.dnse.core.errors import DNSEValidationError
+
     options = ", ".join(sorted(allowed))
     raise DNSEValidationError(
         message=(

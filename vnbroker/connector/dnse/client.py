@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -6,6 +6,7 @@ import pandas as pd
 
 from vnbroker.connector.dnse.core.config import DNSEConfig
 from vnbroker.connector.dnse.core.http_client import DNSEHttpClient
+from vnbroker.connector.dnse.multi_market import MultiMarketMixin
 from vnbroker.connector.dnse.services import (
     AccountService,
     MarketService,
@@ -15,7 +16,7 @@ from vnbroker.connector.dnse.services import (
 )
 
 
-class DNSEClient:
+class DNSEClient(MultiMarketMixin):
     def __init__(
         self,
         api_key: str,
@@ -97,6 +98,43 @@ class DNSEClient:
     def _resolve_output(self, response: tuple[int | None, Any], raw: bool):
         _, body = response
         return body if raw else self._to_dataframe(body)
+
+    # ── Chuẩn hoá + đọc nhiều market (VNBROKER-REQ-005) ───────────────────
+
+    @staticmethod
+    def normalize_payload(payload: Any, *, as_records: bool = False) -> Any:
+        """Chuẩn hoá payload DNSE về một hình dạng duy nhất.
+
+        Đây là hợp đồng công khai, không phải tiện ích nội bộ: phía tiêu thụ
+        cần cùng một cách quy đổi thay vì tự viết lại — lý do chính thức của
+        REQ-005 là vninvest đã tự chế ``vnbroker_dnse_compat.py`` và bên
+        trong đó ``fetch_account_balance`` luôn trả 0 vì kiểm tra
+        ``isinstance(raw, list)`` / ``isinstance(raw, dict)`` trong khi
+        ``raw=False`` trả ``DataFrame``.
+
+        Args:
+            payload: ``DataFrame``, ``list[dict]``, ``dict`` (kể cả dict bọc
+                trong envelope ``{"accounts": [...]}``), hoặc ``None``.
+            as_records: ``True`` trả ``list[dict]`` thay vì ``DataFrame``.
+
+        Returns:
+            ``DataFrame`` (mặc định) hoặc ``list[dict]`` (``as_records=True``).
+            Rỗng thì trả ``DataFrame`` rỗng — **không** trả ``[]`` để tránh
+            chỗ gọi tưởng là "không có dữ liệu" trong khi thật ra là lỗi.
+
+        Raises:
+            Exception: lỗi từ ``to_dict("records")`` được để nổi lên. Nuốt nó
+                thành ``[]`` chính là lỗi làm số dư về 0 mà vninvest gặp.
+        """
+        frame = (
+            payload
+            if isinstance(payload, pd.DataFrame)
+            else DNSEClient._to_dataframe(payload)
+        )
+        if isinstance(frame, pd.DataFrame):
+            return frame.to_dict("records") if as_records else frame
+        return frame
+
 
     def get_accounts(self, dry_run: bool = False, raw: bool = False):
         return self._resolve_output(self._account.get_accounts(dry_run=dry_run), raw=raw)
