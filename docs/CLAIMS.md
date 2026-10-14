@@ -266,3 +266,19 @@ lessons 24/40 | pytest 1919 passed / 30 skipped / **0 ERROR**.
 
 Tap file 4 slice giao nhau = ∅ (S4 giu `common/data.py` mot minh).
 Lesson ap dung: [L-P01, L-P02, L-P03, L-P04, L-P05, L-P06, L-E01, L-E04, L-E06].
+
+## 2026-10-14 - VNINVEST REQ 001..005 (doc-only de, code co) - base main @ fe76670
+
+Van ban yeu cau: ninvest/docs/REQUESTS_TO_VNBROKER_20261014.md (5 REQ).
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-001 BrokerRegistry.capabilities() 3 lane | vnbroker/broker/registry.py,vnbroker/broker/capabilities.py,vnbroker/broker/__init__.py,tests/unit/broker/test_capabilities.py,tests/contract/test_capability_contract.py | in-progress | 2026-10-14 | - |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-003 watchlist capability | cung file REQ-001 | in-progress | 2026-10-14 | (a) khai bao unsupported; (b) ghi roadmap, khong code |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-004 MARKET_TYPES + validate | vnbroker/connector/dnse/constants.py,vnbroker/connector/dnse/client.py,vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_market_type_validation.py | in-progress | 2026-10-14 | 24 method DNSEClient+Trade |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-005 normalize + market_type aggregate | vnbroker/connector/dnse/client.py,tests/unit/connector/dnse/test_normalize_public_api.py | in-progress | 2026-10-14 | - |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-002 TCBS order history nhieu ngay | docs-only (khong code) | in-progress | 2026-10-14 | AC alternative khong thien hanh duoc theo spec |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | F-01 __version__ doc metadata cu | vnbroker/__init__.py,scripts/check_version_sync.py | in-progress | 2026-10-14 | do: 3.4.0 vs pyproject 3.7.2 |
+
+Khong file docs/CLAIMS.md cua agent khac dang claim in-progress bi cham.
+Lesson ap dung: [L-E01, L-E02, L-E03, L-E05, L-E06, L-E07, L-R01, L-R04, L-P01, L-P03, L-P04, L-P05, L-P06].
