@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+### Unreleased — phan hoi VNBROKER REQ-001..005 (2026-10-14)
+
+> Chua phat hanh. `pyproject.toml` van la `3.7.2` va **khong** doi o commit nay:
+> bump version la quyet dinh cua Owner (xem `git log`: "release: bump 3.7.0 ->
+> 3.7.1 (Owner directive)"). Ghi `3.8.0` o day khi chua bump se tao chinh loay
+> doc-drift ma bai `check_version_sync.py` dang canh (L-E01).
+
+Tra loi van ban yeu cau `REQUESTS_TO_VNBROKER_20261014.md` cua vninvest
+(ADR-006: broker SSOT qua vnbroker). Phan hoi day du:
+`docs/RESPONSE_TO_VNINVEST_20261014.md`.
+
+**Breaking co chu y (phía vninvest):** `marketType`/`orderCategory` sai gia tri
+nay nem `DNSEValidationError` thay vi tra HTTP 200 + body rong. Code dang
+"thu lai ALL/STOCK/EQUITY" se do loi ngay.
+
+| Do | Truoc | Sau |
+|:--|:--|:--|
+| `marketType` sai | HTTP 200 + body rong, caller khong biet | `DNSEValidationError` (`INVALID_MARKET_TYPE`), **truoc** khi co byte nao di ra |
+| `DNSEClient.__version__` | 3.4.0 (do) trong khi pyproject 3.7.2 | 3.7.2, va gate `version-sync` bay gio kiem ca metadata cua ban cai |
+| `vnbroker.broker.capabilities` | khong ton tai | `{version, provider, registered, methods, features}` cho 3 lane |
+| `DNSEClient.normalize_payload` | private `_to_dataframe` | public, nhan DataFrame/list/dict/envelope, `as_records=True` |
+| Doc nhieu market | caller tu vong retry (chi chay duoc gia tri dau) | `get_positions_all_markets` / `get_order_history_all_markets`, moi dong co cot `market_type` |
+
+**REQ-002 — khong khoi phuc code.** `/aion/v1/accounts/{accountNo}/orders/history`
+khong co trong spec TCBS v1.0.0, va phuong an duy phu trong REQ ("phan trang
+`get_executions` theo ngay") **khong thien hanh duoc**: `matching-details` khai
+bao **0 tham so truy van**. Hai lane con lai (SSI, DNSE) da co `from_date`/
+`to_date`. Xem `tests/contract/test_tcbs_order_history_contract.py`.
+
+**No chua dong (can Owner quyet dinh):**
+
+| No | Vi sao chua lam |
+|:--|:--|
+| Watchlist CRUD (REQ-003b) | Khong provider nao co API. REQ cam reverse-engineer private (R-W2). Chi khai bao `unsupported`, chua viet code. |
+| Validate `market_type` o 13 method cua `Trade` | `trade.py` 1233 dong — vuot ngan sach 800. Khong them vao file da vuot ngan sach; can tach file truoc. |
+| Spec DNSE chua ghim trong repo | DNSE khong co file OpenAPI commit kem sha256 nhu TCBS. `MARKET_TYPES` la tap **da tai lieu hoa**, chua phai enum do server cong bo. |
+
 ### 3.7.1 - HANG1 Row 1: chan su dung (2026-10-11, PR #5, tag `v3.7.1`)
 
 Hang 1 cua bo tai lieu trien khai 2026-10-11 (doc theo thu tu:

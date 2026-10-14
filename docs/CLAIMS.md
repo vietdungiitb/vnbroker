@@ -282,3 +282,20 @@ Van ban yeu cau: ninvest/docs/REQUESTS_TO_VNBROKER_20261014.md (5 REQ).
 
 Khong file docs/CLAIMS.md cua agent khac dang claim in-progress bi cham.
 Lesson ap dung: [L-E01, L-E02, L-E03, L-E05, L-E06, L-E07, L-R01, L-R04, L-P01, L-P03, L-P04, L-P05, L-P06].
+
+### Trang thai cua claim tren (cap nhat khi dong)
+
+Tat ca 6 dong da **released** tren branch eat/vninvest-req-20261014 (khong merge).
+Gate do tai main tree tai commit nay: check_all.ps1 (khong -Quick) **exit 0** —
+ruff-src PASS · version-sync PASS (3.7.2, kem dist metadata) · lessons PASS ·
+tcbs-coverage PASS · tcbs-bodies PASS · provider-consistency PASS ·
+mypy-baseline PASS · pytest-contract **117 passed** · pytest-full **2177 passed,
+26 skipped**.
+
+CHUA CHAY: CI GitHub Actions (job bi tu choi khoi dong do billing).
+KHONG co baseline pytest-full TRUOC thay doi — vi vay KHONG bao cao delta so
+test (chi bao cao so do tai commit nay). Day la L-E07.
+
+Phan hoi chinh thuc 5 REQ: docs/RESPONSE_TO_VNINVEST_20261014.md.
+Phan hoi REQ-002 co contract test khoa ket luan:
+	ests/contract/test_tcbs_order_history_contract.py.

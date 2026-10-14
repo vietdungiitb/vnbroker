@@ -383,3 +383,18 @@ pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate 
 - [ ] API reference documentation
 - [ ] DNSE News/Stream support
 - [ ] Unified DNSE client with dual auth modes
+- [ ] Watchlist CRUD chuẩn 3 lane — **BỊ CHẶN**: cả TCBS, SSI, DNSE đều
+      không có API watchlist của user. Đã khai báo
+      `capabilities(p)["features"]["watchlist"]["supported"] is False` cho cả
+      3 lane. Chỉ mở khi provider công bố API; **cấm** reverse-engineer
+      private web. Lưu ý trùng tên: `explorer/tcbs/tcbs_compatibility.py:296`
+      đã có `get_watchlist(filters)` nhưng đó là screener preview
+      (`POST /ligo/v1/watchlist/preview`), không phải watchlist user.
+- [ ] Validate `market_type`/`order_category` ở 13 method của `Trade`
+      (`connector/dnse/trade.py`) — **trì hoãn có chủ đích**: file đó 1233 dòng,
+      vượt ngân sách 800, thêm nữa sẽ vi phạm L-P03. Cần tách file trước.
+      `MARKET_TYPES`/`ORDER_CATEGORIES` đã dùng được ngay (`constants.py`).
+- [ ] Ghim spec DNSE vào repo kèm sha256 — chưa có file OpenAPI cho DNSE (khác
+      TCBS: `docs/references/openapi-v1.0.0.json` có sha256 do
+      `scripts/verify_tcbs_coverage.py` kiểm). Vì vậy `MARKET_TYPES` là tập **đã
+      tài liệu hoá**, không phải enum do server công bố.
