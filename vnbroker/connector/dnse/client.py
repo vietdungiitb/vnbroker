@@ -314,6 +314,27 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """GET /accounts/{account_no}/positions?marketType={market_type}
+
+        Args:
+            account_no: Số tài khoản DNSE.
+            market_type: Bắt buộc. Giá trị hợp lệ: ``STOCK``, ``DERIVATIVE``
+                (hằng :data:`vnbroker.connector.dnse.constants.MARKET_TYPES`).
+                Không phân biệt hoa/thường.
+            dry_run: ``True`` chỉ trả envelope, không gọi ra server.
+            raw: ``True`` trả body thô, ``False`` trả DataFrame.
+
+        Raises:
+            DNSEValidationError: ``market_type`` không thuộc
+                :data:`~vnbroker.connector.dnse.constants.MARKET_TYPES`.
+                ``error_code == "INVALID_MARKET_TYPE"``. Lỗi này ném ra
+                **trước** khi có request nào đi ra — vì giá trị sai hay bị
+                server trả HTTP 200 kèm body rỗng, tức lỗi kiểu "im lặng trả
+                rỗng" thay vì lỗi có mã.
+
+        Example:
+            >>> client.get_positions("0123456789", MARKET_TYPES.STOCK)
+        """
         return self._resolve_output(
             self._position.get_positions(account_no=account_no, market_type=market_type, dry_run=dry_run),
             raw=raw,

@@ -10,6 +10,8 @@ from .config import DNSEConfig
 from .errors import DNSETransportError, raise_for_status
 from .signature import build_signature_header
 
+from ..constants import validate_query
+
 #: HTTP verbs that change server state. GET/HEAD/OPTIONS never do.
 WRITE_VERBS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -78,10 +80,19 @@ class DNSEHttpClient:
         # A dry run sends nothing, so it needs no permission: the envelope is
         # how a human verifies a payload before committing to it. Gating that
         # would make inspection the risky act and execution the safe one.
+        # Thứ tự này là cố ý: validation TRƯỚC gate (L-R02). Sai `marketType`
+        # thường được DNSE trả HTTP 200 + body rỗng, nên kiểm ở đây là chặn
+        # fail-open ngay tại chỗ thay vì để caller đoán bằng vòng retry
+        # (VNBROKER-REQ-004; xem `connector/dnse/constants.py`).
+        #
+        # Nếu gate chạy trước, caller chưa `enable_write()` sẽ nhận
+        # WRITE_NOT_ENABLED và không bao giờ biết marketType của mình sai —
+        # lỗi tham số bị che bởi lỗi quyền, phải sửa hai lần mới tới.
+        query = validate_query(query) or None
+
         if not dry_run:
             self._require_write(method, path)
 
-        query = query or None
         url = f"{self._config.base_url}{path}"
         if query:
             url = f"{url}?{urlencode(query)}"
