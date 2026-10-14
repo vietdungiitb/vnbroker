@@ -299,3 +299,26 @@ test (chi bao cao so do tai commit nay). Day la L-E07.
 Phan hoi chinh thuc 5 REQ: docs/RESPONSE_TO_VNINVEST_20261014.md.
 Phan hoi REQ-002 co contract test khoa ket luan:
 	ests/contract/test_tcbs_order_history_contract.py.
+
+### Dinh chinh so lieu (L-E01 bat duoc chinh minh ta)
+
+Ban nhap dau cua docs/RESPONSE_TO_VNINVEST_20261014.md va roadmap ghi **so dong
+file sai**, do lenh Get-Content f | Measure-Object -Line cua PowerShell **khong
+dem dong rong**. So dung (do bang len(text.splitlines())):
+
+| File | Sai (non-empty) | Dung (tong dong) |
+|---|---|---|
+| nbroker/connector/dnse/client.py | 662 | **713** |
+| nbroker/connector/dnse/trade.py | 1233 | **1352** |
+
+Va dem lai bang AST/inspect: DNSEClient co **15** method cong khai nhan
+market_type (khong phai 11), Trade co **12** (khong phai 13).
+
+Ket qua khong doi gi ve quyet dinh tach MultiMarketMixin — client.py truoc khi
+them la 707 dong, them 155 se thanh **862, VUOT** ngan sach 800 (truoc do chi
+"sát"). Va 	rade.py con vuot ngan sach nhieu hon da ghi.
+
+Da sua trong docs/RESPONSE_TO_VNINVEST_20261014.md, CLAUDE.md, CHANGELOG.md.
+Bai hoc: L-E01 xay ra **ngay trong luc viet bao cao**, khong phai chi la tai lieu
+cu bi hong. Day la lan thu hai trong dot nay (lan 1: docs/RESEARCH_WATCHLIST_
+BROKER_20261014.md ma REQ danh chung khong ton tai o cay hien tai).

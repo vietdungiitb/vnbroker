@@ -36,7 +36,7 @@ bao **0 tham so truy van**. Hai lane con lai (SSI, DNSE) da co `from_date`/
 | No | Vi sao chua lam |
 |:--|:--|
 | Watchlist CRUD (REQ-003b) | Khong provider nao co API. REQ cam reverse-engineer private (R-W2). Chi khai bao `unsupported`, chua viet code. |
-| Validate `market_type` o 13 method cua `Trade` | `trade.py` 1233 dong — vuot ngan sach 800. Khong them vao file da vuot ngan sach; can tach file truoc. |
+| Validate `market_type` o 12 method cua `Trade` | `trade.py` 1352 dong — vuot ngan sach 800. Khong them vao file da vuot ngan sach; can tach file truoc. |
 | Spec DNSE chua ghim trong repo | DNSE khong co file OpenAPI commit kem sha256 nhu TCBS. `MARKET_TYPES` la tap **da tai lieu hoa**, chua phai enum do server cong bo. |
 
 ### 3.7.1 - HANG1 Row 1: chan su dung (2026-10-11, PR #5, tag `v3.7.1`)

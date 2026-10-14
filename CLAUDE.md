@@ -390,8 +390,8 @@ pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate 
       private web. Lưu ý trùng tên: `explorer/tcbs/tcbs_compatibility.py:296`
       đã có `get_watchlist(filters)` nhưng đó là screener preview
       (`POST /ligo/v1/watchlist/preview`), không phải watchlist user.
-- [ ] Validate `market_type`/`order_category` ở 13 method của `Trade`
-      (`connector/dnse/trade.py`) — **trì hoãn có chủ đích**: file đó 1233 dòng,
+- [ ] Validate `market_type`/`order_category` ở 12 method của `Trade`
+      (`connector/dnse/trade.py`) — **trì hoãn có chủ đích**: file đó 1352 dòng,
       vượt ngân sách 800, thêm nữa sẽ vi phạm L-P03. Cần tách file trước.
       `MARKET_TYPES`/`ORDER_CATEGORIES` đã dùng được ngay (`constants.py`).
 - [ ] Ghim spec DNSE vào repo kèm sha256 — chưa có file OpenAPI cho DNSE (khác
