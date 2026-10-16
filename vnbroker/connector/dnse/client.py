@@ -209,7 +209,7 @@ class DNSEClient(MultiMarketMixin):
         self,
         account_no: str,
         market_type: str,
-        order_category: str | None = None,
+        order_category: str,
         page_index: int | None = 1,
         page_size: int | None = 20,
         dry_run: bool = False,
@@ -217,10 +217,14 @@ class DNSEClient(MultiMarketMixin):
     ):
         """Danh sách lệnh.
 
-        `page_index`/`page_size` có mặc định vì **production bắt buộc cả hai**
-        (thiếu lần lượt `400 pageIndex is required` / `400 pageSize is
-        required`); sandbox thì không đòi cái nào. Truyền `None` bỏ hẳn tham
-        số khỏi query — không gửi chuỗi `"None"` lên URL.
+        ⚠ `order_category` **bắt buộc**: production trả
+        `400 INVALID_ORDER_CATEGORY` khi thiếu. Cố ý **không** đặt mặc định
+        `NORMAL` — người gọi quên tham số sẽ nhận danh sách `NORMAL` mà không
+        thấy `STOP`/`OCO`: thành công nhưng thiếu dữ liệu (L-R01).
+
+        `page_index`/`page_size` có mặc định vì production bắt buộc cả hai;
+        sandbox thì không đòi cái nào. Truyền `None` bỏ hẳn tham số khỏi query —
+        không gửi chuỗi `"None"` lên URL.
         """
         return self._resolve_output(
             self._order.get_orders(

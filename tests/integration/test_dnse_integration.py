@@ -191,6 +191,8 @@ class TestDNSEIntegration:
             payload = client.get_orders(
                 account_no=account_no,
                 market_type=os.getenv("DNSE_MARKET_TYPE", "STOCK"),
+                # Bắt buộc từ 2026-10-16: thiếu ⇒ `400 INVALID_ORDER_CATEGORY`.
+                order_category=os.getenv("DNSE_ORDER_CATEGORY", "NORMAL"),
                 raw=True,
             )
         except Exception as exc:

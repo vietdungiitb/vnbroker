@@ -66,7 +66,12 @@ def main() -> int:
     secdef = client.get_security_definition(symbol="HPG", raw=True)
     _print_check("get_security_definition", secdef)
 
-    orders = client.get_orders(account_no=account_no, market_type=market_type, raw=True)
+    orders = client.get_orders(
+        account_no=account_no,
+        market_type=market_type,
+        order_category="NORMAL",  # bat buoc tu 2026-10-16 (400 INVALID_ORDER_CATEGORY)
+        raw=True,
+    )
     _print_check("get_orders", orders)
 
     print("DNSE smoke completed")

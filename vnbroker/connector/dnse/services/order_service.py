@@ -12,35 +12,40 @@ class OrderService:
         self,
         account_no: str,
         market_type: str,
-        order_category: str | None = None,
+        order_category: str,
         page_index: int | None = 1,
         page_size: int | None = 20,
         dry_run: bool = False,
     ):
         """Danh sách lệnh đang hoạt động.
 
-        ⚠ **Cả `pageIndex` LẪN `pageSize` đều bắt buộc ở production.** Đo
-        2026-10-16: thiếu `pageIndex` ⇒ `400 pageIndex is required`; có
-        `pageIndex` nhưng thiếu `pageSize` ⇒ `400 pageSize is required`.
-        **Sandbox thì không đòi cái nào** — đó là lý do không thể dùng sandbox
-        làm chuẩn, và lý do mặc định ở đây là `1`/`20` chứ không phải `None`.
+        ⚠ **`order_category` BẮT BUỘC.** Đo 2026-10-16: thiếu ⇒
+        `400 INVALID_ORDER_CATEGORY`. Cố tình **không** đặt mặc định `NORMAL`:
+        người gọi muốn xem lệnh `STOP` mà quên tham số sẽ nhận danh sách
+        `NORMAL` — tức **thành công nhưng thiếu dữ liệu**, tệ hơn nhiều so với
+        `TypeError` ngay khi gõ (L-R01). Bắt buộc ≠ cứng: giá trị sai vẫn được
+        `validate_query` chặn trước khi có byte nào đi ra.
 
-        Mặc định là số chứ không phải `None` vì gửi `pageIndex=None` sẽ ra
+        ⚠ **Cả `pageIndex` LẪN `pageSize` đều bắt buộc ở production.** Đo:
+        thiếu `pageIndex` ⇒ `400 pageIndex is required`; có `pageIndex` nhưng
+        thiếu `pageSize` ⇒ `400 pageSize is required`. **Sandbox thì không đòi cái
+        nào** — đó là lý do không thể dùng sandbox làm chuẩn.
+
+        Mặc định `1`/`20` chứ không phải `None` vì gửi `pageIndex=None` sẽ ra
         chuỗi `pageIndex=None` trên URL — một lỗi 400 khác, khó đọc hơn lỗi cũ.
-        Truyền tường minh `None` vẫn được (bỏ hẳn tham số) cho trường hợp cần
-        thử trực tiếp.
+        `page_size=20` là **giá trị đo dùng được**, không phải mặc định do server
+        công bố (xem L-D02).
 
-        `page_size=20` là **giá trị đo dùng được**, không phải mặc định do bỏ
-        qua: nó chỉ là điểm khởi đầu hợp lý, server không công bố giá trị mặc
-        định nào.
+        Raises:
+            DNSEValidationError: `INVALID_ORDER_CATEGORY` khi giá trị không thuộc
+                :data:`ORDER_CATEGORIES`.
         """
-        query: dict[str, object] = {"marketType": market_type}
+        query: dict[str, object] = {
+            "marketType": market_type,
+            "orderCategory": order_category,
+        }
         if page_index is not None:
             query["pageIndex"] = page_index
-        if page_size is not None:
-            query["pageSize"] = page_size
-        if order_category:
-            query["orderCategory"] = order_category
         if page_size is not None:
             query["pageSize"] = page_size
         return self._http.request(

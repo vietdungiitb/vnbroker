@@ -166,8 +166,11 @@ LANES: Final[dict[str, LaneSpec]] = {
                     "production bắt buộc CẢ HAI vế (thiếu một ⇒ "
                     "`400 from is required` / `400 to is required`), nên "
                     "truyền đúng một vế sẽ raise DNSEValidationError trước khi "
-                    "gửi. `get_orders` tự điền `pageIndex=1` vì production "
-                    "bắt buộc nó."
+                    "gửi. `get_orders` thì `order_category` BẮT BUỘC (thiếu ⇒ "
+                    "`400 INVALID_ORDER_CATEGORY`) — cố ý KHÔNG có mặc định, "
+                    "vì điền `NORMAL` sẽ lặng lẽ lọc mất `STOP`/`OCO`; và nó "
+                    "tự điền `pageIndex=1`, `pageSize=20` vì production bắt buộc "
+                    "cả hai."
                 ),
             },
         },

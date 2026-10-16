@@ -52,16 +52,54 @@ def _client() -> DNSEClient:
 # --- AC-C1: get_orders luôn mang pageIndex ----------------------------------
 
 
+def test_order_category_is_required_not_defaulted():
+    """Đo 2026-10-16: `GET /accounts/{no}/orders` không kèm `orderCategory`
+    ⇒ `400 INVALID_ORDER_CATEGORY`. Có `NORMAL` ⇒ 200.
+
+    ⚠ **Không** điền mặc định `NORMAL` — đó là lỗi *sai dữ liệu mà trông như
+    đúng*: người gọi muốn xem lệnh `STOP` mà quên tham số sẽ nhận danh sách
+    `NORMAL` — đầy đủ trong mắt họ và thiếu. Fail-open ở tầng ngữ nghĩa dữ liệu,
+    tệ hơn hẳn việc ném `TypeError` ngay khi gõ (L-R01).
+    """
+    import inspect
+
+    params = inspect.signature(DNSEClient.get_orders).parameters
+    assert "order_category" in params, "facade thiếu order_category"
+    assert params["order_category"].default is inspect.Parameter.empty, (
+        "order_category phải BẮT BUỘC — có default nghĩa là im lặng lọc sai nhóm lệnh"
+    )
+    with pytest.raises(TypeError):
+        # Cố tình KHÔNG truyền order_category — đây là lời gọi phải chết ngay.
+        _client().get_orders(ACCOUNT, "STOCK", dry_run=True, raw=True)
+
+
+def test_order_category_is_forwarded_verbatim():
+    payload = _client().get_orders(
+        ACCOUNT, "STOCK", order_category="OCO", dry_run=True, raw=True
+    )
+    assert payload["query"]["orderCategory"] == "OCO"
+
+
+def test_a_bogus_category_still_raises_before_the_network():
+    """Bắt buộc ≠ cứng: giá trị sai vẫn phải chặn ở client (giữ `validate_query`)."""
+    with _NoEgress() as egress, pytest.raises(DNSEValidationError) as excinfo:
+        _client().get_orders(
+            ACCOUNT, "STOCK", order_category="XYZ", dry_run=True, raw=True
+        )
+    assert excinfo.value.error_code == "INVALID_ORDER_CATEGORY"
+    assert egress.calls == []
+
+
 def test_get_orders_fills_page_index_because_production_demands_it():
     """Đo production: thiếu `pageIndex` ⇒ 400. Sandbox không đòi, nên chỉ đo
     sandbox sẽ bỏ sót đúng lỗi này."""
-    payload = _client().get_orders(ACCOUNT, "STOCK", dry_run=True, raw=True)
+    payload = _client().get_orders(ACCOUNT, "STOCK", "NORMAL", dry_run=True, raw=True)
     assert payload["query"]["pageIndex"] == 1
 
 
 def test_get_orders_lets_the_caller_override_page_index():
     payload = _client().get_orders(
-        ACCOUNT, "STOCK", page_index=3, page_size=50, dry_run=True, raw=True
+        ACCOUNT, "STOCK", "NORMAL", page_index=3, page_size=50, dry_run=True, raw=True
     )
     assert payload["query"]["pageIndex"] == 3
     assert payload["query"]["pageSize"] == 50
@@ -154,7 +192,7 @@ def test_page_size_is_required_by_production_so_it_carries_a_default():
     Bản test cũ của hàm này lại **đòi** `pageSize` vắng mặt — tức khẳng định điều
     ngược lại với thứ server thật sự đòi. Đổi theo bằng chứng đo.
     """
-    payload = _client().get_orders(ACCOUNT, "STOCK", dry_run=True, raw=True)
+    payload = _client().get_orders(ACCOUNT, "STOCK", "NORMAL", dry_run=True, raw=True)
     assert payload["query"]["pageSize"] == 20
     assert "None" not in payload["url"]
 
@@ -162,7 +200,7 @@ def test_page_size_is_required_by_production_so_it_carries_a_default():
 def test_explicit_none_omits_pagination_keys_entirely():
     """Truyền `None` tường minh thì bỏ hẳn key, không gửi chuỗi `"None"`."""
     payload = _client().get_orders(
-        ACCOUNT, "STOCK", page_index=None, page_size=None, dry_run=True, raw=True
+        ACCOUNT, "STOCK", "NORMAL", page_index=None, page_size=None, dry_run=True, raw=True
     )
     assert "pageIndex" not in payload["query"]
     assert "pageSize" not in payload["query"]

@@ -1066,7 +1066,7 @@ class Trade:
         self,
         account_no: str,
         market_type: str,
-        order_category: Optional[str] = None,
+        order_category: str,
         dry_run: bool = False,
         raw: bool = False,
     ):

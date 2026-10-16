@@ -28,9 +28,14 @@ client = DNSEClient(
 
 ### Orders
 
-- `get_orders(account_no: str, market_type: str, order_category: str | None = None, page_index: int = 1, page_size: int | None = None, dry_run: bool = False, raw: bool = False)`
-  - ⚠ `pageIndex` **bắt buộc ở production** (thiếu ⇒ `400 pageIndex is required`);
-    sandbox thì không đòi. Vì vậy mặc định là `1`, không phải `None`.
+- `get_orders(account_no: str, market_type: str, order_category: str, page_index: int | None = 1, page_size: int | None = 20, dry_run: bool = False, raw: bool = False)`
+  - ⚠ `orderCategory` **BẮT BUỘC** — thiếu ⇒ `400 INVALID_ORDER_CATEGORY`.
+    Cố ý **không** đặt mặc định `NORMAL`: người gọi muốn xem lệnh `STOP` mà
+    quên tham số sẽ nhận danh sách `NORMAL` — thành công nhưng thiếu dữ liệu.
+  - ⚠ `pageIndex` **và** `pageSize` đều bắt buộc ở production (thiếu lần lượt
+    `400 pageIndex is required` / `400 pageSize is required`); sandbox thì không
+    đòi cái nào. Vì vậy mặc định là `1`/`20`, không phải `None`.
+    `page_size=20` là **giá trị đo dùng được**, không phải mặc định server công bố.
 - `get_order_detail(account_no: str, order_id: str, market_type: str, order_category: str | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_execution_detail(account_no: str, order_id: str, market_type: str, order_category: str = "NORMAL", dry_run: bool = False, raw: bool = False)`
 - `get_order_history(account_no: str, market_type: str, from_date: str | None = None, to_date: str | None = None, page_size: int | None = None, page_index: int | None = None, dry_run: bool = False, raw: bool = False)`
