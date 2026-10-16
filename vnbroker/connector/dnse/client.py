@@ -16,7 +16,7 @@ from vnbroker.connector.dnse.services import (
 )
 
 
-def _list_to_frame(value: list, key: str) -> pd.DataFrame:
+def _list_to_frame(value: list[Any], key: str) -> pd.DataFrame:
     """Dựng DataFrame từ một list phần tử của envelope.
 
     `pd.json_normalize` chỉ ăn được list-of-dict. DNSE cũng trả những list-of-
