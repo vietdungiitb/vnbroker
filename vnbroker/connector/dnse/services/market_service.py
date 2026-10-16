@@ -56,12 +56,21 @@ class MarketService:
         return self._http.request("GET", f"/price/{symbol}/trades/latest", dry_run=dry_run)
 
     def get_working_dates(self, dry_run: bool = False):
-        """Get trading working dates.
-        
-        Note: DNSE OpenAPI does not have a dedicated working-dates endpoint.
-        Returns empty list - use instruments endpoint with date filtering if needed.
+        """Ngày giao dịch. Path: `GET /market/working-dates` (SDK `client.py:447-451`).
+
+        ⚠ **Đính chính một kết luận sai đã có trong chính file này.** Docstring cũ
+        ghi *"DNSE OpenAPI does not have a dedicated working-dates endpoint"* và
+        method trả `({"dates": []}, None)` — một tuple cố ý đảo, khiến
+        `_resolve_output` unpack nhầm và người gọi nhận `None` mà không có request
+        nào đi ra. Đó là "thành công rỗng": trông như server nói không có ngày
+        giao dịch, trong khi thật ra chưa ai hỏi (L-R01).
+
+        Đo production 2026-10-16 (không VPN): `200`, `{"workingDates": [...257]}`
+        ⇒ endpoint **có thật**. Vậy nên sửa path, không xoá method.
+
+        Không gửi `marketType`: đo cho thấy thêm tham số đó trả `404`.
         """
-        return ({"dates": []}, None)  # Return tuple (body, raw) for consistency
+        return self._http.request("GET", "/market/working-dates", dry_run=dry_run)
 
     def get_trades(
         self,

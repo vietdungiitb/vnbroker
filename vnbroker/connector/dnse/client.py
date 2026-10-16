@@ -16,6 +16,25 @@ from vnbroker.connector.dnse.services import (
 )
 
 
+def _list_to_frame(value: list, key: str) -> pd.DataFrame:
+    """Dựng DataFrame từ một list phần tử của envelope.
+
+    `pd.json_normalize` chỉ ăn được list-of-dict. DNSE cũng trả những list-of-
+    scalar — `workingDates` là 257 chuỗi ngày. Gọi `json_normalize` lên đó ném
+    `TypeError: All items in data must be of type dict`, tức là lời gọi hỏng vì
+    **hình dạng**, không phải vì rỗng. Trường hợp đó thành một cột mang tên key.
+
+    Rỗng thì trả DataFrame rỗng có đúng tên cột, để `df.columns` ổn định bất kể
+    server trả gì.
+    """
+    items = [item for item in value if item is not None]
+    if not items:
+        return pd.DataFrame(columns=[key])
+    if all(isinstance(item, dict) for item in items):
+        return pd.json_normalize(items)
+    return pd.DataFrame({key: items})
+
+
 class DNSEClient(MultiMarketMixin):
     def __init__(
         self,
@@ -74,10 +93,14 @@ class DNSEClient(MultiMarketMixin):
                 "positions", "reports",
                 # Market data keys
                 "bars", "candles", "ohlc", "trades", "instruments", "securities",
+                # `workingDates` phải có mặt ở đây, nếu không `get_working_dates`
+                # sẽ trả DataFrame MỘT dòng chứa một cell là list — biểu hiện
+                # khác của đúng bug "thành công rỗng" mà slice B đang chữa.
+                "workingDates",
             ):
                 value = payload.get(key)
                 if isinstance(value, list):
-                    df = pd.json_normalize(value)
+                    df = _list_to_frame(value, key)
                     # The envelope's scalar siblings describe who the caller is,
                     # not what is in the list. Unwrapping dropped them silently -
                     # verified live on the sandbox: `get_accounts()` returned
