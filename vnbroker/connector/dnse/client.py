@@ -447,7 +447,11 @@ class DNSEClient(MultiMarketMixin):
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Nội giá (Lớp A). Cảnh báo `bid[].qtty` — xem NORMALISATION_POLICY §3.1."""
+        """Nội giá (Lớp A). Cảnh báo `bid[].qtty` — xem NORMALISATION_POLICY §3.1.
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_quotes(
                 symbol=symbol,
@@ -489,7 +493,11 @@ class DNSEClient(MultiMarketMixin):
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Giá kỳ vọng (Lớp A)."""
+        """Giá kỳ vọng (Lớp A).
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_expected_price(
                 symbol=symbol,
@@ -516,7 +524,11 @@ class DNSEClient(MultiMarketMixin):
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Giao dịch nước ngoài (Lớp B — giữ nguyên định dạng DNSE)."""
+        """Giao dịch nước ngoài (Lớp B — giữ nguyên định dạng DNSE).
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_foreign_trading(
                 symbol=symbol,
@@ -542,7 +554,12 @@ class DNSEClient(MultiMarketMixin):
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Chỉ số thị trường (Lớp A). Tham số là `index_name`, không phải `symbol`."""
+        """Chỉ số thị trường (Lớp A). Tham số là `index_name`, không phải `symbol`.
+
+        `from_date`/`to_date` là unix **GIÂY**, và phải thuộc **cùng một ngày**
+        lịch giờ VN — server trả `400 from and to must be in the same date` nếu
+        không. Việc đó bị chặn sớm kèm cửa sổ hợp lệ (L-R01).
+        """
         return self._resolve_output(
             self._market.get_market_index(
                 index_name=index_name,
@@ -615,6 +632,11 @@ class DNSEClient(MultiMarketMixin):
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """Giao dịch khớp lệnh (Lớp B).
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_trades(
                 symbol=symbol,

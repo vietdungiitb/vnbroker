@@ -1,8 +1,22 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
+from vnbroker.connector.dnse.core.errors import DNSEValidationError
 from vnbroker.connector.dnse.core.http_client import DNSEHttpClient
+from vnbroker.connector.dnse.core.time_utils import (
+    VIETNAM_TZ,
+    is_same_vn_day,
+    vn_day_bounds,
+)
+
+#: Ghi nhắc đơn vị, dùng chung cho cả 5 method phân trang. Đo production
+#: 2026-10-16: milliseconds trả `400 range exceeds maximum time range`.
+_SECONDS_NOTE = (
+    "`from_date`/`to_date` là unix **GIÂY** (không phải milliseconds — "
+    "truyền milliseconds sẽ bị server trả 400)."
+)
 
 
 class MarketService:
@@ -59,23 +73,23 @@ class MarketService:
         order: str | None = None,
         next_page_token: str | None = None,
         dry_run: bool = False,
-    ):
-        # Correct path: /price/{symbol}/trades  (symbol is path param, not query param)
-        path = f"/price/{symbol}/trades"
-        query: dict = {}
-        if board_id is not None:
-            query["boardId"] = board_id
-        if from_date is not None:
-            query["from"] = from_date
-        if to_date is not None:
-            query["to"] = to_date
-        if limit is not None:
-            query["limit"] = limit
-        if order is not None:
-            query["order"] = order
-        if next_page_token is not None:
-            query["nextPageToken"] = next_page_token
-        return self._http.request("GET", path, query=query or None, dry_run=dry_run)
+    ) -> tuple[int | None, Any]:
+        """Giao dịch khớp lệnh. Path theo SDK: `/price/{symbol}/trades`.
+
+        Dùng chung `_history_query` với 4 method kia — trước đây method này dựng
+        dict thủ công trong khi những method khác gọi helper, nên một thay đổi tên
+        key chỉ đạt được nửa bộ method.
+
+        """ + _SECONDS_NOTE
+        return self._http.request(
+            "GET",
+            f"/price/{symbol}/trades",
+            query=self._history_query(
+                board_id, from_date, to_date, limit, order, next_page_token
+            )
+            or None,
+            dry_run=dry_run,
+        )
 
     @staticmethod
     def _history_query(
@@ -210,7 +224,34 @@ class MarketService:
         """Chỉ số thị trường. Path theo SDK `client.py`:
         `GET /price/{index_name}/market-index`. Chú ý tham số là **index_name**,
         không phải `symbol` — SDK không có `boardId` cho endpoint này.
+
+        """ + _SECONDS_NOTE + """
+
+        **Giới hạn đo được:** server chỉ nhận cửa sổ **cùng một ngày lịch** theo
+        giờ Việt Nam; `from` hôm trước, `to` hôm nay trả
+        `400 from and to must be in the same date`. Việc đó bị chặn ở đây, trước
+        khi có byte nào đi ra (L-R01) — lỗi tham số bị server trả thành 400 buộc
+        người gọi đoán, còn chặn sớm thì thông điệp nói rõ cửa sổ hợp lệ.
+
+        Raises:
+            DNSEValidationError: khi ``from_date``/``to_date`` rơi vào hai ngày
+                khác nhau. ``error_code == "MARKET_INDEX_RANGE_NOT_SAME_DAY"``.
         """
+        if not is_same_vn_day(from_date, to_date):
+            from_day, to_day = vn_day_bounds(from_date or to_date or 0)
+            raise DNSEValidationError(
+                message=(
+                    "get_market_index chỉ nhận cửa sổ trong MỘT ngày lịch giờ VN: "
+                    f"from/to của bạn rơi vào hai ngày khác nhau. Hãy gọi riêng "
+                    f"từng ngày — ví dụ ngày "
+                    f"{datetime.fromtimestamp(from_day, VIETNAM_TZ):%Y-%m-%d} là "
+                    f"[{from_day}, "
+                    f"{datetime.fromtimestamp(to_day, VIETNAM_TZ):%Y-%m-%d}"
+                    f" 23:59:59] = [{from_day}, {to_day}]."
+                ),
+                error_code="MARKET_INDEX_RANGE_NOT_SAME_DAY",
+                status_code=400,
+            )
         return self._http.request(
             "GET",
             f"/price/{index_name}/market-index",
