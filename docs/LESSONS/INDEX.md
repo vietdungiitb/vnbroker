@@ -29,6 +29,7 @@
 | `worktree` `env` `venv` `claim` `slice` `ownership` `init` `export` `facade` `plan` `contradiction` `budget` `fat-file` `design` `agent` `trust` `audit` `AC` `review` `junction` `rmdir` `cleanup` `windows` `destructive` `feasible` `unsatisfiable` | [`process.md`](./process.md) | Chia việc multi-agent, worktree, claim, kết quả trung thực |
 | `money` `write` `gate` `guards` `signature` `safety` `dry-run` `rc` `business-code` `idempotency` `tcbs` `json` `get` `null` `optional` `response` `parse` `probe` `401` `routing` `unverifiable` `legacy` `auth` `token` `jwt` `exp` `ttl` `session` `status` `4xx` `error-mapping` `_write_http` `pin` `field name` `heuristic` `dangerous` | [`broker-risk.md`](./broker-risk.md) | **An toàn tiền thật** — đọc bắt buộc trước mọi sửa `vnbroker/broker/` |
 | `gate` `gates` `coverage` `AST` `AnnAssign` `keywords` `blind spot` `self-test` `exit code` `enforce` `baseline` `ratchet` `waiver` `false green` `scope` | [`gate-integrity.md`](./gate-integrity.md) | Cổng tự báo xanh nhưng không kiểm đủ; baseline xanh giả; gợi ý gây sai |
+| `provider` `dnse` `probe` `vocabulary` `enum` `guess` `oneof` `parameters` `fail-open` `default` `invented` `data-dictionary` | [`provider-params.md`](./provider-params.md) | Tham số provider: tìm tập giá trị hợp lệ, và mặc định ai quyết định |
 
 ### Quy tắc an toàn (fallback) — ưu tiên bắt hơn suy luận
 
@@ -123,8 +124,9 @@ gây lỗi** thì viết thành checklist ngắn ở đây.
 | [`process.md`](./process.md) | L-P01..L-P06 (6) | `docs/PLAN_AUDIT_TCBS_ROUND2.md` C-5/F-3/F-5 · `docs/PLAN_TCBS_ROUND2.md` §5b · commit `c8c4618`, `f23786f` |
 | [`broker-risk.md`](./broker-risk.md) | L-R01..L-R07 (7) | `docs/REPORT_TCBS_ROUND2.md` §6 R1/R2 · `docs/AUDIT_ROUND3.md` F-5 (gợi ý `pinCode->price`) · commit `d7d75ca`, `bc9d786`, `ee0fbc5` |
 | [`gate-integrity.md`](./gate-integrity.md) | L-G01..L-G04 (4) | Audit round 3 (bản 3 lỗi phủ + self-test không ép + baseline quá thô) · commit `93a89e8`, `ee0fbc5` |
+| [`provider-params.md`](./provider-params.md) | L-D01..L-D02 (2) | Đợt DNSE 2026-10-16: đọc response server thay vì đoán 24 giá trị `boardId`/`marketId` · `docs/REPORT_DNSE_LIVE_20261016.md` §11.4, §12.2, §12.4 · commit `d8fab65` |
 
-**Tổng: 24 lesson / 4 file** — dưới C2 (40), mọi file dưới C1 (120 dòng).
+**Tổng: 26 lesson / 5 file** — dưới C2 (40), mọi file dưới C1 (120 dòng).
 Citation kiểm chứng tại `sha = ee0fbc5`. Gate `check_lessons.py` tự kiểm C1/C2 + số liệu
 bảng này — sửa bảng mà quên sửa file thì gate báo `DRIFT`.
 
