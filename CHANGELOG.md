@@ -2,6 +2,64 @@
 
 All notable changes to this project will be documented in this file.
 
+### Unreleased — sua 11 defect client DNSE OpenAPI (2026-10-16)
+
+> Chua phat hanh. Version khong doi trong dot nay.
+
+Dot "test live DNSE" phat hien **11 defect client-side** — tat ca deu do duoc
+ tren production thuoc (khong VPN) va deu da sua + **do lai live** lan cuoi.
+Chi tiet: `docs/REPORT_DNSE_LIVE_20261016.md`, ke hoach
+`docs/PLAN_DNSE_FIX_20261016.md`, audit `docs/AUDIT_DNSE_FIX_20261016.md`.
+
+**Hai path bi ket luan "khong ton tai" hoac ra chi sai mot duoi dau gach:**
+
+| Method | Truoc | Sau |
+|:--|:--|:--|
+| `get_working_dates` | tra hang `(dates rong, None)`, **0ms**, khong goi network | `GET /market/working-dates` → **200**, 257 ngay |
+| `get_corporate_action_history` | `/accounts/{a}/corporate-actions` → **404** | `/accounts/{a}/corporate-action-history` → **200** |
+
+**Breaking co chu y (chuyen mau tham so):**
+
+| Do | Truoc | Sau |
+|:--|:--|:--|
+| `get_trades_volume_profile(time=...)` | `int` | **`str` `yyyy-MM-dd`** (int → `DNSEValidationError`) |
+| `get_trades_volume_profile(board_id=...)` | tu y chon | **bat buoc** |
+| `get_orders` | gui `marketType` (+`orderCategory`) | tu dien **`pageIndex=1`, `pageSize=20`** |
+| `get_order_history(from=…)` | tu y chon | **ca hai ve hoac khong vay nao**; mot ve → raise |
+
+**Sua liet (fail fast, truoc khi co byte nao di ra):**
+
+| Do | Truoc | Sau |
+|:--|:--|:--|
+| 5 endpoint phan trang | milliseconds → `400 range exceeds…` | **tu chuan hoa ms → giay** |
+| `get_market_index` | khac ngay → `400` tu server | raise `MARKET_INDEX_RANGE_NOT_SAME_DAY` + chi cua so hop le |
+| `get_position_by_id(position_id=…)` | id rac → **server 500** | raise `INVALID_POSITION_ID` (**chac sai KIEU, khong chac sai GIA TRI** — id `0` van hop le) |
+
+**Hang hoa moi (do duoc, khong doan):**
+
+| Hang | Gia tri | Cach tim ra |
+|:--|:--|:--|
+| `BOARD_IDS` | `G1 G2 G3 G4 G7 G8` | 24 gia tri doan deu fail → bat chuoc `websocket.py:19` (`G<n>`) → quet `G0..G21` |
+| `MARKET_IDS` | `STO HCX UPX STX DVX` | doc cot `marketId` trong chinh response cua `GET /instruments` |
+
+> Hai hang **khong** validate cung: tap do tren MOT ma va MOT ngay, chac gia tri
+> ngoai tap se chan oang moi khi DNSE them san moi.
+
+**Cong moi:** `scripts/check_encoding.py` (vao `check_all.ps1`) — fail khi phat
+hien double-encoding UTF-8. Ly do: dot nay mot file nguon bi `Get-Content -Raw`
+(doc UTF-8 bang CP1252) ma **khong gate nao bat duoc**, vi file hong van decode
+hop le la UTF-8. Cong nay cung bat duoc 1 file hong co san tu truoc
+(`tests/unit/core/test_no_guest_quota_runtime.py`).
+
+**Gate cuoi:** `check_all.ps1` FULL **exit 0** · pytest **2246 passed, 26 skipped**
+(baseline 2177 => **+69**) · contract 117 · mypy-baseline 1266→1133 · encoding PASS
+449 file · `ruff check tests` 13 KNOWN-RED **khong tang**.
+
+**Da do lai live:** `scripts/probe_dnse_readonly.py` → `PASS=40 FAIL=16`, trong do
+16 FAIL deu la **probe phu dinh co chu dich**. 11/11 defect da dong.
+
+### Unreleased — phan hoi VNBROKER REQ-001..005 (2026-10-14)
+
 ### Unreleased — phan hoi VNBROKER REQ-001..005 (2026-10-14)
 
 > Chua phat hanh. `pyproject.toml` van la `3.7.2` va **khong** doi o commit nay:

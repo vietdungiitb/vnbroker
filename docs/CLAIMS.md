@@ -361,7 +361,7 @@ Verdict audit: **NEED_REVISION** (4 blocker, 7 major, 6 nho) -> plan ban 2 da su
 
 | agent | branch | worktree | scope | files | status | since | note |
 |---|---|---|---|---|---|---|---|
-| coordinator-dnse-fix | feat/dnse-openapi-fix | (main checkout) | Sua 11 defect client DNSE OpenAPI (D1-D11) | vnbroker/connector/dnse/services/{market_service,order_service,account_service,position_service}.py, vnbroker/connector/dnse/client.py, vnbroker/connector/dnse/core/time_utils.py (moi), vnbroker/explorer/dnse/quote.py, vnbroker/broker/capabilities.py, scripts/probe_dnse_readonly.py, tests/unit/connector/dnse/{test_market_time_units,test_order_read_params,test_position_id_guard}.py (moi), tests/unit/connector/dnse/test_market_data_read_methods.py, tests/contract/test_dnse_endpoint_contract.py, docs/AGENT_PROTOCOL.md, docs/DNSE_API_CONTRACT.md, docs/REPORT_DNSE_LIVE_20261016.md | in-progress | 2026-10-16 | Mode B: 6 lat deu cham market_service.py + client.py => khong song parallel |
+| coordinator-dnse-fix | feat/dnse-openapi-fix | (main checkout) | Sua 11 defect client DNSE OpenAPI (D1-D11) | vnbroker/connector/dnse/services/{market_service,order_service,account_service,position_service}.py, vnbroker/connector/dnse/client.py, vnbroker/connector/dnse/core/time_utils.py (moi), vnbroker/explorer/dnse/quote.py, vnbroker/broker/capabilities.py, scripts/probe_dnse_readonly.py, tests/unit/connector/dnse/{test_market_time_units,test_order_read_params,test_position_id_guard}.py (moi), tests/unit/connector/dnse/test_market_data_read_methods.py, tests/contract/test_dnse_endpoint_contract.py, docs/AGENT_PROTOCOL.md, docs/DNSE_API_CONTRACT.md, docs/REPORT_DNSE_LIVE_20261016.md | **released** | 2026-10-16 | Mode B. 9 commit `0bc2d45`..`d8fab65`; 11/11 defect dong, **da do lai live** |
 
 **Vi sao Mode B:** lat A/B/D sua `market_service.py`; lat A/B/C/D sua `client.py`.
 Tap file giao nhau => chay song song se tai tao Hazard 1 (weld hunk). Tien le:
@@ -391,7 +391,36 @@ L-P03, L-P04, L-P05, L-P06].
 
 ### Trang thai claim tren (cap nhat khi dong)
 
-_(chua dong)_
+**Da DONG.** 9 commit tren `feat/dnse-openapi-fix` (base `f6cf68b`):
+
+| # | Commit | Noi dung |
+|---|---|---|
+| 1 | `0bc2d45` | Stage 0-3: AGENT_PROTOCOL, plan v2, audit, bao cao, probe |
+| 2 | `3fbbb8b` | Slice A - D8/D9 don vi GIAY + chan market_index |
+| 3 | `6f5fc98` | Slice B - D1 `/market/working-dates` |
+| 4 | `069dfbe` | Slice C - D2/D3/D4 pageIndex + cap `from`/`to` |
+| 5 | `9d37af4` | Slice D - D7 date string + board_id bat buoc |
+| 6 | `393591e` | Slice E - D5 path + D6 chan position_id rac |
+| 7 | `3e25b71` | Slice F - bang chung am tinh D10/D11 (hoa ra SAI, xem report §12) |
+| 8 | `4746a8f` | Sua 1 blocker + 4 major cua audit ma nguon |
+| 9 | `51f3e30` | **Khoi phuc mojibake** + them cong `check_encoding.py` |
+| 10 | `d8fab65` | Mang ve: dong D10/D11 bang tu dien that + `pageSize` bat buoc |
+
+**Audit ma nguon doc lap: 2 vong, ca 2 deu FAIL** (vong 1: 1 blocker/4 major;
+vong 2: 1 blocker/1 major). Blocker vong 2 **do chinh toi gay ra** bang script
+mutation-test: `Get-Content -Raw` doc UTF-8 bang CP1252 roi ghi lai ban hong.
+Da them `scripts/check_encoding.py` vao `check_all.ps1` de loi nay tu do.
+
+**Gate cuoi @ `d8fab65`:** `check_all.ps1` FULL **exit 0** · `pytest-full`
+**2246 passed, 26 skipped** (baseline 2177 => **+69**) · contract 117 ·
+mypy-baseline 1266->1133 · cong moi `encoding` PASS 449 file · `ruff check tests`
+13 KNOWN-RED **khong tang**.
+
+**Mutation-test 4/4**: bo tung fix lai lan luot thi test tuong ung do (6/1/1/5).
+Khong con test xanh vi khang dinh sai.
+
+**Do lai live (khong VPN):** `scripts/probe_dnse_readonly.py` => `PASS=40 FAIL=16`,
+16 FAIL deu la probe phu dinh co chu dich. **11/11 defect da dong.**
 
 **CHUA CHAY - KHONG DUOC GHI LA PASS:**
 - **Mang DNSE production mat luc 16:40** (TLS handshake timeout 3/3 lan, 12.5s/lan).
