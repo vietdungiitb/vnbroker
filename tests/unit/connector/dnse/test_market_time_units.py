@@ -170,12 +170,32 @@ def test_public_api_leaves_real_seconds_untouched():
 
 @pytest.mark.parametrize(
     "method",
-    ["get_quotes", "get_trades", "get_expected_price", "get_foreign_trading"],
+    ["get_quotes", "get_trades", "get_expected_price", "get_foreign_trading",
+     "get_market_index"],
 )
 def test_every_paginated_method_normalises_milliseconds(method):
-    """Cả 4 endpoint đi qua `_history_query` nên phải chuẩn hoá như nhau."""
-    payload = getattr(_client(), method)(
+    """Cả 5 endpoint đi qua `_history_query` nên phải chuẩn hoá như nhau.
+
+    `get_market_index` bị **cố tình** đưa vào danh sách: nó kiểm tra ranh giới
+    ngày *trước* khi `_history_query` chạy, nên từng là chỗ hỏng — milliseconds
+    làm `datetime.fromtimestamp` nổ `OSError: [Errno 22]` thay vì đi qua bình
+    thường. Bỏ nó khỏi list là để defect đó sống sót.
+    """
+    client = _client()
+    payload = getattr(client, method)(
         "MBS", from_date=NOON_S * 1000, to_date=NOON_S * 1000, dry_run=True, raw=True
+    )
+    assert payload["query"]["from"] == NOON_S
+
+
+def test_market_index_accepts_a_datetime_where_the_api_looks_like_an_int():
+    """Cùng lý do: giá trị phi-số phải đi qua cùng một lối chuẩn hoá."""
+    payload = _client().get_market_index(
+        "VNINDEX",
+        from_date=datetime(2026, 10, 16, 15, 0, tzinfo=ICT),
+        to_date=datetime(2026, 10, 16, 15, 30, tzinfo=ICT),
+        dry_run=True,
+        raw=True,
     )
     assert payload["query"]["from"] == NOON_S
 

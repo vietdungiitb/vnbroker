@@ -5,11 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 
 
+# `phút` từng bị double-encoding UTF-8 thành một chuỗi rác không đọc được
+# (mô tả ở `scripts/check_encoding.py`). Hệ quả: assert của test này **không
+# bao giờ chạm** vào nguồn thật, vì chuỗi hỏng không khớp chuỗi đúng trong
+# code — tức bảo vệ một thứ vốn đã vô nghĩa mà vẫn xanh. Sửa 2026-10-16.
 BANNED_RUNTIME_PHRASES = (
     "rate limit exceeded",
-    "20 requests/phÃºt",
+    "20 requests/phút",
     "20 requests/minute",
-    "guest (20 requests/phÃºt)",
+    "guest (20 requests/phút)",
 )
 
 

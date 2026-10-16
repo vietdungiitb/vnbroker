@@ -2,7 +2,7 @@
 vnbroker/explorer/dnse/quote.py
 
 DNSE Quote provider - maps DNSE LightSpeed OpenAPI market data
-vÃ o giao diá»‡n chuáº©n cá»§a vnbroker (history, intraday, price_depth).
+vào giao diện chuẩn của vnbroker (history, intraday, price_depth).
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from vnbroker.core.utils.transform import normalize_ohlc_prices, normalize_intra
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Interval â†’ DNSE resolution mapping
+# Interval → DNSE resolution mapping
 # ---------------------------------------------------------------------------
 # DNSE OpenAPI /price/ohlc uses (per docs):
 # - type: "STOCK" | "DERIVATIVE" | "INDEX"
@@ -40,7 +40,7 @@ _INTERVAL_TO_RESOLUTION: dict[str, str] = {
     # Monthly not supported per docs
 }
 
-# Alias phá»• biáº¿n
+# Alias phổ biến
 _INTERVAL_ALIASES: dict[str, str] = {
     "d": "1D",
     "day": "1D",
@@ -58,10 +58,10 @@ _INTERVAL_ALIASES: dict[str, str] = {
     "30": "30",
 }
 
-# OHLC response key aliases - DNSE cÃ³ thá»ƒ tráº£ vá» nhiá»u tÃªn khÃ¡c nhau
+# OHLC response key aliases - DNSE có thể trả về nhiều tên khác nhau
 _OHLC_RESPONSE_KEYS = ("bars", "data", "items", "candles", "ohlc")
 
-# Mapping cá»™t raw â†’ standard
+# Mapping cột raw → standard
 _OHLC_COLUMN_MAP: dict[str, str] = {
     "t": "time",
     "time": "time",
@@ -99,14 +99,14 @@ _TRADES_COLUMN_MAP: dict[str, str] = {
 
 
 def _normalize_interval(interval: str) -> str:
-    """Chuáº©n hoÃ¡ chuá»—i interval vá» dáº¡ng chuáº©n ('1D', '1W', ...)."""
+    """Chuẩn hoá chuỗi interval về dạng chuẩn ('1D', '1W', ...)."""
     norm = interval.strip()
     lower = norm.lower()
     return _INTERVAL_ALIASES.get(lower, norm)
 
 
 def _to_unix_seconds(date_str: str) -> int:
-    """Convert YYYY-MM-DD string sang Unix timestamp (giÃ¢y, UTC)."""
+    """Convert YYYY-MM-DD string sang Unix timestamp (giây, UTC)."""
     dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     return int(dt.timestamp())
 
@@ -115,7 +115,7 @@ _VN_TZ = timezone(timedelta(hours=7))
 
 
 def _to_vn_day_bounds(date_str: str) -> Tuple[int, int]:
-    """Tráº£ vá» (from_ts, to_ts) Unix seconds cho 1 ngÃ y theo giá» VN (UTC+7)."""
+    """Trả về (from_ts, to_ts) Unix seconds cho 1 ngày theo giờ VN (UTC+7)."""
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     day_start = dt.replace(hour=0, minute=0, second=0, tzinfo=_VN_TZ)
     day_end = dt.replace(hour=23, minute=59, second=59, tzinfo=_VN_TZ)
@@ -137,13 +137,13 @@ def _raise_for_failover(exc: Exception, context: str) -> None:
     """
     msg = str(exc).lower()
     if isinstance(exc, (ConnectionError, TimeoutError)):
-        raise ConnectionError(f"DNSE {context} lá»—i máº¡ng: {exc}") from exc
+        raise ConnectionError(f"DNSE {context} lỗi mạng: {exc}") from exc
     if any(m in msg for m in _FAILOVER_MARKERS):
-        raise ConnectionError(f"DNSE {context} lá»—i: {exc}") from exc
+        raise ConnectionError(f"DNSE {context} lỗi: {exc}") from exc
 
 
 def _extract_ohlc_list(body: dict | list | None) -> list:
-    """TÃ¬m list OHLC bÃªn trong response body."""
+    """Tìm list OHLC bên trong response body."""
     if body is None:
         return []
     if isinstance(body, list):
@@ -162,7 +162,7 @@ def _extract_ohlc_list(body: dict | list | None) -> list:
 
 
 def _parse_ohlc(records: list) -> pd.DataFrame:
-    """Parse list raw OHLC records â†’ DataFrame chuáº©n."""
+    """Parse list raw OHLC records → DataFrame chuẩn."""
     if not records:
         return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
 
@@ -198,8 +198,8 @@ def _parse_ohlc(records: list) -> pd.DataFrame:
     # Rename columns
     df.rename(columns={k: v for k, v in _OHLC_COLUMN_MAP.items() if k in df.columns}, inplace=True)
 
-    # Convert timestamp â†’ datetime (DNSE dÃ¹ng Unix seconds, chuáº©n hÃ³a vá» giá» VN naive
-    # Ä‘á»ƒ nháº¥t quÃ¡n vá»›i VCI/KBS; trÆ°á»›c Ä‘Ã¢y tz_localize(None) ngay sau UTC gÃ¢y lá»‡ch 7h)
+    # Convert timestamp → datetime (DNSE dùng Unix seconds, chuẩn hóa về giờ VN naive
+    # để nhất quán với VCI/KBS; trước đây tz_localize(None) ngay sau UTC gây lệch 7h)
     if "time" in df.columns:
         if pd.api.types.is_numeric_dtype(df["time"]):
             df["time"] = (
@@ -211,24 +211,24 @@ def _parse_ohlc(records: list) -> pd.DataFrame:
         else:
             df["time"] = pd.to_datetime(df["time"], errors="coerce")
 
-    # Äáº£m báº£o cÃ¡c cá»™t sá»‘ Ä‘Ãºng dtype
+    # Đảm bảo các cột số đúng dtype
     for col in ("open", "high", "low", "close"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     if "volume" in df.columns:
         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").astype("Int64")
 
-    # Sáº¯p xáº¿p theo thá»i gian
+    # Sắp xếp theo thời gian
     if "time" in df.columns:
         df = df.sort_values("time").reset_index(drop=True)
 
-    # Chá»‰ giá»¯ cÃ¡c cá»™t chuáº©n
+    # Chỉ giữ các cột chuẩn
     keep = [c for c in ("time", "open", "high", "low", "close", "volume") if c in df.columns]
     return df[keep]
 
 
 def _parse_trades(records: list) -> pd.DataFrame:
-    """Parse list raw trade records â†’ DataFrame chuáº©n."""
+    """Parse list raw trade records → DataFrame chuẩn."""
     if not records:
         return pd.DataFrame(columns=["time", "price", "volume", "side"])
 
@@ -259,10 +259,10 @@ class DNSEQuote:
     """
     DNSE Quote provider.
 
-    Láº¥y dá»¯ liá»‡u giÃ¡ lá»‹ch sá»­ vÃ  giao dá»‹ch intraday tá»« DNSE LightSpeed OpenAPI.
-    Cáº§n cÃ³ DNSE_API_KEY vÃ  DNSE_API_SECRET (mÃ´i trÆ°á»ng hoáº·c tham sá»‘ trá»±c tiáº¿p).
+    Lấy dữ liệu giá lịch sử và giao dịch intraday từ DNSE LightSpeed OpenAPI.
+    Cần có DNSE_API_KEY và DNSE_API_SECRET (môi trường hoặc tham số trực tiếp).
 
-    VÃ­ dá»¥:
+    Ví dụ:
         >>> q = DNSEQuote("VNM", api_key="...", api_secret="...")
         >>> df = q.history(start="2024-01-01", end="2024-06-30")
     """
@@ -284,15 +284,15 @@ class DNSEQuote:
 
         if not resolved_key or not resolved_secret:
             raise ValueError(
-                "DNSE cáº§n api_key vÃ  api_secret. "
-                "Cung cáº¥p trá»±c tiáº¿p hoáº·c Ä‘áº·t biáº¿n mÃ´i trÆ°á»ng DNSE_API_KEY vÃ  DNSE_API_SECRET. "
-                "ÄÄƒng kÃ½ táº¡i: https://developers.dnse.com.vn/"
+                "DNSE cần api_key và api_secret. "
+                "Cung cấp trực tiếp hoặc đặt biến môi trường DNSE_API_KEY và DNSE_API_SECRET. "
+                "Đăng ký tại: https://developers.dnse.com.vn/"
             )
 
-        # TrÆ°á»›c Ä‘Ã¢y **kwargs bá»‹ nuá»‘t, nÃªn `base_url` khÃ´ng bao giá» tá»›i Ä‘Æ°á»£c
-        # DNSEClient: táº§ng explorer chá»‰ nÃ³i Ä‘Æ°á»£c vá»›i production. KhÃ´ng cÃ³
-        # cÃ¡ch nÃ o cháº¡y Ä‘Æ°á»ng nÃ y trÃªn sandbox Ä‘á»ƒ kiá»ƒm chá»©ng báº±ng dá»¯ liá»‡u tháº­t.
-        # Chá»‰ truyá»n cÃ¡c khoÃ¡ DNSEClient tháº­t sá»± nháº­n, pháº§n cÃ²n láº¡i bá» qua.
+        # Trước đây **kwargs bị nuốt, nên `base_url` không bao giờ tới được
+        # DNSEClient: tầng explorer chỉ nói được với production. Không có
+        # cách nào chạy đường này trên sandbox để kiểm chứng bằng dữ liệu thật.
+        # Chỉ truyền các khoá DNSEClient thật sự nhận, phần còn lại bỏ qua.
         _client_opts = {
             key: kwargs[key]
             for key in ("base_url", "timeout_seconds", "api_version", "algorithm")
@@ -318,16 +318,16 @@ class DNSEQuote:
         **kwargs,
     ) -> pd.DataFrame:
         """
-        Láº¥y dá»¯ liá»‡u OHLCV lá»‹ch sá»­ tá»« DNSE.
+        Lấy dữ liệu OHLCV lịch sử từ DNSE.
 
-        Tham sá»‘:
-            symbol (str, tÃ¹y chá»n): MÃ£ CK. Máº·c Ä‘á»‹nh lÃ  symbol khá»Ÿi táº¡o.
-            start (str): NgÃ y báº¯t Ä‘áº§u 'YYYY-MM-DD'. Máº·c Ä‘á»‹nh '2024-01-01'.
-            end (str, tÃ¹y chá»n): NgÃ y káº¿t thÃºc 'YYYY-MM-DD'. Máº·c Ä‘á»‹nh hÃ´m nay.
-            interval (str): Khung thá»i gian '1D','1W','1M','1H','1m','5m','15m','30m'.
+        Tham số:
+            symbol (str, tùy chọn): Mã CK. Mặc định là symbol khởi tạo.
+            start (str): Ngày bắt đầu 'YYYY-MM-DD'. Mặc định '2024-01-01'.
+            end (str, tùy chọn): Ngày kết thúc 'YYYY-MM-DD'. Mặc định hôm nay.
+            interval (str): Khung thời gian '1D','1W','1M','1H','1m','5m','15m','30m'.
 
-        Tráº£ vá»:
-            pd.DataFrame vá»›i cá»™t: time, open, high, low, close, volume
+        Trả về:
+            pd.DataFrame với cột: time, open, high, low, close, volume
         """
         sym = (symbol or self.symbol).upper()
         if not end:
@@ -337,7 +337,7 @@ class DNSEQuote:
         resolution = _INTERVAL_TO_RESOLUTION.get(normalized, "1D")
 
         from_ts = _to_unix_seconds(start)
-        to_ts = _to_unix_seconds(end) + 86399  # Ä‘áº¿n cuá»‘i ngÃ y end
+        to_ts = _to_unix_seconds(end) + 86399  # đến cuối ngày end
 
         asset_type = get_asset_type(sym)
         type_param = "STOCK"
@@ -358,7 +358,7 @@ class DNSEQuote:
             _, body = self._market.get_ohlc(bar_type=resolution, query=query)
         except Exception as exc:
             _raise_for_failover(exc, "get_ohlc")
-            logger.warning("DNSE get_ohlc lá»—i: %s", exc)
+            logger.warning("DNSE get_ohlc lỗi: %s", exc)
             return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
 
         records = _extract_ohlc_list(body)
@@ -372,11 +372,11 @@ class DNSEQuote:
         df.attrs["source"] = "DNSE"
         df.attrs["interval"] = normalized
         if self.show_log:
-            logger.info("DNSE history: %s rows, symbol=%s, %sâ†’%s", len(df), sym, start, end)
+            logger.info("DNSE history: %s rows, symbol=%s, %s→%s", len(df), sym, start, end)
         return df
 
     # ------------------------------------------------------------------
-    # intraday  (há»— trá»£ tape lá»‹ch sá»­ theo ngÃ y)
+    # intraday  (hỗ trợ tape lịch sử theo ngày)
     # ------------------------------------------------------------------
     def intraday(
         self,
@@ -391,40 +391,40 @@ class DNSEQuote:
         **kwargs,
     ) -> pd.DataFrame:
         """
-        Láº¥y dá»¯ liá»‡u lá»‹ch sá»­ khá»›p lá»‡nh (tape) tá»« DNSE LightSpeed OpenAPI.
+        Lấy dữ liệu lịch sử khớp lệnh (tape) từ DNSE LightSpeed OpenAPI.
 
-        Há»— trá»£ cáº£ tape phiÃªn hiá»‡n táº¡i láº«n lá»‹ch sá»­ theo ngÃ y.
+        Hỗ trợ cả tape phiên hiện tại lẫn lịch sử theo ngày.
 
-        Tham sá»‘:
-            symbol (str): MÃ£ CK. Máº·c Ä‘á»‹nh lÃ  symbol khá»Ÿi táº¡o.
-            date (str): NgÃ y cá»¥ thá»ƒ 'YYYY-MM-DD'. Láº¥y toÃ n bá»™ tape 1 ngÃ y.
-            start (str): NgÃ y báº¯t Ä‘áº§u 'YYYY-MM-DD' cho khoáº£ng ngÃ y.
-            end (str): NgÃ y káº¿t thÃºc 'YYYY-MM-DD' cho khoáº£ng ngÃ y.
-                       Máº·c Ä‘á»‹nh lÃ  hÃ´m nay náº¿u start Ä‘Æ°á»£c cung cáº¥p.
-            page_size (int): Sá»‘ lá»‡nh tá»‘i Ä‘a má»—i request API.
-                             Máº·c Ä‘á»‹nh 10 000 khi cÃ³ date/start, 100 cho phiÃªn hiá»‡n táº¡i.
-            get_all (bool): Tá»± Ä‘á»™ng phÃ¢n trang qua nextPageToken Ä‘á»ƒ láº¥y toÃ n bá»™ dá»¯ liá»‡u.
-                            Máº·c Ä‘á»‹nh False.
-            order (str): Thá»© tá»± sáº¯p xáº¿p 'asc' (cÅ©â†’má»›i) hoáº·c 'desc' (má»›iâ†’cÅ©).
-                         Máº·c Ä‘á»‹nh 'asc'.
-            show_log (bool): Ghi log. Máº·c Ä‘á»‹nh káº¿ thá»«a tá»« __init__.
+        Tham số:
+            symbol (str): Mã CK. Mặc định là symbol khởi tạo.
+            date (str): Ngày cụ thể 'YYYY-MM-DD'. Lấy toàn bộ tape 1 ngày.
+            start (str): Ngày bắt đầu 'YYYY-MM-DD' cho khoảng ngày.
+            end (str): Ngày kết thúc 'YYYY-MM-DD' cho khoảng ngày.
+                       Mặc định là hôm nay nếu start được cung cấp.
+            page_size (int): Số lệnh tối đa mỗi request API.
+                             Mặc định 10 000 khi có date/start, 100 cho phiên hiện tại.
+            get_all (bool): Tự động phân trang qua nextPageToken để lấy toàn bộ dữ liệu.
+                            Mặc định False.
+            order (str): Thứ tự sắp xếp 'asc' (cũ→mới) hoặc 'desc' (mới→cũ).
+                         Mặc định 'asc'.
+            show_log (bool): Ghi log. Mặc định kế thừa từ __init__.
 
-        Tráº£ vá»:
-            pd.DataFrame vá»›i cá»™t: time, price, volume, side
+        Trả về:
+            pd.DataFrame với cột: time, price, volume, side
 
-        VÃ­ dá»¥:
+        Ví dụ:
             >>> q = DNSEQuote("ACB", api_key="...", api_secret="...")
-            # Tape phiÃªn hiá»‡n táº¡i (100 lá»‡nh gáº§n nháº¥t)
+            # Tape phiên hiện tại (100 lệnh gần nhất)
             >>> df = q.intraday()
-            # ToÃ n bá»™ tape ngÃ y 2026-05-15
+            # Toàn bộ tape ngày 2026-05-15
             >>> df = q.intraday(date="2026-05-15", get_all=True)
-            # Tape tá»« 2026-05-12 Ä‘áº¿n 2026-05-16
+            # Tape từ 2026-05-12 đến 2026-05-16
             >>> df = q.intraday(start="2026-05-12", end="2026-05-16", get_all=True)
         """
         sym = (symbol or self.symbol).upper()
         _show = show_log if show_log is not None else self.show_log
 
-        # --- Resolve date range â†’ Unix timestamps (VN timezone UTC+7) ---
+        # --- Resolve date range → Unix timestamps (VN timezone UTC+7) ---
         from_ts: Optional[int] = None
         to_ts: Optional[int] = None
 
@@ -440,7 +440,7 @@ class DNSEQuote:
             # Live session: default to today's full day (API requires 'from')
             from_ts, to_ts = _to_vn_day_bounds(today_str)
 
-        # --- Auto page_size (DNSE limit: 1â€“1000) ---
+        # --- Auto page_size (DNSE limit: 1–1000) ---
         if page_size is None:
             page_size = 1000 if (date or start) else 100
         page_size = min(page_size, 1000)  # hard cap
@@ -460,14 +460,14 @@ class DNSEQuote:
                     next_page_token=next_token,
                 )
             except Exception as exc:
-                # Failover cho lá»—i máº¡ng/auth; 404 empty (live trades chÆ°a á»•n Ä‘á»‹nh)
-                # váº«n tráº£ empty best-effort Ä‘á»ƒ khÃ´ng fail cá»©ng.
+                # Failover cho lỗi mạng/auth; 404 empty (live trades chưa ổn định)
+                # vẫn trả empty best-effort để không fail cứng.
                 try:
                     _raise_for_failover(exc, "get_trades")
                 except ConnectionError:
                     if not all_records:
                         raise
-                logger.warning("DNSE get_trades lá»—i: %s", exc)
+                logger.warning("DNSE get_trades lỗi: %s", exc)
                 break
 
             if body is None:
@@ -519,26 +519,26 @@ class DNSEQuote:
         **kwargs,
     ) -> pd.DataFrame:
         """
-        Tráº£ vá» thÃ´ng tin security definition tá»« DNSE (dÃ¹ng thay tháº¿ price_depth cÆ¡ báº£n).
+        Trả về thông tin security definition từ DNSE (dùng thay thế price_depth cơ bản).
 
-        Tham sá»‘:
-            symbol (str, tÃ¹y chá»n): MÃ£ CK.
+        Tham số:
+            symbol (str, tùy chọn): Mã CK.
 
-        Tráº£ vá»:
-            pd.DataFrame vá»›i thÃ´ng tin Ä‘á»‹nh nghÄ©a chá»©ng khoÃ¡n.
+        Trả về:
+            pd.DataFrame với thông tin định nghĩa chứng khoán.
 
         Raises:
-            Lá»—i váº­n chuyá»ƒn/HTTP Ä‘Æ°á»£c **nÃ©m nguyÃªn váº¹n** â€” trÆ°á»›c Ä‘Ã¢y hÃ m báº¯t
-            ``Exception`` rá»“i tráº£ ``DataFrame()``, biáº¿n "DNSE khÃ´ng tráº£ lá»i"
-            thÃ nh "hÃ´m nay khÃ´ng cÃ³ giao dá»‹ch". NgÆ°á»i dÃ¹ng Ä‘á»c ``len(df) == 0``
-            sáº½ káº¿t luáº­n sai nguyÃªn nhÃ¢n.
-            EmptyProviderResult: provider tráº£ vá» rá»—ng. ÄÃ¢y lÃ  trÆ°á»ng há»£p
-            "khÃ´ng pháº£i lá»—i nhÆ°ng cÅ©ng khÃ´ng dÃ¹ng Ä‘Æ°á»£c", theo Ä‘Ãºng ranh giá»›i
-            Ä‘Ã£ Ä‘á»‹nh nghÄ©a á»Ÿ `common/data.py:442`.
+            Lỗi vận chuyển/HTTP được **ném nguyên vẹn** — trước đây hàm bắt
+            ``Exception`` rồi trả ``DataFrame()``, biến "DNSE không trả lời"
+            thành "hôm nay không có giao dịch". Người dùng đọc ``len(df) == 0``
+            sẽ kết luận sai nguyên nhân.
+            EmptyProviderResult: provider trả về rỗng. Đây là trường hợp
+            "không phải lỗi nhưng cũng không dùng được", theo đúng ranh giới
+            đã định nghĩa ở `common/data.py:442`.
         """
         sym = (symbol or self.symbol).upper()
-        # KhÃ´ng báº¯t lá»—i á»Ÿ Ä‘Ã¢y: `should_failover` cáº§n nhÃ¬n tháº¥y loáº¡i lá»—i Ä‘á»ƒ
-        # quyáº¿t Ä‘á»‹nh cÃ³ xoay sang provider khÃ¡c hay khÃ´ng.
+        # Không bắt lỗi ở đây: `should_failover` cần nhìn thấy loại lỗi để
+        # quyết định có xoay sang provider khác hay không.
         _, body = self._market.get_security_definition(symbol=sym)
 
         if body is None:
@@ -564,19 +564,19 @@ class DNSEQuote:
 
     def close_price(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """
-        Láº¥y giÃ¡ Ä‘Ã³ng cá»­a má»›i nháº¥t cho má»™t mÃ£ chá»©ng khoÃ¡n.
+        Lấy giá đóng cửa mới nhất cho một mã chứng khoán.
 
-        Tham sá»‘:
-            symbol (str, tÃ¹y chá»n): MÃ£ CK. Máº·c Ä‘á»‹nh lÃ  symbol khá»Ÿi táº¡o.
+        Tham số:
+            symbol (str, tùy chọn): Mã CK. Mặc định là symbol khởi tạo.
 
-        Tráº£ vá»:
-            pd.DataFrame vá»›i thÃ´ng tin giÃ¡ Ä‘Ã³ng cá»­a.
+        Trả về:
+            pd.DataFrame với thông tin giá đóng cửa.
         """
         sym = (symbol or self.symbol).upper()
         try:
             _, body = self._market.get_close_price(symbol=sym)
         except Exception as exc:
-            logger.warning("DNSE get_close_price lá»—i: %s", exc)
+            logger.warning("DNSE get_close_price lỗi: %s", exc)
             return pd.DataFrame()
 
         if body is None:
@@ -589,19 +589,19 @@ class DNSEQuote:
 
     def latest_trade(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """
-        Láº¥y giao dá»‹ch má»›i nháº¥t cho má»™t mÃ£ chá»©ng khoÃ¡n.
+        Lấy giao dịch mới nhất cho một mã chứng khoán.
 
-        Tham sá»‘:
-            symbol (str, tÃ¹y chá»n): MÃ£ CK. Máº·c Ä‘á»‹nh lÃ  symbol khá»Ÿi táº¡o.
+        Tham số:
+            symbol (str, tùy chọn): Mã CK. Mặc định là symbol khởi tạo.
 
-        Tráº£ vá»:
-            pd.DataFrame vá»›i thÃ´ng tin giao dá»‹ch má»›i nháº¥t.
+        Trả về:
+            pd.DataFrame với thông tin giao dịch mới nhất.
         """
         sym = (symbol or self.symbol).upper()
         try:
             _, body = self._market.get_latest_trade(symbol=sym)
         except Exception as exc:
-            logger.warning("DNSE get_latest_trade lá»—i: %s", exc)
+            logger.warning("DNSE get_latest_trade lỗi: %s", exc)
             return pd.DataFrame()
 
         if body is None:
@@ -614,41 +614,46 @@ class DNSEQuote:
 
     def working_dates(self) -> pd.DataFrame:
         """
-        Láº¥y danh sÃ¡ch ngÃ y giao dá»‹ch (working dates) tá»« DNSE.
+        Lấy danh sách ngày giao dịch (working dates) từ DNSE.
 
-        âš  **ÄÃ¢y lÃ  lá»i gá»i NETWORK THáº¬T** sang `GET /market/working-dates`.
+        ⚠ **Đây là lời gọi NETWORK THẬT** sang `GET /market/working-dates`.
 
-        TrÆ°á»›c 2026-10-16 method nÃ y tráº£ DataFrame rá»—ng ngay láº­p tá»©c (0ms) vÃ¬
-        táº§ng connector tráº£ vá» háº±ng cá»©ng â€” trÃ´ng nhÆ° "khÃ´ng cÃ³ ngÃ y giao dá»‹ch"
-        trong khi chÆ°a tá»«ng há»i server. Nay nÃ³ gá»i tháº­t. Há»‡ quáº£ cáº§n biáº¿t:
+        Trước 2026-10-16 method này trả DataFrame rỗng ngay lập tức (0ms) vì
+        tầng connector trả về hằng cứng — trông như "không có ngày giao dịch"
+        trong khi chưa từng hỏi server. Nay nó gọi thật. Hệ quả cần biết:
 
-        - TrÃªn **sandbox** (`sb-openapi.dnse.com.vn`) path `/market/*` tráº£ 404
-          â‡’ rÆ¡i vÃ o `except` vÃ  tráº£ DataFrame rá»—ng kÃ¨m `logger.warning`.
-        - VÃ¬ váº­y DataFrame rá»—ng á»Ÿ Ä‘Ã¢y **khÃ´ng chá»©ng minh** lÃ  khÃ´ng cÃ³ ngÃ y giao
-          dá»‹ch. Muá»‘n biáº¿t cháº¯c thÃ¬ Ä‘á»c log, hoáº·c gá»i tháº³ng
+        - Trên **sandbox** (`sb-openapi.dnse.com.vn`) path `/market/*` trả 404
+          ⇒ rơi vào `except` và trả DataFrame rỗng kèm `logger.warning`.
+        - Vì vậy DataFrame rỗng ở đây **không chứng minh** là không có ngày giao
+          dịch. Muốn biết chắc thì đọc log, hoặc gọi thẳng
           `DNSEClient.get_working_dates()`.
 
-        Tráº£ vá»:
-            pd.DataFrame **má»™t dÃ²ng cho má»—i ngÃ y giao dá»‹ch**, cá»™t ``workingDates``.
+        Trả về:
+            pd.DataFrame **một dòng cho mỗi ngày giao dịch**, cột ``workingDates``.
         """
         try:
             _, body = self._market.get_working_dates()
         except Exception as exc:
             logger.warning(
-                "DNSE get_working_dates lá»—i (%s) â€” tráº£ rá»—ng. Rá»—ng KHÃ”NG cÃ³ nghÄ©a "
-                "lÃ  khÃ´ng cÃ³ ngÃ y giao dá»‹ch; xem endpoint /market/working-dates.",
+                "DNSE get_working_dates lỗi (%s) — trả rỗng. Rỗng KHÔNG có nghĩa "
+                "là không có ngày giao dịch; xem endpoint /market/working-dates.",
                 exc,
             )
             return pd.DataFrame()
 
         if body is None:
             return pd.DataFrame()
-        # Äi qua `normalize_payload` chá»© khÃ´ng `pd.json_normalize(body)` trá»±c tiáº¿p:
-        # `json_normalize` trÃªn dict cÃ³ `workingDates` lÃ  list-of-scalar cho
-        # DataFrame **Má»˜T dÃ²ng** vá»›i má»™t cell chá»©a cáº£ 257 ngÃ y â€” Ä‘Ãºng hÃ¬nh thá»©c
-        # "thÃ nh cÃ´ng rá»—ng" mÃ  lÃ¡t B sinh ra Ä‘á»ƒ chá»¯a. `normalize_payload` dÃ¹ng
-        # chung `_to_dataframe` cá»§a connector nÃªn tÃ¡ch Ä‘Ãºng má»™t dÃ²ng má»—i ngÃ y.
-        return self._client.normalize_payload(body)
+        # Đi qua `normalize_payload` chứ không `pd.json_normalize(body)` trực tiếp:
+        # `json_normalize` trên dict có `workingDates` là list-of-scalar cho
+        # DataFrame **MỘT dòng** với một cell chứa cả 257 ngày — đúng hình thức
+        # "thành công rỗng" mà lát B sinh ra để chữa. `normalize_payload` dùng
+        # chung `_to_dataframe` của connector nên tách đúng một dòng mỗi ngày.
+        #
+        # `normalize_payload` là pass-through với mọi thứ không phải dict/list,
+        # nên phải chốt lại kiểu: method khai `-> pd.DataFrame`, trả `str`/`int`
+        # sẽ làm người gọi gặp `TypeError` khi `len(df)` hay `df.empty`.
+        result = self._client.normalize_payload(body)
+        return result if isinstance(result, pd.DataFrame) else pd.DataFrame()
 
     # ------------------------------------------------------------------
     # fetch_multiple (bulk operations)
@@ -679,8 +684,8 @@ class DNSEQuote:
         def _fetch_one(symbol: str) -> Optional[pd.DataFrame]:
             try:
                 quote = cls(symbol=symbol, show_log=show_log)
-                # `history` tá»± cÃ³ default cho `start`; chá»‰ truyá»n khi caller
-                # thá»±c sá»± chá»‰ Ä‘á»‹nh, Ä‘á»ƒ khÃ´ng ghi Ä‘Ã¨ default báº±ng None.
+                # `history` tự có default cho `start`; chỉ truyền khi caller
+                # thực sự chỉ định, để không ghi đè default bằng None.
                 history_kwargs: Dict[str, Any] = {"end": end, "interval": interval}
                 if start is not None:
                     history_kwargs["start"] = start

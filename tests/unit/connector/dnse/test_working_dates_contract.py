@@ -1,27 +1,33 @@
-﻿"""Slice B â€” `get_working_dates` pháº£i gá»i endpoint tháº­t, khÃ´ng tráº£ "thÃ nh cÃ´ng rá»—ng".
+﻿"""Slice B — `get_working_dates` phải gọi endpoint thật, không trả "thành công rỗng".
 
-Káº¿ hoáº¡ch: `docs/PLAN_DNSE_FIX_20261016.md` Â§5 lÃ¡t B. Báº±ng chá»©ng D1.
+Kế hoạch: `docs/PLAN_DNSE_FIX_20261016.md` §5 lát B. Bằng chứng D1.
 
-**Defect (Ä‘o):** `services/market_service.py` tráº£ `({"dates": []}, None)` â€” khÃ´ng
-gá»i network, tá»‘n 0ms. `_resolve_output` unpack `(status, body)` nÃªn láº¥y nháº§m
-`body = None`. NgÆ°á»i gá»i tháº¥y "khÃ´ng cÃ³ ngÃ y giao dá»‹ch nÃ o" thay vÃ¬ "chÆ°a ai há»i
-server" â€” Ä‘Ãºng máº«u fail-open mÃ  `docs/LESSONS/broker-risk.md` Ä‘Ã£ ghi (L-R01).
+**Defect (đo):** `services/market_service.py` trả một tuple hằng `({"dates": []},
+None)` — không gọi network, tốn 0ms. `_resolve_output` unpack `(status, body)`
+nên lấy nhầm `body = None`. Người gọi thấy "không có ngày giao dịch nào" thay vì
+"chưa ai hỏi server" — đúng mẫu fail-open mà `docs/LESSONS/broker-risk.md` đã
+ghi (L-R01).
 
-**Docstring trong code nÃ³i sai:** *"DNSE OpenAPI does not have a dedicated
-working-dates endpoint."* Äo production 2026-10-16 (khÃ´ng VPN):
+**Docstring trong code nói sai:** *"DNSE OpenAPI does not have a dedicated
+working-dates endpoint."* Đo production 2026-10-16 (không VPN):
 
-    GET /market/working-dates -> 200, {"workingDates": [257 pháº§n tá»­]}
+    GET /market/working-dates -> 200, {"workingDates": [257 phần tử]}
 
-NÃªn Ä‘Ã¢y lÃ  **path sai / thiáº¿u**, khÃ´ng pháº£i endpoint khÃ´ng tá»“n táº¡i.
+Nên đây là **path sai / thiếu**, không phải endpoint không tồn tại.
 
-Hai lá»—i phÃ¡i sinh cÅ©ng Ä‘Æ°á»£c khÃ³a á»Ÿ Ä‘Ã¢y:
+Ba lỗi phái sinh cũng được khóa ở đây:
 
-1. `_to_dataframe` khÃ´ng cÃ³ `workingDates` trong danh sÃ¡ch key â‡’ `raw=False` tráº£
-   DataFrame **1 dÃ²ng** chá»©a má»™t cell lÃ  list. ÄÃ³ lÃ  bug gá»‘c Ä‘Æ°á»£c tÃ¡i táº¡o dÆ°á»›i
-   hÃ¬nh dáº¡ng khÃ¡c â€” náº¿u chá»‰ sá»­a path thÃ¬ sá»­a báº±ng má»™t lá»—i khÃ¡c.
-2. `explorer/dnse/quote.py::working_dates` nay sáº½ **gá»i network tháº­t**; trÃªn
-   sandbox `/market/*` lÃ  404 nÃªn nÃ³ rÆ¡i vÃ o `except` vÃ  tráº£ DataFrame rá»—ng
-   **im láº·ng** â€” Ä‘Ãºng kiá»ƒu im láº·ng mÃ  lÃ¡t nÃ y sinh ra Ä‘á»ƒ chá»¯a.
+1. `_to_dataframe` không có `workingDates` trong danh sách key ⇒ `raw=False` trả
+   DataFrame **1 dòng** chứa một cell là list. Đó là bug gốc được tái tạo dưới
+   hình dạng khác — nếu chỉ sửa path thì sửa bằng một lỗi khác.
+2. **Tầng explorer cũng phải tách dòng.** `DNSEQuote.working_dates` từng gọi
+   `pd.json_normalize(body)` trực tiếp ⇒ shape `(1, 1)` thay vì `(3, 1)`, trong
+   khi `DNSEClient._to_dataframe` cho `(3, 1)`. Đây chính là hình thức "thành
+   công rỗng" mà lát B sinh ra để chữa, chỉ là ở tầng khác — audit code đã bắt
+   được sau khi nó đã được viết ra docstring là đã xử lý.
+3. `explorer/dnse/quote.py::working_dates` nay sẽ **gọi network thật**; trên
+   sandbox `/market/*` là 404 nên nó rơi vào `except` và trả DataFrame rỗng
+   **im lặng** — đúng kiểu im lặng mà lát này sinh ra để chữa.
 """
 from __future__ import annotations
 
@@ -36,7 +42,26 @@ def _client() -> DNSEClient:
     return DNSEClient(api_key="k", api_secret="s")
 
 
-# --- AC-B1: path tháº­t, khÃ´ng mang theo marketType ---------------------------
+def _explorer(symbol: str = "HPG") -> DNSEQuote:
+    return DNSEQuote(symbol=symbol, api_key="k", api_secret="s")
+
+
+class _StubMarket:
+    """Thay `_market` bằng object trả sẵn payload — không chạm network."""
+
+    def __init__(self, body: object) -> None:
+        self._body = body
+
+    def get_working_dates(self, *_args, **_kwargs):
+        return None, self._body
+
+
+class _BoomMarket:
+    def get_working_dates(self, *_args, **_kwargs):
+        raise RuntimeError("404 not found")
+
+
+# --- AC-B1: path thật, không mang theo marketType ---------------------------
 
 
 def test_working_dates_calls_the_documented_endpoint():
@@ -46,23 +71,23 @@ def test_working_dates_calls_the_documented_endpoint():
 
 
 def test_working_dates_sends_no_query_at_all():
-    """Äo production: thÃªm `marketType` â‡’ 404. Endpoint nÃ y khÃ´ng cháº¥p nháº­n nÃ³.
+    """Đo production: thêm `marketType` ⇒ 404. Endpoint này không chấp nhận nó.
 
-    Gá»­i `marketType=None` thÃ¬ khÃ´ng pháº£i 404, nhÆ°ng váº«n lÃ  má»™t tham sá»‘ khÃ´ng cÃ³
-    trong há»£p Ä‘á»“ng. Rá»—ng lÃ  tráº¡ng thÃ¡i Ä‘Ãºng.
+    Gửi `marketType=None` thì không phải 404, nhưng vẫn là một tham số không có
+    trong hợp đồng. Rỗng là trạng thái đúng.
     """
     payload = _client().get_working_dates(dry_run=True, raw=True)
     assert payload["query"] == {}
 
 
 def test_working_dates_no_longer_returns_a_hardcoded_empty_tuple():
-    """Cháº·n Ä‘Ãºng cÃ¡i bug tuple-order: `body` pháº£i lÃ  envelope cá»§a dry-run."""
+    """Chặn đúng cái bug tuple-order: `body` phải là envelope của dry-run."""
     status, body = _client()._market.get_working_dates(dry_run=True)
-    assert status is None, "dry-run khÃ´ng Ä‘Æ°á»£c cÃ³ HTTP status"
-    assert isinstance(body, dict), f"body pháº£i lÃ  dict, nháº­n {type(body).__name__}"
+    assert status is None, "dry-run không được có HTTP status"
+    assert isinstance(body, dict), f"body phải là dict, nhận {type(body).__name__}"
 
 
-# --- AC-B2: raw=False pháº£i ra NHIá»€U DÃ’NG, khÃ´ng pháº£i 1 dÃ²ng ---------------
+# --- AC-B2: raw=False phải ra NHIỀU DÒNG, không phải 1 dòng ---------------
 
 
 def test_to_dataframe_unwraps_working_dates_instead_of_keeping_one_row():
@@ -70,71 +95,25 @@ def test_to_dataframe_unwraps_working_dates_instead_of_keeping_one_row():
     frame = DNSEClient._to_dataframe(payload)
     assert isinstance(frame, pd.DataFrame)
     assert len(frame) == 2, (
-        "1 dÃ²ng nghÄ©a lÃ  payload bá»‹ bá»c láº¡i nguyÃªn khá»‘i â€” "
-        "json_normalize trÃªn dict khÃ´ng tÃ¡ch list ra Ä‘Æ°á»£c"
+        "1 dòng nghĩa là payload bị bọc lại nguyên khối — "
+        "json_normalize trên dict không tách list ra được"
     )
     assert "workingDates" in frame.columns
 
 
 def test_raw_false_returns_one_row_per_trading_day():
-    client = _client()
-    frame = client._to_dataframe({"workingDates": ["2026-01-05", "2026-01-06", "2026-01-07"]})
+    frame = DNSEClient._to_dataframe(
+        {"workingDates": ["2026-01-05", "2026-01-06", "2026-01-07"]}
+    )
     assert len(frame) == 3
 
 
-# --- AC-B3: táº§ng explorer khÃ´ng Ä‘Æ°á»£c im láº·ng nuá»‘t lá»—i ----------------------
-
-
-def test_explorer_working_dates_docstring_says_it_hits_the_network():
-    """Nay method nÃ y gá»i server. Docstring pháº£i nÃ³i, Ä‘á»ƒ ngÆ°á»i Ä‘á»c khÃ´ng giáº£
-    Ä‘á»‹nh nÃ³ ráº» vÃ  khÃ´ng giáº£ Ä‘á»‹nh nÃ³ miá»…n phÃ­ khi sandbox tráº£ 404."""
-    doc = DNSEQuote.working_dates.__doc__ or ""
-    assert doc.strip(), "working_dates khÃ´ng cÃ³ docstring"
-    lowered = doc.lower()
-    assert "network" in lowered or "server" in lowered, (
-        "docstring pháº£i nÃ³i rÃµ Ä‘Ã¢y lÃ  lá»i gá»i network tháº­t"
-    )
-
-
-def test_explorer_working_dates_is_not_declared_but_unsupported():
-    """Chá»‘t D1 theo hÆ°á»›ng ngÆ°á»£c láº¡i cá»§a láº§n Ä‘o Ä‘áº§u tiÃªn.
-
-    Äá»£t probe Ä‘áº§u káº¿t luáº­n 'server khÃ´ng cÃ³ endpoint' nÃªn phÆ°Æ¡ng Ã¡n lÃºc Ä‘Ã³ lÃ  bá»
-    method. Äo láº¡i Ä‘Ã£ bÃ¡c bá». Test nÃ y Ä‘á»ƒ láº¡i Ä‘Æ°á»ng quyá»n: náº¿u má»™t Ä‘á»£t sau láº¡i
-    xÃ¡c Ä‘á»‹nh endpoint cháº¿t, hÃ£y sá»­a **kÃ¨m báº±ng chá»©ng**, Ä‘á»«ng Ã¢m tháº§m bÃ¡o
-    unsupported.
-    """
-    payload = _client().get_working_dates(dry_run=True, raw=True)
-    assert payload["url"].endswith("/market/working-dates")
-
-
-# --- há»£p Ä‘á»“ng cáº¥u trÃºc Ä‘áº§u ra ---------------------------------------------
-
-
-# --- AC-B3 (bổ sung sau audit #1): TẦNG EXPLORER cũng phải tách dòng -------
-#
-# Lát B ban đầu chỉ sửa `client.py`, còn `DNSEQuote.working_dates` vẫn gọi
-# `pd.json_normalize(body)` trực tiếp ⇒ (1, 1) thay vì (3, 1). Đó chính là
-# hình thức "thành công rỗng" mà lát B sinh ra để chữa, chỉ là ở tầng khác.
-
-
-def _explorer_with_body(body: object) -> DNSEQuote:
-    """Dựng explorer với `_market.get_working_dates` trả sẵn payload."""
-    quote = DNSEQuote(symbol="HPG", api_key="k", api_secret="s")
-    quote._market = _StubMarket(body)
-    return quote
-
-
-class _StubMarket:
-    def __init__(self, body: object) -> None:
-        self._body = body
-
-    def get_working_dates(self, *_args, **_kwargs):
-        return None, self._body
+# --- AC-B3: TẦNG EXPLORER cũng phải tách dòng ------------------------------
 
 
 def test_explorer_returns_one_row_per_trading_day():
-    quote = _explorer_with_body({"workingDates": ["2026-10-14", "2026-10-15", "2026-10-16"]})
+    quote = _explorer()
+    quote._market = _StubMarket({"workingDates": ["2026-10-14", "2026-10-15", "2026-10-16"]})
     frame = quote.working_dates()
     assert len(frame) == 3, (
         f"phải một dòng mỗi ngày, nhận {len(frame)} — "
@@ -144,25 +123,44 @@ def test_explorer_returns_one_row_per_trading_day():
 
 def test_explorer_does_not_regress_to_a_single_row():
     """Chốt lại: đây là hồi quy đã xảy ra một lần, không được xảy ra lần hai."""
-    quote = _explorer_with_body({"workingDates": ["2026-01-05", "2026-01-06"]})
+    quote = _explorer()
+    quote._market = _StubMarket({"workingDates": ["2026-01-05", "2026-01-06"]})
     frame = quote.working_dates()
-    first_cell = frame.iloc[0, 0]
-    assert not isinstance(first_cell, list), (
+    assert not isinstance(frame.iloc[0, 0], list), (
         "cell đầu vẫn là list ⇒ đã quay lại json_normalize trực tiếp"
     )
 
 
-def test_explorer_returns_empty_frame_on_error_and_says_why():
-    """Lỗi phải ra log, không ra DataFrame rỗng im lặng (L-R01)."""
+def test_explorer_returns_empty_frame_on_error():
+    """Lỗi phải ra DataFrame rỗng kèm log, không được ném lỗi lên người gọi."""
+    quote = _explorer()
+    quote._market = _BoomMarket()
+    assert quote.working_dates().empty
 
-    class _Boom:
-        def get_working_dates(self, *_a, **_k):
-            raise RuntimeError("404 not found")
 
-    quote = DNSEQuote(symbol="HPG", api_key="k", api_secret="s")
-    quote._market = _Boom()
-    frame = quote.working_dates()
-    assert frame.empty
+def test_explorer_always_returns_a_dataframe_even_for_a_scalar_body():
+    """`normalize_payload` là pass-through với mọi thứ không phải dict/list.
+
+    Method khai `-> pd.DataFrame`; nếu server trả về thứ lạ thì phải vẫn ra
+    DataFrame, không được trả `str` rồi để người gọi gặp `TypeError` khi
+    `len(df)`.
+    """
+    quote = _explorer()
+    quote._market = _StubMarket("2026-10-16")
+    assert isinstance(quote.working_dates(), pd.DataFrame)
+
+
+def test_explorer_docstring_says_it_hits_the_network():
+    """Nay method này gọi server. Docstring phải nói, để người đọc không giả
+    định nó rẻ và không giả định nó miễn phí khi sandbox trả 404."""
+    doc = DNSEQuote.working_dates.__doc__ or ""
+    lowered = doc.lower()
+    assert "network" in lowered or "server" in lowered, (
+        "docstring phải nói rõ đây là lời gọi network thật"
+    )
+
+
+# --- hợp đồng cấu trúc đầu ra ----------------------------------------------
 
 
 def test_working_dates_column_is_stable_for_downstream_code():
@@ -175,4 +173,3 @@ def test_working_dates_column_is_stable_for_downstream_code():
 def test_empty_or_missing_list_does_not_raise(payload):
     frame = DNSEClient._to_dataframe(payload)
     assert isinstance(frame, pd.DataFrame)
-
