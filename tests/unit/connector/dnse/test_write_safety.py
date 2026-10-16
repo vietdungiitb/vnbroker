@@ -30,7 +30,22 @@ import pytest
 from vnbroker.connector.dnse.trade import Trade
 
 ROOT = Path(__file__).resolve().parents[4]
-TRADE_PY = ROOT / "vnbroker" / "connector" / "dnse" / "trade.py"
+DNSE_DIR = ROOT / "vnbroker" / "connector" / "dnse"
+TRADE_PY = DNSE_DIR / "trade.py"
+
+#: `Trade` da tach 2026-10-16 (1352 -> 4 file). Quet AST **khong** duoc chi
+#: nhin `trade.py`: 2 method ghi tien that (`deposit_derivative_margin`,
+#: `withdraw_derivative_margin`) nay nam trong `DerivativeMixin`.
+#:
+#: Day la bao ve **money lane**. Hep pham vi o day = lo hong, nen phai quet
+#: **moi** module dinh nghia method cua `Trade`. Them file ma quen khai bao
+#: o day thi test im lang bo sot.
+TRADE_MODULES = [
+    DNSE_DIR / "trade.py",
+    DNSE_DIR / "trade_derivatives.py",
+    DNSE_DIR / "trade_conditional.py",
+    DNSE_DIR / "openapi_passthrough.py",
+]
 
 # Hàm GHI — thay đổi trạng thái tiền/lệnh ở phía broker.
 WRITE_METHODS = [
@@ -46,14 +61,15 @@ WRITE_METHODS = [
 
 def _write_method_names() -> set[str]:
     """Tên các hàm ghi tìm thấy ở AST (không phụ thuộc runtime)."""
-    tree = ast.parse(TRADE_PY.read_text(encoding="utf-8"))
     names: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef) or node.name != "Trade":
-            continue
-        for item in node.body:
-            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                names.add(item.name)
+    for module in TRADE_MODULES:
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    names.add(item.name)
     return names
 
 
@@ -90,42 +106,56 @@ def test_write_method_guards_before_any_network_call(method: str) -> None:
     Vì vậy test này kiểm tra vị trí TƯƠNG ĐỐI: `_require_write` phải xuất hiện
     trước mọi câu lệnh có khả năng chạm network (`requests.*`, `url =`).
     """
-    tree = ast.parse(TRADE_PY.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef) or node.name != "Trade":
-            continue
-        for item in node.body:
-            if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            if item.name != method:
-                continue
+    item = _find_method(method)
+    if item is None:
+        pytest.fail("Khong tim thay " + method)
+    body = list(item.body)
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
 
-            body = list(item.body)
-            if (
-                body
-                and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)
-            ):
-                body = body[1:]
+    guard_at = None
+    network_at = None
+    for offset, stmt in enumerate(body):
+        if guard_at is None and _calls_require_write(stmt):
+            guard_at = offset
+        if network_at is None and _may_hit_network(stmt):
+            network_at = offset
 
-            guard_at = None
-            network_at = None
-            for offset, stmt in enumerate(body):
-                if guard_at is None and _calls_require_write(stmt):
-                    guard_at = offset
-                if network_at is None and _may_hit_network(stmt):
-                    network_at = offset
+    assert guard_at is not None, (
+        f"{method}: không gọi `_require_write` — lệnh gửi thật không hàng rào."
+    )
+    assert network_at is None or guard_at < network_at, (
+        f"{method}: guard ở câu {guard_at} nhưng câu {network_at} đã có thể "
+        f"chạm network — phải guard trước mọi network call."
+    )
+    return
 
-            assert guard_at is not None, (
-                f"{method}: không gọi `_require_write` — lệnh gửi thật không hàng rào."
-            )
-            assert network_at is None or guard_at < network_at, (
-                f"{method}: guard ở câu {guard_at} nhưng câu {network_at} đã có thể "
-                f"chạm network — phải guard trước mọi network call."
-            )
-            return
     pytest.fail(f"Không tìm thấy {method}")
+
+
+def _find_method(method: str):
+    """Tra ve FunctionDef cua `method` trong bat ky module cua `Trade`, hoac None.
+
+    Quet **tat ca** file trong `TRADE_MODULES` — khong phai chi `trade.py`.
+    Sau khi tach file, `deposit_derivative_margin` va
+    `withdraw_derivative_margin` nam trong `DerivativeMixin`, nen quet rieng
+    `trade.py` se bo sot 2 method ghi tien that.
+    """
+    for module in TRADE_MODULES:
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if item.name == method:
+                        return item
+    return None
 
 
 def _calls_require_write(stmt: ast.AST) -> bool:

@@ -14,6 +14,20 @@ vẫn phải xanh **sau** khi tách. Nếu đỏ ⇒ dừng, không sửa tiếp
 Thêm/bớt method là hành động **có chủ ý**: phải sửa bảng này trong cùng commit,
 và PR phải nói rõ vì sao.
 
+Các thay đổi CHỮ KÝ có chủ ý sau khi đóng băng
+-------------------------------------------------
+Bảng này được đóng băng ở `b4b386b`, **trước** khi tách. Sau khi tách có 2 nhóm
+thay đổi chữ ký, đều là **cải thiện** chứ không phải lệch hành vi:
+
+1. 20 method pass-through trong `openapi_passthrough.py` **được thêm** return
+   annotation (`-> Any`) — trước đó không có. `Any` là mô tả trung thực vì kết
+   quả đổi theo cờ `raw`: `raw=False` → DataFrame, `raw=True` → dict.
+2. Tham số trần `dict` / `list` được thu hẹp thành `Dict[str, Any]` /
+   `List[Any]` (5 method) — cùng kiểu thực thi, chỉ rõ hơn cho mypy strict.
+
+⚠ Không dùng `--update` để ghi đè bảng: chính test này là thứ buộc phải **sửa
+bảng có chủ ý**, chứ không lặng lẽ trượt qua.
+
 Proof (không đoán): bảng sinh từ
 `inspect.signature` trên `Trade` @ `d8fab65`; danh sách write-gated sinh từ
 AST (thân method có gọi `self._require_write`).
@@ -34,43 +48,43 @@ PUBLIC_API: tuple[tuple[str, str], ...] = (
     ("as_openapi_client", "(self, api_key: str, api_secret: str) -> vnbroker.connector.dnse.client.DNSEClient"),
     ("cancel_conditional_order", "(self, order_id: str, dry_run: bool = False) -> Optional[pandas.DataFrame]"),
     ("cancel_order", "(self, order_id: str, sub_account: str, asset_type: str = 'stock', dry_run: bool = True) -> Optional[pandas.DataFrame]"),
-    ("cancel_order_openapi", "(self, account_no: str, order_id: str, market_type: str, trading_token: str, order_category: Optional[str] = None, dry_run: bool = False, raw: bool = False)"),
+    ("cancel_order_openapi", "(self, account_no: str, order_id: str, market_type: str, trading_token: str, order_category: Optional[str] = None, dry_run: bool = False, raw: bool = False) -> Any"),
     ("close_deal", "(self, deal_id: int, dry_run: bool = False) -> Optional[pandas.DataFrame]"),
-    ("close_position", "(self, position_id: str, market_type: str, trading_token: str, dry_run: bool = False, raw: bool = False)"),
+    ("close_position", "(self, position_id: str, market_type: str, trading_token: str, dry_run: bool = False, raw: bool = False) -> Any"),
     ("conditional_order_detail", "(self, order_id: str) -> Optional[pandas.DataFrame]"),
-    ("conditional_order_list", "(self, account_no: str, market_id: str, daily: bool = False, from_date: Optional[str] = None, to_date: Optional[str] = None, page: int = 1, size: int = 10000, status: Optional[list] = None, symbol: Optional[str] = None) -> Optional[pandas.DataFrame]"),
-    ("create_trading_token", "(self, otp_type: str, passcode: str, dry_run: bool = False, raw: bool = False)"),
+    ("conditional_order_list", "(self, account_no: str, market_id: str, daily: bool = False, from_date: Optional[str] = None, to_date: Optional[str] = None, page: int = 1, size: int = 10000, status: Optional[List[Any]] = None, symbol: Optional[str] = None) -> Optional[pandas.DataFrame]"),
+    ("create_trading_token", "(self, otp_type: str, passcode: str, dry_run: bool = False, raw: bool = False) -> Any"),
     ("deals_list", "(self, sub_account: str, asset_type: str = 'stock') -> Optional[pandas.DataFrame]"),
     ("deposit_derivative_margin", "(self, account_no: str, source_account_no: str, loan_package_id: int, amount: int, via: str, otp: str, dry_run: bool = True) -> Optional[pandas.DataFrame]"),
     ("email_otp", "(self) -> None"),
     ("enable_write", "(self, enabled: bool = True) -> None"),
-    ("get_accounts", "(self, dry_run: bool = False, raw: bool = False)"),
-    ("get_balances", "(self, account_no: str, dry_run: bool = False, raw: bool = False)"),
+    ("get_accounts", "(self, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_balances", "(self, account_no: str, dry_run: bool = False, raw: bool = False) -> Any"),
     ("get_derivative_cash_account", "(self, account_no: str) -> Optional[pandas.DataFrame]"),
     ("get_derivative_ppse", "(self, account_no: str, loan_package_id: int) -> Optional[pandas.DataFrame]"),
-    ("get_execution_detail", "(self, account_no: str, order_id: str, market_type: str, order_category: str = 'NORMAL', dry_run: bool = False, raw: bool = False)"),
-    ("get_instruments", "(self, symbol: Optional[str] = None, market_id: Optional[str] = None, security_group_id: Optional[str] = None, index_name: Optional[str] = None, limit: Optional[int] = None, page: Optional[int] = None, dry_run: bool = False, raw: bool = False)"),
-    ("get_loan_packages", "(self, account_no: str, market_type: str, symbol: Optional[str] = None, dry_run: bool = False, raw: bool = False)"),
-    ("get_ohlc", "(self, bar_type: str, query: Optional[dict] = None, dry_run: bool = False, raw: bool = False)"),
-    ("get_order_detail", "(self, account_no: str, order_id: str, market_type: str, order_category: Optional[str] = None, dry_run: bool = False, raw: bool = False)"),
-    ("get_order_history", "(self, account_no: str, market_type: str, from_date: Optional[str] = None, to_date: Optional[str] = None, page_size: Optional[int] = None, page_index: Optional[int] = None, dry_run: bool = False, raw: bool = False)"),
-    ("get_orders", "(self, account_no: str, market_type: str, order_category: str, dry_run: bool = False, raw: bool = False)"),
-    ("get_position_by_id", "(self, market_type: str, position_id: str, dry_run: bool = False, raw: bool = False)"),
-    ("get_positions", "(self, account_no: str, market_type: str, dry_run: bool = False, raw: bool = False)"),
-    ("get_ppse", "(self, account_no: str, market_type: str, symbol: str, price: float, loan_package_id: int, dry_run: bool = False, raw: bool = False)"),
-    ("get_security_definition", "(self, symbol: str, board_id: Optional[str] = None, dry_run: bool = False, raw: bool = False)"),
-    ("get_trades", "(self, symbol: str, board_id: Optional[str] = None, from_date: Optional[int] = None, to_date: Optional[int] = None, limit: Optional[int] = None, order: Optional[str] = None, next_page_token: Optional[str] = None, dry_run: bool = False, raw: bool = False)"),
+    ("get_execution_detail", "(self, account_no: str, order_id: str, market_type: str, order_category: str = 'NORMAL', dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_instruments", "(self, symbol: Optional[str] = None, market_id: Optional[str] = None, security_group_id: Optional[str] = None, index_name: Optional[str] = None, limit: Optional[int] = None, page: Optional[int] = None, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_loan_packages", "(self, account_no: str, market_type: str, symbol: Optional[str] = None, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_ohlc", "(self, bar_type: str, query: Optional[Dict[str, Any]] = None, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_order_detail", "(self, account_no: str, order_id: str, market_type: str, order_category: Optional[str] = None, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_order_history", "(self, account_no: str, market_type: str, from_date: Optional[str] = None, to_date: Optional[str] = None, page_size: Optional[int] = None, page_index: Optional[int] = None, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_orders", "(self, account_no: str, market_type: str, order_category: str, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_position_by_id", "(self, market_type: str, position_id: str, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_positions", "(self, account_no: str, market_type: str, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_ppse", "(self, account_no: str, market_type: str, symbol: str, price: float, loan_package_id: int, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_security_definition", "(self, symbol: str, board_id: Optional[str] = None, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("get_trades", "(self, symbol: str, board_id: Optional[str] = None, from_date: Optional[int] = None, to_date: Optional[int] = None, limit: Optional[int] = None, order: Optional[str] = None, next_page_token: Optional[str] = None, dry_run: bool = False, raw: bool = False) -> Any"),
     ("get_trading_token", "(self, otp: str, smart_otp: bool = True) -> Optional[str]"),
     ("loan_packages", "(self, sub_account: str, asset_type: str = 'stock') -> Optional[pandas.DataFrame]"),
     ("login", "(self, user_name: str, password: str) -> Optional[str]"),
     ("login_and_get_trading_session", "(self, username: str, password: str, otp: str, smart_otp: bool = True) -> dict"),
     ("order_detail", "(self, order_id: str, sub_account: str, asset_type: str = 'stock') -> Optional[pandas.DataFrame]"),
     ("order_list", "(self, sub_account: str, asset_type: str = 'stock') -> Optional[pandas.DataFrame]"),
-    ("place_conditional_order", "(self, account_no: str, symbol: str, condition: str, target_order: dict, props: dict, time_in_force: dict, category: str = 'STOP', dry_run: bool = False) -> Optional[pandas.DataFrame]"),
+    ("place_conditional_order", "(self, account_no: str, symbol: str, condition: str, target_order: Dict[str, Any], props: Dict[str, Any], time_in_force: Dict[str, Any], category: str = 'STOP', dry_run: bool = False) -> Optional[pandas.DataFrame]"),
     ("place_order", "(self, sub_account: str, symbol: str, side: str, quantity: int, price: float, order_type: str, loan_package_id: Optional[int] = None, asset_type: str = 'stock', dry_run: bool = True) -> Optional[pandas.DataFrame]"),
-    ("post_order", "(self, market_type: str, payload: dict, trading_token: str, order_category: str = 'NORMAL', dry_run: bool = False, raw: bool = False)"),
-    ("put_order", "(self, account_no: str, order_id: str, market_type: str, payload: dict, trading_token: str, order_category: Optional[str] = None, dry_run: bool = False, raw: bool = False)"),
-    ("send_email_otp", "(self, dry_run: bool = False, raw: bool = False)"),
+    ("post_order", "(self, market_type: str, payload: Dict[str, Any], trading_token: str, order_category: str = 'NORMAL', dry_run: bool = False, raw: bool = False) -> Any"),
+    ("put_order", "(self, account_no: str, order_id: str, market_type: str, payload: Dict[str, Any], trading_token: str, order_category: Optional[str] = None, dry_run: bool = False, raw: bool = False) -> Any"),
+    ("send_email_otp", "(self, dry_run: bool = False, raw: bool = False) -> Any"),
     ("set_account_pnl_config", "(self, account_no: str, config: dict, dry_run: bool = False) -> Optional[pandas.DataFrame]"),
     ("set_deal_pnl_config", "(self, deal_id: int, config: dict, dry_run: bool = False) -> Optional[pandas.DataFrame]"),
     ("sub_accounts", "(self) -> Optional[pandas.DataFrame]"),
