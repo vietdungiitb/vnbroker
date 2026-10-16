@@ -321,6 +321,16 @@ pwsh -File scripts/check_all.ps1 -Quick     # bỏ pytest toàn bộ (~3 phút)
 pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate đỏ
 ```
 
+11 gate, theo thứ tự: `ruff-src` · `ruff-tests-all` (KNOWN-RED, 13 lỗi có sẵn — chỉ đỏ
+khi **tăng**) · `version-sync` · `lessons` · `tcbs-coverage` · `tcbs-bodies` ·
+`provider-consistency` · `mypy-baseline` · `encoding` · `pytest-contract` · `pytest-full`.
+
+`encoding` (thêm 2026-10-16, `scripts/check_encoding.py`): bắt **double-encoding UTF-8**.
+Lý do tồn tại: PowerShell 5.1 `Get-Content -Raw` / `Set-Content` **không** có `-Encoding`
+đọc UTF-8 bằng CP1252 rồi ghi lại — file hỏng vẫn decode hợp lệ nên không gate nào bắt
+được. Muốn sửa/ghi file nguồn có tiếng Việt thì dùng `Path.read_text/write_text(encoding="utf-8")`
+(`newline=""` để giữ CRLF), đừng dùng `Get-Content`/`Set-Content`.
+
 > ⚠ **GitHub Actions của repo này KHÔNG chạy** — job bị từ chối khởi động do billing
 > (`"spending limit needs to be increased"`; mọi job có `steps: []`, `duration_ms` 2–3s).
 > Lần chạy thành công cuối: **2026-10-02**. Từ đó tới `22d3d0a` có **74 commit** merge
@@ -337,6 +347,11 @@ pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate 
 > `pytest tests/contract` **72 passed** (exit 0) · `ruff check vnbroker tests/unit tests/contract`
 > exit 0 · `ruff check tests` **13 lỗi có sẵn** (exit 1, gate KNOWN-RED) · `mypy vnbroker`
 > **1207 lỗi** (exit 1).
+>
+> ⚠ Mốc trên đã lỗi thời — **đừng trích số của nó**. Mốc mới nhất (2026-10-16, tag `v3.8.0`,
+> tree `90c2eb1`): `pytest tests/` **2281 passed, 26 skipped** · `pytest tests/contract`
+> **149 passed** · `check_all.ps1` FULL **exit 0** · `mypy-baseline` 1266 → **1106** ·
+> `encoding` PASS 453 file. Số cũ hơn nữa (72 contract) vẫn nằm rải trong tài liệu.
 
 ## Common Patterns
 
