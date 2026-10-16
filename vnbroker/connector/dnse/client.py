@@ -211,16 +211,16 @@ class DNSEClient(MultiMarketMixin):
         market_type: str,
         order_category: str | None = None,
         page_index: int | None = 1,
-        page_size: int | None = None,
+        page_size: int | None = 20,
         dry_run: bool = False,
         raw: bool = False,
     ):
         """Danh sách lệnh.
 
-        `page_index` mặc định `1` vì **production bắt buộc** nó (thiếu ⇒
-        `400 pageIndex is required`); sandbox thì không đòi. Truyền
-        `page_index=None` bỏ hẳn tham số khỏi query — không gửi chuỗi
-        `"None"` lên URL.
+        `page_index`/`page_size` có mặc định vì **production bắt buộc cả hai**
+        (thiếu lần lượt `400 pageIndex is required` / `400 pageSize is
+        required`); sandbox thì không đòi cái nào. Truyền `None` bỏ hẳn tham
+        số khỏi query — không gửi chuỗi `"None"` lên URL.
         """
         return self._resolve_output(
             self._order.get_orders(

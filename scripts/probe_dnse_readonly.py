@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[1]
@@ -30,13 +31,30 @@ if not os.getenv("DNSE_API_KEY"):
             os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 from vnbroker.connector.dnse.client import DNSEClient  # noqa: E402
+from vnbroker.connector.dnse.core.errors import DNSEValidationError  # noqa: E402
+from vnbroker.connector.dnse.constants import BOARD_IDS, MARKET_IDS  # noqa: E402
+from vnbroker.connector.dnse.core.time_utils import (  # noqa: E402
+    VIETNAM_TZ,
+    vn_day_bounds,
+)
 
 PROD = "https://openapi.dnse.com.vn"
 NOW_S = int(time.time())
 DAY_S = NOW_S - 86400
-TODAY0_S = NOW_S - (NOW_S % 86400)
 
 _results: list[tuple[str, str, str]] = []
+
+
+def _vn_day_open() -> int:
+    """Nửa đêm theo GIỜ VIỆT NAM của hôm nay.
+
+    Trước đây là `NOW_S - (NOW_S % 86400)` — đó là nửa đêm **UTC**, lệch 7 tiếng
+    so với ngày giao dịch. Trong khoảng 00:00–07:00 giờ VN, probe sẽ tưởng
+    đang hỏi "cùng ngày" trong khi thật ra là khác ngày. Đây đúng là lỗi lệch
+    7 tiếng mà lát A đã sửa ở tầng connector; script verify lại thì lại mang nó
+    vào.
+    """
+    return vn_day_bounds(datetime.now(VIETNAM_TZ))[0]
 
 
 def _record(name: str, status: str, detail: str) -> None:
@@ -98,9 +116,15 @@ def _defect_probes(client: DNSEClient, account_no: str) -> None:
     raw("D5 corporate-action-history (đúng)", f"/accounts/{account_no}/corporate-action-history")
     raw("D5 corporate-actions (sai, đối chứng)", f"/accounts/{account_no}/corporate-actions")
 
-    print("--- D2: get_orders không có pageIndex ---")
-    raw("D2 orders KHÔNG pageIndex", f"/accounts/{account_no}/orders", {"marketType": "STOCK"})
-    raw("D2 orders CÓ pageIndex", f"/accounts/{account_no}/orders", {"marketType": "STOCK", "pageIndex": 1})
+    print("--- D2: get_orders thiếu pageIndex / pageSize ---")
+    base = {"marketType": "STOCK", "orderCategory": "NORMAL"}
+    raw("D2 orders KHÔNG phân trang", f"/accounts/{account_no}/orders", base)
+    raw("D2 orders có pageIndex", f"/accounts/{account_no}/orders",
+        {**base, "pageIndex": 1})
+    raw("D2 orders có cả hai", f"/accounts/{account_no}/orders",
+        {**base, "pageIndex": 1, "pageSize": 20})
+    raw("D2 orders thiếu orderCategory", f"/accounts/{account_no}/orders",
+        {"marketType": "STOCK", "pageIndex": 1, "pageSize": 20})
 
     print("--- D3/D4: order_history from/to ---")
     raw("D3 history thiếu cả hai", f"/accounts/{account_no}/orders/history", {"marketType": "STOCK"})
@@ -112,28 +136,35 @@ def _defect_probes(client: DNSEClient, account_no: str) -> None:
     raw("D6 positions/fake (rác)", "/positions/fake", {"marketType": "STOCK"})
     raw("D6 positions/999999 (biên quyền?)", "/positions/999999", {"marketType": "STOCK"})
 
-    print("--- D7: volume profile time format ---")
+    print("--- D7: volume profile time format + boardId ---")
     raw("D7 time=1700 (int)", "/price/HPG/trades/volume-profile", {"time": 1700})
     raw("D7 time=ngày, thiếu boardId", "/price/HPG/trades/volume-profile", {"time": today})
+    raw("D7 time=ngày + boardId=G1 (giá trị thật)", "/price/HPG/trades/volume-profile",
+        {"time": today, "boardId": "G1"})
 
     print("--- D8: from/to là GIÂY chứ không phải ms ---")
     raw("D8 quotes to=bây giờ (giây)", "/price/HPG/quotes", {"from": NOW_S - 86400, "to": NOW_S, "limit": 5})
     raw("D8 quotes to=bây giờ (ms)", "/price/HPG/quotes", {"from": (NOW_S - 86400) * 1000, "to": NOW_S * 1000, "limit": 5})
 
-    print("--- D9: market_index khác ngày ---")
-    raw("D9 cùng ngày", "/price/VNINDEX/market-index", {"from": TODAY0_S, "to": NOW_S, "limit": 5})
-    raw("D9 khác ngày", "/price/VNINDEX/market-index", {"from": TODAY0_S - 86400, "to": NOW_S, "limit": 5})
+    print("--- D9: market_index cùng ngày / khác ngày ---")
+    # Ngày theo GIỜ VN, không phải nửa đêm UTC: dùng `vn_day_bounds` để lát
+    # verify lại không tự tái tạo đúng lỗi lệch 7 tiếng mà lát A đã sửa.
+    day_open, day_close = vn_day_bounds(datetime.now(VIETNAM_TZ))
+    raw("D9 cùng ngày", "/price/VNINDEX/market-index", {"from": day_open, "to": min(day_close, NOW_S)})
+    raw("D9 khác ngày", "/price/VNINDEX/market-index", {"from": day_open - 86400, "to": NOW_S})
 
     print("--- D10/D11: từ điển boardId/marketId ---")
     # Đọc từ điển server tự trả về TRƯỚC, thay vì đoán: /instruments có cột
-    # `boardId` (xem `explorer/dnse/listing.py:29`).
-    raw("D10 instruments (đọc cột boardId)", "/instruments", {"symbol": "HPG", "limit": 5})
-    # Rồi mới thử các giá trị nghi vấn. "G1" đến từ `connector/dnse/websocket.py`
-    # (`:19` kênh `top_price.G1.json`, `:278` ghép `STO.G1`) — đây là giả thuyết
-    # **chưa** được thử trước 2026-10-16, không phải kết luận.
-    for candidate in ("HOSE", "G1", "STO.G1", "1"):
-        raw(f"D10 secdef boardId={candidate}", "/price/HPG/secdef", {"boardId": candidate})
-        raw(f"D11 instruments marketId={candidate}", "/instruments", {"marketId": candidate})
+    # `marketId`. Đây là cách đã thắng: 24 giá trị đoán đều thất bại, còn đọc
+    # response thì ra ngay tập thật (L-R04).
+    raw("D11 instruments (đọc cột marketId)", "/instruments", {"limit": 200})
+    for market_id in sorted(MARKET_IDS):
+        raw(f"D11 marketId={market_id}", "/instruments", {"marketId": market_id, "limit": 3})
+    for board_id in sorted(BOARD_IDS):
+        raw(f"D10 secdef boardId={board_id}", "/price/HPG/secdef", {"boardId": board_id})
+    # Vẫn thử vài giá trị sai để ghi lại hành vi từ chối của server.
+    for wrong in ("HOSE", "G0", "G9"):
+        raw(f"D10 secdef boardId={wrong} (kỳ vọng lỗi)", "/price/HPG/secdef", {"boardId": wrong})
 
 
 def main() -> int:
@@ -160,7 +191,19 @@ def main() -> int:
     _probe("get_orders(STOCK,NORMAL)", lambda: client.get_orders(account_no, "STOCK", "NORMAL", raw=True))
     _probe("get_order_history", lambda: client.get_order_history(account_no, "STOCK", from_date="2026-10-01", to_date="2026-10-16", raw=True))
     _probe("get_corporate_action_history", lambda: client.get_corporate_action_history(account_no, "STOCK", raw=True))
-    _probe("get_position_by_id(fake)", lambda: client.get_position_by_id("STOCK", "fake", raw=True))
+    # `position_id="fake"` giờ bị chặn ở CLIENT ⇒ đây là **PASS**, không phải
+    # FAIL. Nhãn FAIL của `_probe` dành cho "server trả lỗi"; còn đây là "vnbroker
+    # không gửi đi", đúng thứ ta muốn. Ghi riêng để không đọc nhầm.
+    try:
+        client.get_position_by_id("STOCK", "fake", raw=True)
+        _record("get_position_by_id(fake)", "FAIL",
+                "D6 CHƯA chặn — vnbroker đã gửi id rác, server sẽ trả 500")
+    except DNSEValidationError as exc:
+        _record("get_position_by_id(fake)", "PASS",
+                f"D6 đã chặn client-side: {exc.error_code}")
+    except Exception as exc:  # noqa: BLE001
+        _record("get_position_by_id(fake)", "FAIL",
+                f"sai loại lỗi: {type(exc).__name__}: {str(exc)[:100]}")
 
     _probe("get_security_definition(HPG)", lambda: client.get_security_definition("HPG", raw=True))
     _probe("get_instruments(HPG)", lambda: client.get_instruments(symbol="HPG", limit=5, raw=True))
@@ -171,7 +214,7 @@ def main() -> int:
     _probe("get_trades(HPG, sec)", lambda: client.get_trades("HPG", from_date=DAY_S, to_date=NOW_S, limit=5, raw=True))
     _probe("get_expected_price(HPG, sec)", lambda: client.get_expected_price("HPG", from_date=DAY_S, to_date=NOW_S, limit=5, raw=True))
     _probe("get_foreign_trading(HPG, sec)", lambda: client.get_foreign_trading("HPG", from_date=DAY_S, to_date=NOW_S, limit=5, raw=True))
-    _probe("get_market_index(VNINDEX, same day)", lambda: client.get_market_index("VNINDEX", from_date=TODAY0_S, to_date=NOW_S, limit=5, raw=True))
+    _probe("get_market_index(VNINDEX, same day)", lambda: client.get_market_index("VNINDEX", from_date=_vn_day_open(), to_date=NOW_S, limit=5, raw=True))
     _probe("get_ohlc(1D, HPG)", lambda: client.get_ohlc("1D", query={"symbol": "HPG", "from": DAY_S, "to": NOW_S, "limit": 5}, raw=True))
 
     # --- Working dates (D1) -------------------------------------------------

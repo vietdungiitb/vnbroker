@@ -147,22 +147,23 @@ def test_envelope_keys_are_read_defensively_not_assumed():
     assert envelope["query"].get("pageIndex") is None  # không KeyError
 
 
-def test_page_size_is_omitted_rather_than_sent_as_none():
-    payload = _client().get_orders(ACCOUNT, "STOCK", dry_run=True, raw=True)
-    assert "pageSize" not in payload["query"], (
-        "gửi pageSize=None sẽ thành chuỗi 'None' trên URL"
-    )
+def test_page_size_is_required_by_production_so_it_carries_a_default():
+    """Đo 2026-10-16 (đợt probe sau khi mạng về): có `pageIndex` nhưng thiếu
+    `pageSize` ⇒ `400 pageSize is required`. Ban đầu plan chỉ biết `pageIndex`.
 
-
-def test_page_index_none_omits_the_key_entirely():
-    """`pageIndex=None` phải **bỏ hẳn key**, không phải gửi chuỗi `None`.
-
-    Đo lại trong phiên audit: `page_index=None` tạo URL
-    `...?marketType=STOCK&pageIndex=None` — một lỗi 400 khác và khó đọc hơn lỗi
-    cũ. Đây là trường hợp dễ hỏng nhất nên phải có test riêng (audit major #5).
+    Bản test cũ của hàm này lại **đòi** `pageSize` vắng mặt — tức khẳng định điều
+    ngược lại với thứ server thật sự đòi. Đổi theo bằng chứng đo.
     """
+    payload = _client().get_orders(ACCOUNT, "STOCK", dry_run=True, raw=True)
+    assert payload["query"]["pageSize"] == 20
+    assert "None" not in payload["url"]
+
+
+def test_explicit_none_omits_pagination_keys_entirely():
+    """Truyền `None` tường minh thì bỏ hẳn key, không gửi chuỗi `"None"`."""
     payload = _client().get_orders(
-        ACCOUNT, "STOCK", page_index=None, dry_run=True, raw=True
+        ACCOUNT, "STOCK", page_index=None, page_size=None, dry_run=True, raw=True
     )
-    assert "pageIndex" not in payload["query"], payload["query"]
+    assert "pageIndex" not in payload["query"]
+    assert "pageSize" not in payload["query"]
     assert "None" not in payload["url"]

@@ -71,20 +71,14 @@ class MarketService:
     ):
         """Định nghĩa mã bảo chứng. Path theo SDK `client.py:256`.
 
-        ⚠ **`board_id` chưa tài liệu hoá — đừng đoán giá trị.**
+        **Giá trị hợp lệ của `board_id` (đo 2026-10-16):**
+        :data:`BOARD_IDS` — ``G1``, ``G2``, ``G3``, ``G4``, ``G7``, ``G8``.
+        14 ứng viên khác (kể cả ``HOSE``, ``HNX``, ``UPCOM``) đều trả **500
+        Internal error** — server không trả 400 cho giá trị sai ở endpoint này.
 
-        Đo production 2026-10-16: gọi **không** kèm `board_id` ⇒ **200**;
-        kèm `board_id` bất kể giá trị nào trong **10** ứng viên đã thử cho
-        endpoint này (`HOSE`, `HOSE_STOCK`, `HNX`, `HNX_STOCK`, `UPCOM`,
-        `HOSE.ETF`, `HOSE_INDEX`, `HOSE.DERIVATIVE`, `DOWNNEX`, `ETF`) ⇒ **500
-        Internal error**. Tức là tham số này thực tế **không dùng được**, chứ
-        không phải "thiếu thì lỗi".
-
-        Repo có manh mối (`connector/dnse/websocket.py:19,278` dùng mã kiểu
-        `G1`/`STO.G1` cho kênh WS) nhưng chưa thử được với REST — xem
-        `scripts/probe_dnse_readonly.py`, mục `D10`. **Không** thêm tập giá trị
-        đoán vào đây: bịa enum tạo cảm giác an toàn giả (L-P06). Khi DNSE công bố,
-        cập nhật cả docstring này.
+        ⚠ Vì sao **không** validate cứng: tập trên đo trên **một** mã và **một**
+        ngày. Chặn giá trị ngoài tập sẽ chặn oàng mỗi khi DNSE thêm sàn mới. Đây
+        là khác biệt có chủ ý so với `marketType` (bắt buộc và đóng).
         """
         query = {"boardId": board_id} if board_id else None
         return self._http.request(
@@ -360,11 +354,11 @@ class MarketService:
         `400 missing param 'boardId'`. Chặn ở đây thay vì để server trả 400
         (L-R01).
 
-        ⚠ **`board_id` chưa tài liệu hoá.** 24 ứng viên đã thử (kể cả `HOSE`) đều
-        trả `404 not found boardId` — server tra cứu một bảng mà ta chưa biết
-        nội dung. `explorer/dnse/listing.py:29` cho thấy `/instruments` **trả cột
-        `boardId`**, tức từ điển có thể lấy từ chính server thay vì đoán; xem
-        `scripts/probe_dnse_readonly.py`, mục `D10`. **Chưa** thêm enum đoán (L-P06).
+        ⚠ **`board_id` dùng `BOARD_IDS`** — ``G1``…``G8`` như đã đo. Endpoint này
+        **tra cứu** bảng board (sai ⇒ ``404 not found boardId``), nên khác hẳn
+        `secdef` vốn trả 500.
+
+        **Đo 2026-10-16:** ``time="2026-10-16", board_id="G1"`` ⇒ **200**.
 
         Raises:
             DNSEValidationError: khi ``time`` không phải chuỗi ngày hợp lệ.
@@ -393,17 +387,14 @@ class MarketService:
     ):
         """Danh mục chứng khoán. Path theo SDK `client.py:391`.
 
-        ⚠ **`market_id` chưa tài liệu hoá — đừng đoán giá trị.**
+        **Giá trị hợp lệ của `market_id` (đo 2026-10-16):**
+        :data:`MARKET_IDS` — ``STO``, ``HCX``, ``UPX``, ``STX``, ``DVX``. Cả 5
+        trả 200. 24 giá trị đoán trực giác (``HOSE``, ``HNX``, ``UPCOM``, ``G1``,
+        ``STO.G1``, ``1``…) đều bị validator chặn với
+        ``'oneof'`` — tập thật lấy từ cột ``marketId`` trong chính response của
+        ``/instruments``, không phải đoán.
 
-        Đo production 2026-10-16: mọi ứng viên đã thử (`HOSE`, `STOCK`,
-        `HOSE_STOCK`, `HNX`, `UPCOM`, `VN`, `VNINDEX`, `DERIVATIVE`, `0`–`5`, …)
-        ⇒ `400 ... 'MarketId' failed on the 'oneof' tag`. Lỗi `'oneof'` là của
-        *validator* Go và **nghĩa là server biết có một tập giá trị** — nhưng nó
-        không liệt kê tập đó trong body lỗi, và SDK không công bố. Chưa đọc được
-        `payload` đầy đủ ở lần đo (xem `scripts/probe_dnse_readonly.py`, mục
-        `D11`) ⇒ kết luận hiện tại là **CHƯA CHẮC**, không phải "đã hết cách".
-
-        Gọi không kèm `market_id` hoạt động bình thường (đo 200).
+        Gọi không kèm `market_id` hoạt động bình thường.
         """
         query = {}
         if symbol is not None:

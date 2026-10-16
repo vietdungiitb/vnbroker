@@ -14,26 +14,31 @@ class OrderService:
         market_type: str,
         order_category: str | None = None,
         page_index: int | None = 1,
-        page_size: int | None = None,
+        page_size: int | None = 20,
         dry_run: bool = False,
     ):
         """Danh sách lệnh đang hoạt động.
 
-        ⚠ **`pageIndex` là bắt buộc ở production.** Đo 2026-10-16:
-        `GET /accounts/{no}/orders` không kèm `pageIndex` ⇒
-        `400 pageIndex is required`. **Sandbox thì không đòi** — đó là lý do
-        không thể dùng sandbox làm chuẩn, và cũng là lý do mặc định ở đây là `1`.
+        ⚠ **Cả `pageIndex` LẪN `pageSize` đều bắt buộc ở production.** Đo
+        2026-10-16: thiếu `pageIndex` ⇒ `400 pageIndex is required`; có
+        `pageIndex` nhưng thiếu `pageSize` ⇒ `400 pageSize is required`.
+        **Sandbox thì không đòi cái nào** — đó là lý do không thể dùng sandbox
+        làm chuẩn, và lý do mặc định ở đây là `1`/`20` chứ không phải `None`.
 
-        Mặc định là `1` chứ không phải `None` vì gửi `pageIndex=None` sẽ ra
+        Mặc định là số chứ không phải `None` vì gửi `pageIndex=None` sẽ ra
         chuỗi `pageIndex=None` trên URL — một lỗi 400 khác, khó đọc hơn lỗi cũ.
-        Truyền `page_index=None` tường minh vẫn được (bỏ hẳn tham số) cho
-        trường hợp cần thử trực tiếp.
+        Truyền tường minh `None` vẫn được (bỏ hẳn tham số) cho trường hợp cần
+        thử trực tiếp.
 
-        `page_size` vẫn tuỳ chọn — không có bằng chứng server bắt buộc.
+        `page_size=20` là **giá trị đo dùng được**, không phải mặc định do bỏ
+        qua: nó chỉ là điểm khởi đầu hợp lý, server không công bố giá trị mặc
+        định nào.
         """
         query: dict[str, object] = {"marketType": market_type}
         if page_index is not None:
             query["pageIndex"] = page_index
+        if page_size is not None:
+            query["pageSize"] = page_size
         if order_category:
             query["orderCategory"] = order_category
         if page_size is not None:

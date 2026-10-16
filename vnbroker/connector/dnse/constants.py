@@ -57,6 +57,29 @@ MARKET_TYPES: Final[frozenset[str]] = frozenset({"STOCK", "DERIVATIVE"})
 #: Giá trị hợp lệ của tham số truy vấn ``orderCategory``.
 ORDER_CATEGORIES: Final[frozenset[str]] = frozenset({"NORMAL", "STOP", "OCO"})
 
+#: Giá trị hợp lệ của ``marketId`` (endpoint ``/instruments``).
+#:
+#: ⚠ **Đo 2026-10-16, và cách đo mới là điểm quan trọng.** 24 giá trị đoán bằng
+#: trực giác (``HOSE``, ``HNX``, ``UPCOM``, ``STO.G1``, ``1``…) đều bị từ chối
+#: với lỗi ``'oneof'``. Tập hợp thật lấy được bằng cách **đọc chính response của
+#: server**: ``GET /instruments?limit=200`` trả cột ``marketId`` với đúng 5 giá
+#: trị này. Sau đó gọi lại endpoint với từng giá trị ⇒ cả 5 đều **200**.
+#:
+#: Bài học: khi một tham số bị validator từ chối mà không liệt kê tập hợp, đừng
+#: đoán — hãy tìm một endpoint trả về chính dữ liệu đó (L-R04).
+MARKET_IDS: Final[frozenset[str]] = frozenset({"STO", "HCX", "UPX", "STX", "DVX"})
+
+#: Giá trị hợp lệ của ``boardId`` cho các endpoint giá.
+#:
+#: Đo 2026-10-16 trên ``/price/{symbol}/secdef`` với 14 ứng viên ``G0``–``G11``,
+#: ``G20``, ``G21``: **6** giá trị trả 200 (``G1``–``G4``, ``G7``, ``G8``), 8 giá
+#: trị còn lại trả **500 Internal error** — tức server không trả 400 cho giá trị
+#: sai ở endpoint này, nên gõ sai là thấy 500 chứ không phải lỗi có nghĩa.
+#:
+#: Mẫu ``G<n>`` khớp với kênh WebSocket ``top_price.G1.json``
+#: (``connector/dnse/websocket.py:19,278``).
+BOARD_IDS: Final[frozenset[str]] = frozenset({"G1", "G2", "G3", "G4", "G7", "G8"})
+
 
 def _normalise(value: str) -> str:
     return value.strip().upper() if isinstance(value, str) else ""

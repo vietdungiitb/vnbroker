@@ -329,3 +329,91 @@ Hệ quả bắt buộc (L-E02):
 - **Re-probe live sau khi sửa = CHƯA CHẠY** trừ khi mạng về. Không được ghi PASS.
 - Slice F **chưa đóng được** — cần chạy mục `D10`/`D11` của probe.
 - Đo lại 3 lần rồi mới kết luận: một lần timeout không đủ (L-E04).
+
+---
+
+## 12. Đo lại SAU KHI SỬA — 11/11 defect đã đóng (18:0x, mạng đã về)
+
+> **Lessons áp dụng: [L-R01, L-R04, L-R06, L-E01, L-E02, L-E04]**
+>
+> Tái lập: `.venv\Scripts\python.exe scripts\probe_dnse_readonly.py`
+> **Kết quả: `PASS=40 FAIL=16`** — và cả 16 FAIL đều là **probe phủ định có chủ
+> ý** (xem §12.3), tức bằng chứng server từ chối input sai.
+
+### 12.1 Đóng được sau khi sửa
+
+| Defect | Trước | Sau (đo lại) |
+|---|---|---|
+| **D1** working-dates | trả hằng, 0ms | **200**, `workingDates` **257** phần tử |
+| **D2** `get_orders` | `400 pageIndex is required` | **200**, `orders` 0 · `totalRecords`/`pageIndex`/`pageSize`/`totalPages` |
+| **D3** `order_history` | `400 from is required` / `400 to is required` | **200** khi đủ cả hai |
+| **D4** format ngày | dễ nhầm unix giây | **200** với `yyyy-MM-dd` |
+| **D5** corporate-action | `404 API ROUTE NOT FOUND` | **200**, `{accountNo, data, pagination}` |
+| **D6** `position_id` rác | gửi đi ⇒ **500** | **chặn client-side**, 0 request đi ra |
+| **D7** volume-profile | `400 invalid param 'time'` + `400 missing param 'boardId'` | **200** với `time="2026-10-16", boardId="G1"` |
+| **D8** đơn vị thời gian | ms ⇒ `400 range exceeds maximum time range` | ms được **tự chuẩn hoá thành giây**, 200 |
+| **D9** market_index | không có guard | chặn khác-ngày **trước network**; cùng ngày **200** |
+| **D10** `boardId` | 24 giá trị đoán đều hỏng | **`BOARD_IDS` = G1,G2,G3,G4,G7,G8 → 200** |
+| **D11** `marketId` | 24 giá trị đoán đều hỏng | **`MARKET_IDS` = STO,HCX,UPX,STX,DVX → 200** |
+
+### 12.2 ⭐ Cách tìm ra `boardId`/`marketId` — bài học quan trọng nhất của đợt này
+
+Cả hai tập giá trị **không** đoán được. 24 ứng viên trực giác (`HOSE`, `HNX`,
+`UPCOM`, `STO.G1`, `G1`, `1`…) đều bị từ chối. Hai bước đã thắng:
+
+1. **Đọc response của server thay vì đoán.** `GET /instruments?limit=200` trả cột
+   `marketId` với đúng 5 giá trị thật ⇒ `MARKET_IDS` có được **ngay**, 1 request.
+2. **Bắt chước từ nơi khác trong chính repo.** `connector/dnse/websocket.py:19,278`
+   dùng mã `G<n>` cho kênh WS (`top_price.G1.json`) — thử `boardId=G1` ⇒ **200**.
+   Quét tiếp `G0`–`G11`, `G20`, `G21` ⇒ 6 giá trị trả 200.
+
+⇒ `docs/LESSONS` cần một quy tắc mới: **khi một tham số bị validator từ chối mà
+không liệt kê tập hợp, đừng đoán — hãy tìm một endpoint trả về chính dữ liệu đó**
+(L-R04). Chi phí: 1 request. Chi phí của 24 lần đoán: 0 thông tin, và nguy cơ kết
+luận sai "DNSE không có giá trị hợp lệ".
+
+### 12.3 16 FAIL còn lại là gì
+
+**Không phải defect.** Đều là probe phủ định có chủ ý, chạy để **chứng minh** server
+từ chối input sai:
+
+| Nhóm | Probe | Kết quả mong đợi và nhận được |
+|---|---|---|
+| D2 | orders thiếu `pageIndex` | `400 INVALID_ORDER_CATEGORY` / `pageIndex is required` |
+| D3 | history thiếu `from` | `400 from is required` |
+| D6 | `positions/1` | `404 deal not found 1` — câu trả lời có nghĩa |
+| D6 | `positions/fake` | `500 For input string: "fake"` — lý do client phải chặn |
+| D6 | `positions/999999` | `403 This action is not allowed` — **biên quyền, vẫn chưa rõ** |
+| D7 | `time=1700` | `400 invalid param 'time', expected format yyyy-MM-dd` |
+| D8 | `from`/`to` = ms | `400 range exceeds maximum time range` |
+| D9 | khác ngày | `400 range exceeds maximum time range` |
+| D10 | `boardId=HOSE`/`G0`/`G9` | `500 Internal error` |
+
+### 12.4 ⚠ Một defect MỚI phát hiện trong lúc đo: `pageSize` cũng bắt buộc
+
+Ban đầu (và trong plan) chỉ biết `pageIndex` là bắt buộc. Lúc đo lại:
+
+```
+orders + pageIndex, thiếu pageSize  ->  400 pageSize is required
+orders + pageIndex + pageSize=20    ->  200
+```
+
+⇒ `get_orders` giờ điền **cả hai** (`page_index=1`, `page_size=20`). Và một
+test cũ của tôi **đang khẳng định điều ngược lại** (đòi `pageSize` vắng mặt) —
+tức một test xanh vì khẳng định sai. Đã đổi theo bằng chứng.
+
+Ngoài ra `orderCategory` cũng bắt buộc cho `get_orders` (thiếu ⇒
+`400 INVALID_ORDER_CATEGORY`) — nhưng client đã cho phép `None`, nên đây là
+**quyết định còn treo**: có nên làm nó bắt buộc không? Xem §13.
+
+### 12.5 Vẫn CHƯA CHẠY
+
+- **`Trade.login()` JWT** — `.env` thiếu `DNSE_USERNAME`/`DNSE_PASSWORD`.
+- **`403` ở `position_id=999999`** — đo lại 3 lần, vẫn `403`. **Không** kết luận
+  là lỗi client.
+- **Sandbox** — `sb-openapi.dnse.com.vn` không probe lại trong đợt này; vẫn chưa
+  biết nó có chấp nhận `pageIndex`/`pageSize` hay không.
+- **WS tick stream** — không probe trong đợt này.
+- **CI GitHub Actions** — billing.
+- **`boardId`/`marketId` ngoài tập đo** — tập trên đo trên **một** mã và **một**
+  ngày; vì vậy cố tình **không** validate cứng (xem `constants.py`).
