@@ -352,3 +352,54 @@ Ghi chu: R-W4 cua vninvest da phan loai get_watchlist(filters) cua
 explorer/tcbs la screencer chu khong phai watchlist user — **dung bang cach
 vnbroker gan nhan**, va get_watchlist(filters) do da co san trong repo nen
 R-W4 khong ton tai viiec moi o vnbroker.
+---
+
+## 2026-10-16 - DNSE OPENAPI FIX (Mode B solo) - base `f6cf68b`
+
+Plan: `docs/PLAN_DNSE_FIX_20261016.md` - Audit: `docs/PLAN_AUDIT_DNSE_FIX_20261016.md`
+Verdict audit: **NEED_REVISION** (4 blocker, 7 major, 6 nho) -> plan ban 2 da sua het.
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| coordinator-dnse-fix | feat/dnse-openapi-fix | (main checkout) | Sua 11 defect client DNSE OpenAPI (D1-D11) | vnbroker/connector/dnse/services/{market_service,order_service,account_service,position_service}.py, vnbroker/connector/dnse/client.py, vnbroker/connector/dnse/core/time_utils.py (moi), vnbroker/explorer/dnse/quote.py, vnbroker/broker/capabilities.py, scripts/probe_dnse_readonly.py, tests/unit/connector/dnse/{test_market_time_units,test_order_read_params,test_position_id_guard}.py (moi), tests/unit/connector/dnse/test_market_data_read_methods.py, tests/contract/test_dnse_endpoint_contract.py, docs/AGENT_PROTOCOL.md, docs/DNSE_API_CONTRACT.md, docs/REPORT_DNSE_LIVE_20261016.md | in-progress | 2026-10-16 | Mode B: 6 lat deu cham market_service.py + client.py => khong song parallel |
+
+**Vi sao Mode B:** lat A/B/D sua `market_service.py`; lat A/B/C/D sua `client.py`.
+Tap file giao nhau => chay song song se tai tao Hazard 1 (weld hunk). Tien le:
+TCBS Round 3 (`docs/CLAIMS.md:205-206`).
+
+**KHONG claim:** `vnbroker/connector/dnse/core/http_client.py` (write gate la choke
+point money lane), `vnbroker/connector/dnse/trade.py` (1352L, vuot ngan sach 800L).
+
+**Baseline gate @ f6cf68b** (do, khong suy tu CLAUDE.md - xem AGENT_PROTOCOL §2):
+- pytest tests/ -q --timeout=300 -> exit 0, **2177 passed, 26 skipped**, 3 subtests
+- pytest tests/contract -q -> exit 0, **117 passed** (do lai sau audit B1; ban
+  nhap ghi "72" - chieu CLAUDE.md da loi thoi)
+- pytest tests/unit/connector/dnse tests/contract -q -> exit 0, 332 passed
+- ruff check vnbroker tests/unit tests/contract -> exit 0
+- check_mypy_baseline.py -> exit 0 (baseline 1266, now 1138)
+- ruff check tests -> **exit 1, 13 KNOWN-RED co san** - chi doi khong tang
+
+**3 phat hien lam doi huong ke hoach (deu do duoc, khong doan):**
+1. `/market/working-dates` -> **200, 257 workingDates**. Docstring trong code bao
+   "DNSE khong co endpoint nay" -> **sai**. D1 la path bug, khong phai endpoint vong.
+2. `/accounts/{a}/corporate-action-history` -> **200**. Code dung
+   `/corporate-actions` -> `404 API ROUTE NOT FOUND`. D5 la path bug.
+3. Kiem tra 24 gia tri boardId/marketId deu that bai. **KHONG them enum** (L-P06).
+
+Lesson ap dung: [L-R01, L-R02, L-R03, L-R04, L-R06, L-E01, L-E02, L-E04, L-E06,
+L-P03, L-P04, L-P05, L-P06].
+
+### Trang thai claim tren (cap nhat khi dong)
+
+_(chua dong)_
+
+**CHUA CHAY - KHONG DUOC GHI LA PASS:**
+- **Mang DNSE production mat luc 16:40** (TLS handshake timeout 3/3 lan, 12.5s/lan).
+  Bang chung D1/D5 thu o dau phien (khong VPN) van co gia tri nhung phai ghi kem
+  dieu kien mang tai thoi diem do. Re-probe live Stage 6 => CHUA CHAY neu mang
+  chua ve.
+- Gia thuyet `boardId = "G1"` / `marketId` kieu `G*` (tu `websocket.py:19,278`) **chua
+  kip thu** => Slice F chua chot duoc.
+- Sandbox co chap nhan `pageIndex` khong -> chi biet "khong doi", chua biet "chap nhan".
+- `Trade.login()` JWT: `.env` thieu `DNSE_USERNAME`/`DNSE_PASSWORD`.
+- CI GitHub Actions: job bi tu choi khoi dong do billing.
