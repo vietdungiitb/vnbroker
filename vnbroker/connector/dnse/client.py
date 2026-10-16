@@ -614,12 +614,18 @@ class DNSEClient(MultiMarketMixin):
     def get_trades_volume_profile(
         self,
         symbol: str,
-        time: int,
-        board_id: str | None = None,
+        time: str,
+        board_id: str,
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Phân bổ khối lượng theo giá (Lớp A). `time` bắt buộc, theo SDK."""
+        """Phân bổ khối lượng theo giá (Lớp A).
+
+        ⚠ `time` là **date string `yyyy-MM-dd`** (ví dụ `'2026-10-16'`), KHÔNG
+        phải unix giây — đo 2026-10-16: `time=1700` ⇒ `400 invalid param
+        'time', expected format yyyy-MM-dd`.
+        ⚠ `board_id` bắt buộc — thiếu ⇒ `400 missing param 'boardId'`.
+        """
         return self._resolve_output(
             self._market.get_trades_volume_profile(
                 symbol=symbol, time=time, board_id=board_id, dry_run=dry_run

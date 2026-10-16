@@ -18,6 +18,45 @@ _SECONDS_NOTE = (
     "truyền milliseconds sẽ bị server trả 400)."
 )
 
+#: Định dạng ngày mà một số endpoint DNSE yêu cầu (khác unix giây của
+#: price endpoints). Đo production 2026-10-16:
+#: `400 invalid param 'time', expected format yyyy-MM-dd`.
+_DATE_FORMAT = "%Y-%m-%d"
+
+
+def _require_date_string(value: object, param: str) -> str:
+    """Chặn số nguyên ở cửa một endpoint chỉ nhận chuỗi ngày.
+
+    Không có kiểu nào ở đây tự bắt được lỗi: `time: int` là hợp lệ về mặt Python
+    và lại là cách mọi người mặc định nghĩ khi thấy một con số thời gian. Vì vậy
+    phải kiểm nội dung, không chỉ kiểu.
+    """
+    if isinstance(value, str):
+        try:
+            datetime.strptime(value.strip(), _DATE_FORMAT)
+        except ValueError as exc:
+            raise DNSEValidationError(
+                message=(
+                    f"{param}={value!r} không phải ngày đúng định dạng "
+                    f"'{_DATE_FORMAT}'. DNSE yêu cầu CHUỖI NGÀY cho tham số này "
+                    f"— ví dụ '2026-10-16' — KHÔNG phải unix giây."
+                ),
+                error_code="INVALID_TIME_FORMAT",
+                status_code=400,
+            ) from exc
+        return value.strip()
+
+    raise DNSEValidationError(
+        message=(
+            f"{param}={value!r} sai kiểu ({type(value).__name__}). Tham số này "
+            f"phải là CHUỖI NGÀY '{_DATE_FORMAT}', ví dụ '2026-10-16' — không "
+            f"phải unix giây. Gửi số nguyên sẽ bị server trả "
+            f"`400 invalid param '{param}', expected format {_DATE_FORMAT}`."
+        ),
+        error_code="INVALID_TIME_FORMAT",
+        status_code=400,
+    )
+
 
 class MarketService:
     def __init__(self, http: DNSEHttpClient):
@@ -273,22 +312,30 @@ class MarketService:
     def get_trades_volume_profile(
         self,
         symbol: str,
-        time: int,
-        board_id: str | None = None,
+        time: str,
+        board_id: str,
         dry_run: bool = False,
     ) -> tuple[int | None, Any]:
         """Phân bổ khối lượng theo giá (Lớp A). Path theo SDK `client.py:304`.
 
-        `time` là **bắt buộc** — SDK khai nó là tham số vị trí không có default
-        (`client.py:298`). Giữ nguyên để chặn những request chắc chắn bị từ chối.
+        ⚠ **`time` là DATE STRING `yyyy-MM-dd`, không phải unix giây.** Đo
+        production 2026-10-16: `time=1700` ⇒
+        `400 invalid param 'time', expected format yyyy-MM-dd`. Đây là chỗ dễ
+        nhầm nhất của connector, vì 4 method phân trang kia đều nhận unix giây.
+
+        ⚠ **`board_id` là bắt buộc.** Đo: thiếu `boardId` ⇒
+        `400 missing param 'boardId'`. Chặn ở đây thay vì để server trả 400
+        (L-R01).
+
+        Raises:
+            DNSEValidationError: khi ``time`` không phải chuỗi ngày hợp lệ.
+                ``error_code == "INVALID_TIME_FORMAT"``.
         """
-        query: dict[str, object] = {"time": time}
-        if board_id is not None:
-            query["boardId"] = board_id
+        _require_date_string(time, "time")
         return self._http.request(
             "GET",
             f"/price/{symbol}/trades/volume-profile",
-            query=query,
+            query={"time": time, "boardId": board_id},
             dry_run=dry_run,
         )
 

@@ -56,6 +56,14 @@ client = DNSEClient(
 - `get_ohlc(bar_type: str, query: dict | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_trades(symbol: str, board_id: str | None = None, from_date: int | None = None, to_date: int | None = None, limit: int | None = None, order: str | None = None, next_page_token: str | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_instruments(symbol: str | None = None, market_id: str | None = None, security_group_id: str | None = None, index_name: str | None = None, limit: int | None = None, page: int | None = None, dry_run: bool = False, raw: bool = False)`
+- `get_trades_volume_profile(symbol: str, time: str, board_id: str, dry_run: bool = False, raw: bool = False)`
+  - ⚠ **Đổi chữ ký 2026-10-16.** `time` trước đây là `int`, nay là **date string
+    `yyyy-MM-dd`**; `board_id` trước đây tuỳ chọn, nay **bắt buộc**.
+    Đo production: `time=1700` ⇒ `400 invalid param 'time', expected format
+    yyyy-MM-dd`; thiếu `boardId` ⇒ `400 missing param 'boardId'`.
+- `get_working_dates(dry_run: bool = False, raw: bool = False)`
+  - Gọi `GET /market/working-dates`, **không** gửi `marketType` (thêm vào ⇒ 404).
+  - Trả `{"workingDates": [...]}`; `raw=False` cho một dòng mỗi ngày, cột `workingDates`.
 
 ### 3.1 Live market-data notes
 
