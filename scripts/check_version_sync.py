@@ -6,6 +6,7 @@ Checks:
 - ``CLAUDE.md`` ``Current version: **X.Y.Z**`` (allows a ``(vA.B-dev ...)`` suffix note).
 - ``vnbroker/config.py`` ``VERSION_REQUIREMENTS`` keys include the version.
 - ``tests/**/*.py`` contains no hardcoded version literal (GĐ4).
+- **installed distribution metadata** matches ``pyproject.toml`` (F-01, 2026-10-14).
 
 Usage:
     python scripts/check_version_sync.py
@@ -16,9 +17,19 @@ from __future__ import annotations
 import re
 import sys
 import tomllib
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _distribution_version
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# Console Windows mặc định là cp1252, in ra sẽ `UnicodeEncodeError` ngay giữa
+# lúc gate đang cần nói lý do đỏ. Thông điệp thất bại mà không in được thì
+# mất tác dụng — vì vậy ép UTF-8 với fallback `replace` TRƯỚC khi in bất cứ thứ gì.
+for _stream in (sys.stdout, sys.stderr):
+    _reconfigure = getattr(_stream, "reconfigure", None)
+    if _reconfigure is not None:
+        _reconfigure(encoding="utf-8", errors="replace")
 
 
 def read_version() -> str:
@@ -33,6 +44,53 @@ def read_version() -> str:
 def fail(message: str) -> None:
     print(f"version-sync FAILED: {message}")
     raise SystemExit(1)
+
+
+def runtime_metadata_drift(declared: str, installed: str | None) -> str | None:
+    """So ``pyproject.toml`` với ``importlib.metadata`` — mặt phẳng còn thiếu.
+
+    ``vnbroker/__init__.py`` đọc version qua ``importlib.metadata``. Cài
+    **editable** thì ``dist-info`` không được đóng lại khi bump version, nên
+    ``vnbroker.__version__`` có thể thấp hơn thật nhiều bản (đo 2026-10-14:
+    pyproject 3.7.2 vs ``__version__`` 3.4.0). Người dùng đọc version sai sẽ
+    cache sai — nên đây là lỗi dữ liệu, không phải lỗi trình bày.
+
+    Args:
+        declared: version khai trong ``pyproject.toml``.
+        installed: version đọc được từ distribution, hoặc ``None`` nếu chưa cài.
+
+    Returns:
+        Chuỗi mô tả lệch (kèm cách sửa), hoặc ``None`` khi không lệch /
+        không đo được.
+    """
+    if installed is None:
+        # Chưa cài => KHÔNG ĐO ĐƯỢC. Báo đỏ ở đây là báo sai, vì mọi người đều
+        # có thể chạy test/gate từ cây nguồn chưa cài. Cùng bậc L-E04.
+        return None
+    if declared == installed:
+        return None
+    return (
+        f"pyproject.toml khai {declared} nhưng distribution đang cài là "
+        f"{installed} — `vnbroker.__version__` sẽ trả {installed}. "
+        f"Đây là metadata của bản cài editable không được đóng lại khi bump "
+        f"version. Sửa: `pip install -e .` (hoặc `pip install --force-reinstall "
+        f"-e .`) rồi chạy lại gate."
+    )
+
+
+def check_runtime_metadata(declared: str) -> None:
+    """Fail khi metadata bản cài lệch version khai trong ``pyproject.toml``."""
+    try:
+        installed = _distribution_version("vnbroker")
+    except PackageNotFoundError:
+        print(
+            "version-sync: CHƯA CÀI distribution `vnbroker` — bỏ qua kiểm tra "
+            "metadata (không đo được, không phải lệch)."
+        )
+        return
+    reason = runtime_metadata_drift(declared=declared, installed=installed)
+    if reason is not None:
+        fail(reason)
 
 
 def main() -> None:
@@ -57,10 +115,11 @@ def main() -> None:
         fail(f"vnbroker/config.py has no VERSION_REQUIREMENTS entry for {version}")
 
     check_tests_derive_version(version)
+    check_runtime_metadata(version)
 
     print(
         f"version-sync OK: {version} "
-        f"(pyproject, README, CLAUDE.md, config.py, tests/)"
+        f"(pyproject, README, CLAUDE.md, config.py, tests/, dist metadata)"
     )
 
 

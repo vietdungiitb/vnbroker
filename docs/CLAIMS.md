@@ -266,3 +266,238 @@ lessons 24/40 | pytest 1919 passed / 30 skipped / **0 ERROR**.
 
 Tap file 4 slice giao nhau = ∅ (S4 giu `common/data.py` mot minh).
 Lesson ap dung: [L-P01, L-P02, L-P03, L-P04, L-P05, L-P06, L-E01, L-E04, L-E06].
+
+## 2026-10-14 - VNINVEST REQ 001..005 (doc-only de, code co) - base main @ fe76670
+
+Van ban yeu cau: ninvest/docs/REQUESTS_TO_VNBROKER_20261014.md (5 REQ).
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-001 BrokerRegistry.capabilities() 3 lane | vnbroker/broker/registry.py,vnbroker/broker/capabilities.py,vnbroker/broker/__init__.py,tests/unit/broker/test_capabilities.py,tests/contract/test_capability_contract.py | in-progress | 2026-10-14 | - |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-003 watchlist capability | cung file REQ-001 | in-progress | 2026-10-14 | (a) khai bao unsupported; (b) ghi roadmap, khong code |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-004 MARKET_TYPES + validate | vnbroker/connector/dnse/constants.py,vnbroker/connector/dnse/client.py,vnbroker/connector/dnse/trade.py,tests/unit/connector/dnse/test_market_type_validation.py | in-progress | 2026-10-14 | 24 method DNSEClient+Trade |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-005 normalize + market_type aggregate | vnbroker/connector/dnse/client.py,tests/unit/connector/dnse/test_normalize_public_api.py | in-progress | 2026-10-14 | - |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | REQ-002 TCBS order history nhieu ngay | docs-only (khong code) | in-progress | 2026-10-14 | AC alternative khong thien hanh duoc theo spec |
+| opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | F-01 __version__ doc metadata cu | vnbroker/__init__.py,scripts/check_version_sync.py | in-progress | 2026-10-14 | do: 3.4.0 vs pyproject 3.7.2 |
+
+Khong file docs/CLAIMS.md cua agent khac dang claim in-progress bi cham.
+Lesson ap dung: [L-E01, L-E02, L-E03, L-E05, L-E06, L-E07, L-R01, L-R04, L-P01, L-P03, L-P04, L-P05, L-P06].
+
+### Trang thai cua claim tren (cap nhat khi dong)
+
+Tat ca 6 dong da **released** tren branch eat/vninvest-req-20261014 (khong merge).
+Gate do tai main tree tai commit nay: check_all.ps1 (khong -Quick) **exit 0** —
+ruff-src PASS · version-sync PASS (3.7.2, kem dist metadata) · lessons PASS ·
+tcbs-coverage PASS · tcbs-bodies PASS · provider-consistency PASS ·
+mypy-baseline PASS · pytest-contract **117 passed** · pytest-full **2177 passed,
+26 skipped**.
+
+CHUA CHAY: CI GitHub Actions (job bi tu choi khoi dong do billing).
+KHONG co baseline pytest-full TRUOC thay doi — vi vay KHONG bao cao delta so
+test (chi bao cao so do tai commit nay). Day la L-E07.
+
+Phan hoi chinh thuc 5 REQ: docs/RESPONSE_TO_VNINVEST_20261014.md.
+Phan hoi REQ-002 co contract test khoa ket luan:
+	ests/contract/test_tcbs_order_history_contract.py.
+
+### Dinh chinh so lieu (L-E01 bat duoc chinh minh ta)
+
+Ban nhap dau cua docs/RESPONSE_TO_VNINVEST_20261014.md va roadmap ghi **so dong
+file sai**, do lenh Get-Content f | Measure-Object -Line cua PowerShell **khong
+dem dong rong**. So dung (do bang len(text.splitlines())):
+
+| File | Sai (non-empty) | Dung (tong dong) |
+|---|---|---|
+| nbroker/connector/dnse/client.py | 662 | **713** |
+| nbroker/connector/dnse/trade.py | 1233 | **1352** |
+
+Va dem lai bang AST/inspect: DNSEClient co **15** method cong khai nhan
+market_type (khong phai 11), Trade co **12** (khong phai 13).
+
+Ket qua khong doi gi ve quyet dinh tach MultiMarketMixin — client.py truoc khi
+them la 707 dong, them 155 se thanh **862, VUOT** ngan sach 800 (truoc do chi
+"sát"). Va 	rade.py con vuot ngan sach nhieu hon da ghi.
+
+Da sua trong docs/RESPONSE_TO_VNINVEST_20261014.md, CLAUDE.md, CHANGELOG.md.
+Bai hoc: L-E01 xay ra **ngay trong luc viet bao cao**, khong phai chi la tai lieu
+cu bi hong. Day la lan thu hai trong dot nay (lan 1: docs/RESEARCH_WATCHLIST_
+BROKER_20261014.md ma REQ danh chung khong ton tai o cay hien tai).
+
+### R-W2: dinh nghia that + dinh chinh dien giai sai
+
+R-W2 **khong phai quy tac chung cua he thong** — no la dong 121 cua
+docs/RESEARCH_WATCHLIST_BROKER_20261014.md (vninvest, branch
+eat/multibroker-plan-research, commit 1b5e455b5):
+
+| # | Noi dung | Muc |
+|---|---|---|
+| R-W1 | Khai bao trung thuc WatchlistCapability = unsupported cho ca 3 lane trong roker/registry.py | P1 |
+| **R-W2** | **KHONG reverse-engineer private web API (iBoard/EntradeX web) de lay watchlist** | Quy tac |
+| R-W3 | Duong chinh thong duy nhat: de xuat provider mo API watchlist | P3 |
+| R-W4 | Tai dung co san: get_holdings/get_positions 3 lane; ligo get_watchlist(filters) cho goi y ma (screener, **khong phai** watchlist user) | P0 |
+
+**Hai loi cua ban nhap:**
+1. **Tu mau thuan.** §7 row 9 cua van ban tra loi noi file nay "KHONG ton tai" o
+   cay hien tai cua vninvest — roi §2 REQ-003b lai trich R-W1..R-W4 tu chinh file
+   do lam can cu. Vua bao file khong ton tai vua dung no.
+2. **Dien giai qua rong.** Ban nhap noi REQ-003b "bi chan" *theo R-W2*. That ra R-W2
+   cam reverse-engineer **web private de lay watchlist**, KHONG cam vnbroker viet
+   CRUD khi provider **co** API chinh thuc. Ly do that de chua viet la **chua co
+   API nao de goi** — khong lien quan gi toi R-W2.
+
+Da sua ca hai trong docs/RESPONSE_TO_VNINVEST_20261014.md §2 (them bang doi
+chieu R-W1..R-W4 + khoi doan dinh chinh) va §7 row 9 (nen nguon + commit).
+
+Ghi chu: R-W4 cua vninvest da phan loai get_watchlist(filters) cua
+explorer/tcbs la screencer chu khong phai watchlist user — **dung bang cach
+vnbroker gan nhan**, va get_watchlist(filters) do da co san trong repo nen
+R-W4 khong ton tai viiec moi o vnbroker.
+---
+
+## 2026-10-16 - DNSE OPENAPI FIX (Mode B solo) - base `f6cf68b`
+
+Plan: `docs/PLAN_DNSE_FIX_20261016.md` - Audit: `docs/PLAN_AUDIT_DNSE_FIX_20261016.md`
+Verdict audit: **NEED_REVISION** (4 blocker, 7 major, 6 nho) -> plan ban 2 da sua het.
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| coordinator-dnse-fix | feat/dnse-openapi-fix | (main checkout) | Sua 11 defect client DNSE OpenAPI (D1-D11) | vnbroker/connector/dnse/services/{market_service,order_service,account_service,position_service}.py, vnbroker/connector/dnse/client.py, vnbroker/connector/dnse/core/time_utils.py (moi), vnbroker/connector/dnse/{trade_derivatives,trade_conditional,openapi_passthrough}.py (moi), vnbroker/explorer/dnse/quote.py, vnbroker/broker/capabilities.py, scripts/probe_dnse_readonly.py, tests/unit/connector/dnse/{test_market_time_units,test_order_read_params,test_position_id_guard}.py (moi), tests/contract/test_trade_public_surface.py (moi), tests/unit/connector/dnse/test_market_data_read_methods.py, tests/unit/connector/dnse/test_write_safety.py, tests/contract/test_dnse_endpoint_contract.py, docs/AGENT_PROTOCOL.md, docs/DNSE_API_CONTRACT.md, docs/REPORT_DNSE_LIVE_20261016.md, docs/LESSONS/provider-params.md | **merged** `v3.8.0` | 2026-10-16 | Mode B. 16 commit `0bc2d45`..`bdfd2cf` (10 commit REQ-001..005 truoc do da nam tren nhanh tu truoc); 11/11 defect dong, **da do lai live**. Merge vao `main`, tag `v3.8.0` |
+
+**Vi sao Mode B:** lat A/B/D sua `market_service.py`; lat A/B/C/D sua `client.py`.
+Tap file giao nhau => chay song song se tai tao Hazard 1 (weld hunk). Tien le:
+TCBS Round 3 (`docs/CLAIMS.md:205-206`).
+
+**KHONG claim:** `vnbroker/connector/dnse/core/http_client.py` (write gate la choke
+point money lane). ~~`trade.py` (1352L, vuot ngan sach 800L)~~ — da tach ngay sau
+do, xem muc "Tach trade.py" duoi day.
+
+**Baseline gate @ f6cf68b** (do, khong suy tu CLAUDE.md - xem AGENT_PROTOCOL §2):
+- pytest tests/ -q --timeout=300 -> exit 0, **2177 passed, 26 skipped**, 3 subtests
+- pytest tests/contract -q -> exit 0, **117 passed** (do lai sau audit B1; ban
+  nhap ghi "72" - chieu CLAUDE.md da loi thoi)
+- pytest tests/unit/connector/dnse tests/contract -q -> exit 0, 332 passed
+- ruff check vnbroker tests/unit tests/contract -> exit 0
+- check_mypy_baseline.py -> exit 0 (baseline 1266, now 1138)
+- ruff check tests -> **exit 1, 13 KNOWN-RED co san** - chi doi khong tang
+
+**3 phat hien lam doi huong ke hoach (deu do duoc, khong doan):**
+1. `/market/working-dates` -> **200, 257 workingDates**. Docstring trong code bao
+   "DNSE khong co endpoint nay" -> **sai**. D1 la path bug, khong phai endpoint vong.
+2. `/accounts/{a}/corporate-action-history` -> **200**. Code dung
+   `/corporate-actions` -> `404 API ROUTE NOT FOUND`. D5 la path bug.
+3. Kiem tra 24 gia tri boardId/marketId deu that bai. **KHONG them enum** (L-P06).
+
+Lesson ap dung: [L-R01, L-R02, L-R03, L-R04, L-R06, L-E01, L-E02, L-E04, L-E06,
+L-P03, L-P04, L-P05, L-P06].
+
+### Trang thai claim tren (cap nhat khi dong)
+
+**Da DONG.** 9 commit tren `feat/dnse-openapi-fix` (base `f6cf68b`):
+
+| # | Commit | Noi dung |
+|---|---|---|
+| 1 | `0bc2d45` | Stage 0-3: AGENT_PROTOCOL, plan v2, audit, bao cao, probe |
+| 2 | `3fbbb8b` | Slice A - D8/D9 don vi GIAY + chan market_index |
+| 3 | `6f5fc98` | Slice B - D1 `/market/working-dates` |
+| 4 | `069dfbe` | Slice C - D2/D3/D4 pageIndex + cap `from`/`to` |
+| 5 | `9d37af4` | Slice D - D7 date string + board_id bat buoc |
+| 6 | `393591e` | Slice E - D5 path + D6 chan position_id rac |
+| 7 | `3e25b71` | Slice F - bang chung am tinh D10/D11 (hoa ra SAI, xem report §12) |
+| 8 | `4746a8f` | Sua 1 blocker + 4 major cua audit ma nguon |
+| 9 | `51f3e30` | **Khoi phuc mojibake** + them cong `check_encoding.py` |
+| 10 | `d8fab65` | Mang ve: dong D10/D11 bang tu dien that + `pageSize` bat buoc |
+
+**Audit ma nguon doc lap: 2 vong, ca 2 deu FAIL** (vong 1: 1 blocker/4 major;
+vong 2: 1 blocker/1 major). Blocker vong 2 **do chinh toi gay ra** bang script
+mutation-test: `Get-Content -Raw` doc UTF-8 bang CP1252 roi ghi lai ban hong.
+Da them `scripts/check_encoding.py` vao `check_all.ps1` de loi nay tu do.
+
+**Gate cuoi @ `d8fab65`:** `check_all.ps1` FULL **exit 0** · `pytest-full`
+**2246 passed, 26 skipped** (baseline 2177 => **+69**) · contract 117 ·
+mypy-baseline 1266->1133 · cong moi `encoding` PASS 449 file · `ruff check tests`
+13 KNOWN-RED **khong tang**.
+
+**Mutation-test 4/4**: bo tung fix lai lan luot thi test tuong ung do (6/1/1/5).
+Khong con test xanh vi khang dinh sai.
+
+**Do lai live (khong VPN):** `scripts/probe_dnse_readonly.py` => `PASS=40 FAIL=16`,
+16 FAIL deu la probe phu dinh co chu dich. **11/11 defect da dong.**
+
+**CHUA CHAY - KHONG DUOC GHI LA PASS:**
+- **Mang DNSE production mat luc 16:40** (TLS handshake timeout 3/3 lan, 12.5s/lan).
+  Bang chung D1/D5 thu o dau phien (khong VPN) van co gia tri nhung phai ghi kem
+  dieu kien mang tai thoi diem do. Re-probe live Stage 6 => CHUA CHAY neu mang
+  chua ve.
+- Gia thuyet `boardId = "G1"` / `marketId` kieu `G*` (tu `websocket.py:19,278`) **chua
+  kip thu** => Slice F chua chot duoc.
+- Sandbox co chap nhan `pageIndex` khong -> chi biet "khong doi", chua biet "chap nhan".
+- `Trade.login()` JWT: `.env` thieu `DNSE_USERNAME`/`DNSE_PASSWORD`.
+- CI GitHub Actions: job bi tu choi khoi dong do billing.
+
+---
+
+## 2026-10-16 - SAU KHI DONG: 3 chi thi cua Owner
+
+Owner chot 3 viec ngay sau khi dong task. Ca 3 da xong va **da merge** vao `main`.
+
+### 1. `orderCategory` BAT BUOC (phuong an A) - `2c23984`
+
+Hai yeu cau bat nguon tu luc do live: `get_orders` thieu `order_category` ->
+`400 INVALID_ORDER_CATEGORY` tren production (sandbox khong doi).
+
+Da can nhac 3 phuong an, Owner chot **A**:
+- **A (chot):** `order_category: str` bat buoc trong chu ky. Go thieu ->
+  `TypeError` ngay, khong co byte nao di ra.
+- B (loai): giu tuy chon, chi validate gia tri.
+- C (loai): mac dinh `"NORMAL"`.
+
+**Vi sao loai C:** nguoi muon xem lenh `STOP` ma quen tham so se nhan danh sach
+`NORMAL` day du trong mat va thieu. Do la **sai du lieu ma trong nhu dung** —
+fail-open o tang ngu nghia du lieu, te hon han mot `TypeError` luc go.
+
+### 2. Tach `trade.py` 1352L -> 4 file - `b4b386b` + `bdfd2cf`
+
+Thu tu: **dong bang API truoc, tach sau**.
+
+| File | Dong |
+|---|---|
+| `trade.py` (core: infra + auth + order/deal) | 622 |
+| `trade_derivatives.py` (`DerivativeMixin`) | 180 |
+| `trade_conditional.py` (`ConditionalOrderMixin`) | 180 |
+| `openapi_passthrough.py` (`OpenApiPassthroughMixin`) | 354 |
+
+`tests/contract/test_trade_public_surface.py` (moi): 47 method + 47 chu ky + 14
+write-gated, xanh TRUOC (`b4b386b`) va xanh SAU (`bdfd2cf`).
+
+**3 loi toi tu gay ra va bi cong cu bat (ghi lai de khong lap):**
+1. Them `from __future__ import annotations` vao mixin -> `inspect.signature`
+   doi dang -> freeze test bat. Da bo.
+2. Script tu dong gan `-> Any` cho ca `__init__` (phai la `-> None`) -> mypy bat.
+3. `test_write_safety.py` quet AST chi `class Trade` trong `trade.py` -> **bo sot
+   2 method ghi tien that** sau khi tach. Money lane, quet hep = lo hong; da mo
+   rong sang `TRADE_MODULES`.
+
+**mypy-baseline 83 loi moi -> 0.** Nguyen nhan: baseline dem theo DUONG DAN file,
+code chuyen file bi tinh la `new`. Sua that (khai bao hop dong mixin duoi
+`TYPE_CHECKING`, return annotation, thu hop `dict`/`list`) chu **khong** dung
+`--update` de giau. 1266 -> 1106.
+
+### 3. Lesson moi - `73b8c99`
+
+`docs/LESSONS/provider-params.md` -> `L-D01` (validator tu choi ma khong liet ke
+tap hop -> doc response server, dung doan) va `L-D02` (mac dinh "cho chay duoc"
+la tu che). ⚠ ID lesson regex la `^## L-[A-Z]\d+` — **mot chu cai**; `L-PP01` bi
+gate bao DRIFT, da dung namespace `L-D`.
+
+### Gate cuoi @ `bdfd2cf` (truoc merge)
+
+`check_all.ps1` FULL **exit 0** · pytest **2281 passed, 26 skipped** (baseline
+2177 => **+104**) · contract **149** · mypy-baseline 1266->1106 · encoding PASS
+453 file · ruff-src/unit/contract sach · `ruff check tests` 13 KNOWN-RED khong tang.
+
+### Con CHUA CHAY (chuyen tiep sang phien sau)
+
+Xem `docs/HANDOFF_DNSE_FIX_20261016.md` — danh sach day du. Tom tat: STOP/OCO co
+that su chay khong; `order_detail`/`executions`/`order_history` co doi
+`order_category` khong; sandbox chap nhan `pageIndex`/`pageSize` khong; `403` tai
+`position_id=999999` chua giai thich.

@@ -106,6 +106,7 @@ $gates = @(
     @{ name = 'tcbs-bodies';    cmd = { & $python scripts/check_tcbs_bodies.py --baseline docs/tcbs_body_baseline.json } }
     @{ name = 'provider-consistency'; cmd = { & $python scripts/check_provider_consistency.py } }
     @{ name = 'mypy-baseline'; cmd = { & $python scripts/check_mypy_baseline.py } }
+    @{ name = 'encoding';      cmd = { & $python scripts/check_encoding.py } }
     @{ name = 'pytest-contract'; cmd = { & $python -m pytest tests/contract -q -p no:cacheprovider } }
     @{ name = 'pytest-full';   cmd = { & $python -m pytest tests/ -q --timeout=300 -p no:cacheprovider }; skipIfQuick = $true }
 )

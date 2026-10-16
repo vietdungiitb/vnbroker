@@ -9,9 +9,11 @@ Exports:
 - SSIBrokerClient: Main broker client for SSI (native FastConnect v3)
 - BrokerRegistry: Registry for broker providers
 - BrokerSession: Session state machine for auth lifecycle
+- capabilities: Describe a lane's usable surface without credentials
 """
 
 from vnbroker.broker.base import BaseBrokerClient
+from vnbroker.broker.capabilities import capabilities
 from vnbroker.broker.registry import BrokerRegistry
 from vnbroker.broker.session import BrokerSession, SessionState
 
@@ -20,6 +22,7 @@ __all__ = [
     "BrokerRegistry",
     "BrokerSession",
     "SessionState",
+    "capabilities",
 ]
 
 # Lazy import for TCBS broker client to avoid circular imports

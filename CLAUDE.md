@@ -356,7 +356,7 @@ pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate 
 - Version defined in `pyproject.toml` (single source of truth)
 - `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
 - Upgrade notice checks GitHub release tags (not PyPI)
-- Current version: **3.7.2** (`scripts/check_version_sync.py` enforces doc sync in CI)
+- Current version: **3.8.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
 - Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
 
 ## Deprecated/Removed (v3.1.0)
@@ -383,3 +383,23 @@ pwsh -File scripts/check_all.ps1 -SelfTest  # chứng minh script FAIL khi gate 
 - [ ] API reference documentation
 - [ ] DNSE News/Stream support
 - [ ] Unified DNSE client with dual auth modes
+- [ ] Watchlist CRUD chuẩn 3 lane — **chưa làm vì chưa có gì để gọi**: tại thời
+      điểm này cả TCBS, SSI, DNSE đều không có watchlist **API**. Đã khai báo
+      `capabilities(p)["features"]["watchlist"]["supported"] is False` cho cả
+      3 lane, kèm contract test quét `dir()` — provider mở API mà quên cập nhật
+      thì test đỏ. **Cấm** reverse-engineer private web (R-W2).
+      ⚠ Đừng đọc "không có API" thành "provider không có watchlist": SSI có
+      watchlist trên iBoard web/app, chỉ thiếu API. Và đừng hard-code giả định
+      "vĩnh viễn không có" — R-W3 (đề xuất provider mở API, tiền lệ IBKR) là
+      đường chính thống.
+      Lưu ý trùng tên: `explorer/tcbs/tcbs_compatibility.py:296` đã có
+      `get_watchlist(filters)` nhưng đó là screener preview
+      (`POST /ligo/v1/watchlist/preview`), không phải watchlist user.
+- [ ] Validate `market_type`/`order_category` ở 12 method của `Trade`
+      (`connector/dnse/trade.py`) — **trì hoãn có chủ đích**: file đó 1352 dòng,
+      vượt ngân sách 800, thêm nữa sẽ vi phạm L-P03. Cần tách file trước.
+      `MARKET_TYPES`/`ORDER_CATEGORIES` đã dùng được ngay (`constants.py`).
+- [ ] Ghim spec DNSE vào repo kèm sha256 — chưa có file OpenAPI cho DNSE (khác
+      TCBS: `docs/references/openapi-v1.0.0.json` có sha256 do
+      `scripts/verify_tcbs_coverage.py` kiểm). Vì vậy `MARKET_TYPES` là tập **đã
+      tài liệu hoá**, không phải enum do server công bố.

@@ -98,3 +98,32 @@ class BrokerRegistry:
         """Clear all registered providers (for testing)."""
         with cls._lock:
             cls._providers.clear()
+
+    @classmethod
+    def capabilities(cls, provider: str) -> Dict[str, Any]:
+        """Describe a broker lane's usable surface, without credentials.
+
+        VNBROKER-REQ-001. Exists so a consumer can ask "is this method real,
+        or was it removed?" instead of discovering it by calling and catching
+        ``NotImplementedError`` — which is fail-open: it tells you nothing
+        until something breaks.
+
+        Covers **three** lanes, not just the registered ones: ``dnse`` is not
+        a :class:`BaseBrokerClient` and is therefore absent from this
+        registry, but it is a lane a consumer needs to reason about. The
+        implementation and its reasoning live in
+        ``vnbroker/broker/capabilities.py``.
+
+        Args:
+            provider: ``"tcbs"``, ``"ssi"`` or ``"dnse"`` (case-insensitive).
+
+        Returns:
+            ``{version, provider, registered, methods, features}``. See
+            ``vnbroker.broker.capabilities.capabilities()``.
+
+        Raises:
+            KeyError: unknown provider; the message lists the known lanes.
+        """
+        from vnbroker.broker.capabilities import capabilities as _capabilities
+
+        return _capabilities(provider)

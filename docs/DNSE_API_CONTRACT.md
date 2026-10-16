@@ -28,10 +28,21 @@ client = DNSEClient(
 
 ### Orders
 
-- `get_orders(account_no: str, market_type: str, order_category: str | None = None, dry_run: bool = False, raw: bool = False)`
+- `get_orders(account_no: str, market_type: str, order_category: str, page_index: int | None = 1, page_size: int | None = 20, dry_run: bool = False, raw: bool = False)`
+  - ⚠ `orderCategory` **BẮT BUỘC** — thiếu ⇒ `400 INVALID_ORDER_CATEGORY`.
+    Cố ý **không** đặt mặc định `NORMAL`: người gọi muốn xem lệnh `STOP` mà
+    quên tham số sẽ nhận danh sách `NORMAL` — thành công nhưng thiếu dữ liệu.
+  - ⚠ `pageIndex` **và** `pageSize` đều bắt buộc ở production (thiếu lần lượt
+    `400 pageIndex is required` / `400 pageSize is required`); sandbox thì không
+    đòi cái nào. Vì vậy mặc định là `1`/`20`, không phải `None`.
+    `page_size=20` là **giá trị đo dùng được**, không phải mặc định server công bố.
 - `get_order_detail(account_no: str, order_id: str, market_type: str, order_category: str | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_execution_detail(account_no: str, order_id: str, market_type: str, order_category: str = "NORMAL", dry_run: bool = False, raw: bool = False)`
 - `get_order_history(account_no: str, market_type: str, from_date: str | None = None, to_date: str | None = None, page_size: int | None = None, page_index: int | None = None, dry_run: bool = False, raw: bool = False)`
+  - ⚠ `from_date`/`to_date` là **date string `yyyy-MM-dd`** — KHÁC unix giây của
+    `quotes`/`trades`/`market-index`. Production bắt buộc **cả hai** vế; truyền
+    đúng một vế ⇒ `DNSEValidationError(ORDER_HISTORY_RANGE_INCOMPLETE)` trước khi
+    gửi. Cả hai vế trống vẫn hợp lệ (sandbox gọi được).
 
 ### Trade actions
 
@@ -50,6 +61,14 @@ client = DNSEClient(
 - `get_ohlc(bar_type: str, query: dict | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_trades(symbol: str, board_id: str | None = None, from_date: int | None = None, to_date: int | None = None, limit: int | None = None, order: str | None = None, next_page_token: str | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_instruments(symbol: str | None = None, market_id: str | None = None, security_group_id: str | None = None, index_name: str | None = None, limit: int | None = None, page: int | None = None, dry_run: bool = False, raw: bool = False)`
+- `get_trades_volume_profile(symbol: str, time: str, board_id: str, dry_run: bool = False, raw: bool = False)`
+  - ⚠ **Đổi chữ ký 2026-10-16.** `time` trước đây là `int`, nay là **date string
+    `yyyy-MM-dd`**; `board_id` trước đây tuỳ chọn, nay **bắt buộc**.
+    Đo production: `time=1700` ⇒ `400 invalid param 'time', expected format
+    yyyy-MM-dd`; thiếu `boardId` ⇒ `400 missing param 'boardId'`.
+- `get_working_dates(dry_run: bool = False, raw: bool = False)`
+  - Gọi `GET /market/working-dates`, **không** gửi `marketType` (thêm vào ⇒ 404).
+  - Trả `{"workingDates": [...]}`; `raw=False` cho một dòng mỗi ngày, cột `workingDates`.
 
 ### 3.1 Live market-data notes
 

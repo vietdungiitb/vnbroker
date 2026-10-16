@@ -1,8 +1,62 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
+from vnbroker.connector.dnse.core.errors import DNSEValidationError
 from vnbroker.connector.dnse.core.http_client import DNSEHttpClient
+from vnbroker.connector.dnse.core.time_utils import (
+    VIETNAM_TZ,
+    is_same_vn_day,
+    to_unix_seconds,
+    vn_day_bounds,
+)
+
+#: Ghi nhắc đơn vị, dùng chung cho cả 5 method phân trang. Đo production
+#: 2026-10-16: milliseconds trả `400 range exceeds maximum time range`.
+_SECONDS_NOTE = (
+    "`from_date`/`to_date` là unix **GIÂY** (không phải milliseconds — "
+    "truyền milliseconds sẽ bị server trả 400)."
+)
+
+#: Định dạng ngày mà một số endpoint DNSE yêu cầu (khác unix giây của
+#: price endpoints). Đo production 2026-10-16:
+#: `400 invalid param 'time', expected format yyyy-MM-dd`.
+_DATE_FORMAT = "%Y-%m-%d"
+
+
+def _require_date_string(value: object, param: str) -> str:
+    """Chặn số nguyên ở cửa một endpoint chỉ nhận chuỗi ngày.
+
+    Không có kiểu nào ở đây tự bắt được lỗi: `time: int` là hợp lệ về mặt Python
+    và lại là cách mọi người mặc định nghĩ khi thấy một con số thời gian. Vì vậy
+    phải kiểm nội dung, không chỉ kiểu.
+    """
+    if isinstance(value, str):
+        try:
+            datetime.strptime(value.strip(), _DATE_FORMAT)
+        except ValueError as exc:
+            raise DNSEValidationError(
+                message=(
+                    f"{param}={value!r} không phải ngày đúng định dạng "
+                    f"'{_DATE_FORMAT}'. DNSE yêu cầu CHUỖI NGÀY cho tham số này "
+                    f"— ví dụ '2026-10-16' — KHÔNG phải unix giây."
+                ),
+                error_code="INVALID_TIME_FORMAT",
+                status_code=400,
+            ) from exc
+        return value.strip()
+
+    raise DNSEValidationError(
+        message=(
+            f"{param}={value!r} sai kiểu ({type(value).__name__}). Tham số này "
+            f"phải là CHUỖI NGÀY '{_DATE_FORMAT}', ví dụ '2026-10-16' — không "
+            f"phải unix giây. Gửi số nguyên sẽ bị server trả "
+            f"`400 invalid param '{param}', expected format {_DATE_FORMAT}`."
+        ),
+        error_code="INVALID_TIME_FORMAT",
+        status_code=400,
+    )
 
 
 class MarketService:
@@ -15,6 +69,17 @@ class MarketService:
         board_id: str | None = None,
         dry_run: bool = False,
     ):
+        """Định nghĩa mã bảo chứng. Path theo SDK `client.py:256`.
+
+        **Giá trị hợp lệ của `board_id` (đo 2026-10-16):**
+        :data:`BOARD_IDS` — ``G1``, ``G2``, ``G3``, ``G4``, ``G7``, ``G8``.
+        14 ứng viên khác (kể cả ``HOSE``, ``HNX``, ``UPCOM``) đều trả **500
+        Internal error** — server không trả 400 cho giá trị sai ở endpoint này.
+
+        ⚠ Vì sao **không** validate cứng: tập trên đo trên **một** mã và **một**
+        ngày. Chặn giá trị ngoài tập sẽ chặn oàng mỗi khi DNSE thêm sàn mới. Đây
+        là khác biệt có chủ ý so với `marketType` (bắt buộc và đóng).
+        """
         query = {"boardId": board_id} if board_id else None
         return self._http.request(
             "GET",
@@ -42,12 +107,21 @@ class MarketService:
         return self._http.request("GET", f"/price/{symbol}/trades/latest", dry_run=dry_run)
 
     def get_working_dates(self, dry_run: bool = False):
-        """Get trading working dates.
-        
-        Note: DNSE OpenAPI does not have a dedicated working-dates endpoint.
-        Returns empty list - use instruments endpoint with date filtering if needed.
+        """Ngày giao dịch. Path: `GET /market/working-dates` (SDK `client.py:447-451`).
+
+        ⚠ **Đính chính một kết luận sai đã có trong chính file này.** Docstring cũ
+        ghi *"DNSE OpenAPI does not have a dedicated working-dates endpoint"* và
+        method trả `({"dates": []}, None)` — một tuple cố ý đảo, khiến
+        `_resolve_output` unpack nhầm và người gọi nhận `None` mà không có request
+        nào đi ra. Đó là "thành công rỗng": trông như server nói không có ngày
+        giao dịch, trong khi thật ra chưa ai hỏi (L-R01).
+
+        Đo production 2026-10-16 (không VPN): `200`, `{"workingDates": [...257]}`
+        ⇒ endpoint **có thật**. Vậy nên sửa path, không xoá method.
+
+        Không gửi `marketType`: đo cho thấy thêm tham số đó trả `404`.
         """
-        return ({"dates": []}, None)  # Return tuple (body, raw) for consistency
+        return self._http.request("GET", "/market/working-dates", dry_run=dry_run)
 
     def get_trades(
         self,
@@ -59,23 +133,23 @@ class MarketService:
         order: str | None = None,
         next_page_token: str | None = None,
         dry_run: bool = False,
-    ):
-        # Correct path: /price/{symbol}/trades  (symbol is path param, not query param)
-        path = f"/price/{symbol}/trades"
-        query: dict = {}
-        if board_id is not None:
-            query["boardId"] = board_id
-        if from_date is not None:
-            query["from"] = from_date
-        if to_date is not None:
-            query["to"] = to_date
-        if limit is not None:
-            query["limit"] = limit
-        if order is not None:
-            query["order"] = order
-        if next_page_token is not None:
-            query["nextPageToken"] = next_page_token
-        return self._http.request("GET", path, query=query or None, dry_run=dry_run)
+    ) -> tuple[int | None, Any]:
+        """Giao dịch khớp lệnh. Path theo SDK: `/price/{symbol}/trades`.
+
+        Dùng chung `_history_query` với 4 method kia — trước đây method này dựng
+        dict thủ công trong khi những method khác gọi helper, nên một thay đổi tên
+        key chỉ đạt được nửa bộ method.
+
+        """ + _SECONDS_NOTE
+        return self._http.request(
+            "GET",
+            f"/price/{symbol}/trades",
+            query=self._history_query(
+                board_id, from_date, to_date, limit, order, next_page_token
+            )
+            or None,
+            dry_run=dry_run,
+        )
 
     @staticmethod
     def _history_query(
@@ -90,14 +164,20 @@ class MarketService:
 
         Tên key lấy từ SDK `dnse-tech/openapi-sdk` `python/dnse/api/client.py:331-343`
         — `boardId` / `from` / `to` / `limit` / `order` / `nextPageToken`.
+
+        `from_date`/`to_date` được đưa qua `to_unix_seconds`, nên **milliseconds
+        cũng chạy được**. Đó là chỗ chặn đo được lỗi D8: cùng một cặp tham số,
+        milliseconds trả `400 range exceeds maximum time range` còn giây trả 200.
+        Giá trị đã là giây thì đi qua nguyên vẹn, nên đây là chuẩn hoá chứ không
+        phải ép kiểu.
         """
         query: dict[str, object] = {}
         if board_id is not None:
             query["boardId"] = board_id
         if from_date is not None:
-            query["from"] = from_date
+            query["from"] = to_unix_seconds(from_date)
         if to_date is not None:
-            query["to"] = to_date
+            query["to"] = to_unix_seconds(to_date)
         if limit is not None:
             query["limit"] = limit
         if order is not None:
@@ -210,7 +290,43 @@ class MarketService:
         """Chỉ số thị trường. Path theo SDK `client.py`:
         `GET /price/{index_name}/market-index`. Chú ý tham số là **index_name**,
         không phải `symbol` — SDK không có `boardId` cho endpoint này.
+
+        """ + _SECONDS_NOTE + """
+
+        **Giới hạn đo được:** server chỉ nhận cửa sổ **cùng một ngày lịch** theo
+        giờ Việt Nam; `from` hôm trước, `to` hôm nay trả
+        `400 from and to must be in the same date`. Việc đó bị chặn ở đây, trước
+        khi có byte nào đi ra (L-R01) — lỗi tham số bị server trả thành 400 buộc
+        người gọi đoán, còn chặn sớm thì thông điệp nói rõ cửa sổ hợp lệ.
+
+        Raises:
+            DNSEValidationError: khi ``from_date``/``to_date`` rơi vào hai ngày
+                khác nhau. ``error_code == "MARKET_INDEX_RANGE_NOT_SAME_DAY"``.
         """
+        # Thứ tự: chuẩn hoá ĐỦỚC rồi mới so ngày. So ngày trên giá trị thô thì
+        # milliseconds (≈1.8e12) nằm ngoài khoảng `fromtimestamp` ⇒
+        # `OSError: [Errno 22]` — đúng cái footgun D8 lại lọt qua dưới dạng
+        # exception không kiểm soát thay vì thành 400 sạch.
+        normalised_from = to_unix_seconds(from_date) if from_date is not None else None
+        normalised_to = to_unix_seconds(to_date) if to_date is not None else None
+        if not is_same_vn_day(normalised_from, normalised_to):
+            # `from_date or to_date` SAI: `0` là falsy nên from_date=0 sẽ rơi
+            # sang to_date và thông báo nhầm ngày. Phải so với None.
+            anchor = normalised_from if normalised_from is not None else normalised_to
+            from_day, to_day = vn_day_bounds(anchor if anchor is not None else 0)
+            raise DNSEValidationError(
+                message=(
+                    "get_market_index chỉ nhận cửa sổ trong MỘT ngày lịch giờ VN: "
+                    f"from/to của bạn rơi vào hai ngày khác nhau. Hãy gọi riêng "
+                    f"từng ngày — ví dụ ngày "
+                    f"{datetime.fromtimestamp(from_day, VIETNAM_TZ):%Y-%m-%d} là "
+                    f"[{from_day}, "
+                    f"{datetime.fromtimestamp(to_day, VIETNAM_TZ):%Y-%m-%d}"
+                    f" 23:59:59] = [{from_day}, {to_day}]."
+                ),
+                error_code="MARKET_INDEX_RANGE_NOT_SAME_DAY",
+                status_code=400,
+            )
         return self._http.request(
             "GET",
             f"/price/{index_name}/market-index",
@@ -223,22 +339,39 @@ class MarketService:
     def get_trades_volume_profile(
         self,
         symbol: str,
-        time: int,
-        board_id: str | None = None,
+        time: str,
+        board_id: str,
         dry_run: bool = False,
     ) -> tuple[int | None, Any]:
         """Phân bổ khối lượng theo giá (Lớp A). Path theo SDK `client.py:304`.
 
-        `time` là **bắt buộc** — SDK khai nó là tham số vị trí không có default
-        (`client.py:298`). Giữ nguyên để chặn những request chắc chắn bị từ chối.
+        ⚠ **`time` là DATE STRING `yyyy-MM-dd`, không phải unix giây.** Đo
+        production 2026-10-16: `time=1700` ⇒
+        `400 invalid param 'time', expected format yyyy-MM-dd`. Đây là chỗ dễ
+        nhầm nhất của connector, vì 4 method phân trang kia đều nhận unix giây.
+
+        ⚠ **`board_id` bắt buộc.** Đo: thiếu `boardId` ⇒
+        `400 missing param 'boardId'`. Chặn ở đây thay vì để server trả 400
+        (L-R01).
+
+        ⚠ **`board_id` dùng `BOARD_IDS`** — ``G1``…``G8`` như đã đo. Endpoint này
+        **tra cứu** bảng board (sai ⇒ ``404 not found boardId``), nên khác hẳn
+        `secdef` vốn trả 500.
+
+        **Đo 2026-10-16:** ``time="2026-10-16", board_id="G1"`` ⇒ **200**.
+
+        Raises:
+            DNSEValidationError: khi ``time`` không phải chuỗi ngày hợp lệ.
+                ``error_code == "INVALID_TIME_FORMAT"``.
         """
-        query: dict[str, object] = {"time": time}
-        if board_id is not None:
-            query["boardId"] = board_id
+        _require_date_string(time, "time")
         return self._http.request(
             "GET",
             f"/price/{symbol}/trades/volume-profile",
-            query=query,
+            query={
+                "time": _require_date_string(time, "time"),
+                "boardId": board_id,
+            },
             dry_run=dry_run,
         )
 
@@ -252,6 +385,17 @@ class MarketService:
         page: int | None = None,
         dry_run: bool = False,
     ):
+        """Danh mục chứng khoán. Path theo SDK `client.py:391`.
+
+        **Giá trị hợp lệ của `market_id` (đo 2026-10-16):**
+        :data:`MARKET_IDS` — ``STO``, ``HCX``, ``UPX``, ``STX``, ``DVX``. Cả 5
+        trả 200. 24 giá trị đoán trực giác (``HOSE``, ``HNX``, ``UPCOM``, ``G1``,
+        ``STO.G1``, ``1``…) đều bị validator chặn với
+        ``'oneof'`` — tập thật lấy từ cột ``marketId`` trong chính response của
+        ``/instruments``, không phải đoán.
+
+        Gọi không kèm `market_id` hoạt động bình thường.
+        """
         query = {}
         if symbol is not None:
             query["symbol"] = symbol

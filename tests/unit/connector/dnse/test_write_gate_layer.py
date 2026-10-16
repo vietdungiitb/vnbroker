@@ -232,7 +232,7 @@ def test_dry_run_needs_no_permission_and_still_sends_nothing(egress):
 def test_reads_are_not_gated(egress):
     client = _client()
     client.get_accounts()
-    client.get_orders("A", "STOCK")
+    client.get_orders("A", "STOCK", "NORMAL")
 
     assert _writes(egress) == []
     assert len(egress) == 2, f"expected both reads to reach the network, got {egress}"

@@ -2,6 +2,112 @@
 
 All notable changes to this project will be documented in this file.
 
+### 3.8.0 - sua 11 defect client DNSE OpenAPI + tra loi VNBROKER REQ-001..005 (2026-10-16, tag `v3.8.0`)
+
+> Ban nay gop CA HAI dot `Unreleased` truoc do (sua 11 defect DNSE + tra loi
+> REQ-001..005). `pyproject.toml`: `3.7.2` -> `3.8.0` — **minor vi co breaking**.
+> Bump version la quyet dinh cua Owner.
+
+#### Phan A: sua 11 defect client DNSE OpenAPI (2026-10-16)
+
+Dot "test live DNSE" phat hien **11 defect client-side** — tat ca deu do duoc
+ tren production thuoc (khong VPN) va deu da sua + **do lai live** lan cuoi.
+Chi tiet: `docs/REPORT_DNSE_LIVE_20261016.md`, ke hoach
+`docs/PLAN_DNSE_FIX_20261016.md`, audit `docs/AUDIT_DNSE_FIX_20261016.md`.
+
+**Hai path bi ket luan "khong ton tai" hoac ra chi sai mot duoi dau gach:**
+
+| Method | Truoc | Sau |
+|:--|:--|:--|
+| `get_working_dates` | tra hang `(dates rong, None)`, **0ms**, khong goi network | `GET /market/working-dates` → **200**, 257 ngay |
+| `get_corporate_action_history` | `/accounts/{a}/corporate-actions` → **404** | `/accounts/{a}/corporate-action-history` → **200** |
+
+**Breaking — doc truoc khi nang cap:**
+
+| Do | Truoc | Sau |
+|:--|:--|:--|
+| DNSE `get_orders(order_category=...)` | tuy chon; khong truyen → server `400 INVALID_ORDER_CATEGORY` | **bat buoc**, khong co mac dinh |
+| DNSE `get_trades_volume_profile(time=...)` | `int` | **`str` `yyyy-MM-dd`** (int → `DNSEValidationError`) |
+| DNSE `get_trades_volume_profile(board_id=...)` | tuy chon | **bat buoc** |
+| DNSE `get_order_history` | mot ve van chay | **ca hai ve hoac khong ve nao**; mot ve → raise |
+| DNSE `marketType`/`orderCategory` sai gia tri | HTTP 200 + body rong, caller khong biet | `DNSEValidationError`, **truoc** khi co byte nao di ra |
+| `trade.py` (noi bo) | 1 file 1352 dong | **tach 4 file** — API cong khai giu nguyen chu ky |
+
+**Vi sao `order_category` KHONG co mac dinh `NORMAL`:** nguoi muon xem lenh
+`STOP` ma quen tham so se nhan danh sach `NORMAL` day du trong mat va thieu — sai
+du lieu ma trong nhu dung. Fail-open o tang NGU NGHIA du lieu te hon han mot
+`TypeError` luc go. (Da can nhac phuong an B "chi validate" va C "mac dinh
+NORMAL"; Owner chot A.)
+
+**Sua liet (fail fast, truoc khi co byte nao di ra):**
+
+| Do | Truoc | Sau |
+|:--|:--|:--|
+| 5 endpoint phan trang | milliseconds → `400 range exceeds…` | **tu chuan hoa ms → giay** |
+| `get_market_index` | khac ngay → `400` tu server | raise `MARKET_INDEX_RANGE_NOT_SAME_DAY` + chi cua so hop le |
+| `get_position_by_id(position_id=…)` | id rac → **server 500** | raise `INVALID_POSITION_ID` (**chac sai KIEU, khong chac sai GIA TRI** — id `0` van hop le) |
+
+**Hang hoa moi (do duoc, khong doan):**
+
+| Hang | Gia tri | Cach tim ra |
+|:--|:--|:--|
+| `BOARD_IDS` | `G1 G2 G3 G4 G7 G8` | 24 gia tri doan deu fail → bat chuoc `websocket.py:19` (`G<n>`) → quet `G0..G21` |
+| `MARKET_IDS` | `STO HCX UPX STX DVX` | doc cot `marketId` trong chinh response cua `GET /instruments` |
+
+> Hai hang **khong** validate cung: tap do tren MOT ma va MOT ngay, chac gia tri
+> ngoai tap se chan oang moi khi DNSE them san moi.
+
+**Cong moi:** `scripts/check_encoding.py` (vao `check_all.ps1`) — fail khi phat
+hien double-encoding UTF-8. Ly do: dot nay mot file nguon bi `Get-Content -Raw`
+(doc UTF-8 bang CP1252) ma **khong gate nao bat duoc**, vi file hong van decode
+hop le la UTF-8. Cong nay cung bat duoc 1 file hong co san tu truoc
+(`tests/unit/core/test_no_guest_quota_runtime.py`).
+
+**Doi noi bo (khong breaking):** `trade.py` 1352 dong tach thanh `trade.py`
+(622) + `trade_derivatives.py` (180) + `trade_conditional.py` (180) +
+`openapi_passthrough.py` (354). API cong khai **giu nguyen chu ky**, khoa bang
+`tests/contract/test_trade_public_surface.py` (47 method + 14 write-gated), xanh
+TRUOC va SAU khi tach. Cach lam: dong bang API truoc, tach sau.
+
+**Gate cuoi:** `check_all.ps1` FULL **exit 0** · pytest **2281 passed, 26 skipped**
+(baseline 2177 => **+104**) · contract 149 · mypy-baseline 1266→1106 · encoding PASS
+453 file · `ruff check tests` 13 KNOWN-RED **khong tang**.
+
+**Da do lai live:** `scripts/probe_dnse_readonly.py` → `PASS=40 FAIL=16`, trong do
+16 FAIL deu la **probe phu dinh co chu dich**. 11/11 defect da dong.
+
+#### Phan B: tra loi VNBROKER REQ-001..005 (2026-10-14)
+
+Tra loi van ban yeu cau `REQUESTS_TO_VNBROKER_20261014.md` cua vninvest
+(ADR-006: broker SSOT qua vnbroker). Phan hoi day du:
+`docs/RESPONSE_TO_VNINVEST_20261014.md`.
+
+**Breaking co chu y (phia vninvest):** `marketType`/`orderCategory` sai gia tri
+nay nem `DNSEValidationError` thay vi tra HTTP 200 + body rong. Code dang
+"thu lai ALL/STOCK/EQUITY" se do loi ngay.
+
+| Do | Truoc | Sau |
+|:--|:--|:--|
+| `marketType` sai | HTTP 200 + body rong, caller khong biet | `DNSEValidationError` (`INVALID_MARKET_TYPE`), **truoc** khi co byte nao di ra |
+| `DNSEClient.__version__` | 3.4.0 (do) trong khi pyproject 3.7.2 | 3.7.2, va gate `version-sync` bay gio kiem ca metadata cua ban cai |
+| `vnbroker.broker.capabilities` | khong ton tai | `{version, provider, registered, methods, features}` cho 3 lane |
+| `DNSEClient.normalize_payload` | private `_to_dataframe` | public, nhan DataFrame/list/dict/envelope, `as_records=True` |
+| Doc nhieu market | caller tu vong retry (chi chay duoc gia tri dau) | `get_positions_all_markets` / `get_order_history_all_markets`, moi dong co cot `market_type` |
+
+**REQ-002 — khong khoi phuc code.** `/aion/v1/accounts/{accountNo}/orders/history`
+khong co trong spec TCBS v1.0.0, va phuong an duy phu trong REQ ("phan trang
+`get_executions` theo ngay") **khong thien hanh duoc**: `matching-details` khai
+bao **0 tham so truy van**. Hai lane con lai (SSI, DNSE) da co `from_date`/
+`to_date`. Xem `tests/contract/test_tcbs_order_history_contract.py`.
+
+**No chua dong (can Owner quyet dinh):**
+
+| No | Vi sao chua lam |
+|:--|:--|
+| Watchlist CRUD (REQ-003b) | Chua viet — tai thoi diem nay khong provider nao co watchlist API, nen khong co gi de goi. Da khai bao `unsupported` + contract test tu do neu provider mo API. Khong phai vi cam reverse-engineer. |
+| Validate `market_type` o 12 method cua `Trade` | `trade.py` 1352 dong — vuot ngan sach 800. Khong them vao file da vuot ngan sach; can tach file truoc. |
+| Spec DNSE chua ghim trong repo | DNSE khong co file OpenAPI commit kem sha256 nhu TCBS. `MARKET_TYPES` la tap **da tai lieu hoa**, chua phai enum do server cong bo. |
+
 ### 3.7.1 - HANG1 Row 1: chan su dung (2026-10-11, PR #5, tag `v3.7.1`)
 
 Hang 1 cua bo tai lieu trien khai 2026-10-11 (doc theo thu tu:

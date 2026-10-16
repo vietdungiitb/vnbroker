@@ -156,19 +156,52 @@ def _path(payload: dict) -> str:
 
 
 def test_get_trades_volume_profile_path():
-    payload = _client().get_trades_volume_profile("MBS", time=1700, dry_run=True, raw=True)
+    payload = _client().get_trades_volume_profile(
+        "MBS", time="2026-10-16", board_id="HOSE", dry_run=True, raw=True
+    )
     assert _path(payload).endswith("/price/MBS/trades/volume-profile")
 
 
 def test_get_trades_volume_profile_time_is_required():
     """SDK client.py:299 - `time` là bắt buộc, không phải tuỳ chọn."""
-    payload = _client().get_trades_volume_profile("MBS", time=1700, dry_run=True, raw=True)
-    assert payload["query"]["time"] == 1700
+    payload = _client().get_trades_volume_profile(
+        "MBS", time="2026-10-16", board_id="HOSE", dry_run=True, raw=True
+    )
+    assert payload["query"]["time"] == "2026-10-16"
 
 
 def test_get_trades_volume_profile_cannot_drop_the_required_time():
     with pytest.raises(TypeError):
-        _client().get_trades_volume_profile("MBS", dry_run=True, raw=True)
+        _client().get_trades_volume_profile("MBS", board_id="HOSE", dry_run=True, raw=True)
+
+
+def test_get_trades_volume_profile_cannot_drop_the_required_board_id():
+    """Đo production 2026-10-16: thiếu `boardId` ⇒ `400 missing param 'boardId'`.
+
+    Chặn ở client thay vì để server trả 400 (L-R01).
+    """
+    with pytest.raises(TypeError):
+        _client().get_trades_volume_profile("MBS", time="2026-10-16", dry_run=True, raw=True)
+
+
+def test_get_trades_volume_profile_rejects_an_integer_time_before_sending():
+    """Đo: `time=1700` ⇒ `400 invalid param 'time', expected format yyyy-MM-dd`.
+
+    Gửi đi để đổi một lượt 400 là lãng phí; kiểu sai phải chết ngay tại client.
+    """
+    from vnbroker.connector.dnse.core.errors import DNSEValidationError
+
+    with pytest.raises(DNSEValidationError) as excinfo:
+        _client().get_trades_volume_profile(
+            "MBS", time=1700, board_id="HOSE", dry_run=True, raw=True
+        )
+    assert excinfo.value.error_code == "INVALID_TIME_FORMAT"
+
+
+def test_get_trades_volume_profile_docstring_states_the_date_format():
+    """Chỗ dễ nhầm nhất của endpoint này: `time` là **ngày**, không phải unix giây."""
+    doc = DNSEClient.get_trades_volume_profile.__doc__ or ""
+    assert "yyyy-MM-dd" in doc, "docstring phải nói rõ format của `time`"
 
 
 # --- get_loans (Lớp B, account-scoped) ------------------------------------
@@ -307,7 +340,9 @@ def test_none_of_the_seven_can_reach_the_write_gate():
         lambda: client.get_expected_price("MBS", dry_run=True, raw=True),
         lambda: client.get_foreign_trading("MBS", dry_run=True, raw=True),
         lambda: client.get_market_index("VNINDEX", dry_run=True, raw=True),
-        lambda: client.get_trades_volume_profile("MBS", time=1, dry_run=True, raw=True),
+        lambda: client.get_trades_volume_profile(
+            "MBS", time="2026-10-16", board_id="HOSE", dry_run=True, raw=True
+        ),
         lambda: client.get_loans("8696717556", market_type="STOCK", dry_run=True, raw=True),
     ):
         assert call()["method"] == "GET"

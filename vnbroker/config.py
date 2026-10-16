@@ -93,6 +93,7 @@ VERSION_REQUIREMENTS: Dict[str, Dict[str, str]] = {
     "3.7.0": {},
     "3.7.1": {},
     "3.7.2": {},
+    "3.8.0": {},
 }
 
 # Version-specific notices for user
@@ -226,6 +227,41 @@ VERSION_NOTICES = {
             "timeout ở máy đo 2026-10-10. Đừng mô tả là ổn định nếu chưa đo lại.",
             "Ghi đè credential cho tầng 1: file .env không được thư viện nạp tự động — "
             "hãy export biến môi trường, hoặc dùng tham số auth_token/API key.",
+        ],
+    },
+    "3.8.0": {
+        "title": "vnbroker 3.8.0 - DNSE OpenAPI: sua 11 defect + bat buoc tuong minh",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.8.0",
+        # Dot nay sua 11 defect client-side cua DNSE (path sai, don vi thoi gian
+        # ms/giay, tham so bat buoc bi bo sot). Ba thay doi duoi day la breaking
+        # THAT: code dang chay duoc se dung han, hoac te hon — chay ma SAI.
+        "critical_notices": [
+            "DNSE `get_orders` gio BAT BUOC truyen `order_category` "
+            "('NORMAL' | 'STOP' | 'OCO'). Truoc day khong truyen thi server tra "
+            "400 `INVALID_ORDER_CATEGORY`. Co y KHONG dat mac dinh 'NORMAL': "
+            "nguoi muon xem STOP ma quen tham so se nhan danh sach NORMAL day du "
+            "trong mat ma thieu — sai du lieu ma trong nhu dung.",
+            "DNSE `get_trades_volume_profile`: `time` nhan `str` 'yyyy-MM-dd' "
+            "(truoc la int, gio int -> DNSEValidationError), va `board_id` tro "
+            "thanh bat buoc. Tap board do duoc: G1 G2 G3 G4 G7 G8.",
+            "DNSE `get_order_history`: phai truyen CA HAI ve `from` + `to` hoac "
+            "khong ve nao; mot ve -> raise thay vi tra ket qua cat cut am tham.",
+        ],
+        "warnings": [
+            "`trade.py` 1352 dong da tach thanh 4 file (trade, trade_derivatives, "
+            "trade_conditional, openapi_passthrough). API cong khai giu nguyen "
+            "chu ky, khoa bang tests/contract/test_trade_public_surface.py. Neu "
+            "ban import tu duong dan noi bo cu the — hay chuyen sang "
+            "`vnbroker.connector.dnse.trade`.",
+            "Hai hang BOARD_IDS/MARKET_IDS la tap DA DO tren mot ma va mot ngay, "
+            "KHONG phai enum do server cong bo. Chua validate cung: DNSE them san "
+            "moi thi gia tri ngoai tap van di ra binh thuong.",
+            "Nhieu thu mucDNSE van CHUA CHAY: STOP/OCO that su hoat dong, "
+            "order_detail/executions/order_history co doi order_category khong, "
+            "sandbox co doi pageIndex/pageSize khong. Xem "
+            "docs/HANDOFF_DNSE_FIX_20261016.md.",
+            "CI GitHub Actions cua repo nay KHONG chay (billing) — moi gate chay "
+            "LOCAL qua scripts/check_all.ps1.",
         ],
     },
 }

@@ -6,6 +6,7 @@ import pandas as pd
 
 from vnbroker.connector.dnse.core.config import DNSEConfig
 from vnbroker.connector.dnse.core.http_client import DNSEHttpClient
+from vnbroker.connector.dnse.multi_market import MultiMarketMixin
 from vnbroker.connector.dnse.services import (
     AccountService,
     MarketService,
@@ -15,7 +16,26 @@ from vnbroker.connector.dnse.services import (
 )
 
 
-class DNSEClient:
+def _list_to_frame(value: list[Any], key: str) -> pd.DataFrame:
+    """Dựng DataFrame từ một list phần tử của envelope.
+
+    `pd.json_normalize` chỉ ăn được list-of-dict. DNSE cũng trả những list-of-
+    scalar — `workingDates` là 257 chuỗi ngày. Gọi `json_normalize` lên đó ném
+    `TypeError: All items in data must be of type dict`, tức là lời gọi hỏng vì
+    **hình dạng**, không phải vì rỗng. Trường hợp đó thành một cột mang tên key.
+
+    Rỗng thì trả DataFrame rỗng có đúng tên cột, để `df.columns` ổn định bất kể
+    server trả gì.
+    """
+    items = [item for item in value if item is not None]
+    if not items:
+        return pd.DataFrame(columns=[key])
+    if all(isinstance(item, dict) for item in items):
+        return pd.json_normalize(items)
+    return pd.DataFrame({key: items})
+
+
+class DNSEClient(MultiMarketMixin):
     def __init__(
         self,
         api_key: str,
@@ -73,10 +93,14 @@ class DNSEClient:
                 "positions", "reports",
                 # Market data keys
                 "bars", "candles", "ohlc", "trades", "instruments", "securities",
+                # `workingDates` phải có mặt ở đây, nếu không `get_working_dates`
+                # sẽ trả DataFrame MỘT dòng chứa một cell là list — biểu hiện
+                # khác của đúng bug "thành công rỗng" mà slice B đang chữa.
+                "workingDates",
             ):
                 value = payload.get(key)
                 if isinstance(value, list):
-                    df = pd.json_normalize(value)
+                    df = _list_to_frame(value, key)
                     # The envelope's scalar siblings describe who the caller is,
                     # not what is in the list. Unwrapping dropped them silently -
                     # verified live on the sandbox: `get_accounts()` returned
@@ -97,6 +121,43 @@ class DNSEClient:
     def _resolve_output(self, response: tuple[int | None, Any], raw: bool):
         _, body = response
         return body if raw else self._to_dataframe(body)
+
+    # ── Chuẩn hoá + đọc nhiều market (VNBROKER-REQ-005) ───────────────────
+
+    @staticmethod
+    def normalize_payload(payload: Any, *, as_records: bool = False) -> Any:
+        """Chuẩn hoá payload DNSE về một hình dạng duy nhất.
+
+        Đây là hợp đồng công khai, không phải tiện ích nội bộ: phía tiêu thụ
+        cần cùng một cách quy đổi thay vì tự viết lại — lý do chính thức của
+        REQ-005 là vninvest đã tự chế ``vnbroker_dnse_compat.py`` và bên
+        trong đó ``fetch_account_balance`` luôn trả 0 vì kiểm tra
+        ``isinstance(raw, list)`` / ``isinstance(raw, dict)`` trong khi
+        ``raw=False`` trả ``DataFrame``.
+
+        Args:
+            payload: ``DataFrame``, ``list[dict]``, ``dict`` (kể cả dict bọc
+                trong envelope ``{"accounts": [...]}``), hoặc ``None``.
+            as_records: ``True`` trả ``list[dict]`` thay vì ``DataFrame``.
+
+        Returns:
+            ``DataFrame`` (mặc định) hoặc ``list[dict]`` (``as_records=True``).
+            Rỗng thì trả ``DataFrame`` rỗng — **không** trả ``[]`` để tránh
+            chỗ gọi tưởng là "không có dữ liệu" trong khi thật ra là lỗi.
+
+        Raises:
+            Exception: lỗi từ ``to_dict("records")`` được để nổi lên. Nuốt nó
+                thành ``[]`` chính là lỗi làm số dư về 0 mà vninvest gặp.
+        """
+        frame = (
+            payload
+            if isinstance(payload, pd.DataFrame)
+            else DNSEClient._to_dataframe(payload)
+        )
+        if isinstance(frame, pd.DataFrame):
+            return frame.to_dict("records") if as_records else frame
+        return frame
+
 
     def get_accounts(self, dry_run: bool = False, raw: bool = False):
         return self._resolve_output(self._account.get_accounts(dry_run=dry_run), raw=raw)
@@ -148,15 +209,30 @@ class DNSEClient:
         self,
         account_no: str,
         market_type: str,
-        order_category: str | None = None,
+        order_category: str,
+        page_index: int | None = 1,
+        page_size: int | None = 20,
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """Danh sách lệnh.
+
+        ⚠ `order_category` **bắt buộc**: production trả
+        `400 INVALID_ORDER_CATEGORY` khi thiếu. Cố ý **không** đặt mặc định
+        `NORMAL` — người gọi quên tham số sẽ nhận danh sách `NORMAL` mà không
+        thấy `STOP`/`OCO`: thành công nhưng thiếu dữ liệu (L-R01).
+
+        `page_index`/`page_size` có mặc định vì production bắt buộc cả hai;
+        sandbox thì không đòi cái nào. Truyền `None` bỏ hẳn tham số khỏi query —
+        không gửi chuỗi `"None"` lên URL.
+        """
         return self._resolve_output(
             self._order.get_orders(
                 account_no=account_no,
                 market_type=market_type,
                 order_category=order_category,
+                page_index=page_index,
+                page_size=page_size,
                 dry_run=dry_run,
             ),
             raw=raw,
@@ -213,6 +289,12 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """Lịch sử lệnh.
+
+        ⚠ `from_date`/`to_date` là **date string `yyyy-MM-dd`**, KHÁC unix giây
+        của `quotes`/`trades`/`market-index`. Production đòi **cả hai** vế;
+        truyền đúng một vế sẽ raise `DNSEValidationError` trước khi gửi.
+        """
         return self._resolve_output(
             self._order.get_order_history(
                 account_no=account_no,
@@ -314,6 +396,27 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """GET /accounts/{account_no}/positions?marketType={market_type}
+
+        Args:
+            account_no: Số tài khoản DNSE.
+            market_type: Bắt buộc. Giá trị hợp lệ: ``STOCK``, ``DERIVATIVE``
+                (hằng :data:`vnbroker.connector.dnse.constants.MARKET_TYPES`).
+                Không phân biệt hoa/thường.
+            dry_run: ``True`` chỉ trả envelope, không gọi ra server.
+            raw: ``True`` trả body thô, ``False`` trả DataFrame.
+
+        Raises:
+            DNSEValidationError: ``market_type`` không thuộc
+                :data:`~vnbroker.connector.dnse.constants.MARKET_TYPES`.
+                ``error_code == "INVALID_MARKET_TYPE"``. Lỗi này ném ra
+                **trước** khi có request nào đi ra — vì giá trị sai hay bị
+                server trả HTTP 200 kèm body rỗng, tức lỗi kiểu "im lặng trả
+                rỗng" thay vì lỗi có mã.
+
+        Example:
+            >>> client.get_positions("0123456789", MARKET_TYPES.STOCK)
+        """
         return self._resolve_output(
             self._position.get_positions(account_no=account_no, market_type=market_type, dry_run=dry_run),
             raw=raw,
@@ -388,7 +491,11 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Nội giá (Lớp A). Cảnh báo `bid[].qtty` — xem NORMALISATION_POLICY §3.1."""
+        """Nội giá (Lớp A). Cảnh báo `bid[].qtty` — xem NORMALISATION_POLICY §3.1.
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_quotes(
                 symbol=symbol,
@@ -430,7 +537,11 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Giá kỳ vọng (Lớp A)."""
+        """Giá kỳ vọng (Lớp A).
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_expected_price(
                 symbol=symbol,
@@ -457,7 +568,11 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Giao dịch nước ngoài (Lớp B — giữ nguyên định dạng DNSE)."""
+        """Giao dịch nước ngoài (Lớp B — giữ nguyên định dạng DNSE).
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_foreign_trading(
                 symbol=symbol,
@@ -483,7 +598,12 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Chỉ số thị trường (Lớp A). Tham số là `index_name`, không phải `symbol`."""
+        """Chỉ số thị trường (Lớp A). Tham số là `index_name`, không phải `symbol`.
+
+        `from_date`/`to_date` là unix **GIÂY**, và phải thuộc **cùng một ngày**
+        lịch giờ VN — server trả `400 from and to must be in the same date` nếu
+        không. Việc đó bị chặn sớm kèm cửa sổ hợp lệ (L-R01).
+        """
         return self._resolve_output(
             self._market.get_market_index(
                 index_name=index_name,
@@ -500,12 +620,18 @@ class DNSEClient:
     def get_trades_volume_profile(
         self,
         symbol: str,
-        time: int,
-        board_id: str | None = None,
+        time: str,
+        board_id: str,
         dry_run: bool = False,
         raw: bool = False,
     ) -> Any:
-        """Phân bổ khối lượng theo giá (Lớp A). `time` bắt buộc, theo SDK."""
+        """Phân bổ khối lượng theo giá (Lớp A).
+
+        ⚠ `time` là **date string `yyyy-MM-dd`** (ví dụ `'2026-10-16'`), KHÔNG
+        phải unix giây — đo 2026-10-16: `time=1700` ⇒ `400 invalid param
+        'time', expected format yyyy-MM-dd`.
+        ⚠ `board_id` bắt buộc — thiếu ⇒ `400 missing param 'boardId'`.
+        """
         return self._resolve_output(
             self._market.get_trades_volume_profile(
                 symbol=symbol, time=time, board_id=board_id, dry_run=dry_run
@@ -556,6 +682,11 @@ class DNSEClient:
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """Giao dịch khớp lệnh (Lớp B).
+
+        `from_date`/`to_date` là unix **GIÂY** (đo 2026-10-16: milliseconds ⇒
+        `400 range exceeds maximum time range`).
+        """
         return self._resolve_output(
             self._market.get_trades(
                 symbol=symbol,

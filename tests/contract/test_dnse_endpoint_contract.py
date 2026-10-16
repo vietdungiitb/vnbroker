@@ -102,9 +102,13 @@ def test_position_paths_match_provider_sdk(http, capture):
     )
     assert capture["method"] == "GET"
 
-    svc.get_position_by_id(market_type="DERIVATIVE", position_id="POS1")
+    # `position_id` phải là SỐ: đo production 2026-10-16 cho thấy
+    # `GET /positions/fake` -> `500 For input string: "fake"`. Vnbroker chặn
+    # sai hình thức ngay ở client, nên test này dùng giá trị số hợp lệ.
+    # Không sửa *nghĩa* của phép kiểm: path vẫn là `/positions/{id}`.
+    svc.get_position_by_id(market_type="DERIVATIVE", position_id="1")
     assert capture["url"] == (
-        "https://blocked.invalid/positions/POS1?marketType=DERIVATIVE"
+        "https://blocked.invalid/positions/1?marketType=DERIVATIVE"
     )
     assert capture["method"] == "GET"
 
@@ -127,7 +131,7 @@ def test_by_id_form_is_not_account_scoped(http, capture):
 
     svc.get_positions(account_no="ACC", market_type="STOCK")
     listing = capture["url"]
-    svc.get_position_by_id(market_type="DERIVATIVE", position_id="POS1")
+    svc.get_position_by_id(market_type="DERIVATIVE", position_id="1")
     by_id = capture["url"]
 
     assert listing.startswith("https://blocked.invalid/accounts/")

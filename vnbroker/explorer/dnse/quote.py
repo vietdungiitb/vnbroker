@@ -616,22 +616,44 @@ class DNSEQuote:
         """
         Lấy danh sách ngày giao dịch (working dates) từ DNSE.
 
+        ⚠ **Đây là lời gọi NETWORK THẬT** sang `GET /market/working-dates`.
+
+        Trước 2026-10-16 method này trả DataFrame rỗng ngay lập tức (0ms) vì
+        tầng connector trả về hằng cứng — trông như "không có ngày giao dịch"
+        trong khi chưa từng hỏi server. Nay nó gọi thật. Hệ quả cần biết:
+
+        - Trên **sandbox** (`sb-openapi.dnse.com.vn`) path `/market/*` trả 404
+          ⇒ rơi vào `except` và trả DataFrame rỗng kèm `logger.warning`.
+        - Vì vậy DataFrame rỗng ở đây **không chứng minh** là không có ngày giao
+          dịch. Muốn biết chắc thì đọc log, hoặc gọi thẳng
+          `DNSEClient.get_working_dates()`.
+
         Trả về:
-            pd.DataFrame với danh sách ngày giao dịch.
+            pd.DataFrame **một dòng cho mỗi ngày giao dịch**, cột ``workingDates``.
         """
         try:
             _, body = self._market.get_working_dates()
         except Exception as exc:
-            logger.warning("DNSE get_working_dates lỗi: %s", exc)
+            logger.warning(
+                "DNSE get_working_dates lỗi (%s) — trả rỗng. Rỗng KHÔNG có nghĩa "
+                "là không có ngày giao dịch; xem endpoint /market/working-dates.",
+                exc,
+            )
             return pd.DataFrame()
 
         if body is None:
             return pd.DataFrame()
-        if isinstance(body, dict):
-            return pd.json_normalize(body)
-        if isinstance(body, list):
-            return pd.json_normalize(body)
-        return pd.DataFrame()
+        # Đi qua `normalize_payload` chứ không `pd.json_normalize(body)` trực tiếp:
+        # `json_normalize` trên dict có `workingDates` là list-of-scalar cho
+        # DataFrame **MỘT dòng** với một cell chứa cả 257 ngày — đúng hình thức
+        # "thành công rỗng" mà lát B sinh ra để chữa. `normalize_payload` dùng
+        # chung `_to_dataframe` của connector nên tách đúng một dòng mỗi ngày.
+        #
+        # `normalize_payload` là pass-through với mọi thứ không phải dict/list,
+        # nên phải chốt lại kiểu: method khai `-> pd.DataFrame`, trả `str`/`int`
+        # sẽ làm người gọi gặp `TypeError` khi `len(df)` hay `df.empty`.
+        result = self._client.normalize_payload(body)
+        return result if isinstance(result, pd.DataFrame) else pd.DataFrame()
 
     # ------------------------------------------------------------------
     # fetch_multiple (bulk operations)
