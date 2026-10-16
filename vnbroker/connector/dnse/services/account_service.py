@@ -61,7 +61,18 @@ class AccountService:
         to_date: str | None = None,
         dry_run: bool = False,
     ):
-        """Get corporate action history for an account."""
+        """Lịch sử doanh nghiệp của tài khoản.
+
+        ⚠ **Path đã sửa 2026-10-16.** Trước đây là
+        `/accounts/{no}/corporate-actions` ⇒ **`404 API ROUTE NOT FOUND`** ở
+        production lẫn sandbox. SDK chính thức dùng
+        `/accounts/{no}/corporate-action-history` (`client.py:236-241`) và đo
+        production cho **200** (`{accountNo, data, pagination}`). Đây là **path
+        sai**, không phải endpoint không tồn tại.
+
+        SDK còn có `symbol` / `caType` / `caStatus` / `pageIndex` / `pageSize`;
+        chưa thêm vì không có defect đo được cho chúng (minimal change).
+        """
         query = {"marketType": market_type}
         if from_date:
             query["from"] = from_date
@@ -69,7 +80,7 @@ class AccountService:
             query["to"] = to_date
         return self._http.request(
             "GET",
-            f"/accounts/{account_no}/corporate-actions",
+            f"/accounts/{account_no}/corporate-action-history",
             query=query,
             dry_run=dry_run,
         )
