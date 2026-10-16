@@ -223,3 +223,109 @@ Tất cả đều **server trả 400/403/404 có ý nghĩa** — tức server s�
   không phải server chết.
 - **Sandbox không implement market data** (404 toàn bộ) — giới hạn môi trường, đã ghi.
 - Không có lệnh nào được gửi thật trong suốt quá trình đo.
+
+---
+
+## 11. Đo bổ sung 2026-10-16 (giữa phiên) — **2 defect D1/D5 bị bác bỏ**
+
+> **Lessons áp dụng: [L-R01, L-R04, L-R06, L-E01, L-E02, L-E04]**
+>
+> Điều kiện: cùng máy dev, **không VPN**, cùng credential HMAC production.
+> Lệnh tái lập: `scripts/probe_dnse_readonly.py` (mục `D1/D5`).
+
+### 11.1 D1 — `get_working_dates`: endpoint **có thật**, method đang dùng path sai
+
+`REPORT_DNSE_LIVE` §9 D1 ghi *"stub trả `None`"* và kế hoạch đầu tiên định **bỏ
+method** với câu *"DNSE OpenAPI does not have a dedicated working-dates
+endpoint"*. **Câu đó sai**, và nó nằm trong docstring của chính file
+`services/market_service.py:47`.
+
+| Lời gọi | Kết quả |
+|---|---|
+| `GET /market/working-dates` | **200** · `{"workingDates": [...**257** phần tử]}` |
+| `GET /market/working-dates?marketType=STOCK` | **404** — nên gọi **không** kèm query |
+
+Nguồn độc lập: SDK `dnse-tech/openapi-sdk` `python/dnse/api/client.py:447-451`
+khai đúng path này.
+
+⇒ **D1 là path/thiết kế sai, không phải endpoint không tồn tại.** Đã sửa ở lát B
+(`3fbbb8b`/`6f5fc98`), không xoá method.
+
+### 11.2 D5 — `corporate_action_history`: path sai, không phải route chết
+
+§9 D5 để ngỏ *"path sai **hoặc** endpoint không tồn tại"* và yêu cầu điều tra
+trước khi kết luận (L-R04). Điều tra xong:
+
+| Path | Kết quả |
+|---|---|
+| `/accounts/{no}/corporate-actions` (code đang dùng) | **404** `API ROUTE NOT FOUND` |
+| `/accounts/{no}/corporate-action-history` (SDK `client.py:236-241`) | **200** · `{accountNo, data, pagination}` |
+
+Cả hai môi trường (prod + sandbox) đều 404 path cũ ⇒ **lỗi path, không phải giới
+hạn môi trường**. Đã sửa ở lát E (`393591e`).
+
+### 11.3 Hai dòng trong §2.2 và §1 cần đọc lại
+
+§2.2 kết luận *"tất cả 13 endpoint market data trả 404 trên sandbox"* — điều đó
+vẫn đúng **cho sandbox**, nhưng suy ra *"chưa verify được market data OpenAPI
+production"* đã bị §8 gỡ. §2.1 dòng `get_corporate_action_history` và
+`get_working_dates` được ghi là *"sandbox chưa implement"*, nay biết là **vấn đề
+path ở client**, không liên quan sandbox.
+
+### 11.4 D10/D11 — bằng chứng âm tính, và **giới hạn** của nó
+
+Đo `boardId`/`marketId` trên production:
+
+| Endpoint | Kết quả | Số ứng viên |
+|---|---|---|
+| `GET /price/HPG/secdef?boardId=X` | **500 Internal error** | 10 |
+| `GET /price/HPG/trades/volume-profile?boardId=X` | **404 `not found boardId`** | 1 + 24 |
+| `GET /instruments?marketId=X` | **400 `'oneof'`** | 9 + 24 |
+
+Tập ứng viên (24 giá trị khác nhau): `0`–`5`, `HOSE`, `HNX`, `UPCOM`, `DOWNNEX`,
+`HNXUPCOM`, `ALL`, `HOSE_STOCK`, `HNX_STOCK`, `UPCOM_STOCK`, `HOSE.ETF`,
+`HOSE_INDEX`, `HOSE.DERIVATIVE`, `ETF`, `ETFS`, `STOCK`, `EQUITY`, `INDEX`,
+`HOSE-HNX-UPCOM`, `HOSE,HNX,UPCOM`, `HOSE|UPCOM`, `HNXUPCOM_STOCK`, `STOCK_HOSE`,
+`DERIVATIVE`. **69 request, 0 giá trị hợp lệ.**
+
+**Quyết định: KHÔNG thêm enum.** Bịa tập giá trị tạo cảm giác an toàn giả
+(L-P06). Thay bằng docstring ghi rõ *"chưa tài liệu hoá"* ở cả 3 method.
+
+### 11.5 ⚠ **Giới hạn của bằng chứng âm tính này** (chưa đóng được)
+
+Bằng chứng trên **không** đủ để kết luận "DNSE không có `boardId` hợp lệ". Ba
+lý do:
+
+1. **Chưa thử từ điển đúng.** `connector/dnse/websocket.py:19` dùng kênh
+   `top_price.G1.json`, `:278` ghép `f"{product_group_id or 'STO'}.{board_id}"` ⇒
+   `board_id` kiểu `G1` là giả thuyết rất đáng thử, **chưa thử với REST**.
+2. **Server tự có từ điển.** `explorer/dnse/listing.py:29` cho thấy `/instruments`
+   **trả cột `boardId`** ⇒ đọc 1 request là ra từ điển thật, không cần đoán.
+3. **Body lỗi `'oneof'` bị cắt.** Chưa đọc `exc.payload` đầy đủ — lỗi validator
+   có thể liệt kê tập giá trị hợp lệ trong body.
+
+Cả ba đều đã viết vào `scripts/probe_dnse_readonly.py` (mục `D10`/`D11`) để
+chạy lại được. **Trạng thái: CHƯA CHẠY** — xem §11.6.
+
+### 11.6 ⚠ Mạng production mất giữa phiên (L-E04)
+
+Sau khi thu được bằng chứng §11.1–11.2 (khoảng 16:2x), probe tiếp theo thất bại
+với `TLS handshake timed out`:
+
+| Lần đo | Kết quả | Thời gian |
+|---|---|---|
+| 1 | TimeoutError | 12.49s |
+| 2 | TimeoutError | 12.48s |
+| 3 | TimeoutError | 12.47s |
+| (lần 4, probe `/instruments?limit=30`) | `Read timed out` | 15s |
+
+**3/3 (rồi 4/4) timeout** — đúng triệu chứng *"có VPN"* ở §1. Không kết luận
+chắc chắn là VPN vì không đo được trạng thái mạng, nhưng mẫu lỗi **giống hệt**.
+
+Hệ quả bắt buộc (L-E02):
+
+- Bằng chứng §11.1–11.2 **có giá trị** (đo ở đầu phiên, không VPN) nhưng phải đi
+  kèm điều kiện mạng tại thời điểm đó.
+- **Re-probe live sau khi sửa = CHƯA CHẠY** trừ khi mạng về. Không được ghi PASS.
+- Slice F **chưa đóng được** — cần chạy mục `D10`/`D11` của probe.
+- Đo lại 3 lần rồi mới kết luận: một lần timeout không đủ (L-E04).

@@ -62,6 +62,80 @@ def _probe(name: str, fn) -> None:
         _record(name, "FAIL", f"{type(exc).__name__} status={code}: {str(exc)[:120]}")
 
 
+def _defect_probes(client: DNSEClient, account_no: str) -> None:
+    """Probe riêng cho từng defect D2-D11, để bằng chứng tái lập được.
+
+    Trước 2026-10-16 script này **không** probe D1-path/D2/D3/D7/D10/D11 —
+    bảng "bằng chứng âm tính" trong `docs/PLAN_DNSE_FIX_20261016.md` vì thế
+    không ai tái lập lại được (finding M1/M2 của audit). Ở đây mỗi defect có
+    đúng một lệnh.
+
+    Dùng `_market._http` để thấy **status + payload lỗi đầy đủ**: các lỗi quan
+    trọng nhất của lát F (`oneof` của `marketId`, `not found boardId`) chỉ nằm
+    trong body mà `_resolve_output` không trả về.
+    """
+    http = client._market._http  # noqa: SLF001 - probe tới chỗ kiểm thật
+    today = time.strftime("%Y-%m-%d")
+
+    def raw(name: str, path: str, query: dict | None = None) -> None:
+        try:
+            status, body = http.request("GET", path, query=query)
+            detail = (
+                f"status={status} keys={list(body)[:5] if isinstance(body, dict) else type(body).__name__}"
+            )
+            _record(name, "PASS", detail)
+        except Exception as exc:  # noqa: BLE001
+            payload = getattr(exc, "payload", None)
+            _record(
+                name,
+                "FAIL",
+                f"status={getattr(exc, 'status_code', None)} "
+                f"{str(exc)[:90]} | payload={str(payload)[:160]}",
+            )
+
+    print("--- D1/D5: hai path từng bị kết luận là 'không tồn tại' ---")
+    raw("D1 working-dates", "/market/working-dates")
+    raw("D5 corporate-action-history (đúng)", f"/accounts/{account_no}/corporate-action-history")
+    raw("D5 corporate-actions (sai, đối chứng)", f"/accounts/{account_no}/corporate-actions")
+
+    print("--- D2: get_orders không có pageIndex ---")
+    raw("D2 orders KHÔNG pageIndex", f"/accounts/{account_no}/orders", {"marketType": "STOCK"})
+    raw("D2 orders CÓ pageIndex", f"/accounts/{account_no}/orders", {"marketType": "STOCK", "pageIndex": 1})
+
+    print("--- D3/D4: order_history from/to ---")
+    raw("D3 history thiếu cả hai", f"/accounts/{account_no}/orders/history", {"marketType": "STOCK"})
+    raw("D3 history chỉ from", f"/accounts/{account_no}/orders/history", {"marketType": "STOCK", "from": "2026-10-01"})
+    raw("D4 history đủ from+to", f"/accounts/{account_no}/orders/history", {"marketType": "STOCK", "from": "2026-10-01", "to": today})
+
+    print("--- D6: position_id không phải số ---")
+    raw("D6 positions/1 (số, id tồn tại)", "/positions/1", {"marketType": "STOCK"})
+    raw("D6 positions/fake (rác)", "/positions/fake", {"marketType": "STOCK"})
+    raw("D6 positions/999999 (biên quyền?)", "/positions/999999", {"marketType": "STOCK"})
+
+    print("--- D7: volume profile time format ---")
+    raw("D7 time=1700 (int)", "/price/HPG/trades/volume-profile", {"time": 1700})
+    raw("D7 time=ngày, thiếu boardId", "/price/HPG/trades/volume-profile", {"time": today})
+
+    print("--- D8: from/to là GIÂY chứ không phải ms ---")
+    raw("D8 quotes to=bây giờ (giây)", "/price/HPG/quotes", {"from": NOW_S - 86400, "to": NOW_S, "limit": 5})
+    raw("D8 quotes to=bây giờ (ms)", "/price/HPG/quotes", {"from": (NOW_S - 86400) * 1000, "to": NOW_S * 1000, "limit": 5})
+
+    print("--- D9: market_index khác ngày ---")
+    raw("D9 cùng ngày", "/price/VNINDEX/market-index", {"from": TODAY0_S, "to": NOW_S, "limit": 5})
+    raw("D9 khác ngày", "/price/VNINDEX/market-index", {"from": TODAY0_S - 86400, "to": NOW_S, "limit": 5})
+
+    print("--- D10/D11: từ điển boardId/marketId ---")
+    # Đọc từ điển server tự trả về TRƯỚC, thay vì đoán: /instruments có cột
+    # `boardId` (xem `explorer/dnse/listing.py:29`).
+    raw("D10 instruments (đọc cột boardId)", "/instruments", {"symbol": "HPG", "limit": 5})
+    # Rồi mới thử các giá trị nghi vấn. "G1" đến từ `connector/dnse/websocket.py`
+    # (`:19` kênh `top_price.G1.json`, `:278` ghép `STO.G1`) — đây là giả thuyết
+    # **chưa** được thử trước 2026-10-16, không phải kết luận.
+    for candidate in ("HOSE", "G1", "STO.G1", "1"):
+        raw(f"D10 secdef boardId={candidate}", "/price/HPG/secdef", {"boardId": candidate})
+        raw(f"D11 instruments marketId={candidate}", "/instruments", {"marketId": candidate})
+
+
 def main() -> int:
     client = DNSEClient(
         api_key=os.environ["DNSE_API_KEY"],
@@ -100,14 +174,22 @@ def main() -> int:
     _probe("get_market_index(VNINDEX, same day)", lambda: client.get_market_index("VNINDEX", from_date=TODAY0_S, to_date=NOW_S, limit=5, raw=True))
     _probe("get_ohlc(1D, HPG)", lambda: client.get_ohlc("1D", query={"symbol": "HPG", "from": DAY_S, "to": NOW_S, "limit": 5}, raw=True))
 
-    # D1: stub trả None im lặng — coi None là FAIL (L-R01: rỗng im lặng = thất bại,
-    # không phải PASS). Server không có endpoint working-dates (§9 D1).
+    # --- Working dates (D1) -------------------------------------------------
+    # Đính chính 2026-10-16: comment cũ ghi "Server không có endpoint
+    # working-dates" và coi None là FAIL. Đo lại **không VPN**: path
+    # `/market/working-dates` trả **200**, 257 `workingDates`. Method đã được
+    # sửa ở `services/market_service.get_working_dates` sang path thật.
+    # Nay `None` vẫn là FAIL — nhưng vì lý do khác: không có request nào đi ra
+    # hoặc server không trả danh sách.
     wd = client.get_working_dates(raw=True)
     if wd is None:
-        _record("get_working_dates", "FAIL", "D1 stub trả None im lặng (bug tuple-order, không gọi network)")
+        _record("get_working_dates", "FAIL", "D1: vẫn trả None — method chưa gọi network")
     else:
-        _record("get_working_dates", "PASS", type(wd).__name__)
+        count = len(wd.get("workingDates", [])) if isinstance(wd, dict) else "?"
+        _record("get_working_dates", "PASS", f"keys={list(wd)[:4] if isinstance(wd, dict) else type(wd).__name__} count={count}")
 
+    print()
+    _defect_probes(client, account_no)
     print()
     print("=" * 70)
     passed = sum(1 for _, s, _ in _results if s == "PASS")
