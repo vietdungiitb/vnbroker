@@ -161,7 +161,13 @@ LANES: Final[dict[str, LaneSpec]] = {
                 "reason_code": None,
                 "note": (
                     "`get_order_history(account_no, market_type, from_date, "
-                    "to_date, page_size, page_index)` — signature thật."
+                    "to_date, page_size, page_index)` — signature thật. "
+                    "`from_date`/`to_date` là date string `yyyy-MM-dd`; "
+                    "production bắt buộc CẢ HAI vế (thiếu một ⇒ "
+                    "`400 from is required` / `400 to is required`), nên "
+                    "truyền đúng một vế sẽ raise DNSEValidationError trước khi "
+                    "gửi. `get_orders` tự điền `pageIndex=1` vì production "
+                    "bắt buộc nó."
                 ),
             },
         },

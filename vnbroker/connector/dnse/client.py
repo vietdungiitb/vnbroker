@@ -210,14 +210,23 @@ class DNSEClient(MultiMarketMixin):
         account_no: str,
         market_type: str,
         order_category: str | None = None,
+        page_index: int = 1,
+        page_size: int | None = None,
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """Danh sách lệnh.
+
+        `page_index` mặc định `1` vì **production bắt buộc** nó (thiếu ⇒
+        `400 pageIndex is required`); sandbox thì không đòi.
+        """
         return self._resolve_output(
             self._order.get_orders(
                 account_no=account_no,
                 market_type=market_type,
                 order_category=order_category,
+                page_index=page_index,
+                page_size=page_size,
                 dry_run=dry_run,
             ),
             raw=raw,
@@ -274,6 +283,12 @@ class DNSEClient(MultiMarketMixin):
         dry_run: bool = False,
         raw: bool = False,
     ):
+        """Lịch sử lệnh.
+
+        ⚠ `from_date`/`to_date` là **date string `yyyy-MM-dd`**, KHÁC unix giây
+        của `quotes`/`trades`/`market-index`. Production đòi **cả hai** vế;
+        truyền đúng một vế sẽ raise `DNSEValidationError` trước khi gửi.
+        """
         return self._resolve_output(
             self._order.get_order_history(
                 account_no=account_no,

@@ -28,10 +28,16 @@ client = DNSEClient(
 
 ### Orders
 
-- `get_orders(account_no: str, market_type: str, order_category: str | None = None, dry_run: bool = False, raw: bool = False)`
+- `get_orders(account_no: str, market_type: str, order_category: str | None = None, page_index: int = 1, page_size: int | None = None, dry_run: bool = False, raw: bool = False)`
+  - ⚠ `pageIndex` **bắt buộc ở production** (thiếu ⇒ `400 pageIndex is required`);
+    sandbox thì không đòi. Vì vậy mặc định là `1`, không phải `None`.
 - `get_order_detail(account_no: str, order_id: str, market_type: str, order_category: str | None = None, dry_run: bool = False, raw: bool = False)`
 - `get_execution_detail(account_no: str, order_id: str, market_type: str, order_category: str = "NORMAL", dry_run: bool = False, raw: bool = False)`
 - `get_order_history(account_no: str, market_type: str, from_date: str | None = None, to_date: str | None = None, page_size: int | None = None, page_index: int | None = None, dry_run: bool = False, raw: bool = False)`
+  - ⚠ `from_date`/`to_date` là **date string `yyyy-MM-dd`** — KHÁC unix giây của
+    `quotes`/`trades`/`market-index`. Production bắt buộc **cả hai** vế; truyền
+    đúng một vế ⇒ `DNSEValidationError(ORDER_HISTORY_RANGE_INCOMPLETE)` trước khi
+    gửi. Cả hai vế trống vẫn hợp lệ (sandbox gọi được).
 
 ### Trade actions
 
