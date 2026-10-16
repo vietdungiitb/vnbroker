@@ -2,9 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-### Unreleased — sua 11 defect client DNSE OpenAPI (2026-10-16)
+### 3.8.0 - sua 11 defect client DNSE OpenAPI + tra loi VNBROKER REQ-001..005 (2026-10-16, tag `v3.8.0`)
 
-> Chua phat hanh. Version khong doi trong dot nay.
+> Ban nay gop CA HAI dot `Unreleased` truoc do (sua 11 defect DNSE + tra loi
+> REQ-001..005). `pyproject.toml`: `3.7.2` -> `3.8.0` — **minor vi co breaking**.
+> Bump version la quyet dinh cua Owner.
+
+#### Phan A: sua 11 defect client DNSE OpenAPI (2026-10-16)
 
 Dot "test live DNSE" phat hien **11 defect client-side** — tat ca deu do duoc
  tren production thuoc (khong VPN) va deu da sua + **do lai live** lan cuoi.
@@ -18,14 +22,22 @@ Chi tiet: `docs/REPORT_DNSE_LIVE_20261016.md`, ke hoach
 | `get_working_dates` | tra hang `(dates rong, None)`, **0ms**, khong goi network | `GET /market/working-dates` → **200**, 257 ngay |
 | `get_corporate_action_history` | `/accounts/{a}/corporate-actions` → **404** | `/accounts/{a}/corporate-action-history` → **200** |
 
-**Breaking co chu y (chuyen mau tham so):**
+**Breaking — doc truoc khi nang cap:**
 
 | Do | Truoc | Sau |
 |:--|:--|:--|
-| `get_trades_volume_profile(time=...)` | `int` | **`str` `yyyy-MM-dd`** (int → `DNSEValidationError`) |
-| `get_trades_volume_profile(board_id=...)` | tu y chon | **bat buoc** |
-| `get_orders` | gui `marketType` (+`orderCategory`) | tu dien **`pageIndex=1`, `pageSize=20`** |
-| `get_order_history(from=…)` | tu y chon | **ca hai ve hoac khong vay nao**; mot ve → raise |
+| DNSE `get_orders(order_category=...)` | tuy chon; khong truyen → server `400 INVALID_ORDER_CATEGORY` | **bat buoc**, khong co mac dinh |
+| DNSE `get_trades_volume_profile(time=...)` | `int` | **`str` `yyyy-MM-dd`** (int → `DNSEValidationError`) |
+| DNSE `get_trades_volume_profile(board_id=...)` | tuy chon | **bat buoc** |
+| DNSE `get_order_history` | mot ve van chay | **ca hai ve hoac khong ve nao**; mot ve → raise |
+| DNSE `marketType`/`orderCategory` sai gia tri | HTTP 200 + body rong, caller khong biet | `DNSEValidationError`, **truoc** khi co byte nao di ra |
+| `trade.py` (noi bo) | 1 file 1352 dong | **tach 4 file** — API cong khai giu nguyen chu ky |
+
+**Vi sao `order_category` KHONG co mac dinh `NORMAL`:** nguoi muon xem lenh
+`STOP` ma quen tham so se nhan danh sach `NORMAL` day du trong mat va thieu — sai
+du lieu ma trong nhu dung. Fail-open o tang NGU NGHIA du lieu te hon han mot
+`TypeError` luc go. (Da can nhac phuong an B "chi validate" va C "mac dinh
+NORMAL"; Owner chot A.)
 
 **Sua liet (fail fast, truoc khi co byte nao di ra):**
 
@@ -51,27 +63,26 @@ hien double-encoding UTF-8. Ly do: dot nay mot file nguon bi `Get-Content -Raw`
 hop le la UTF-8. Cong nay cung bat duoc 1 file hong co san tu truoc
 (`tests/unit/core/test_no_guest_quota_runtime.py`).
 
-**Gate cuoi:** `check_all.ps1` FULL **exit 0** · pytest **2246 passed, 26 skipped**
-(baseline 2177 => **+69**) · contract 117 · mypy-baseline 1266→1133 · encoding PASS
-449 file · `ruff check tests` 13 KNOWN-RED **khong tang**.
+**Doi noi bo (khong breaking):** `trade.py` 1352 dong tach thanh `trade.py`
+(622) + `trade_derivatives.py` (180) + `trade_conditional.py` (180) +
+`openapi_passthrough.py` (354). API cong khai **giu nguyen chu ky**, khoa bang
+`tests/contract/test_trade_public_surface.py` (47 method + 14 write-gated), xanh
+TRUOC va SAU khi tach. Cach lam: dong bang API truoc, tach sau.
+
+**Gate cuoi:** `check_all.ps1` FULL **exit 0** · pytest **2281 passed, 26 skipped**
+(baseline 2177 => **+104**) · contract 149 · mypy-baseline 1266→1106 · encoding PASS
+453 file · `ruff check tests` 13 KNOWN-RED **khong tang**.
 
 **Da do lai live:** `scripts/probe_dnse_readonly.py` → `PASS=40 FAIL=16`, trong do
 16 FAIL deu la **probe phu dinh co chu dich**. 11/11 defect da dong.
 
-### Unreleased — phan hoi VNBROKER REQ-001..005 (2026-10-14)
-
-### Unreleased — phan hoi VNBROKER REQ-001..005 (2026-10-14)
-
-> Chua phat hanh. `pyproject.toml` van la `3.7.2` va **khong** doi o commit nay:
-> bump version la quyet dinh cua Owner (xem `git log`: "release: bump 3.7.0 ->
-> 3.7.1 (Owner directive)"). Ghi `3.8.0` o day khi chua bump se tao chinh loay
-> doc-drift ma bai `check_version_sync.py` dang canh (L-E01).
+#### Phan B: tra loi VNBROKER REQ-001..005 (2026-10-14)
 
 Tra loi van ban yeu cau `REQUESTS_TO_VNBROKER_20261014.md` cua vninvest
 (ADR-006: broker SSOT qua vnbroker). Phan hoi day du:
 `docs/RESPONSE_TO_VNINVEST_20261014.md`.
 
-**Breaking co chu y (phía vninvest):** `marketType`/`orderCategory` sai gia tri
+**Breaking co chu y (phia vninvest):** `marketType`/`orderCategory` sai gia tri
 nay nem `DNSEValidationError` thay vi tra HTTP 200 + body rong. Code dang
 "thu lai ALL/STOCK/EQUITY" se do loi ngay.
 

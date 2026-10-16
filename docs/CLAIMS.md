@@ -361,14 +361,15 @@ Verdict audit: **NEED_REVISION** (4 blocker, 7 major, 6 nho) -> plan ban 2 da su
 
 | agent | branch | worktree | scope | files | status | since | note |
 |---|---|---|---|---|---|---|---|
-| coordinator-dnse-fix | feat/dnse-openapi-fix | (main checkout) | Sua 11 defect client DNSE OpenAPI (D1-D11) | vnbroker/connector/dnse/services/{market_service,order_service,account_service,position_service}.py, vnbroker/connector/dnse/client.py, vnbroker/connector/dnse/core/time_utils.py (moi), vnbroker/explorer/dnse/quote.py, vnbroker/broker/capabilities.py, scripts/probe_dnse_readonly.py, tests/unit/connector/dnse/{test_market_time_units,test_order_read_params,test_position_id_guard}.py (moi), tests/unit/connector/dnse/test_market_data_read_methods.py, tests/contract/test_dnse_endpoint_contract.py, docs/AGENT_PROTOCOL.md, docs/DNSE_API_CONTRACT.md, docs/REPORT_DNSE_LIVE_20261016.md | **released** | 2026-10-16 | Mode B. 9 commit `0bc2d45`..`d8fab65`; 11/11 defect dong, **da do lai live** |
+| coordinator-dnse-fix | feat/dnse-openapi-fix | (main checkout) | Sua 11 defect client DNSE OpenAPI (D1-D11) | vnbroker/connector/dnse/services/{market_service,order_service,account_service,position_service}.py, vnbroker/connector/dnse/client.py, vnbroker/connector/dnse/core/time_utils.py (moi), vnbroker/connector/dnse/{trade_derivatives,trade_conditional,openapi_passthrough}.py (moi), vnbroker/explorer/dnse/quote.py, vnbroker/broker/capabilities.py, scripts/probe_dnse_readonly.py, tests/unit/connector/dnse/{test_market_time_units,test_order_read_params,test_position_id_guard}.py (moi), tests/contract/test_trade_public_surface.py (moi), tests/unit/connector/dnse/test_market_data_read_methods.py, tests/unit/connector/dnse/test_write_safety.py, tests/contract/test_dnse_endpoint_contract.py, docs/AGENT_PROTOCOL.md, docs/DNSE_API_CONTRACT.md, docs/REPORT_DNSE_LIVE_20261016.md, docs/LESSONS/provider-params.md | **merged** `v3.8.0` | 2026-10-16 | Mode B. 16 commit `0bc2d45`..`bdfd2cf` (10 commit REQ-001..005 truoc do da nam tren nhanh tu truoc); 11/11 defect dong, **da do lai live**. Merge vao `main`, tag `v3.8.0` |
 
 **Vi sao Mode B:** lat A/B/D sua `market_service.py`; lat A/B/C/D sua `client.py`.
 Tap file giao nhau => chay song song se tai tao Hazard 1 (weld hunk). Tien le:
 TCBS Round 3 (`docs/CLAIMS.md:205-206`).
 
 **KHONG claim:** `vnbroker/connector/dnse/core/http_client.py` (write gate la choke
-point money lane), `vnbroker/connector/dnse/trade.py` (1352L, vuot ngan sach 800L).
+point money lane). ~~`trade.py` (1352L, vuot ngan sach 800L)~~ — da tach ngay sau
+do, xem muc "Tach trade.py" duoi day.
 
 **Baseline gate @ f6cf68b** (do, khong suy tu CLAUDE.md - xem AGENT_PROTOCOL §2):
 - pytest tests/ -q --timeout=300 -> exit 0, **2177 passed, 26 skipped**, 3 subtests
@@ -432,3 +433,71 @@ Khong con test xanh vi khang dinh sai.
 - Sandbox co chap nhan `pageIndex` khong -> chi biet "khong doi", chua biet "chap nhan".
 - `Trade.login()` JWT: `.env` thieu `DNSE_USERNAME`/`DNSE_PASSWORD`.
 - CI GitHub Actions: job bi tu choi khoi dong do billing.
+
+---
+
+## 2026-10-16 - SAU KHI DONG: 3 chi thi cua Owner
+
+Owner chot 3 viec ngay sau khi dong task. Ca 3 da xong va **da merge** vao `main`.
+
+### 1. `orderCategory` BAT BUOC (phuong an A) - `2c23984`
+
+Hai yeu cau bat nguon tu luc do live: `get_orders` thieu `order_category` ->
+`400 INVALID_ORDER_CATEGORY` tren production (sandbox khong doi).
+
+Da can nhac 3 phuong an, Owner chot **A**:
+- **A (chot):** `order_category: str` bat buoc trong chu ky. Go thieu ->
+  `TypeError` ngay, khong co byte nao di ra.
+- B (loai): giu tuy chon, chi validate gia tri.
+- C (loai): mac dinh `"NORMAL"`.
+
+**Vi sao loai C:** nguoi muon xem lenh `STOP` ma quen tham so se nhan danh sach
+`NORMAL` day du trong mat va thieu. Do la **sai du lieu ma trong nhu dung** —
+fail-open o tang ngu nghia du lieu, te hon han mot `TypeError` luc go.
+
+### 2. Tach `trade.py` 1352L -> 4 file - `b4b386b` + `bdfd2cf`
+
+Thu tu: **dong bang API truoc, tach sau**.
+
+| File | Dong |
+|---|---|
+| `trade.py` (core: infra + auth + order/deal) | 622 |
+| `trade_derivatives.py` (`DerivativeMixin`) | 180 |
+| `trade_conditional.py` (`ConditionalOrderMixin`) | 180 |
+| `openapi_passthrough.py` (`OpenApiPassthroughMixin`) | 354 |
+
+`tests/contract/test_trade_public_surface.py` (moi): 47 method + 47 chu ky + 14
+write-gated, xanh TRUOC (`b4b386b`) va xanh SAU (`bdfd2cf`).
+
+**3 loi toi tu gay ra va bi cong cu bat (ghi lai de khong lap):**
+1. Them `from __future__ import annotations` vao mixin -> `inspect.signature`
+   doi dang -> freeze test bat. Da bo.
+2. Script tu dong gan `-> Any` cho ca `__init__` (phai la `-> None`) -> mypy bat.
+3. `test_write_safety.py` quet AST chi `class Trade` trong `trade.py` -> **bo sot
+   2 method ghi tien that** sau khi tach. Money lane, quet hep = lo hong; da mo
+   rong sang `TRADE_MODULES`.
+
+**mypy-baseline 83 loi moi -> 0.** Nguyen nhan: baseline dem theo DUONG DAN file,
+code chuyen file bi tinh la `new`. Sua that (khai bao hop dong mixin duoi
+`TYPE_CHECKING`, return annotation, thu hop `dict`/`list`) chu **khong** dung
+`--update` de giau. 1266 -> 1106.
+
+### 3. Lesson moi - `73b8c99`
+
+`docs/LESSONS/provider-params.md` -> `L-D01` (validator tu choi ma khong liet ke
+tap hop -> doc response server, dung doan) va `L-D02` (mac dinh "cho chay duoc"
+la tu che). ⚠ ID lesson regex la `^## L-[A-Z]\d+` — **mot chu cai**; `L-PP01` bi
+gate bao DRIFT, da dung namespace `L-D`.
+
+### Gate cuoi @ `bdfd2cf` (truoc merge)
+
+`check_all.ps1` FULL **exit 0** · pytest **2281 passed, 26 skipped** (baseline
+2177 => **+104**) · contract **149** · mypy-baseline 1266->1106 · encoding PASS
+453 file · ruff-src/unit/contract sach · `ruff check tests` 13 KNOWN-RED khong tang.
+
+### Con CHUA CHAY (chuyen tiep sang phien sau)
+
+Xem `docs/HANDOFF_DNSE_FIX_20261016.md` — danh sach day du. Tom tat: STOP/OCO co
+that su chay khong; `order_detail`/`executions`/`order_history` co doi
+`order_category` khong; sandbox chap nhan `pageIndex`/`pageSize` khong; `403` tai
+`position_id=999999` chua giai thich.
