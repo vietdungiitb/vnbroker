@@ -152,3 +152,17 @@ def test_page_size_is_omitted_rather_than_sent_as_none():
     assert "pageSize" not in payload["query"], (
         "gửi pageSize=None sẽ thành chuỗi 'None' trên URL"
     )
+
+
+def test_page_index_none_omits_the_key_entirely():
+    """`pageIndex=None` phải **bỏ hẳn key**, không phải gửi chuỗi `None`.
+
+    Đo lại trong phiên audit: `page_index=None` tạo URL
+    `...?marketType=STOCK&pageIndex=None` — một lỗi 400 khác và khó đọc hơn lỗi
+    cũ. Đây là trường hợp dễ hỏng nhất nên phải có test riêng (audit major #5).
+    """
+    payload = _client().get_orders(
+        ACCOUNT, "STOCK", page_index=None, dry_run=True, raw=True
+    )
+    assert "pageIndex" not in payload["query"], payload["query"]
+    assert "None" not in payload["url"]

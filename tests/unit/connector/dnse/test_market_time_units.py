@@ -144,7 +144,64 @@ def test_market_index_late_evening_to_next_midnight_is_still_one_day():
         )
 
 
-# --- AC-A4: get_trades phải dùng CHUNG _history_query với 4 method kia ------
+# --- AC-A1 (bổ sung sau audit): D8 phải thật sự bị chặn ở đường đi thật ----
+#
+# `to_unix_seconds` chỉ tồn tại mà không được gọi ở đâu thì D8 vẫn reachable
+# qua API công khai — module + test tạo cảm giác an toàn giả (audit major #3).
+# Các test dưới đây gọi đúng API công khai như một người dùng thật.
+
+
+def test_public_api_converts_milliseconds_to_seconds():
+    """Đo: ms => `400 range exceeds maximum time range`; giây => 200."""
+    payload = _client().get_quotes(
+        "MBS", from_date=NOON_S * 1000, to_date=(NOON_S + 60) * 1000,
+        dry_run=True, raw=True,
+    )
+    assert payload["query"]["from"] == NOON_S
+    assert payload["query"]["to"] == NOON_S + 60
+
+
+def test_public_api_leaves_real_seconds_untouched():
+    payload = _client().get_quotes(
+        "MBS", from_date=DAY_OPEN_S, to_date=NOON_S, dry_run=True, raw=True
+    )
+    assert payload["query"]["from"] == DAY_OPEN_S
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["get_quotes", "get_trades", "get_expected_price", "get_foreign_trading"],
+)
+def test_every_paginated_method_normalises_milliseconds(method):
+    """Cả 4 endpoint đi qua `_history_query` nên phải chuẩn hoá như nhau."""
+    payload = getattr(_client(), method)(
+        "MBS", from_date=NOON_S * 1000, to_date=NOON_S * 1000, dry_run=True, raw=True
+    )
+    assert payload["query"]["from"] == NOON_S
+
+
+def test_a_datetime_is_accepted_where_the_api_used_to_demand_an_int():
+    """`to_unix_seconds` nhận datetime — người gọi không còn phải tự tính."""
+    payload = _client().get_quotes(
+        "MBS", from_date=datetime(2026, 10, 16, 15, 0, tzinfo=ICT),
+        to_date=datetime(2026, 10, 16, 15, 1, tzinfo=ICT),
+        dry_run=True, raw=True,
+    )
+    assert payload["query"]["from"] == NOON_S
+
+
+# --- ranh giới ngày: 0 là falsy, `or` sẽ chọn nhầm (audit minor #8) ----------
+
+
+def test_market_index_error_message_uses_from_when_from_is_zero():
+    """`from_date=0` (1970) là falsy. Nếu code viết `from_date or to_date` thì
+    thông báo sẽ chỉ ngày của `to_date` — sai ngày trong chính thông điệp lỗi."""
+    with pytest.raises(DNSEValidationError) as excinfo:
+        _client().get_market_index(
+            "VNINDEX", from_date=0, to_date=NOON_S, dry_run=True
+        )
+    message = str(excinfo.value)
+    assert "1970-01-01" in message, f"phải nhắc ngày của from_date=0: {message}"
 
 
 def test_get_trades_delegates_to_the_shared_history_query(monkeypatch):
@@ -185,9 +242,14 @@ def test_get_trades_delegates_to_the_shared_history_query(monkeypatch):
      "get_market_index"],
 )
 def test_every_paginated_method_documents_the_unit(name):
-    """Ghi 'giây' trong docstring là hợp đồng với người đọc, không phải thừa.
+    """Ghi đơn vị trong docstring là hợp đồng với người đọc, không phải thừa.
 
     Đây chính là thứ vắng mặt khiến D8 xảy ra.
+
+    ⚠ Không được viết `assert "gi" in doc.lower()`. Tiếng Việt có "gi" trong rất
+    nhiều từ ("Giá", "Giao", "giới"), nên assertion đó **vẫn xanh sau khi xoá
+    hẳn cả ghi chú** — đã thử, cả 5/5 vẫn PASS. Đây là loại test xanh bằng vô
+    nghĩa, và chính plan đã cảnh báo về nó (audit N1).
     """
     doc = getattr(DNSEClient, name).__doc__ or ""
-    assert "gi" in doc.lower(), f"{name} không nói from/to là unix GIÂY"
+    assert "GIÂY" in doc, f"{name} không nói from/to là unix GIÂY"

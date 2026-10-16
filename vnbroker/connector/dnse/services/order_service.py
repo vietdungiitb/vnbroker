@@ -13,24 +13,27 @@ class OrderService:
         account_no: str,
         market_type: str,
         order_category: str | None = None,
-        page_index: int = 1,
+        page_index: int | None = 1,
         page_size: int | None = None,
         dry_run: bool = False,
     ):
-        """Danh sách lệnh đang hoạt động.
+        """Danh sÃ¡ch lá»‡nh Ä‘ang hoáº¡t Ä‘á»™ng.
 
-        ⚠ **`pageIndex` là bắt buộc ở production.** Đo 2026-10-16:
-        `GET /accounts/{no}/orders` không kèm `pageIndex` ⇒
-        `400 pageIndex is required`. **Sandbox thì không đòi** — đó là lý do
-        không thể dùng sandbox làm chuẩn, và cũng là lý do mặc định ở đây là `1`
-        thay vì `None`: gửi `None` là trả về đúng cái lỗi 400 đó.
+        âš  **`pageIndex` lÃ  báº¯t buá»™c á»Ÿ production.** Äo 2026-10-16:
+        `GET /accounts/{no}/orders` khÃ´ng kÃ¨m `pageIndex` â‡’
+        `400 pageIndex is required`. **Sandbox thÃ¬ khÃ´ng Ä‘Ã²i** â€” Ä‘Ã³ lÃ  lÃ½ do
+        khÃ´ng thá»ƒ dÃ¹ng sandbox lÃ m chuáº©n, vÃ  cÅ©ng lÃ  lÃ½ do máº·c Ä‘á»‹nh á»Ÿ Ä‘Ã¢y lÃ  `1`.
 
-        `page_size` vẫn tuỳ chọn — không có bằng chứng server bắt buộc.
+        Máº·c Ä‘á»‹nh lÃ  `1` chá»© khÃ´ng pháº£i `None` vÃ¬ gá»­i `pageIndex=None` sáº½ ra
+        chuá»—i `pageIndex=None` trÃªn URL â€” má»™t lá»—i 400 khÃ¡c, khÃ³ Ä‘á»c hÆ¡n lá»—i cÅ©.
+        Truyá»n `page_index=None` tÆ°á»ng minh váº«n Ä‘Æ°á»£c (bá» háº³n tham sá»‘) cho
+        trÆ°á»ng há»£p cáº§n thá»­ trá»±c tiáº¿p.
+
+        `page_size` váº«n tuá»³ chá»n â€” khÃ´ng cÃ³ báº±ng chá»©ng server báº¯t buá»™c.
         """
-        query: dict[str, object] = {
-            "marketType": market_type,
-            "pageIndex": page_index,
-        }
+        query: dict[str, object] = {"marketType": market_type}
+        if page_index is not None:
+            query["pageIndex"] = page_index
         if order_category:
             query["orderCategory"] = order_category
         if page_size is not None:
@@ -85,30 +88,30 @@ class OrderService:
         page_index: int | None = None,
         dry_run: bool = False,
     ):
-        """Lịch sử lệnh. `from_date`/`to_date` là **date string `yyyy-MM-dd`**.
+        """Lá»‹ch sá»­ lá»‡nh. `from_date`/`to_date` lÃ  **date string `yyyy-MM-dd`**.
 
-        ⚠ **Format khác hẳn price endpoints.** `quotes`/`trades`/`market-index`
-        nhận unix **giây**; endpoint này nhận chuỗi ngày. Trộn hai loại là nguồn
-        lỗi rất dễ rơi vào (D4).
+        âš  **Format khÃ¡c háº³n price endpoints.** `quotes`/`trades`/`market-index`
+        nháº­n unix **giÃ¢y**; endpoint nÃ y nháº­n chuá»—i ngÃ y. Trá»™n hai loáº¡i lÃ  nguá»“n
+        lá»—i ráº¥t dá»… rÆ¡i vÃ o (D4).
 
-        Production đòi **cả hai** vế: thiếu cả hai ⇒ `400 from is required`, chỉ
-        có `from` ⇒ `400 to is required`. Sandbox thì gọi được với cả hai vế
-        trống, nên cặp thiếu bị chặn ngay ở đây (L-R01) thay vì để server trả
-        400 buộc người gọi đoán.
+        Production Ä‘Ã²i **cáº£ hai** váº¿: thiáº¿u cáº£ hai â‡’ `400 from is required`, chá»‰
+        cÃ³ `from` â‡’ `400 to is required`. Sandbox thÃ¬ gá»i Ä‘Æ°á»£c vá»›i cáº£ hai váº¿
+        trá»‘ng, nÃªn cáº·p thiáº¿u bá»‹ cháº·n ngay á»Ÿ Ä‘Ã¢y (L-R01) thay vÃ¬ Ä‘á»ƒ server tráº£
+        400 buá»™c ngÆ°á»i gá»i Ä‘oÃ¡n.
 
         Raises:
-            DNSEValidationError: khi có đúng một vế. ``error_code ==
+            DNSEValidationError: khi cÃ³ Ä‘Ãºng má»™t váº¿. ``error_code ==
                 "ORDER_HISTORY_RANGE_INCOMPLETE"``.
         """
         if (from_date is None) != (to_date is None):
             missing = "to" if to_date is None else "from"
             raise DNSEValidationError(
                 message=(
-                    f"get_order_history cần CẢ `from_date` và `to_date`, hoặc "
-                    f"không truyền vế nào. Bạn đang thiếu `{missing}_date`. "
-                    f"Định dạng là chuỗi ngày `yyyy-MM-dd` — ví dụ "
-                    f"from_date='2026-10-01', to_date='2026-10-05' (KHÁC unix "
-                    f"giây của price endpoints)."
+                    f"get_order_history cáº§n Cáº¢ `from_date` vÃ  `to_date`, hoáº·c "
+                    f"khÃ´ng truyá»n váº¿ nÃ o. Báº¡n Ä‘ang thiáº¿u `{missing}_date`. "
+                    f"Äá»‹nh dáº¡ng lÃ  chuá»—i ngÃ y `yyyy-MM-dd` â€” vÃ­ dá»¥ "
+                    f"from_date='2026-10-01', to_date='2026-10-05' (KHÃC unix "
+                    f"giÃ¢y cá»§a price endpoints)."
                 ),
                 error_code="ORDER_HISTORY_RANGE_INCOMPLETE",
                 status_code=400,

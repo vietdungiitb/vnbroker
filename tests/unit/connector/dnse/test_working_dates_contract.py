@@ -111,8 +111,62 @@ def test_explorer_working_dates_is_not_declared_but_unsupported():
 # --- há»£p Ä‘á»“ng cáº¥u trÃºc Ä‘áº§u ra ---------------------------------------------
 
 
+# --- AC-B3 (bổ sung sau audit #1): TẦNG EXPLORER cũng phải tách dòng -------
+#
+# Lát B ban đầu chỉ sửa `client.py`, còn `DNSEQuote.working_dates` vẫn gọi
+# `pd.json_normalize(body)` trực tiếp ⇒ (1, 1) thay vì (3, 1). Đó chính là
+# hình thức "thành công rỗng" mà lát B sinh ra để chữa, chỉ là ở tầng khác.
+
+
+def _explorer_with_body(body: object) -> DNSEQuote:
+    """Dựng explorer với `_market.get_working_dates` trả sẵn payload."""
+    quote = DNSEQuote(symbol="HPG", api_key="k", api_secret="s")
+    quote._market = _StubMarket(body)
+    return quote
+
+
+class _StubMarket:
+    def __init__(self, body: object) -> None:
+        self._body = body
+
+    def get_working_dates(self, *_args, **_kwargs):
+        return None, self._body
+
+
+def test_explorer_returns_one_row_per_trading_day():
+    quote = _explorer_with_body({"workingDates": ["2026-10-14", "2026-10-15", "2026-10-16"]})
+    frame = quote.working_dates()
+    assert len(frame) == 3, (
+        f"phải một dòng mỗi ngày, nhận {len(frame)} — "
+        f"json_normalize trên dict bọc nguyên khối thành 1 dòng"
+    )
+
+
+def test_explorer_does_not_regress_to_a_single_row():
+    """Chốt lại: đây là hồi quy đã xảy ra một lần, không được xảy ra lần hai."""
+    quote = _explorer_with_body({"workingDates": ["2026-01-05", "2026-01-06"]})
+    frame = quote.working_dates()
+    first_cell = frame.iloc[0, 0]
+    assert not isinstance(first_cell, list), (
+        "cell đầu vẫn là list ⇒ đã quay lại json_normalize trực tiếp"
+    )
+
+
+def test_explorer_returns_empty_frame_on_error_and_says_why():
+    """Lỗi phải ra log, không ra DataFrame rỗng im lặng (L-R01)."""
+
+    class _Boom:
+        def get_working_dates(self, *_a, **_k):
+            raise RuntimeError("404 not found")
+
+    quote = DNSEQuote(symbol="HPG", api_key="k", api_secret="s")
+    quote._market = _Boom()
+    frame = quote.working_dates()
+    assert frame.empty
+
+
 def test_working_dates_column_is_stable_for_downstream_code():
-    """Explorer tráº£ DataFrame â€” tÃªn cá»™t lÃ  há»£p Ä‘á»“ng vá»›i phÃ­a tiÃªu thá»¥."""
+    """Explorer trả DataFrame — tên cột là hợp đồng với phía tiêu thụ."""
     frame = DNSEClient._to_dataframe({"workingDates": ["2026-10-16"]})
     assert list(frame.columns) == ["workingDates"]
 
@@ -121,3 +175,4 @@ def test_working_dates_column_is_stable_for_downstream_code():
 def test_empty_or_missing_list_does_not_raise(payload):
     frame = DNSEClient._to_dataframe(payload)
     assert isinstance(frame, pd.DataFrame)
+
