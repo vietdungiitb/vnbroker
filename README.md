@@ -2,6 +2,8 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.8.1** — Nguồn corporate action có cấu trúc: `VCI.corporate_actions()` trả field số (`cash_amount`, `stock_ratio_pct`, `parse_status`, `group_id`) và facade `Company.corporate_actions()`. Phát hành CBCNV/ESOP `%` được giữ `unparsed` (không nhầm thành cổ phiếu thưởng); 2 DIV cùng `ex_date` là 2 dòng riêng. Sửa hướng dẫn token TCBS → `TCBS_JWT_TOKEN`. Không breaking change.
+>
 > **v3.8.0** — Sửa **11 defect client DNSE OpenAPI** (path sai, đơn vị thời gian ms/giây, tham số bắt buộc bị bỏ sót) và trả lời yêu cầu `REQUESTS_TO_VNBROKER_20261014.md`. ⚠️ Có **Breaking changes**: `get_orders` đòi `order_category` tường minh (không còn để server tự chọn), `get_trades_volume_profile(time=…)` nhận `str "yyyy-MM-dd"` thay vì `int` và `board_id` trở thành bắt buộc, `get_order_history` đòi **cả hai vế** `from`+`to` hoặc không vế nào. `trade.py` 1352 dòng tách thành 4 file — **API công khai giữ nguyên chữ ký**, khoá bằng `tests/contract/test_trade_public_surface.py`. Hai hằng `BOARD_IDS`/`MARKET_IDS` là tập **đã đo trên một mã/một ngày**, không phải enum do server công bố, nên không validate cứng.
 >
 > **v3.7.2** — Chặn rò **API secret** vào log. Từ v3.6.0, cache key mang theo giá trị attribute của instance, mà `SSIListing`/`DNSEListing` giữ `self._api_secret` ⇒ key in ra ở DEBUG là in thẳng secret. Nay log ghi `key#<blake2b-4>` (vẫn đối chiếu HIT/MISS bằng mắt), `redact_sensitive_data()` che cả khoá có tiền tố `_`, và `__repr__` hỏng chỉ in tên exception. **Không có breaking change.** Rò này có từ 3.6.0 — 3.5.0 trên PyPI không chứa nó.

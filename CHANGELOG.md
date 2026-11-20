@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+### 3.8.1 — corporate action source: field số + API thống nhất (2026-11-20, tag `v3.8.1`)
+
+> **Không breaking change.** `events()` giữ nguyên; các API mới là additive.
+> Bump version theo chỉ thị Owner để phát hành code corporate action đã merge
+> vào `main@5bcb3ca` (tag `v3.8.0` cũ trỏ `2cbf62e`, không chứa code này).
+
+#### Added
+- `vnbroker.common.corporate_actions`: `parse_event_title()` + `normalize_events()`
+  trả DataFrame contract gồm `symbol`, `action_type`, `ex_date`, `cash_amount`,
+  `stock_ratio_pct`, `source`, `source_event_id`, `raw_title`, `parse_status`,
+  `group_id` (`"SYMBOL:YYYY-MM-DD"`, JSON-serializable), `fetched_at`.
+- `VCI.corporate_actions(from_date, to_date, event_codes='DIV,ISS')` — gọi raw
+  `news-events-for-chart` rồi normalize; `Company.corporate_actions()` facade
+  qua `@dynamic_method` (cùng retry/fallback với `events()`).
+- Test golden: VNM 3 cặp cùng `ex_date` thật (`2023-08-03`, `2024-09-24`,
+  `2025-10-16`), FPT ESOP `0.5%`/`0.2%`, VCB tách `2025-03-12` / `2025-10-03`.
+
+#### Fixed
+- **ESOP ≠ cổ phiếu thưởng**: `ISS + %` chỉ set `stock_ratio_pct` khi title có
+  `Cổ phiếu thưởng` / `Trả cổ tức bằng Cổ phiếu`. `Phát hành cho CBCNV tỉ lệ ...`
+  ⇒ `parse_status='unparsed'`, không suy diễn số (audit v1 C-02).
+- **TCBS auth docs/message**: `IMPLEMENTATION_SUMMARY.md:146`,
+  `MIGRATION_GUIDE.md:36,44,47` và message `dividends()` hướng tới
+  `TCBS_JWT_TOKEN` (JWT thật), không phải `TCBS_AUTH_TOKEN` (mã 48 ký tự, 401).
+
+#### Ghi chú
+- `record_date` / `payment_date` luôn `None` với VCI (provider không trả);
+  không suy diễn từ `public_date`.
+- Không đưa `adj_close`/`adj_factor` vào package — thuộc trách nhiệm consumer.
+
 ### 3.8.0 - sua 11 defect client DNSE OpenAPI + tra loi VNBROKER REQ-001..005 (2026-10-16, tag `v3.8.0`)
 
 > Ban nay gop CA HAI dot `Unreleased` truoc do (sua 11 defect DNSE + tra loi

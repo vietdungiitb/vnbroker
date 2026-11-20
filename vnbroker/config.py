@@ -94,10 +94,25 @@ VERSION_REQUIREMENTS: Dict[str, Dict[str, str]] = {
     "3.7.1": {},
     "3.7.2": {},
     "3.8.0": {},
+    "3.8.1": {},
 }
 
 # Version-specific notices for user
 VERSION_NOTICES = {
+    "3.8.1": {
+        "title": "vnbroker 3.8.1 - corporate action source (field so + API on dinh)",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.8.1",
+        "critical_notices": [
+            "VCI.corporate_actions() va facade Company.corporate_actions() tra DataFrame "
+            "vo cash_amount, stock_ratio_pct, parse_status, group_id dang str 'SYMBOL:YYYY-MM-DD'. "
+            "events() giu nguyen — day la them moi, khong breaking.",
+            "Phat hanh cho CBCNV/ESOP co ty le %% (vd 0.5%%) duoc danh dấu unparsed, KHONG phai "
+            "co phieu thuong — tranh sai factor dieu chinh gia. Chi 'Co phieu thuong' / "
+            "'Tra co tuc bang Co phieu' moi set stock_ratio_pct.",
+            "Hai DIV cung ex_date (vd VNM 2024-09-24) la 2 dong rieng, KHONG dedup theo title. "
+            "Client tu cong theo group_id.",
+        ],
+    },
     "3.3.0": {
         "title": "vnbroker 3.3.0 - Audit Fixes Release",
         "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.3.0",
