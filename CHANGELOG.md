@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+### 3.8.2 — fix P0 `ex_date=None` + lọc news trong corporate_actions (2026-11-20, tag `v3.8.2`)
+
+> **Không breaking change.** `events()` và schema 14 cột giữ nguyên. Sửa lỗi
+> P0 phát hiện khi vninvest re-probe bản 3.8.1.
+
+#### Fixed
+- `vnbroker.common.corporate_actions.normalize_events()`: `_pick` nhận thêm raw key
+  thật của VCI là **`exrightDate`** (`vnbroker/common/corporate_actions.py:155` ở bản
+  3.8.1 chỉ có `exRightDate`). Trước fix `ex_date=None` 100% dòng ⇒ mọi `group_id`
+  thành `VNM:None`, làm vô nghĩa phép so sánh cùng ngày.
+- Bỏ rows không phải sự kiện (`isEvent=False` hoặc thiếu `eventCode`) — endpoint
+  `news-events-for-chart` trả lẫn 1000 dòng tin tức cộng 57 event (VNM).
+- VNM live probe sau fix: 57 dòng, 0 dòng `ex_date=None`, 2 DIV cùng
+  `2024-09-24` (950 + 1.500 VND) giữ riêng; facade trả `source='VCI'`.
+
+#### Tests
+- Golden fixture `tests/fixtures/vci_news_events_vnm_20261120.json` (57 event + 20 news).
+- Fail-before: 5 failed / 1 passed; sau fix 25 passed (3 file unit slice).
+
 ### 3.8.1 — corporate action source: field số + API thống nhất (2026-11-20, tag `v3.8.1`)
 
 > **Không breaking change.** `events()` giữ nguyên; các API mới là additive.

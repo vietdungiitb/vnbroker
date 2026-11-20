@@ -95,10 +95,22 @@ VERSION_REQUIREMENTS: Dict[str, Dict[str, str]] = {
     "3.7.2": {},
     "3.8.0": {},
     "3.8.1": {},
+    "3.8.2": {},
 }
 
 # Version-specific notices for user
 VERSION_NOTICES = {
+    "3.8.2": {
+        "title": "vnbroker 3.8.2 - fix P0 ex_date corporate actions",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.8.2",
+        "critical_notices": [
+            "VCI.corporate_actions() doc dung raw key `exrightDate`: ex_date va "
+            "group_id 'SYMBOL:YYYY-MM-DD' Khong con None cho 100% dong nhu 3.8.1.",
+            "Chi tra event (isEvent=True / co eventCode): khong con 1000 dong "
+            "tin tuc lon vao contract corporate action.",
+            "Khong breaking change: events() va schema 14 cot giu nguyen.",
+        ],
+    },
     "3.8.1": {
         "title": "vnbroker 3.8.1 - corporate action source (field so + API on dinh)",
         "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.8.1",

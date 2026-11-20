@@ -2,6 +2,8 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.8.2** — Sửa P0 `vnbroker==3.8.1`: `VCI.corporate_actions()` giờ đọc đúng raw key `exrightDate` (trước đó `ex_date=None` cho 100% dòng), và chỉ trả sự kiện (`isEvent=True`, có `eventCode`) thay vì lẫn 1000 dòng tin tức. Golden VNM: 57 dòng, 57 `ex_date`, 2 DIV cùng `2024-09-24` giữ riêng. Không breaking change.
+>
 > **v3.8.1** — Nguồn corporate action có cấu trúc: `VCI.corporate_actions()` trả field số (`cash_amount`, `stock_ratio_pct`, `parse_status`, `group_id`) và facade `Company.corporate_actions()`. Phát hành CBCNV/ESOP `%` được giữ `unparsed` (không nhầm thành cổ phiếu thưởng); 2 DIV cùng `ex_date` là 2 dòng riêng. Sửa hướng dẫn token TCBS → `TCBS_JWT_TOKEN`. Không breaking change.
 >
 > **v3.8.0** — Sửa **11 defect client DNSE OpenAPI** (path sai, đơn vị thời gian ms/giây, tham số bắt buộc bị bỏ sót) và trả lời yêu cầu `REQUESTS_TO_VNBROKER_20261014.md`. ⚠️ Có **Breaking changes**: `get_orders` đòi `order_category` tường minh (không còn để server tự chọn), `get_trades_volume_profile(time=…)` nhận `str "yyyy-MM-dd"` thay vì `int` và `board_id` trở thành bắt buộc, `get_order_history` đòi **cả hai vế** `from`+`to` hoặc không vế nào. `trade.py` 1352 dòng tách thành 4 file — **API công khai giữ nguyên chữ ký**, khoá bằng `tests/contract/test_trade_public_surface.py`. Hai hằng `BOARD_IDS`/`MARKET_IDS` là tập **đã đo trên một mã/một ngày**, không phải enum do server công bố, nên không validate cứng.
