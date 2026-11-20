@@ -33,18 +33,18 @@ To obtain a JWT token:
 3. Request body: `{"apiKey": "your-api-key", "otp": "your-otp"}`
 4. Response: `{"token": "your-jwt-token"}`
 
-Set environment variable: `TCBS_AUTH_TOKEN=your-jwt-token`
+Set environment variable: `TCBS_JWT_TOKEN=your-jwt-token` (JWT thật từ `POST /gaia/v1/oauth2/openapi/token`. `TCBS_AUTH_TOKEN` là mã 48 ký tự KHÔNG phải JWT — server trả 401 khi dùng làm Bearer.)
 
 ## Migration Steps
 
 ### Step 1: Update Environment Variables
 
 ```bash
-# Old environment variable (may still work for some endpoints)
+# Old environment variable (legacy 48-char code, NOT a JWT — rejected by openapi endpoints)
 export TCBS_AUTH_TOKEN=old_token
 
-# New environment variable (required for new API)
-export TCBS_AUTH_TOKEN=new_jwt_token
+# New environment variable (required for new API): real JWT from the token exchange
+export TCBS_JWT_TOKEN=new_jwt_token
 ```
 
 ### Step 2: Update Code References
