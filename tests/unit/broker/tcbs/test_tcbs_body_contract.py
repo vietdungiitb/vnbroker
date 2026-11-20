@@ -57,14 +57,16 @@ def test_gate_tim_thay_du_12_write_method() -> None:
     """
     rows = gate.collect_payloads()
     assert len(rows) == 12, f"ky vong 12 payload write, thuc te {len(rows)}"
-    files = {w.split(":")[0] for w, *_ in rows}
+    # Normalize separator: gate chạy trên cả Windows (\\ ) và Ubuntu (/), CI publish
+    # dùng ubuntu-latest. So sánh thô bằng '\\' làm test đỏ giả trên CI (đo 2026-11-20).
+    files = {w.split(":")[0].replace("\\", "/") for w, *_ in rows}
     assert files == {
-        "vnbroker\\broker\\tcbs\\derivative_orders.py",
+        "vnbroker/broker/tcbs/derivative_orders.py",
         # 2026-10-10: 3 write method cổ phiếu tách ra `equity_orders.py` vì sửa
         # payload làm `equity.py` vượt 800L. Cùng pattern `derivative_orders.py`.
-        "vnbroker\\broker\\tcbs\\equity_orders.py",
-        "vnbroker\\broker\\tcbs\\money.py",
-        "vnbroker\\broker\\tcbs\\condition_orders.py",
+        "vnbroker/broker/tcbs/equity_orders.py",
+        "vnbroker/broker/tcbs/money.py",
+        "vnbroker/broker/tcbs/condition_orders.py",
     }, f"thieu file nao khong duoc quet: {files}"
 
 
