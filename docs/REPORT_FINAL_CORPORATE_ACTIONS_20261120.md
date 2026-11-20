@@ -1,7 +1,8 @@
 # REPORT FINAL — Corporate actions Slice 1–4 + fix P0 3.8.2 (2026-11-20)
 
 - **Repo/branch**: `vnbroker@fix/corporate-actions-exrightdate`, base `main@99dabbe`.
-- **Status**: code + tests + evidence **xong**; merge/tag/release 3.8.2 **chờ owner**.
+- **Status**: code + tests + evidence **xong**; merge + tag + GitHub Release **xong**;
+  **PyPI 3.8.2 CHƯA publish** — CI publish bị chặn billing (xem §7).
 - **Claim**: `corporate-actions-exrightdate`.
 - **Lessons áp dụng (đã tick)**: `[L-E01 (số kèm lệnh), L-E02 (fixture trong repo),
   L-E04 (ghi cả lần đỏ), L-E06 (fail-before gọi hàm thật), L-P05 (tự chạy lại gate),
@@ -97,4 +98,28 @@ trong baseline — hết hạn theo ngày, độc lập với thay đổi ở br
    chạy lại 66 test pipeline + full BE/FE + deploy staging; **sau đó** mới đổi
    `ingest.fetch_corporate_actions` sang field số (mapping `FIELD_MAPPING_VNBROKER.md`,
    lưu ý `is_esop ↔ ambiguous_ratio_pct`). Giữ `CORPORATE_ACTIONS_ENABLED=False`.
-4. Đóng claim `corporate-actions-exrightdate` sau khi merge.
+4. Đóng claim `corporate-actions-exrightdate` sau khi merge. **Đã đóng** tại `eaa7487`.
+
+## 7. TRẠNG THÁI RELEASE 3.8.2 (cập nhật 2026-11-20T14:56Z) — BLOCKER ngoài code
+
+| Việc | Trạng thái | Evidence |
+|---|---|---|
+| Merge vào `main` | ✅ xong | `0da4df4` (merge commit), push `99dabbe..eaa7487 main -> main` |
+| Claim đóng | ✅ xong | `eaa7487` |
+| Annotated tag `v3.8.2` | ✅ xong | trỏ `eaa7487`; push tag thành công |
+| GitHub Release | ✅ xong | https://github.com/vietdungiitb/vnbroker/releases/tag/v3.8.2 · `publishedAt=2026-11-20T14:55:12Z` |
+| CI publish lên PyPI | 🔴 **CHƯA CHẠY ĐƯỢC** | run `44758095521` (failed), re-run cùng run cũng failed: annotation *"The job was not started because recent account payments have failed or your spending limit needs to be increased"* — GitHub Actions billing, **không phải lỗi code/test** |
+| PyPI 3.8.2 | ❌ **chưa có** | chưa có artifact; không báo đã publish |
+
+Lệnh kiểm chứng: `gh run list --workflow publish.yml --limit 3 --json databaseId,status,conclusion`,
+`gh run view 44758095521`. So sánh: run 3.8.1 `44742622962` **success** lúc 13:14:52Z —
+nghĩa là billing block phát sinh sau đó (AGENT_PROTOCOL.md ghi "CI bị chặn billing là stale"
+đã **hết hạn** tại thời điểm này; cần owner cập nhật).
+
+Không có fallback local: `~/.pypirc` không tồn tại và không có biến
+`TWINE_USERNAME/TWINE_PASSWORD/PYPI_TOKEN/PYPI_API_TOKEN` trong môi trường; publish
+dùng Trusted Publishing OIDC của GitHub Actions nên **không tự upload được từ máy này**.
+
+**Hành động bắt buộc của owner**: khôi phục billing GitHub → `gh run rerun 44758095521`
+(hoặc tạo lại release) → verify `https://pypi.org/pypi/vnbroker/3.8.2/json` → mới báo
+vninvest bump pin. Trước đó mọi tuyên bố "3.8.2 đã phát hành" là **sai**.
