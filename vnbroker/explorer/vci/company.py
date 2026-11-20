@@ -317,6 +317,25 @@ class Company:
         return df
 
     @optimize_execution("VCI")
+    def corporate_actions(
+        self,
+        from_date: str = None,
+        to_date: str = None,
+        event_codes: str = "DIV,ISS",
+    ) -> pd.DataFrame:
+        """Structured corporate actions with numeric fields (additive to events()).
+
+        Unlike events(), this returns the stable contract schema from
+        ``vnbroker.common.corporate_actions``. Amounts are parsed from
+        ``event_title_vi``; ESOP / unparseable rows stay ``unparsed`` and are
+        never guessed (audit C-02). Two rows on the same ex_date are kept.
+        """
+        from vnbroker.common.corporate_actions import normalize_events
+
+        data = self._fetch_news_events(from_date, to_date, event_codes)
+        return normalize_events(data, self.symbol)
+
+    @optimize_execution("VCI")
     def insider_deals(
         self,
         page: int = 1,

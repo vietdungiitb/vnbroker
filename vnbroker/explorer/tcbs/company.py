@@ -476,17 +476,31 @@ class Company:
             
         Returns:
             Lịch sử cổ tức dưới dạng DataFrame hoặc dict.
+
+        Auth:
+            Endpoint `/v1/company/{symbol}/dividend-payment-histories` cần JWT
+            thật. Đặt biến môi trường `TCBS_JWT_TOKEN` (token đổi được qua
+            `POST /gaia/v1/oauth2/openapi/token`). `TCBS_AUTH_TOKEN` là mã 48
+            ký tự KHÔNG phải JWT và bị server từ chối (401) khi dùng làm Bearer.
         """
         url = f'{self.base_url}/{_ANALYSIS_URL}/v1/company/{self.symbol}/dividend-payment-histories'
-        
+
         # Use centralized request handler
-        response_data = client.send_request(
-            url=url,
-            headers=self.headers,
-            method="GET",
-            params={"page": page, "size": page_size},
-            show_log=self.show_log
-        )
+        try:
+            response_data = client.send_request(
+                url=url,
+                headers=self.headers,
+                method="GET",
+                params={"page": page, "size": page_size},
+                show_log=self.show_log
+            )
+        except Exception as exc:
+            # Làm rõ nguyên nhân auth thay vì để người dùng đoán (audit C-04).
+            raise type(exc)(
+                f"{exc}. Đối với TCBS dividends(), hãy đặt TCBS_JWT_TOKEN "
+                "(JWT thật từ POST /gaia/v1/oauth2/openapi/token); "
+                "TCBS_AUTH_TOKEN không phải JWT và bị từ chối 401."
+            ) from exc
         
         # Process response data
         df = json_normalize(response_data['listDividendPaymentHis'])

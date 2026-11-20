@@ -281,6 +281,8 @@ Van ban yeu cau: ninvest/docs/REQUESTS_TO_VNBROKER_20261014.md (5 REQ).
 | opencode-vninvest-req | feat/vninvest-req-20261014 | (main checkout) | F-01 __version__ doc metadata cu | vnbroker/__init__.py,scripts/check_version_sync.py | in-progress | 2026-10-14 | do: 3.4.0 vs pyproject 3.7.2 |
 
 Khong file docs/CLAIMS.md cua agent khac dang claim in-progress bi cham.
+
+| corporate-actions-source | feat/corporate-actions-source | (main checkout) | Corporate action source: Slice 1-3 xong (parser + unified API + auth/docs), Slice 4 chờ owner release/bump pin | vnbroker/common/corporate_actions.py, vnbroker/explorer/vci/company.py, vnbroker/api/company.py, vnbroker/explorer/tcbs/IMPLEMENTATION_SUMMARY.md, vnbroker/explorer/tcbs/MIGRATION_GUIDE.md, vnbroker/explorer/tcbs/company.py, tests/unit/common/test_corporate_actions_parser.py, tests/unit/explorer/test_vci_corporate_actions.py, tests/unit/api/test_corporate_actions_api.py, tests/unit/explorer/tcbs/test_dividends_auth_message.py, docs/PLAN_CORPORATE_ACTION_SOURCE_20261120.md, docs/CLAIMS.md | done | 2026-11-20 | base main@eac374b; merge queue main; KHÔNG đụng common/data.py; gate check_all CHƯA CHẠY (thiếu .venv) |
 Lesson ap dung: [L-E01, L-E02, L-E03, L-E05, L-E06, L-E07, L-R01, L-R04, L-P01, L-P03, L-P04, L-P05, L-P06].
 
 ### Trang thai cua claim tren (cap nhat khi dong)

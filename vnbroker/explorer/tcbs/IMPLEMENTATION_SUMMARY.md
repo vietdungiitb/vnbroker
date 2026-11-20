@@ -143,7 +143,7 @@ POST https://openapi.tcbs.com.vn/gaia/v1/oauth2/openapi/token
 }
 ```
 
-Set environment variable: `TCBS_AUTH_TOKEN=your-jwt-token`
+Set environment variable: `TCBS_JWT_TOKEN=your-jwt-token` (JWT thật từ `POST /gaia/v1/oauth2/openapi/token`. `TCBS_AUTH_TOKEN` là mã 48 ký tự KHÔNG phải JWT — server trả 401 khi dùng làm Bearer.)
 
 ## Next Steps
 
