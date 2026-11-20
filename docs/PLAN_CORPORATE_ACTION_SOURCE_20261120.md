@@ -136,6 +136,16 @@ Gate: auditor read-only verdict `PASS`/`AGREE` mới khai claim.
 
 ---
 
+## CẬP NHẬT 2026-11-20 — Slice 4 (phía vnbroker) ĐÃ XONG
+
+- Bump `3.8.0 → 3.8.1` commit `28de924` (trailer `Claim-Deny-List` — owner cấp quyền sửa `CLAUDE.md`/`config.py`).
+- Tag `v3.8.1` trỏ `fb829bc` (tag cũ `f716637` trỏ `2cbf62e`, không chứa code corporate action → đã xóa/tạo lại).
+- GitHub Release `v3.8.1` → publish workflow `44742622962` **success**.
+- Verify PyPI: `vnbroker==3.8.1`, `vnbroker-3.8.1-py3-none-any.whl` + `.tar.gz`, upload `2026-11-20T13:17:40Z`.
+- Lần 1 publish fail do `test_tcbs_body_contract.py` hardcode `\` path trên CI Ubuntu → fix commit `fb829bc` (normalize `/`), 19/19 test pass.
+- **Đính chính**: `AGENT_PROTOCOL.md:49` ghi "CI bị chặn billing" là **stale/sai** — repo public, Actions chạy bình thường (đo `gh api repos/.../actions/runs`, Graph Update success 2026-11-20).
+- Còn lại (owner **vninvest** tự làm, tôi không đụng): bump pin `vnbroker==3.7.2 → 3.8.1` tại `vninvest@dev:...requirements.txt:38` + re-probe VNM/FPT/VCB. Branch `feat/corp-actions-followups` đang có agent khác giữ 3 file test.
+
 ## Gate & bàn giao
 
 - Trước code: `check_lessons.py` exit 0; auditor verdict PASS/AGREE.
