@@ -1,7 +1,7 @@
 # HANDOFF — Corporate actions Slice 4 + fix P0 (2026-11-20)
 
 - **Repo/branch**: `vnbroker@main` · HEAD `a2b6ffb` · base `99dabbe` (3.8.1)
-- **Trạng thái**: `in-progress` — code xong, release PyPI **bị chặn**
+- **Trạng thái**: `done` — code + PyPI 3.8.2 publish/verify xong (15:03Z)
 - **Claim**: `corporate-actions-exrightdate` = `done` (`eaa7487`)
 
 ## Kết quả + evidence
@@ -17,13 +17,19 @@
    dist editable 1.0.2). Live VNM 57 / FPT 79 / VCB 23 dòng, 0 `ex_date=None`.
 4. Tag `v3.8.2` → `eaa7487`, GitHub Release published `2026-11-20T14:55:12Z`.
 
-## Blocker / next steps (owner)
+## Release (đã xong 15:03Z)
 
-- CI publish `44758095521` failed 2 lần (kể cả re-run): *"recent account payments have
-  failed or your spending limit needs to be increased"*. `https://pypi.org/pypi/vnbroker/3.8.2/json`
-  → **HTTP 404**. Không có `.pypirc`/token local để publish thay (OIDC-only).
-- Owner: khôi phục billing GitHub → `gh run rerun 44758095521` → verify PyPI 3.8.2 →
-  báo vninvest bump pin `3.8.1 → 3.8.2` + re-probe (57/79/23) → mới đổi ingest sang
-  field số. Giữ `CORPORATE_ACTIONS_ENABLED=False`.
-- Evidence đầy đủ: `docs/REPORT_FINAL_CORPORATE_ACTIONS_20261120.md` §7,
+- Blocker billing cũ đã hết: `gh run rerun 44758095521` → **success** (build + publish).
+- PyPI: `vnbroker==3.8.2`, wheel `628137 B` + sdist `521899 B`, yanked=false,
+  upload `2026-11-20T15:03:56Z`. Wheel sha256 `899946f9…a3ab`, chứa `exrightDate`
+  và `_is_event_row`; METADATA `Version: 3.8.2`.
+- Mirror pip nội bộ còn lag (chỉ thấy tới 3.8.1) — dùng `--index-url https://pypi.org/simple`
+  nếu bump pin bị "No matching distribution".
+
+## Next steps (owner vninvest)
+
+- Bump pin `3.8.1 → 3.8.2` + re-probe (kỳ vọng VNM 57 / FPT 79 / VCB 23), full BE/FE
+  + deploy staging; sau đó mới đổi ingest sang field số (`FIELD_MAPPING_VNBROKER.md`).
+  Giữ `CORPORATE_ACTIONS_ENABLED=False` tới khi xong.
+- Evidence đầy đủ: `docs/REPORT_FINAL_CORPORATE_ACTIONS_20261120.md` §8,
   `docs/evidence/CORPORATE_ACTIONS_FIX_381_EVIDENCE_20261120.md`.

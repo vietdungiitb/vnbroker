@@ -1,8 +1,8 @@
 # REPORT FINAL — Corporate actions Slice 1–4 + fix P0 3.8.2 (2026-11-20)
 
 - **Repo/branch**: `vnbroker@fix/corporate-actions-exrightdate`, base `main@99dabbe`.
-- **Status**: code + tests + evidence **xong**; merge + tag + GitHub Release **xong**;
-  **PyPI 3.8.2 CHƯA publish** — CI publish bị chặn billing (xem §7).
+- **Status**: **xong toàn bộ** — code + tests + merge + tag + GitHub Release +
+  PyPI 3.8.2 publish/verify (xem §8; §7 là mốc blocker đã được giải quyết).
 - **Claim**: `corporate-actions-exrightdate`.
 - **Lessons áp dụng (đã tick)**: `[L-E01 (số kèm lệnh), L-E02 (fixture trong repo),
   L-E04 (ghi cả lần đỏ), L-E06 (fail-before gọi hàm thật), L-P05 (tự chạy lại gate),
@@ -123,3 +123,25 @@ dùng Trusted Publishing OIDC của GitHub Actions nên **không tự upload đ�
 **Hành động bắt buộc của owner**: khôi phục billing GitHub → `gh run rerun 44758095521`
 (hoặc tạo lại release) → verify `https://pypi.org/pypi/vnbroker/3.8.2/json` → mới báo
 vninvest bump pin. Trước đó mọi tuyên bố "3.8.2 đã phát hành" là **sai**.
+
+## 8. CẬP NHẬT 2026-11-20T15:05Z — BLOCKER ĐÃ XONG, PYPI 3.8.2 LIVE
+
+Sau khi owner xác nhận repo public/billing khôi phục: `gh run rerun 44758095521` →
+**run success**. Cả 2 job xanh: build 2m11s (verify tag ↔ pyproject, unit+contract,
+build sdist/wheel, check_dist_contents, twine check) + publish 17s (`Publish to PyPI`).
+
+Verify trực tiếp:
+
+| Kiểm tra | Lệnh | Kết quả |
+|---|---|---|
+| PyPI JSON | `https://pypi.org/pypi/vnbroker/3.8.2/json` | `version=3.8.2`, upload `2026-11-20T15:03:56.103667Z` / `15:03:57.499658Z`, `vnbroker-3.8.2-py3-none-any.whl` (628137 B) + `vnbroker-3.8.2.tar.gz` (521899 B), `yanked=false` |
+| Wheel thật | `pip download --no-deps --index-url https://pypi.org/simple vnbroker==3.8.2` | tải được, sha256 `899946f9ad4527e1d864268ae3cfe44e7a0739fcac6a3ab990f0a101d0d6d2ab` |
+| Nội dung wheel | đọc `vnbroker/common/corporate_actions.py` trong wheel | có `"exrightDate"` và `_is_event_row`; METADATA `Version: 3.8.2` |
+
+⚠️ `pip download` dùng index mặc định của máy này **chưa thấy 3.8.2** (mirror lag,
+danh sách vẫn dừng ở 3.8.1) — phải dùng `--index-url https://pypi.org/simple` hoặc
+đợi mirror đồng bộ. vninvest cần lưu ý khi bump pin + re-probe trong container.
+
+**Next step còn lại (owner vninvest)**: bump pin `3.8.1 → 3.8.2`, re-probe (kỳ vọng
+VNM 57 / FPT 79 / VCB 23), full BE/FE + deploy staging, sau đó mới đổi ingest sang
+field số. Ownership của vnbroker với slice này: **xong**.

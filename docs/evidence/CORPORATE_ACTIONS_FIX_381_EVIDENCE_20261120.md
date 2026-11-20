@@ -60,11 +60,12 @@ Facade `vnbroker.api.company.Company(source='VCI', symbol='VNM').corporate_actio
    và row không có `eventCode`; giữ row cũ chỉ có `eventCode`.
 3. `[P1, đã làm]` Golden fixture 57 event VNM + 20 news; assert 57 dòng, 57 `ex_date`,
    2 DIV `2024-09-24` (950 + 1500) giữ riêng. Không dedup, không đổi schema 14 cột.
-4. `[P1, BLOCKER]` Tag + GitHub Release `v3.8.2` đã xong, nhưng CI publish bị chặn
-   billing (`gh run view 44758095521`) ⇒ **PyPI 3.8.2 chưa có**. Owner khôi phục billing
-   rồi rerun publish, verify PyPI JSON, sau đó vninvest mới bump pin `3.8.1 → 3.8.2`
-   + re-probe → mới chuyển `ingest.fetch_corporate_actions` sang field số. Giữ flag
-   `CORPORATE_ACTIONS_ENABLED=False` tới khi xong.
+4. `[P1, XONG 2026-11-20T15:03Z]` Tag + GitHub Release `v3.8.2` xong; publish run
+   `44758095521` sau rerun **success**; PyPI JSON `version=3.8.2`, wheel + sdist,
+   `yanked=false`, wheel chứa `"exrightDate"` + `_is_event_row`. vninvest giờ mới bump
+   pin `3.8.1 → 3.8.2` + re-probe → mới chuyển `ingest.fetch_corporate_actions` sang
+   field số. Giữ `CORPORATE_ACTIONS_ENABLED=False` tới khi xong. Lưu ý mirror pip
+   nội bộ có thể còn lag: dùng `--index-url https://pypi.org/simple` nếu cần.
 
 ## 5. Tests / gates
 
