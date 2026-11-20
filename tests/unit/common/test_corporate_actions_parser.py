@@ -4,12 +4,20 @@ Fail-before: these tests import the not-yet-existing module and call the real
 functions. On the old tree they are RED (ImportError); after implementation
 they are GREEN.
 """
+import json
 from decimal import Decimal
+from pathlib import Path
 
 from vnbroker.common.corporate_actions import (
     CORPORATE_ACTION_COLUMNS,
     normalize_events,
     parse_event_title,
+)
+
+FIXTURE = (
+    Path(__file__).resolve().parents[2]
+    / "fixtures"
+    / "vci_news_events_vnm_20261120.json"
 )
 
 
@@ -126,3 +134,64 @@ class TestNormalizeEvents:
         df = normalize_events([], "VNM")
         assert df.empty
         assert list(df.columns) == CORPORATE_ACTION_COLUMNS
+
+
+class TestRealVCIPayload:
+    """Fail-before: raw VCI payload captured 2026-11-20 (57 events + 20 news).
+
+    The old normalizer missed the real ``exrightDate`` key and returned news
+    rows too, so every test here is RED on 3.8.1.
+    """
+
+    @staticmethod
+    def _fixture_rows():
+        return json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+    def test_real_exright_date_key_sets_ex_date_and_group_id(self):
+        row = {
+            "id": 9001,
+            "eventCode": "DIV",
+            "exrightDate": "2024-09-24T00:00:00",
+            "eventTitleVi": "Trả cổ tức 950 VND",
+            "isEvent": True,
+        }
+        df = normalize_events([row], "VNM")
+        assert len(df) == 1
+        assert df.iloc[0]["ex_date"] == "2024-09-24"
+        assert df.iloc[0]["group_id"] == "VNM:2024-09-24"
+
+    def test_news_rows_are_filtered_out(self):
+        df = normalize_events(self._fixture_rows(), "VNM")
+        assert len(df) == 57
+        assert set(df["action_type"]) == {"DIV", "ISS"}
+        assert "" not in set(df["action_type"])
+
+    def test_golden_vnm_all_events_have_ex_date(self):
+        df = normalize_events(self._fixture_rows(), "VNM")
+        assert len(df) == 57
+        assert df["ex_date"].notna().all()
+        assert not (df["group_id"] == "VNM:None").any()
+
+    def test_golden_two_div_same_ex_date_kept_apart(self):
+        df = normalize_events(self._fixture_rows(), "VNM")
+        same_day = df[df["ex_date"] == "2024-09-24"]
+        assert len(same_day) == 2
+        assert set(same_day["group_id"]) == {"VNM:2024-09-24"}
+        assert sorted(same_day["cash_amount"].tolist()) == [
+            Decimal("950"),
+            Decimal("1500"),
+        ]
+        assert same_day["source_event_id"].nunique() == 2
+
+    def test_event_without_is_event_flag_still_kept(self):
+        # Legacy callers pass only eventCode (no isEvent); must not drop them.
+        row = {
+            "id": 9002,
+            "eventCode": "ISS",
+            "exrightDate": "2025-03-12T00:00:00",
+        }
+        assert len(normalize_events([row], "VCB")) == 1
+
+    def test_news_row_without_event_code_dropped(self):
+        row = {"id": 9003, "isEvent": False, "newsTitle": "Tin tức"}
+        assert normalize_events([row], "VNM").empty

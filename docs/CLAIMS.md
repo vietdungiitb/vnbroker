@@ -503,3 +503,9 @@ Xem `docs/HANDOFF_DNSE_FIX_20261016.md` — danh sach day du. Tom tat: STOP/OCO 
 that su chay khong; `order_detail`/`executions`/`order_history` co doi
 `order_category` khong; sandbox chap nhan `pageIndex`/`pageSize` khong; `403` tai
 `position_id=999999` chua giai thich.
+
+## 2026-11-20 — Fix P0 ex_date VCI corporate_actions (release 3.8.2)
+
+| agent | branch | worktree | scope | files | status | since | note |
+|---|---|---|---|---|---|---|---|
+| corporate-actions-exrightdate | fix/corporate-actions-exrightdate | (main checkout) | Fix P0 từ re-probe vnbroker 3.8.1: `_pick` thiếu key thật `exrightDate` (ex_date=None 100%), lọc news rows (`isEvent=False`, không `eventCode`) khỏi contract, golden fixture VNM 57 events | vnbroker/common/corporate_actions.py, tests/unit/common/test_corporate_actions_parser.py, tests/fixtures/vci_news_events_vnm_20261120.json, docs/PLAN_FIX_CORPORATE_ACTIONS_EX_DATE_20261120.md, docs/REPORT_FINAL_CORPORATE_ACTIONS_20261120.md | in-progress | 2026-11-20 | base main@99dabbe; shared files bump version (`pyproject.toml`, `CHANGELOG.md`, `README.md`, `CLAUDE.md`, `vnbroker/config.py`) do coordinator sửa với trailer `Claim-Deny-List` |

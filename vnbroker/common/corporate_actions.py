@@ -13,6 +13,8 @@ Rules (audit C-02, F2 chốt theo khuyến nghị):
   never treated as a share ratio.
 - VCI has no record_date/payment_date; they stay None and are never derived
   from public_date (audit C-09).
+- Raw VCI rows use the key ``exrightDate`` (lower-case ``r``); rows with
+  ``isEvent=False`` or no ``eventCode`` are news, not corporate actions.
 """
 from __future__ import annotations
 
@@ -123,6 +125,17 @@ def _pick(row: dict[str, Any], *names: str) -> Any:
     return None
 
 
+def _is_event_row(row: dict[str, Any]) -> bool:
+    """Keep events only: the VCI endpoint mixes news into the same payload."""
+    flag = _pick(row, "isEvent", "is_event")
+    if isinstance(flag, str):
+        if flag.strip().lower() in ("false", "0", "no", ""):
+            return False
+    elif flag is False:
+        return False
+    return bool(_pick(row, "eventCode", "event_code"))
+
+
 def _date_value(value: Any) -> Optional[str]:
     if value in (None, ""):
         return None
@@ -146,13 +159,17 @@ def normalize_events(rows: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
 
     Two events on the same ex_date are kept as two rows (audit C-05); they are
     never deduplicated by title. ``group_id`` is a JSON-serializable string.
+    Rows without an event code (news) are dropped: VCI's news-events endpoint
+    returns both, and the contract describes corporate actions only.
     """
     symbol = symbol.upper()
     fetched_at = datetime.now(timezone.utc).isoformat()
     records: list[dict[str, Any]] = []
+    events = [row for row in rows if _is_event_row(row)]
 
-    for position, row in enumerate(rows):
-        raw_ex = _pick(row, "exright_date", "exRightDate", "ex_date")
+    for position, row in enumerate(events):
+        # Real VCI key is `exrightDate` (lower-case r); `exRightDate` was wrong.
+        raw_ex = _pick(row, "exrightDate", "exright_date", "exRightDate", "ex_date")
         ex_date = _normalize_date(raw_ex)
         action_type = str(_pick(row, "event_code", "eventCode") or "").upper()
         raw_title = str(_pick(row, "event_title_vi", "eventTitleVi", "event_name_vi") or "")
