@@ -142,3 +142,41 @@ Gate: auditor read-only verdict `PASS`/`AGREE` mới khai claim.
 - Sau code: `scripts/check_all.ps1`, `pytest` targeted (ghi cả 2 lần nếu flaky – L-E04), `git status`, `git diff --numstat`.
 - Re-audit vòng 2: 0 blocker + 0 major; merge commit; sync system-design/docs; đóng claim; ledger Entry tiếp theo.
 - Không merge khi còn `CHƯA XÁC MINH` chưa được owner chấp nhận (đặc biệt F5 runtime dividends).
+
+---
+
+## BẢN GHI THỰC THI (2026-11-20) — Slice 1–3 xong, Slice 4 chờ owner
+
+**Branch**: `feat/corporate-actions-source` · base `main@eac374b` · claim `corporate-actions-source`.
+
+| Commit | Nội dung |
+|---|---|
+| `2a953a3` | claim + plan rev2 |
+| `3cfebb9` | Slice 1 — parser + `VCI.corporate_actions` (ESOP guard, golden VNM/VCB) |
+| `78009ab` | Slice 2 — facade `@dynamic_method corporate_actions` |
+| `c3c028e` | Slice 3 — 4 dòng doc TCBS + message `dividends()` → `TCBS_JWT_TOKEN` |
+| `6020aac` | ruff F401 |
+| `a410e14` | bổ sung test AUTO fallback (auditor B8 F1) |
+
+**Gates đã chạy thật**
+- `python -m pytest <4 file slice> -q` → **23 passed** (lệnh nằm ở §Slice tương ứng).
+- `python -m ruff check <8 file đổi>` → `All checks passed!`.
+- `python scripts/check_lessons.py` → exit 0 (26/40 lesson, sạch).
+- `git diff --numstat` khớp; `git status` sạch trước mỗi commit.
+- Fail-before ĐỎ bằng chứng: Slice 1 `ModuleNotFoundError: vnbroker.common.corporate_actions`; VCI method `AttributeError`; Slice 3 docs/message RED trước khi sửa.
+
+**Gate KHÔNG chạy được / CHƯA CHẠY (trung thực)**
+- `scripts/check_all.ps1 -Quick` → exit 2 `[FATAL] Khong tim thay .venv\Scripts\python.exe` — env issue, KHÔNG tự cài.
+- `scripts/check_version_sync.py` → FAIL do dist editable cài 1.0.2 vs pyproject 3.8.0 — env issue, không phải code đổi.
+- Full suite / contract suite — CHƯA CHẠY.
+- Runtime `dividends()` với JWT thật (§F.5) — CHƯA XÁC MINH.
+- Regression `test_company_auto_failover_insider.py` → 1 failed **giống hệt trên code cũ** (`2a953a3` worktree) ⇒ pre-existing, KHÔNG tính regression.
+
+**Audit trail**
+- vòng 2 plan: AGREE (13/13 citation, 3 minor đã sửa).
+- B8 code: AGREE (0 blocker/0 major), 3 minor — F1 đã đóng bằng `a410e14`; F2/F3 là diễn đạt plan (giữ nguyên code).
+
+**Slice 4 (chờ owner — KHÔNG tự làm)**
+- Owner vnbroker release `3.8.x` + CHANGELOG; vninvest owner bump pin `3.7.2 → 3.8.x` + re-probe. Trước đó 3 slice code chỉ có giá trị bản tương lai.
+
+**Lessons áp dụng (đã tick)**: `[L-R04, L-E01, L-E02, L-E06, L-P01, L-P03, L-P04, L-P05]`.
