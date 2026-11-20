@@ -179,6 +179,16 @@ class Company(BaseAdapter):
     def events(self, *args: Any, **kwargs: Any) -> Any:
         """Retrieve company events."""
         pass
+
+    @dynamic_method  # type: ignore
+    def corporate_actions(self, *args: Any, **kwargs: Any) -> Any:
+        """Retrieve structured corporate actions (numeric fields, parse_status).
+
+        Routes through the same provider fallback/retry as ``events()``.
+        Only VCI implements this method in v3.8.x; explicit ``source='KBS'``
+        raises AttributeError/NotImplementedError rather than an empty frame.
+        """
+        pass
         
     def _delegate_to_provider(self, method_name: str, symbol: Optional[str] = None, **kwargs: Any) -> Any:
         """
