@@ -6,8 +6,6 @@ they are GREEN.
 """
 from decimal import Decimal
 
-import pytest
-
 from vnbroker.common.corporate_actions import (
     CORPORATE_ACTION_COLUMNS,
     normalize_events,

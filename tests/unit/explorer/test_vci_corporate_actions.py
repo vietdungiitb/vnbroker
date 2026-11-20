@@ -4,8 +4,6 @@ Fail-before: RED on old tree (method missing / wrong payload path).
 """
 from unittest.mock import patch
 
-import pandas as pd
-
 from vnbroker.common.corporate_actions import CORPORATE_ACTION_COLUMNS
 from vnbroker.explorer.vci.company import Company
 

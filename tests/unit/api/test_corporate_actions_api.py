@@ -4,8 +4,6 @@ Fail-before: RED on old tree (facade method missing).
 """
 from unittest.mock import patch
 
-import pandas as pd
-
 from vnbroker.api.company import Company
 from vnbroker.common.corporate_actions import CORPORATE_ACTION_COLUMNS
 
