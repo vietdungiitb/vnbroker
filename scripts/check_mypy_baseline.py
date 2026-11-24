@@ -90,7 +90,11 @@ def load_baseline() -> Counter[str]:
     return items
 
 
-BASELINE_EXPIRY = "2026-11-01"
+# Gia hạn 2026-11-24 theo yêu cầu chốt phiên Owner: baseline cũ hết hạn
+# 2026-11-01 dù docstring script ghi 2026-12-31. Lần regenerate này chỉ ghi nhận
+# tập lỗi strict hiện tại (tool drift mypy/pandas); slice CafeF reference
+# không thêm lỗi strict mới (xem docs/handoffs/HANDOFF_2026-11-24_CAFEF_REFERENCE.md).
+BASELINE_EXPIRY = "2026-12-31"
 
 
 def write_baseline(items: Counter[str]) -> None:
