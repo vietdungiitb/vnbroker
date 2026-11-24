@@ -11,9 +11,10 @@ import pandas as pd
 
 from vnbroker.core.exceptions import ProviderBadRequestError
 
+from .client import bulk_year as fetch_bulk_year
 from .client import fetch_ohlc
 from .const import EXCHANGES
-from .parser import parse_records
+from .parser import REFERENCE_COLUMNS, apply_basis, parse_records
 from .reconcile import ReconcileReport, reconcile
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,57 @@ class CafefReference:
         if not to_df:
             return json.dumps(records, ensure_ascii=False, default=str)
         return parse_records(records, symbol)
+
+    def daily_bars(
+        self,
+        symbol: str,
+        start: str | None = None,
+        end: str | None = None,
+        exchange: str | None = None,
+        basis: str = "both",
+    ) -> pd.DataFrame:
+        """Canonical daily frame for one symbol (SSOT surface for vninvest).
+
+        Default ``start=2011-01-01`` (earliest CafeF dataset year) is paired with
+        explicit ``coverage`` metadata. For full-market backfill use ``bulk_year``
+        instead of ``symbol='ALL'``.
+
+        An empty response is classified: ``coverage='missing'`` when the symbol is
+        absent from the ALL export for that year (e.g. TPB 2011), otherwise
+        ``'no_trading_days'`` — never a silent "no trading day" frame.
+        """
+        if exchange and exchange != self.exchange:
+            self.exchange = exchange
+        resolved_start = start or "2011-01-01"
+        resolved_end = end or datetime.now().strftime("%Y-%m-%d")
+        frame = self.history(symbol, resolved_start, resolved_end)
+        if isinstance(frame, str):
+            raise TypeError("daily_bars needs a DataFrame reference frame")
+        if frame.empty:
+            coverage = self._classify_coverage(symbol, resolved_start)
+            frame["coverage"] = pd.Series(dtype=str)
+            frame.attrs["coverage"] = coverage
+            frame.attrs["price_basis"] = basis
+            return frame
+        return apply_basis(frame, basis)
+
+    def _classify_coverage(self, symbol: str, start: str) -> str:
+        """Distinguish 'symbol absent from CafeF' from 'no bars in this range'."""
+        try:
+            year = int(str(start)[:4])
+            records = fetch_bulk_year(self.exchange, year, show_log=self.show_log)
+            if any(str(rec.get("symbol", "")).upper() == symbol.upper() for rec in records):
+                return "no_trading_days"
+        except Exception:  # network/parse failure -> report missing, never silent
+            return "missing"
+        return "missing"
+
+    def bulk_year(self, exchange: str, year: int) -> pd.DataFrame:
+        """One XLSX ALL request per exchange/year; frame includes ``symbol``."""
+        records = fetch_bulk_year(exchange, year, show_log=self.show_log)
+        if not records:
+            return pd.DataFrame(columns=REFERENCE_COLUMNS)
+        return parse_records(records, "ALL")
 
     def reconcile(
         self,

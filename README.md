@@ -2,6 +2,8 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.9.0** — CafeF reference layer: `Vnbroker.reference("cafef")` + `Vnbroker.daily_bars(...)` trả giá lịch sử thô lẫn điều chỉnh (`close_raw`, `close_adjusted`, `value`, `put_through_*`, `coverage`) làm nguồn đối chiếu. `history(adjusted=False)` của KBS/VCI giờ lấy giá thô thật từ CafeF. CafeF **không** vào AUTO provider pool. Không breaking change cho caller mặc định.
+>
 > **v3.8.2** — Sửa P0 `vnbroker==3.8.1`: `VCI.corporate_actions()` giờ đọc đúng raw key `exrightDate` (trước đó `ex_date=None` cho 100% dòng), và chỉ trả sự kiện (`isEvent=True`, có `eventCode`) thay vì lẫn 1000 dòng tin tức. Golden VNM: 57 dòng, 57 `ex_date`, 2 DIV cùng `2024-09-24` giữ riêng. Không breaking change.
 >
 > **v3.8.1** — Nguồn corporate action có cấu trúc: `VCI.corporate_actions()` trả field số (`cash_amount`, `stock_ratio_pct`, `parse_status`, `group_id`) và facade `Company.corporate_actions()`. Phát hành CBCNV/ESOP `%` được giữ `unparsed` (không nhầm thành cổ phiếu thưởng); 2 DIV cùng `ex_date` là 2 dòng riêng. Sửa hướng dẫn token TCBS → `TCBS_JWT_TOKEN`. Không breaking change.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
@@ -153,3 +154,71 @@ def fetch_ohlc(
 
     records.sort(key=lambda item: item["date"])
     return [{key: item.get(key) for key in CANONICAL_FIELDS} | {"symbol": item.get("symbol", symbol)} for item in records]
+
+
+# Bulk export cache: keyed (exchange, year). Avoids re-downloading ~4.5 MB/year.
+_BULK_CACHE: dict[tuple[str, int], list[dict[str, Any]]] = {}
+_MIN_REQUEST_INTERVAL_SEC = 1.0
+_LAST_REQUEST_TS: float | None = None
+
+
+def _throttle() -> None:
+    """Global pacing between bulk requests (≥1 s), including across years/sides."""
+    global _LAST_REQUEST_TS
+    if _LAST_REQUEST_TS is not None:
+        wait = _MIN_REQUEST_INTERVAL_SEC - (time.monotonic() - _LAST_REQUEST_TS)
+        if wait > 0:
+            time.sleep(wait)
+    _LAST_REQUEST_TS = time.monotonic()
+
+
+def bulk_year(exchange: str, year: int, show_log: bool = False) -> list[dict[str, Any]]:
+    """Fetch one full year of ``Symbol=ALL`` XLSX (1 request per exchange/year).
+
+    Pacing >=1 s between requests, 2 retries with linear backoff, cache by
+    ``(exchange, year)``. Parsing uses ``io.BytesIO`` — no temp files to clean.
+
+    Measured perf budget (Hose 2022, 101.756 rows / 4,47 MB): download ~2,4 s,
+    parse ~34–40 s. Low-volume years (e.g. 2011, 66k rows) parse ~20 s — do not
+    quote "~20 s" as the peak budget.
+    """
+    if exchange not in EXCHANGES:
+        raise ValueError(f"Unsupported exchange {exchange!r}; expected one of {EXCHANGES}")
+    key = (exchange, year)
+    if key in _BULK_CACHE:
+        return _BULK_CACHE[key]
+
+    last_error: Exception | None = None
+    for attempt in range(3):
+        _throttle()
+        if attempt:
+            time.sleep(_MIN_REQUEST_INTERVAL_SEC * attempt)
+        try:
+            response = requests.get(
+                HOST + EXPORT_PATH,
+                params={
+                    "ExchangeType": exchange,
+                    "Symbol": "ALL",
+                    "StartDate": f"01/01/{year}",
+                    "EndDate": f"12/31/{year}",
+                },
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Referer": REFERER.format(symbol="ALL"),
+                },
+                timeout=180,
+            )
+            response.raise_for_status()
+            frame = pd.read_excel(io.BytesIO(response.content))
+            records = _normalize_rows(frame.to_dict(orient="records"), XLSX_FIELDS)
+            records.sort(key=lambda item: item["date"])
+            normalized = [
+                {field: item.get(field) for field in CANONICAL_FIELDS} for item in records
+            ]
+            _BULK_CACHE[key] = normalized
+            return normalized
+        except Exception as exc:  # retry network/parse failures
+            last_error = exc
+            if show_log:
+                logger.warning("CafeF bulk %s %s attempt %s failed: %s", exchange, year, attempt + 1, exc)
+    raise RuntimeError(f"CafeF bulk {exchange} {year} failed after 3 attempts") from last_error
