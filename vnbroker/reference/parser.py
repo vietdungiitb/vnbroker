@@ -11,10 +11,16 @@ from .const import PRICE_SCALE, VALUE_SCALE
 
 REFERENCE_COLUMNS = [
     "time",
+    # Legacy tier-1 aliases (kept so the 31 existing tests stay green).
     "open",
     "high",
     "low",
     "close",
+    # Canonical P1 columns.
+    "symbol",
+    "open_raw",
+    "high_raw",
+    "low_raw",
     "close_raw",
     "close_adjusted",
     "volume",
@@ -22,6 +28,8 @@ REFERENCE_COLUMNS = [
     "put_through_volume",
     "put_through_value",
     "source",
+    "price_basis",
+    "coverage",
     "fetched_at",
 ]
 
@@ -34,13 +42,20 @@ def parse_records(records: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
     for record in records:
         ts = pd.to_datetime(record["date"]).tz_localize(TZ)
         close_raw = float(record["close_raw"]) * PRICE_SCALE
+        open_raw = float(record["open"]) * PRICE_SCALE
+        high_raw = float(record["high"]) * PRICE_SCALE
+        low_raw = float(record["low"]) * PRICE_SCALE
         rows.append(
             {
                 "time": ts,
-                "open": float(record["open"]) * PRICE_SCALE,
-                "high": float(record["high"]) * PRICE_SCALE,
-                "low": float(record["low"]) * PRICE_SCALE,
+                "open": open_raw,
+                "high": high_raw,
+                "low": low_raw,
                 "close": close_raw,
+                "symbol": str(record.get("symbol") or "").upper(),
+                "open_raw": open_raw,
+                "high_raw": high_raw,
+                "low_raw": low_raw,
                 "close_raw": close_raw,
                 "close_adjusted": float(record["close_adjusted"]) * PRICE_SCALE,
                 "volume": int(record["volume"]),
@@ -48,6 +63,8 @@ def parse_records(records: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
                 "put_through_volume": int(record["put_through_volume"] or 0),
                 "put_through_value": float(record["put_through_value"] or 0) * VALUE_SCALE,
                 "source": "cafef",
+                "price_basis": "both",
+                "coverage": "ok",
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
             }
         )
@@ -58,7 +75,27 @@ def parse_records(records: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
     frame.attrs["symbol"] = symbol.upper()
     frame.attrs["source"] = "cafef"
     frame.attrs["data_origin"] = "cafef"
+    frame.attrs["price_basis"] = "both"
+    frame.attrs["coverage"] = "ok"
     return frame
+
+
+def apply_basis(frame: pd.DataFrame, basis: str) -> pd.DataFrame:
+    """Select canonical columns for ``raw``/``adjusted``/``both`` — one code path."""
+    if basis not in ("raw", "adjusted", "both"):
+        raise ValueError(f"Unsupported basis {basis!r}; expected raw/adjusted/both")
+    result = frame.copy()
+    if basis == "raw":
+        result = result.drop(columns=["close_adjusted"], errors="ignore")
+    elif basis == "adjusted":
+        result = result.drop(
+            columns=["open", "high", "low", "close", "open_raw", "high_raw", "low_raw", "close_raw"],
+            errors="ignore",
+        )
+    result["price_basis"] = basis
+    result.attrs.update(frame.attrs)
+    result.attrs["price_basis"] = basis
+    return result
 
 
 def to_native_records(frame: pd.DataFrame, source: str) -> list[dict[str, Any]]:

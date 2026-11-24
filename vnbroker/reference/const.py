@@ -49,6 +49,7 @@ JSON_FIELDS = {
 }
 
 CANONICAL_FIELDS = (
+    "symbol",
     "date",
     "open",
     "high",

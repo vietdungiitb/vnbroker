@@ -2,14 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-### Unreleased — CafeF reference + `adjusted` cho `history()` (2026-11-24, chưa tag)
+### Unreleased — v3.9.0: CafeF reference + `daily_bars` (2026-11-24)
+
+> P1 bổ sung `Vnbroker.daily_bars(...)` (R1–R7) lên nền P0 (reference layer + adjusted route).
 
 > **Không breaking change cho caller mặc định.** `adjusted` mặc định `True`
 > (`None` ở adapter tầng API) giữ nguyên giá đã điều chỉnh từ KBS/VCI.
 > `adjusted=False` giờ trả **giá thô thật** từ CafeF (ban đầu là fail rõ ràng,
 > sau khi xác minh CafeF có cả 2 cột giá thì đổi sang route).
 
-#### Added
+#### Added (P1)
+- `Vnbroker.daily_bars(symbol|ALL, start, end, exchange, basis='raw'|'adjusted'|'both')` —
+  thin wrapper trên `CafefReference.history` + `parse_records`, trả frame canonical có
+  `close_raw`, `close_adjusted`, `open/high/low_raw`, `value`, `put_through_*`, `source`,
+  `price_basis`, `coverage`, `fetched_at`. Default `start='2011-01-01'` kèm coverage metadata.
+- `CafefReference.bulk_year(exchange, year)` — 1 request XLSX `Symbol=ALL`/năm/sàn,
+  pacing ≥1 s global, retry 2 lần, cache `(exchange, year)`, `io.BytesIO` (không temp file).
+  Perf đo: 34–40 s cho 101k dòng (peak), ~20 s cho 66k dòng.
+- Coverage gate: frame rỗng được phân loại `coverage='missing'` (mã vắng trong ALL export)
+  hoặc `'no_trading_days'` (mã có nhưng range không có nến) — không trả rỗng im lặng.
+- `Vnbroker.reconcile_prices(frame, symbol, ...)` — monitoring, tách khỏi đường ghi; drift
+  0,5% được phân loại rebase trước khi alert.
+
+#### Added (P0)
 - `vnbroker/reference/` — reference/cross-check layer **đọc-only**, KHÔNG đăng ký
   vào `ProviderRegistry`, `SUPPORTED_SOURCES` hay AUTO failover pool.
   - `Vnbroker.reference("cafef")` trả `CafefReference` (tên khác → `ValueError`).

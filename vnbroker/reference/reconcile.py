@@ -28,7 +28,7 @@ class ReconcileReport:
 
 
 def _date_key(value: Any) -> str:
-    return pd.Timestamp(value).strftime("%Y-%m-%d")
+    return str(pd.Timestamp(value).strftime("%Y-%m-%d"))
 
 
 def reconcile(

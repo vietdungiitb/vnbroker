@@ -96,10 +96,21 @@ VERSION_REQUIREMENTS: Dict[str, Dict[str, str]] = {
     "3.8.0": {},
     "3.8.1": {},
     "3.8.2": {},
+    "3.9.0": {},
 }
 
 # Version-specific notices for user
 VERSION_NOTICES = {
+    "3.9.0": {
+        "title": "vnbroker 3.9.0 - CafeF reference layer + daily_bars",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.9.0",
+        "critical_notices": [
+            "Them Vnbroker.reference('cafef') va daily_bars(...) cho gia lich su "
+            "raw + adjusted tu CafeF (SSOT). CafeF khong vao AUTO provider pool.",
+            "history(adjusted=False) cua KBS/VCI giờ tra gia tho that tu CafeF.",
+            "Khong breaking change: mac dinh van tra gia dieu chinh tu provider.",
+        ],
+    },
     "3.8.2": {
         "title": "vnbroker 3.8.2 - fix P0 ex_date corporate actions",
         "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.8.2",

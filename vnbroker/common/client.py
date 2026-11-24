@@ -13,6 +13,8 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any, Optional
 
+import pandas as pd
+
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.common.data import (
     StockComponents,
@@ -264,6 +266,44 @@ class Vnbroker:
         from vnbroker.common.retail import Retail
 
         return Retail(show_log=self.show_log)
+
+    def daily_bars(
+        self,
+        symbol: str,
+        start: str | None = None,
+        end: str | None = None,
+        exchange: str = "HOSE",
+        basis: str = "both",
+    ) -> Any:
+        """Canonical daily OHLC from the CafeF reference layer (SSOT for history).
+
+        ``symbol='ALL'`` with ``bulk_year`` is served by ``CafefReference.bulk_year``;
+        this facade stays a thin wrapper — no fetch/parse duplication.
+        """
+        from vnbroker.reference import CafefReference
+
+        return CafefReference(exchange=exchange, show_log=self.show_log).daily_bars(
+            symbol, start, end, exchange=exchange, basis=basis
+        )
+
+    def reconcile_prices(
+        self,
+        frame: pd.DataFrame,
+        symbol: str = "",
+        start: str | None = None,
+        end: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Drift monitoring only — never a write path.
+
+        ``frame`` must be a real provider frame with a ``close`` column;
+        CafeF's fresh adjusted series is fetched inside ``CafefReference.reconcile``.
+        """
+        from vnbroker.reference import CafefReference
+
+        return CafefReference(show_log=self.show_log).reconcile(
+            frame, symbol=symbol, start=start, end=end, **kwargs
+        )
 
     def reference(self, name: str = "cafef") -> Any:
         """Lấy reference/cross-check layer (KHÔNG phải provider tầng 1).
