@@ -26,8 +26,12 @@ mypy-baseline 1106/1107, encoding 469 file, pytest-contract **153**, pytest-full
 
 ## 3. Next steps / owner
 
-1. Merge `feat/daily-bars-p1` vào `main` (merge commit), đóng claim `daily-bars-p1` → `done`.
-2. Tạo annotated tag `v3.9.0` + GitHub Release (section Breaking: để trống — không breaking).
+1. ~~Merge `feat/daily-bars-p1` vào `main`, đóng claim~~ — **XONG** (merge `213f0c8`, claim `done`).
+2. ~~Annotated tag `v3.9.0` + GitHub Release~~ — **XONG**:
+   https://github.com/vietdungiitb/vnbroker/releases/tag/v3.9.0
+   Publish workflow run `45356708835` **success**; PyPI `vnbroker==3.9.0` live
+   (`yanked=false`, wheel 640.207 B sha256 `a5049a3f…`, sdist 531.922 B sha256 `937a7ab0…`).
+   Wheel verified: có `vnbroker/reference/*`, `daily_bars`, `reconcile_prices`, METADATA `Version: 3.9.0`.
 3. vninvest pin `vnbroker==3.9.0`, rồi mới vào P2 (dual-write, parity test 3 mã × 3 năm).
 4. ToS bulk vẫn chờ owner; UI default đổi ở P3.
 
