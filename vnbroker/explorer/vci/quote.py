@@ -12,6 +12,7 @@ from typing import Any, List, Optional, Union
 import pandas as pd
 from vnbroker.core.utils.execution import optimize_execution
 
+from vnbroker.core.exceptions import ProviderBadRequestError
 from vnbroker.core.models import TickerModel
 from vnbroker.core.utils import async_send_request
 from vnbroker.core.utils.client import ProxyConfig, RequestMode, send_request
@@ -58,6 +59,20 @@ _ADAPTIVE_STEP_DOWN_ENV = "vnbroker_VCI_ADAPTIVE_STEP_DOWN"
 _ADAPTIVE_FAIL_THRESHOLD_ENV = "vnbroker_VCI_ADAPTIVE_FAIL_THRESHOLD"
 _ADAPTIVE_P95_HIGH_ENV = "vnbroker_VCI_ADAPTIVE_P95_HIGH_SECONDS"
 _ADAPTIVE_P95_LOW_ENV = "vnbroker_VCI_ADAPTIVE_P95_LOW_SECONDS"
+_RAW_PRICE_EVIDENCE = "docs/evidence/KBS_VCI_RAW_PRICE_PROBE_20261124.md"
+
+
+def _cafef_raw_records(symbol: str, start: str, end: str, show_log: bool) -> list[dict[str, Any]]:
+    """Lấy nến GIÁ THÔ từ CafeF cho ``adjusted=False`` (import trễ, tránh circular)."""
+    from vnbroker.reference import CafefReference
+    from vnbroker.reference.parser import to_native_records
+
+    frame = CafefReference(show_log=show_log).history(symbol, start, end, to_df=True)
+    if not isinstance(frame, pd.DataFrame):
+        raise TypeError("CafeF reference must return a DataFrame when to_df=True")
+    # VCI's ohlc_to_df calls .astype(int) on `t` — use epoch seconds, not ISO.
+    return to_native_records(frame, source="VCI")
+
 
 _TIMEFRAME_MAP = {
     "1D": "1D",
@@ -292,9 +307,38 @@ class Quote:
         count_back: Optional[int] = None,
         floating: Optional[int] = 2,
         length: Optional[Union[str, int]] = None,
+        adjusted: bool = True,
     ) -> pd.DataFrame:
         start, end, count_back = self._resolve_dates(start, end, interval or "1D", count_back, length)
         ticker, interval_key, normalized_interval = self._input_validation(start, end, interval)
+
+        if adjusted is False:
+            if interval != "1D":
+                raise ProviderBadRequestError(
+                    "CafeF reference chỉ phục vụ khung daily (1D); "
+                    "dùng VCI cho khung thời gian khác.",
+                    http_status=400,
+                )
+            records = _cafef_raw_records(self.symbol, ticker.start, ticker.end or end, bool(show_log or self.show_log))
+            df = ohlc_to_df(
+                data=records,  # type: ignore[arg-type]  # CafeF raw records are t/o/h/l/c/v rows
+                column_map=_OHLC_MAP,
+                dtype_map=_OHLC_DTYPE,
+                asset_type=self.asset_type,
+                symbol=self.symbol,
+                # Keep VCI's epoch-seconds branch in ohlc_to_df (transform.py:373-376);
+                # metadata is overridden to 'cafef' right after the call.
+                source="VCI",
+                interval=normalized_interval,
+                floating=floating or 2,
+                resample_map=_RESAMPLE_MAP,
+            )
+            df.attrs['source'] = 'cafef'
+            df.attrs['data_origin'] = 'cafef'
+            setattr(df, "source", "cafef")
+            if count_back is not None:
+                df = df.tail(count_back).reset_index(drop=True)
+            return df
 
         url = f"{self.base_url}chart/OHLCChart/gap-chart"
         payload = self._build_history_payload(
@@ -364,6 +408,7 @@ class Quote:
         proxy_list: Optional[List[str]] = None,
         proxy_mode: Optional[str] = None,
         adaptive_concurrency: Optional[bool] = None,
+        adjusted: bool = True,
     ) -> List[pd.DataFrame]:
         shared_proxy_pool = proxy_list
         if proxy_mode == "auto" and shared_proxy_pool is None:
@@ -388,6 +433,7 @@ class Quote:
                     count_back=count_back,
                     floating=floating,
                     length=length,
+                    adjusted=adjusted,
                 )
                 return frame, time.perf_counter() - started
             except Exception as exc:
@@ -495,8 +541,14 @@ class Quote:
         parallel: bool = False,
         symbols: Optional[List[str]] = None,
         max_concurrency: int = 24,
+        adjusted: bool = True,
     ) -> Union[pd.DataFrame, List[pd.DataFrame], str]:
-        """Fetch historical OHLC data with optional parallel multi-symbol mode."""
+        """Fetch historical OHLC data with optional parallel multi-symbol mode.
+
+        ``adjusted=False`` routes to the read-only CafeF reference layer
+        (raw prices). VCI's own API only serves adjusted prices — see
+        ``docs/evidence/KBS_VCI_RAW_PRICE_PROBE_20261124.md``.
+        """
         if parallel or symbols:
             target_symbols = symbols or [self.symbol]
             try:
@@ -511,6 +563,7 @@ class Quote:
                         floating=floating or 2,
                         length=length,
                         max_concurrency=max_concurrency,
+                        adjusted=adjusted,
                     )
                 )
             except RuntimeError as exc:
@@ -521,6 +574,36 @@ class Quote:
 
         start, end, count_back = self._resolve_dates(start, end, interval or "1D", count_back, length)
         ticker, interval_key, normalized_interval = self._input_validation(start, end, interval)
+
+        if adjusted is False:
+            if interval != "1D":
+                raise ProviderBadRequestError(
+                    "CafeF reference chỉ phục vụ khung daily (1D); "
+                    "dùng VCI cho khung thời gian khác.",
+                    http_status=400,
+                )
+            records = _cafef_raw_records(self.symbol, ticker.start, ticker.end or end, bool(show_log or self.show_log))
+            df = ohlc_to_df(
+                data=records,  # type: ignore[arg-type]  # CafeF raw records are t/o/h/l/c/v rows
+                column_map=_OHLC_MAP,
+                dtype_map=_OHLC_DTYPE,
+                asset_type=self.asset_type,
+                symbol=self.symbol,
+                # Keep VCI's epoch-seconds branch in ohlc_to_df (transform.py:373-376);
+                # metadata is overridden to 'cafef' right after the call.
+                source="VCI",
+                interval=normalized_interval,
+                floating=floating or 2,
+                resample_map=_RESAMPLE_MAP,
+            )
+            df.attrs['source'] = 'cafef'
+            df.attrs['data_origin'] = 'cafef'
+            setattr(df, "source", "cafef")
+            if count_back is not None:
+                df = df.tail(count_back).reset_index(drop=True)
+            if not to_df:
+                return json.dumps(df.to_dict(orient="records"), ensure_ascii=False, default=str)
+            return df
 
         url = f"{self.base_url}chart/OHLCChart/gap-chart"
         payload = self._build_history_payload(

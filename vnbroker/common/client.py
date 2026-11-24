@@ -11,7 +11,7 @@ Architecture: Direct Provider Access Only
 
 import logging
 import os
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.common.data import (
@@ -264,6 +264,35 @@ class Vnbroker:
         from vnbroker.common.retail import Retail
 
         return Retail(show_log=self.show_log)
+
+    def reference(self, name: str = "cafef") -> Any:
+        """Lấy reference/cross-check layer (KHÔNG phải provider tầng 1).
+
+        CafeF cung cấp giá thô lẫn giá điều chỉnh độc lập để đối chiếu với
+        KBS/VCI. Nó không bao giờ tham gia AUTO failover pool.
+
+        Args:
+            name: Chỉ hỗ trợ ``"cafef"``.
+
+        Returns:
+            ``CafefReference`` instance.
+
+        Raises:
+            ValueError: Nếu ``name`` không được hỗ trợ.
+
+        Example:
+            >>> vn = Vnbroker()
+            >>> ref = vn.reference("cafef")
+            >>> df = ref.history("TPB", "2022-01-01", "2022-01-06")
+            >>> report = ref.reconcile(provider_frame, symbol="TPB")
+        """
+        if name.lower() != "cafef":
+            raise ValueError(
+                f"Unsupported reference {name!r}. Only 'cafef' is available."
+            )
+        from vnbroker.reference import CafefReference
+
+        return CafefReference(show_log=self.show_log)
 
     def broker(self, provider: str = "tcbs", **kwargs):
         """

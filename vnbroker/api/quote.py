@@ -7,9 +7,15 @@ Module quản lý dữ liệu giá chứng khoán với phát hiện phương th
 
 from typing import Any, Callable, Dict, Optional, Union
 import pandas as pd
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 from vnbroker.config import Config
 from vnbroker.base import BaseAdapter, dynamic_method
+from vnbroker.core.exceptions import ProviderBadRequestError
 from vnbroker.core.types import (
     ParameterNames as P,
     MethodNames as M,
@@ -126,11 +132,16 @@ class Quote(BaseAdapter):
             multiplier=Config.BACKOFF_MULTIPLIER,
             min=Config.BACKOFF_MIN,
             max=Config.BACKOFF_MAX
-        )
+        ),
+        # Lỗi cố định (vd adjusted=False ở KBS/VCI) là đáp án cuối: không retry,
+        # không bọc thành tenacity.RetryError — caller phải thấy nguyên lỗi.
+        retry=retry_if_not_exception_type(ProviderBadRequestError),
+        reraise=True,
     )
     @dynamic_method
-    def history(self, symbol: Optional[str] = None, start: str = None, end: str = None, 
-               interval: str = TimeResolutions.DAILY, **kwargs: Any) -> pd.DataFrame:
+    def history(self, symbol: Optional[str] = None, start: str = None, end: str = None,
+               interval: str = TimeResolutions.DAILY,
+               adjusted: Optional[bool] = None, **kwargs: Any) -> pd.DataFrame:
         """
         Load historical OHLC data for the symbol.
         Tải dữ liệu OHLC lịch sử cho mã chứng khoán.
@@ -143,6 +154,13 @@ class Quote(BaseAdapter):
                       Thời gian kết thúc định dạng YYYY-MM-DD hoặc YYYY-MM-DD HH:MM:SS.
             interval (str, optional): Data interval (1m, 5m, 15m, 30m, 1H, D, 1W, 1M).
                                      Khoảng thời gian dữ liệu (1m, 5m, 15m, 30m, 1H, D, 1W, 1M).
+
+            adjusted (bool, optional): True/None (mặc định) → giá đã điều chỉnh
+                                       từ provider chính (KBS/VCI). False → route
+                                       sang CafeF reference để lấy GIÁ THÔ thật
+                                       (xem ``Vnbroker.reference("cafef")``).
+                                       Bằng chứng:
+                                       docs/evidence/KBS_VCI_RAW_PRICE_PROBE_20261124.md.
 
         Returns:
             pandas.DataFrame: Historical price data. Dữ liệu giá lịch sử.
@@ -158,7 +176,7 @@ class Quote(BaseAdapter):
             interval = kwargs.pop('resolution')
             
         # Prepare parameters
-        params = {}
+        params: Dict[str, Any] = {}
         if start:
             params[P.START] = start
         if end:
@@ -168,7 +186,9 @@ class Quote(BaseAdapter):
             
         # Add any remaining kwargs
         params.update(kwargs)
-            
+        if adjusted is not None:
+            params["adjusted"] = adjusted
+
         result = self._delegate_to_provider(M.HISTORY, symbol, **params)
         # `_post_process_result` chuẩn hoá kết quả. Dòng này chỉ để lời gọi
         # tường minh khi đọc code; không có nó thì hợp đồng vẫn được áp ở hook.
@@ -406,4 +426,4 @@ class Quote(BaseAdapter):
         # `Normalizer.normalize_history` nhận list frame và chuẩn hoá từng
         # frame, nên list trả về cũng tuân thủ hợp đồng tầng 1 — không để
         # `concat` phía người dùng phải tự gánh.
-        return self._normalize(frames, start, end)
+        return self._normalize(frames, start, end)  # type: ignore[no-any-return]

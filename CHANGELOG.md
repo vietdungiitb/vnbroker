@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+### Unreleased — CafeF reference + `adjusted` cho `history()` (2026-11-24, chưa tag)
+
+> **Không breaking change cho caller mặc định.** `adjusted` mặc định `True`
+> (`None` ở adapter tầng API) giữ nguyên giá đã điều chỉnh từ KBS/VCI.
+> `adjusted=False` giờ trả **giá thô thật** từ CafeF (ban đầu là fail rõ ràng,
+> sau khi xác minh CafeF có cả 2 cột giá thì đổi sang route).
+
+#### Added
+- `vnbroker/reference/` — reference/cross-check layer **đọc-only**, KHÔNG đăng ký
+  vào `ProviderRegistry`, `SUPPORTED_SOURCES` hay AUTO failover pool.
+  - `Vnbroker.reference("cafef")` trả `CafefReference` (tên khác → `ValueError`).
+  - `CafefReference.history(symbol, start, end)` trả frame riêng có
+    `close_raw`, `close_adjusted`, `value`, `put_through_*`, provenance — khác
+    schema 6 cột của tier-1 để tránh nhầm.
+  - Fetch **XLSX primary + JSON fallback** (đo: 1 mã/năm 1,4 s so với 14,4 s;
+    bulk 101k dòng XLSX 34–40 s so với ~82 phút của JSON).
+  - `CafefReference.reconcile()` so tỷ lệ `provider.close / cafef.close_adjusted`,
+    phát hiện rebase/double-adjust mà không sửa frame đầu vào.
+- `KBS.Quote.history/fetch_multiple`, `VCI.Quote.history/history_async/fetch_multiple`
+  và `vnbroker.api.quote.Quote.history`: tham số `adjusted: bool = True`.
+  `False` route sang CafeF, gắn `attrs['source']/['data_origin']='cafef'`
+  (và `df.source='cafef'` cho VCI). Interval khác `1D` → `ProviderBadRequestError`.
+- Test: `tests/unit/reference/`, `tests/unit/explorer/test_quote_adjusted_parameter.py`,
+  `tests/unit/core/test_adjusted_failover.py`,
+  `tests/contract/test_cafef_reference_contract.py` (31 test targeted).
+
+#### Changed
+- `vnbroker.api.quote.Quote.history`: decorator `@retry` thêm
+  `retry_if_not_exception_type(ProviderBadRequestError)` + `reraise=True`.
+  Lỗi cố định không bị retry/bọc `RetryError`; network error vẫn retry theo
+  `Config.RETRIES`. Exception cuối là exception gốc — behavior change có chủ đích.
+
+#### Evidence
+- `docs/evidence/KBS_VCI_RAW_PRICE_PROBE_20261124.md` — public KBS/VCI không có giá thô.
+- `docs/evidence/CAFEF_PROVIDER_FEASIBILITY_20261124.md` — đo API CafeF.
+- `docs/evidence/CAFEF_REFERENCE_LAYER_DESIGN_20261124.md` — thiết kế + vì sao tỷ lệ 0,935
+  không phải double-adjust.
+
 ### 3.8.2 — fix P0 `ex_date=None` + lọc news trong corporate_actions (2026-11-20, tag `v3.8.2`)
 
 > **Không breaking change.** `events()` và schema 14 cột giữ nguyên. Sửa lỗi

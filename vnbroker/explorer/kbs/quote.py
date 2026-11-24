@@ -6,8 +6,9 @@ import pandas as pd
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Optional, Union, List
+from typing import Any, Optional, Union, List
 from vnbroker.core.utils.execution import agg_execution
+from vnbroker.core.exceptions import ProviderBadRequestError
 from vnbroker.core.models import TickerModel
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import get_asset_type, convert_derivative_symbol
@@ -37,6 +38,18 @@ _KBS_ADAPTIVE_STEP_DOWN_ENV = "vnbroker_KBS_ADAPTIVE_STEP_DOWN"
 _KBS_ADAPTIVE_FAIL_THRESHOLD_ENV = "vnbroker_KBS_ADAPTIVE_FAIL_THRESHOLD"
 _KBS_ADAPTIVE_P95_HIGH_ENV = "vnbroker_KBS_ADAPTIVE_P95_HIGH_SECONDS"
 _KBS_ADAPTIVE_P95_LOW_ENV = "vnbroker_KBS_ADAPTIVE_P95_LOW_SECONDS"
+_RAW_PRICE_EVIDENCE = "docs/evidence/KBS_VCI_RAW_PRICE_PROBE_20261124.md"
+
+
+def _cafef_raw_records(symbol: str, start: str, end: str, show_log: bool) -> list[dict[str, Any]]:
+    """Lấy nến GIÁ THÔ từ CafeF cho ``adjusted=False`` (import trễ, tránh circular)."""
+    from vnbroker.reference import CafefReference
+    from vnbroker.reference.parser import to_native_records
+
+    frame = CafefReference(show_log=show_log).history(symbol, start, end, to_df=True)
+    if not isinstance(frame, pd.DataFrame):
+        raise TypeError("CafeF reference must return a DataFrame when to_df=True")
+    return to_native_records(frame, source="KBS")
 
 
 class Quote:
@@ -173,6 +186,7 @@ class Quote:
         get_all: Optional[bool] = False,
         max_concurrency: int = 16,
         adaptive_concurrency: Optional[bool] = None,
+        adjusted: bool = True,
     ) -> List[pd.DataFrame]:
         if not symbols:
             return []
@@ -239,6 +253,7 @@ class Quote:
                     floating=floating,
                     length=length,
                     get_all=get_all,
+                    adjusted=adjusted,
                 )
                 if isinstance(frame, pd.DataFrame):
                     return frame, time.perf_counter() - started
@@ -299,9 +314,13 @@ class Quote:
         symbols: Optional[List[str]] = None,
         max_concurrency: int = 16,
         adaptive_concurrency: Optional[bool] = None,
+        adjusted: bool = True,
     ) -> Union[pd.DataFrame, str]:
-        """
-        Tải lịch sử giá của mã chứng khoán từ KBS.
+        """Tải lịch sử giá của mã chứng khoán từ KBS.
+
+        ``adjusted=False`` route sang CafeF reference để lấy GIÁ THÔ thật
+        (sau khi resolve ngày, trước `send_request`); KBS public API chỉ có
+        giá điều chỉnh. Xem ``docs/evidence/KBS_VCI_RAW_PRICE_PROBE_20261124.md``.
 
         Args:
             start: Ngày bắt đầu (YYYY-MM-DD hoặc DD-MM-YYYY). Bắt buộc nếu không có length hoặc count_back.
@@ -353,6 +372,7 @@ class Quote:
                 get_all=get_all,
                 max_concurrency=max_concurrency,
                 adaptive_concurrency=adaptive_concurrency,
+                adjusted=adjusted,
             )
 
         # Set end date to today if not provided
@@ -415,41 +435,52 @@ class Quote:
             'edate': end_date_kbs,
         }
 
-        # Make API request
-        json_data = send_request(
-            url=url,
-            headers=self.headers,
-            method="GET",
-            params=params,
-            show_log=show_log or self.show_log,
-            proxy_list=self.proxy_config.proxy_list,
-            proxy_mode=self.proxy_config.proxy_mode,
-            request_mode=self.proxy_config.request_mode
-        )
-
-        if not json_data:
-            raise ValueError(
-                f"Không tìm thấy dữ liệu cho mã {self.symbol}. "
-                "Vui lòng kiểm tra lại mã chứng khoán hoặc khoảng thời gian."
+        if adjusted is False:
+            if interval != "1D":
+                raise ProviderBadRequestError(
+                    "CafeF reference chỉ phục vụ khung daily (1D); "
+                    "dùng KBS/VCI cho khung thời gian khác.",
+                    http_status=400,
+                )
+            ohlc_data = _cafef_raw_records(self.symbol, start, end, bool(show_log or self.show_log))
+            if not to_df:
+                return json.dumps(ohlc_data)
+        else:
+            # Make API request
+            json_data = send_request(
+                url=url,
+                headers=self.headers,
+                method="GET",
+                params=params,
+                show_log=show_log or self.show_log,
+                proxy_list=self.proxy_config.proxy_list,
+                proxy_mode=self.proxy_config.proxy_mode,
+                request_mode=self.proxy_config.request_mode
             )
 
-        # Extract OHLC data based on interval
-        data_key = f'data_{interval_suffix}'
-        if data_key not in json_data:
-            raise ValueError(
-                f"Không tìm thấy dữ liệu cho interval {interval}. "
-                f"Vui lòng kiểm tra lại khoảng thời gian hoặc interval."
-            )
+            if not json_data:
+                raise ValueError(
+                    f"Không tìm thấy dữ liệu cho mã {self.symbol}. "
+                    "Vui lòng kiểm tra lại mã chứng khoán hoặc khoảng thời gian."
+                )
 
-        ohlc_data = json_data[data_key]
+            # Extract OHLC data based on interval
+            data_key = f'data_{interval_suffix}'
+            if data_key not in json_data:
+                raise ValueError(
+                    f"Không tìm thấy dữ liệu cho interval {interval}. "
+                    f"Vui lòng kiểm tra lại khoảng thời gian hoặc interval."
+                )
 
-        if not ohlc_data:
-            raise ValueError(
-                f"Dữ liệu trống cho mã {self.symbol} với interval {interval}."
-            )
+            ohlc_data = json_data[data_key]
 
-        if not to_df:
-            return json.dumps(ohlc_data)
+            if not ohlc_data:
+                raise ValueError(
+                    f"Dữ liệu trống cho mã {self.symbol} với interval {interval}."
+                )
+
+            if not to_df:
+                return json.dumps(ohlc_data)
 
         # Convert to DataFrame
         df = pd.DataFrame(ohlc_data)
@@ -507,6 +538,9 @@ class Quote:
         df.attrs['start'] = start
         df.attrs['end'] = end
         df.attrs['length'] = length
+        if adjusted is False:
+            df.attrs['source'] = 'cafef'
+            df.attrs['data_origin'] = 'cafef'
 
         if show_log or self.show_log:
             logger.info(
