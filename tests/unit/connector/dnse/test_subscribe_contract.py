@@ -24,7 +24,10 @@ from __future__ import annotations
 import asyncio
 import json
 import pathlib
-import tomllib
+try:  # Python 3.11+ stdlib; 3.10 uses the tomli backport from [test] extras.
+    import tomllib
+except ImportError:  # pragma: no cover - only on Python 3.10
+    import tomli as tomllib  # type: ignore[no-redef]
 
 import pytest
 

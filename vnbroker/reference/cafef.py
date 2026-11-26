@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import Union
 
 import pandas as pd
@@ -116,7 +116,12 @@ class CafefReference:
         return "missing"
 
     def bulk_year(
-        self, exchange: str, year: int, *, end_date=None, use_cache: bool = True
+        self,
+        exchange: str,
+        year: int,
+        *,
+        end_date: date | None = None,
+        use_cache: bool = True,
     ) -> pd.DataFrame:
         """One XLSX ALL request per exchange/year; frame includes ``symbol``."""
         records = fetch_bulk_year(
