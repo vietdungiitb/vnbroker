@@ -25,11 +25,15 @@ Regression đã gặp và sửa trong phiên: test cache cũ `test_bulk_year_all
 | `git diff --numstat` | 10 file source/docs, số dòng khớp dự kiến, không đổi hàng loạt (L-T01) |
 | Lệnh hệ điều hành | dùng `PYTEST_DEBUG_TEMPROOT` trỏ thư mục temp đã tạo để tránh `PermissionError` khi dọn temp trên Windows |
 
+**CI GitHub (PR #7)**: lint (mypy baseline), code-quality, security, dependencies, performance, test 3.13 (ubuntu+windows) **đều PASS**. Còn đỏ: 2 contract test trên Python 3.10 (`pandas` cũ: `OutOfBoundsDatetime` cho năm 3000 và annotation `pandas.core.frame.DataFrame`) + coverage do `TestEnvVisibility` đòi `DNSE_API_SECRET`. Đây là **baseline có sẵn trên `main`** (5 run gần nhất đều failure), không phải do change này; nhánh `main` không có branch protection nên merge vẫn được phép. Đã sửa phần có thể sửa gọn (tomli backport cho 3.10, placeholder env cho coverage).
+
 ## Version / release
 
 - `pyproject.toml` → `3.10.0`; `README.md`, `CLAUDE.md`, `vnbroker/config.py`, `CHANGELOG.md` đã sync; importlib.metadata trả `3.10.0`.
-- **BLOCKER**: không có credential PyPI trên máy local lẫn VPS (`~/.pypirc` missing, `TWINE_*`/`PYPI_TOKEN`/`POETRY_PYPI_TOKEN_PYPI` unset). ⇒ **KHÔNG tag/publish `v3.10.0`**, không tự build tay. `vninvest` vẫn pin `3.9.0` cho tới khi có token và publish thành công (S3 bump pin).
-- Không tạo GitHub tag/release trong slice này.
+- **Publish ĐÃ xong (2026-11-26)**: PR #7 merge vào `main` @ `2b306b7` (merge-commit) → tag annotated `v3.10.0` → GitHub Release https://github.com/vietdungiitb/vnbroker/releases/tag/v3.10.0 → workflow `publish.yml` run `45807367035` **Build + Publish to PyPI thành công** (dùng Trusted Publishing/OIDC, không cần token local).
+- PyPI verify: `GET https://pypi.org/pypi/vnbroker/3.10.0/json` → `version=3.10.0`, 2 file `vnbroker-3.10.0-py3-none-any.whl` + `tar.gz` (upload 2026-11-26T11:08Z).
+- Lưu ý trước đó ghi "blocked do thiếu token" là **sai**: publish dùng OIDC qua GitHub Actions, không cần credential local.
+- `vninvest` vẫn pin `3.9.0` — việc bump pin sang `3.10.0` nằm ở S3 (file shared, cần claim/coordinator).
 
 ## CHƯA CHẠY
 
