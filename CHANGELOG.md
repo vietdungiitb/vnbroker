@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+### v3.10.0 — CafeF reference bug fixes (2026-11-26)
+
+- `bulk_year(exchange, year, *, end_date=None, use_cache=True)`: clamp `EndDate`
+  về `min(end_date, today_vn)`; cafeF trả HTTP 400 nếu gửi ngày tương lai.
+  Thêm `bulk_range(exchange, start, end)` cho T+1 sync (3 request/ngày).
+- Bulk cache: TTL 300 s + key theo resolved end date; `use_cache=False` bỏ qua
+  **cả đọc lẫn ghi** (worker chạy dài không còn giữ mãi dữ liệu năm hiện tại).
+- `reconcile_prices(..., exchange="HOSE")`: truyền sàn xuống `CafefReference`
+  để so sánh adjusted của VCI/KBS với CafeF cho mã HNX/UPCOM.
+- `reference/parser.py`: frame có thêm cột `date` (`datetime.date`) và
+  `change_pct` (parse `"Thay đổi"` dạng `+1,65 (+4,01%)` → `4.01`).
+- Không breaking change cho caller mặc định.
+
 ### Unreleased — v3.9.0: CafeF reference + `daily_bars` (2026-11-24)
 
 > P1 bổ sung `Vnbroker.daily_bars(...)` (R1–R7) lên nền P0 (reference layer + adjusted route).

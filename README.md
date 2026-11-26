@@ -2,6 +2,8 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
+> **v3.10.0** — Sửa 4 bug CafeF reference: `bulk_year` clamp `EndDate` về hôm nay (hết HTTP 400 cho năm hiện tại) + `end_date/use_cache` + `bulk_range`; cache TTL thay vì vô hạn; `reconcile_prices(..., exchange=...)` cho HNX/UPCOM; frame có thêm `date`/`change_pct`. Không breaking change.
+>
 > **v3.9.0** — CafeF reference layer: `Vnbroker.reference("cafef")` + `Vnbroker.daily_bars(...)` trả giá lịch sử thô lẫn điều chỉnh (`close_raw`, `close_adjusted`, `value`, `put_through_*`, `coverage`) làm nguồn đối chiếu. `history(adjusted=False)` của KBS/VCI giờ lấy giá thô thật từ CafeF. CafeF **không** vào AUTO provider pool. Không breaking change cho caller mặc định.
 >
 > **v3.8.2** — Sửa P0 `vnbroker==3.8.1`: `VCI.corporate_actions()` giờ đọc đúng raw key `exrightDate` (trước đó `ex_date=None` cho 100% dòng), và chỉ trả sự kiện (`isEvent=True`, có `eventCode`) thay vì lẫn 1000 dòng tin tức. Golden VNM: 57 dòng, 57 `ex_date`, 2 DIV cùng `2024-09-24` giữ riêng. Không breaking change.

@@ -97,10 +97,21 @@ VERSION_REQUIREMENTS: Dict[str, Dict[str, str]] = {
     "3.8.1": {},
     "3.8.2": {},
     "3.9.0": {},
+    "3.10.0": {},
 }
 
 # Version-specific notices for user
 VERSION_NOTICES = {
+    "3.10.0": {
+        "title": "vnbroker 3.10.0 - CafeF reference bug fixes",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.10.0",
+        "critical_notices": [
+            "bulk_year clamps EndDate to today (Asia/Ho_Chi_Minh) and exposes "
+            "end_date/use_cache; bulk_range added for T+1 sync.",
+            "reconcile_prices accepts exchange (HNX/UPCOM no longer default to HOSE).",
+            "Reference frame now carries date + change_pct; bulk cache is TTL-bound.",
+        ],
+    },
     "3.9.0": {
         "title": "vnbroker 3.9.0 - CafeF reference layer + daily_bars",
         "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.9.0",
