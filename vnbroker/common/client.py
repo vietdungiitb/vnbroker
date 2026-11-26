@@ -292,16 +292,19 @@ class Vnbroker:
         symbol: str = "",
         start: str | None = None,
         end: str | None = None,
+        exchange: str = "HOSE",
         **kwargs: Any,
     ) -> Any:
         """Drift monitoring only — never a write path.
 
         ``frame`` must be a real provider frame with a ``close`` column;
         CafeF's fresh adjusted series is fetched inside ``CafefReference.reconcile``.
+        ``exchange`` must be passed for HNX/UPCOM symbols — defaulting to HOSE
+        used to produce HTTP 400 / empty frames for those symbols.
         """
         from vnbroker.reference import CafefReference
 
-        return CafefReference(show_log=self.show_log).reconcile(
+        return CafefReference(exchange=exchange, show_log=self.show_log).reconcile(
             frame, symbol=symbol, start=start, end=end, **kwargs
         )
 

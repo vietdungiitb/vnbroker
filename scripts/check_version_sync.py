@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
+try:  # Python 3.11+ stdlib; 3.10 needs the tomli backport (test extra).
+    import tomllib
+except ImportError:  # pragma: no cover - only on Python 3.10
+    import tomli as tomllib  # type: ignore[no-redef]
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _distribution_version
 from pathlib import Path

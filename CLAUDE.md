@@ -371,7 +371,7 @@ Lý do tồn tại: PowerShell 5.1 `Get-Content -Raw` / `Set-Content` **không**
 - Version defined in `pyproject.toml` (single source of truth)
 - `config.py` `VERSION_REQUIREMENTS` tracks dependency requirements per version
 - Upgrade notice checks GitHub release tags (not PyPI)
-- Current version: **3.9.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
+- Current version: **3.10.0** (`scripts/check_version_sync.py` enforces doc sync in CI)
 - Release rule: every merge into `main` must carry an annotated tag `vX.Y.Z` (+ GitHub Release with Breaking section); `dev` may float
 
 ## Deprecated/Removed (v3.1.0)

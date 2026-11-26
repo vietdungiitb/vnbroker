@@ -11,6 +11,9 @@ from .const import PRICE_SCALE, VALUE_SCALE
 
 REFERENCE_COLUMNS = [
     "time",
+    # Native date for downstream importers (e.g. vninvest CafefDailyPrice).
+    "date",
+    "change_pct",
     # Legacy tier-1 aliases (kept so the 31 existing tests stay green).
     "open",
     "high",
@@ -48,6 +51,8 @@ def parse_records(records: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
         rows.append(
             {
                 "time": ts,
+                "date": ts.date(),
+                "change_pct": record.get("change_pct"),
                 "open": open_raw,
                 "high": high_raw,
                 "low": low_raw,
