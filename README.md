@@ -2,7 +2,9 @@
 
 Thư viện Python cho dữ liệu, phân tích và tự động hóa nghiệp vụ chứng khoán Việt Nam.
 
-> **v3.10.0** — Sửa 4 bug CafeF reference: `bulk_year` clamp `EndDate` về hôm nay (hết HTTP 400 cho năm hiện tại) + `end_date/use_cache` + `bulk_range`; cache TTL thay vì vô hạn; `reconcile_prices(..., exchange=...)` cho HNX/UPCOM; frame có thêm `date`/`change_pct`. Không breaking change.
+> **v3.11.0** — Bulk chịu rate-limit: `418`/`429` → `RateLimitError` giữ `retry_after`, async không retry cùng provider; `BulkRouter` requeue symbol sang provider khác trong cùng lời gọi; token bucket dùng chung sync/async, inject được; `api/bulk` đếm `dropped_frames`. Không breaking change.
+>
+> **v3.10.0** — Sửa 4 bug CafeF reference: `bulk_year` clamp `EndDate` về hôm nay + `end_date/use_cache` + `bulk_range`; cache TTL; `reconcile_prices(..., exchange=...)` cho HNX/UPCOM.
 >
 > **v3.9.0** — CafeF reference layer: `Vnbroker.reference("cafef")` + `Vnbroker.daily_bars(...)` trả giá lịch sử thô lẫn điều chỉnh (`close_raw`, `close_adjusted`, `value`, `put_through_*`, `coverage`) làm nguồn đối chiếu. `history(adjusted=False)` của KBS/VCI giờ lấy giá thô thật từ CafeF. CafeF **không** vào AUTO provider pool. Không breaking change cho caller mặc định.
 >
