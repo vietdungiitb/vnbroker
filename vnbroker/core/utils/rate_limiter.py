@@ -32,7 +32,12 @@ class TokenBucketRateLimiter:
         await asyncio.to_thread(self.wait)
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    async def __aexit__(
+        self,
+        exc_type: object | None,
+        exc: BaseException | None,
+        tb: object | None,
+    ) -> bool:
         return False
 
 
