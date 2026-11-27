@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+### v3.11.0 — Rate-limit failover và bulk work-queue (2026-11-27)
+
+- HTTP `418` (VCI) và `429` đều là `RateLimitError` giữ `retry_after`; async client **không retry cùng provider** (chỉ retry `>=500`).
+- `BulkRouter.fetch_history()` requeue symbol sang provider khỏe **trong cùng lời gọi** khi provider dính rate-limit; VCI/KBS/DNSE không còn nuốt `RateLimitError` per-symbol.
+- Shared per-provider token bucket cho cả sync lẫn async (`get_provider_limiter` / `set_provider_limiter` để caller inject); benchmark đếm cả 418.
+- `api/bulk`: bỏ frame không xác định được symbol thay vì gán `"unknown"`; trả `dropped_frames` để quan sát.
+
 ### v3.10.0 — CafeF reference bug fixes (2026-11-26)
 
 - `bulk_year(exchange, year, *, end_date=None, use_cache=True)`: clamp `EndDate`

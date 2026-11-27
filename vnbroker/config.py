@@ -98,10 +98,19 @@ VERSION_REQUIREMENTS: Dict[str, Dict[str, str]] = {
     "3.8.2": {},
     "3.9.0": {},
     "3.10.0": {},
+    "3.11.0": {},
 }
 
 # Version-specific notices for user
 VERSION_NOTICES = {
+    "3.11.0": {
+        "title": "vnbroker 3.11.0 - Rate-limit failover và bulk work-queue",
+        "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.11.0",
+        "critical_notices": [
+            "HTTP 418/429 raise RateLimitError with retry_after; no retry on the same provider.",
+            "BulkRouter requeues pending symbols to a healthy provider within the same call.",
+        ],
+    },
     "3.10.0": {
         "title": "vnbroker 3.10.0 - CafeF reference bug fixes",
         "release_url": "https://github.com/vietdungiitb/vnbroker/releases/tag/v3.10.0",
