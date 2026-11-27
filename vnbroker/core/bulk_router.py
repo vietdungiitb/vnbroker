@@ -147,7 +147,7 @@ class BulkRouter:
         # `selected` (và `provider`) là TÊN lower-case — đúng dạng khoá mà
         # `source_router._health_state` đọc. Chỉ khoá trả về cho `api/bulk.py`
         # mới upper-case (xem `_display_key`).
-        with ThreadPoolExecutor(max_workers=len(selected)) as executor:
+        with ThreadPoolExecutor(max_workers=max(len(selected), 1)) as executor:
             futures = {
                 executor.submit(
                     self._fetch_batch, provider, syms, start, end, module, interval
@@ -155,14 +155,36 @@ class BulkRouter:
                 for provider, syms in plan.items()
                 if syms
             }
+            failed_symbols: Dict[str, List[str]] = {}
             for future in as_completed(futures):
                 provider = futures[future]
                 key = _display_key(provider)
                 try:
-                    results[key] = future.result()
+                    results.setdefault(key, []).extend(future.result())
                 except PROVIDER_ERRORS as e:
                     logger.warning("Bulk fetch failed for provider %s: %s", provider, e)
                     errors[key] = str(e)
+                    failed_symbols[provider] = plan.get(provider, [])
+
+            # SSOT Rev.2 D-05: provider dính rate-limit (418/429) hoặc lỗi mạng
+            # thì symbol chưa xong phải được provider KHÁC gánh trong CÙNG lời
+            # gọi BulkAPI.history — không để thiếu nến ở rìa chuỗi.
+            for failed_provider, pending in failed_symbols.items():
+                targets = [
+                    p for p in selected
+                    if p != failed_provider and p not in failed_symbols
+                ]
+                for sym in pending:
+                    for target in targets:
+                        try:
+                            frames = executor.submit(
+                                self._fetch_batch, target, [sym], start, end, module, interval
+                            ).result()
+                        except PROVIDER_ERRORS as e:
+                            errors[_display_key(target)] = str(e)
+                            continue
+                        results.setdefault(_display_key(target), []).extend(frames)
+                        break
 
         # 4. Merge results
         return {

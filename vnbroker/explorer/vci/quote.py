@@ -12,7 +12,7 @@ from typing import Any, List, Optional, Union
 import pandas as pd
 from vnbroker.core.utils.execution import optimize_execution
 
-from vnbroker.core.exceptions import ProviderBadRequestError
+from vnbroker.core.exceptions import ProviderBadRequestError, RateLimitError
 from vnbroker.core.models import TickerModel
 from vnbroker.core.utils import async_send_request
 from vnbroker.core.utils.client import ProxyConfig, RequestMode, send_request
@@ -436,6 +436,10 @@ class Quote:
                     adjusted=adjusted,
                 )
                 return frame, time.perf_counter() - started
+            except RateLimitError:
+                # Rate-limit PHẢI nổi lên BulkRouter để cooldown + requeue,
+                # không được nuốt thành None (SSOT Rev.2 D-05).
+                raise
             except Exception as exc:
                 if show_log:
                     logger.warning("Fetch failed for %s: %s", symbol, exc)

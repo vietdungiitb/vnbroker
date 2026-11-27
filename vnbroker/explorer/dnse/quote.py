@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from vnbroker.common.data import EmptyProviderResult
+from vnbroker.core.exceptions import RateLimitError
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import get_asset_type
 from vnbroker.core.utils.transform import normalize_ohlc_prices, normalize_intraday_prices
@@ -123,7 +124,7 @@ def _to_vn_day_bounds(date_str: str) -> Tuple[int, int]:
 
 
 _FAILOVER_MARKERS = (
-    "401", "403", "429", "timeout", "timed out", "connection",
+    "401", "403", "418", "429", "timeout", "timed out", "connection",
     "unauthorized", "forbidden", "rate limit", "too many requests",
     "service unavailable", "temporarily unavailable",
 )
@@ -136,6 +137,10 @@ def _raise_for_failover(exc: Exception, context: str) -> None:
     only transient/auth errors should failover.
     """
     msg = str(exc).lower()
+    # RateLimitError kế thừa ConnectionError — phải xử lý TRƯỚC để giữ
+    # retry_after và để source_router cooldown đúng (SSOT Rev.2 D-09).
+    if isinstance(exc, RateLimitError):
+        raise exc
     if isinstance(exc, (ConnectionError, TimeoutError)):
         raise ConnectionError(f"DNSE {context} lỗi mạng: {exc}") from exc
     if any(m in msg for m in _FAILOVER_MARKERS):
@@ -459,6 +464,9 @@ class DNSEQuote:
                     order=order,
                     next_page_token=next_token,
                 )
+            except RateLimitError:
+                # Rate-limit ở page 2+ KHÔNG được nuốt thành frame cụt (D-09).
+                raise
             except Exception as exc:
                 # Failover cho lỗi mạng/auth; 404 empty (live trades chưa ổn định)
                 # vẫn trả empty best-effort để không fail cứng.

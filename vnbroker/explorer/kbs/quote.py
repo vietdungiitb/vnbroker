@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Optional, Union, List
 from vnbroker.core.utils.execution import agg_execution
-from vnbroker.core.exceptions import ProviderBadRequestError
+from vnbroker.core.exceptions import ProviderBadRequestError, RateLimitError
 from vnbroker.core.models import TickerModel
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.parser import get_asset_type, convert_derivative_symbol
@@ -258,6 +258,9 @@ class Quote:
                 if isinstance(frame, pd.DataFrame):
                     return frame, time.perf_counter() - started
                 return None, time.perf_counter() - started
+            except RateLimitError:
+                # Không nuốt rate-limit — BulkRouter cần biết để requeue.
+                raise
             except Exception:
                 return None, time.perf_counter() - started
 

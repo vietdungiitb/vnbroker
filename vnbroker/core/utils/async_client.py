@@ -10,8 +10,12 @@ import time
 import weakref
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlsplit
 
 import httpx
+
+from vnbroker.core.exceptions import RateLimitError
+from vnbroker.core.utils.rate_limiter import get_provider_limiter
 
 from vnbroker.config import Config
 from vnbroker.core.utils.client import ProxyMode
@@ -185,7 +189,8 @@ def _record_response_status(status_code: int) -> None:
         _request_stats.status_counts[status_code] = (
             _request_stats.status_counts.get(status_code, 0) + 1
         )
-        if status_code == 429:
+        if status_code in (418, 429):
+            # VCI trả 418 khi rate-limit; benchmark phải đếm cả hai (D-05/AC6).
             _request_stats.throttled_responses += 1
         elif status_code >= 500:
             _request_stats.server_error_responses += 1
@@ -311,7 +316,9 @@ def _pick_proxy(
 
 
 def _is_retryable_status(status_code: int) -> bool:
-    return status_code == 429 or status_code >= 500
+    # 418/429 là lời "chậm lại" của provider — retry cùng provider chỉ đốt
+    # quota. Phải failover sang provider khác (SSOT Rev.2 D-05).
+    return status_code >= 500
 
 
 async def _send_with_retry(
@@ -345,6 +352,16 @@ async def _send_with_retry(
             response = await client.request(method, url, **request_kwargs)
             _record_response_status(response.status_code)
 
+            if response.status_code in (418, 429):
+                # Rate-limit KHÔNG retry cùng provider (D-05): ném ngay để
+                # HealthRouter mở cooldown và BulkRouter requeue symbol.
+                retry_after = getattr(response, "headers", {}).get("Retry-After")
+                raise RateLimitError(
+                    provider=urlsplit(url).netloc or url,
+                    retry_after=float(retry_after) if retry_after and retry_after.isdigit() else None,
+                    details={"status_code": response.status_code},
+                )
+
             response.raise_for_status()
             _record_success()
             return response.json()
@@ -361,6 +378,9 @@ async def _send_with_retry(
             if attempt >= max_retries:
                 break
             await asyncio.sleep(retry_backoff_seconds * (2 ** attempt))
+        except RateLimitError:
+            # 418/429 phải giữ nguyên retry_after để HealthRouter cooldown đúng.
+            raise
         except Exception as exc:
             last_error = exc
             break
@@ -399,7 +419,10 @@ async def async_send_request(
 
     _record_request_started(selected_proxy)
 
-    async with RATE_LIMITER:
+    # Shared per-provider budget — sync client dùng cùng registry này (D-05/AC4).
+    async with get_provider_limiter(
+        urlsplit(url).netloc or "default", Config.RATE_LIMIT_RPM
+    ):
         client = await async_client_mgr.get_client(selected_proxy)
         return await _send_with_retry(
             client=client,

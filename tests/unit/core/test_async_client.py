@@ -76,8 +76,10 @@ def test_async_send_request_collects_retry_stats(monkeypatch):
     reset_async_request_stats()
 
     async def fake_get_client(proxy_url=None):
+        # D-05: 429/418 KHÔNG retry cùng provider (phải failover). Dùng 5xx để
+        # vẫn kiểm chứng đường retry thật của async client.
         return SequenceClient([
-            DummyResponse(429),
+            DummyResponse(500),
             DummyResponse(200, {"value": 2}),
         ])
 
@@ -100,8 +102,8 @@ def test_async_send_request_collects_retry_stats(monkeypatch):
     assert stats["failed_requests"] == 0
     assert stats["total_attempts"] == 2
     assert stats["retry_attempts"] == 1
-    assert stats["throttled_responses"] == 1
-    assert stats["status_counts"][429] == 1
+    assert stats["server_error_responses"] == 1
+    assert stats["status_counts"][500] == 1
     assert stats["status_counts"][200] == 1
 
 
