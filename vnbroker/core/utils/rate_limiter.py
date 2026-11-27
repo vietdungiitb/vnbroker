@@ -1,5 +1,6 @@
 """Token bucket rate limiter for API requests."""
 
+import asyncio
 import threading
 import time
 from typing import Optional
@@ -20,6 +21,25 @@ POLL_INTERVAL: float = 0.01
 
 class TokenBucketRateLimiter:
     """Thread-safe token bucket rate limiter."""
+
+    @property
+    def rate(self) -> float:
+        """Tokens added per second — needed to share the same budget safely."""
+        return self._rate
+
+    async def __aenter__(self) -> "TokenBucketRateLimiter":
+        """Async path uses the SAME bucket as the sync path (D-05/AC4)."""
+        await asyncio.to_thread(self.wait)
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: object | None,
+        exc: BaseException | None,
+        tb: object | None,
+    ) -> bool:
+        return False
+
 
     def __init__(self, rate: float, capacity: Optional[float] = None):
         """
@@ -82,3 +102,33 @@ class TokenBucketRateLimiter:
                 raise TimeoutError(msg)
 
             time.sleep(min(POLL_INTERVAL, remaining))
+
+
+# Provider-scoped buckets. Both the sync and async HTTP clients MUST use this
+# registry so a provider has ONE budget instead of two independent limiters
+# (SSOT Rev.2 D-05 / AC4).
+_provider_limiters: dict[str, TokenBucketRateLimiter] = {}
+_registry_lock = threading.Lock()
+
+
+def get_provider_limiter(provider: str, rate: float,
+                         capacity: float | None = None) -> TokenBucketRateLimiter:
+    """Return the shared limiter for ``provider``, creating it on first use."""
+    with _registry_lock:
+        limiter = _provider_limiters.get(provider)
+        if limiter is None:
+            limiter = TokenBucketRateLimiter(rate=rate, capacity=capacity or rate)
+            _provider_limiters[provider] = limiter
+        return limiter
+
+
+def set_provider_limiter(provider: str, limiter: TokenBucketRateLimiter) -> None:
+    """Inject a caller-owned limiter (e.g. Redis-backed adapter from vninvest)."""
+    with _registry_lock:
+        _provider_limiters[provider] = limiter
+
+
+def reset_provider_limiters() -> None:
+    """Test-only helper: drop all shared buckets."""
+    with _registry_lock:
+        _provider_limiters.clear()

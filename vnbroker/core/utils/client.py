@@ -26,7 +26,7 @@ from vnbroker.core.exceptions import (
 )
 from vnbroker.core.utils.logger import get_logger
 from vnbroker.core.utils.proxy_manager import proxy_manager
-from vnbroker.core.utils.rate_limiter import TokenBucketRateLimiter
+from vnbroker.core.utils.rate_limiter import TokenBucketRateLimiter, get_provider_limiter
 
 # Initialize logger for module
 logger = get_logger(__name__)
@@ -248,7 +248,10 @@ def send_request(
     """
     # Apply rate limiting if enabled
     if _rate_limiter is not None:
-        _rate_limiter.wait()
+        # Cùng 1 bucket cho provider này ở CẢ sync lẫn async (D-05/AC4).
+        get_provider_limiter(
+            urlsplit(url).netloc or "default", _rate_limiter.rate
+        ).wait()
 
     # Chuyển đổi string thành enum nếu cần
     if isinstance(proxy_mode, str):
@@ -423,15 +426,13 @@ def send_request_direct(
             # URL thô vào đây là tự rò credential qua chính exception của mình.
             # Vì vậy chỉ giữ scheme+netloc+path (bỏ query tại nguồn).
             safe_url = _url_without_query(url)
-            if response.status_code == 429:
-                # 429 là lời mời "chậm lại", KHÔNG phải "provider chết" — nên nó
-                # phải mang theo Retry-After thay vì nằm chung với 403/500.
-                # Trước đây 429 ra `ConnectionError` chung, nên cooldown chỉ
-                # lớn theo suy đoán và retry thêm 3 lần vô ích.
+            if response.status_code in (418, 429):
+                # 418 (VCI) và 429 đều là lời "chậm lại" — KHÔNG phải provider
+                # chết. Phải mang Retry-After và failover ngay (SSOT Rev.2 D-05).
                 raise RateLimitError(
                     provider=urlsplit(url).netloc or url,
                     retry_after=parse_retry_after(getattr(response, "headers", None)),
-                    details={"url": safe_url, "status_code": 429},
+                    details={"url": safe_url, "status_code": response.status_code},
                 )
             if response.status_code in (401, 403):
                 # Đáp án cuối (P-4): token hỏng/cấm với provider này thì provider

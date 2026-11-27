@@ -21,6 +21,18 @@ from vnbroker.core.utils.normalizer import Normalizer
 logger = logging.getLogger(__name__)
 
 
+def resolve_frame_symbol(df: pd.DataFrame) -> Optional[str]:
+    """Lấy symbol thật từ frame; trả None thay vì nhãn giả "unknown"."""
+    sym = df.attrs.get("symbol")
+    if sym:
+        return str(sym)
+    if "symbol" in df.columns and len(df):
+        value = df["symbol"].iloc[0]
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 class BulkAPI:
     """Bulk API for multi-symbol, multi-provider operations.
 
@@ -100,12 +112,18 @@ class BulkAPI:
         # chậm.
         frames: List[pd.DataFrame] = []
         sources_used: Dict[str, str] = {}
+        dropped_frames = 0
 
         for provider, provider_results in result.get("results", {}).items():
             if isinstance(provider_results, list):
                 for df in provider_results:
                     if isinstance(df, pd.DataFrame) and not df.empty:
-                        sym = df.attrs.get("symbol", "unknown")
+                        sym = resolve_frame_symbol(df)
+                        if not sym:
+                            # Không gán nhãn "unknown" — frame không xác định được
+                            # symbol là lỗi gắn tag: bỏ qua VÀ đếm riêng.
+                            dropped_frames += 1
+                            continue
                         df = Normalizer.normalize_history(df, start, end)
                         df["symbol"] = sym
                         frames.append(df)
@@ -119,6 +137,7 @@ class BulkAPI:
             empty.attrs["failed"] = result.get("errors", {})
             empty.attrs["requested"] = len(symbols)
             empty.attrs["returned"] = 0
+            empty.attrs["dropped_frames"] = dropped_frames
             return empty
 
         combined = pd.concat(frames, ignore_index=True)
@@ -129,6 +148,7 @@ class BulkAPI:
         combined.attrs["failed"] = result.get("errors", {})
         combined.attrs["requested"] = len(symbols)
         combined.attrs["returned"] = len(frames)
+        combined.attrs["dropped_frames"] = dropped_frames
 
         return combined
 

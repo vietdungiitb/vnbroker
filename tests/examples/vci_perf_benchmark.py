@@ -174,7 +174,7 @@ def format_row(r: BatchResult) -> str:
         f"p50={r.p50_latency_seconds:6.2f}s | p95={r.p95_latency_seconds:6.2f}s | "
         f"min={r.min_latency_seconds:6.2f}s | max={r.max_latency_seconds:6.2f}s | "
         f"mean={r.mean_latency_seconds:6.2f}s | attempts={r.total_attempts:>4} | "
-        f"retries={r.retry_attempts:>4} | 429={r.throttled_responses:>3} | "
+        f"retries={r.retry_attempts:>4} | 418/429={r.throttled_responses:>3} | "
         f"5xx={r.server_error_responses:>3} | timeout={r.timeout_errors:>3} | "
         f"transport={r.transport_errors:>3}"
     )
